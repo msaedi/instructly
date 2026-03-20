@@ -13,6 +13,7 @@ Strategy: Real DB, real repositories, mocked external services (Stripe, notifica
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
@@ -89,6 +90,35 @@ def create_test_booking(
         cancel_duplicate=True,
         **extra_fields,
     )
+
+
+def create_completed_test_booking(
+    db: Session,
+    student: User,
+    instructor: User,
+    service: Service,
+    *,
+    completed_at: datetime,
+    offset_index: int,
+) -> Booking:
+    booking = create_test_booking(
+        db,
+        student,
+        instructor,
+        service,
+        completed_at.date(),
+        time(9, 0),
+        time(10, 0),
+        status=BookingStatus.COMPLETED,
+        payment_status=PaymentStatus.SETTLED.value,
+        offset_index=offset_index,
+    )
+    booking.completed_at = completed_at
+    booking.booking_start_utc = completed_at - timedelta(hours=1)
+    booking.booking_end_utc = completed_at
+    db.commit()
+    db.refresh(booking)
+    return booking
 
 
 def _local_booking_date(utc_dt: datetime) -> date:
@@ -459,6 +489,94 @@ class TestCompleteBookingIntegration:
             booking_service_integration.complete_booking(
                 booking.id, test_instructor_with_availability
             )
+
+    def test_complete_booking_updates_tier_on_fifth_recent_lesson(
+        self,
+        db: Session,
+        booking_service_integration: BookingService,
+        test_student: User,
+        test_instructor_with_availability: User,
+        instructor_service: Service,
+    ):
+        profile = test_instructor_with_availability.instructor_profile
+        assert profile is not None
+        profile.current_tier_pct = Decimal("15.00")
+        profile.last_tier_eval_at = None
+        db.commit()
+
+        now = datetime.now(timezone.utc)
+        for offset in range(4):
+            create_completed_test_booking(
+                db,
+                test_student,
+                test_instructor_with_availability,
+                instructor_service,
+                completed_at=now - timedelta(days=offset + 1),
+                offset_index=400 + offset,
+            )
+
+        booking = create_test_booking(
+            db,
+            test_student,
+            test_instructor_with_availability,
+            instructor_service,
+            (now - timedelta(days=1)).date(),
+            time(10, 0),
+            time(11, 0),
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            offset_index=450,
+        )
+        db.commit()
+
+        booking_service_integration.complete_booking(booking.id, test_instructor_with_availability)
+
+        db.refresh(profile)
+        assert profile.current_tier_pct == Decimal("12")
+        assert profile.last_tier_eval_at is not None
+
+    def test_complete_booking_fourth_recent_lesson_keeps_entry_tier(
+        self,
+        db: Session,
+        booking_service_integration: BookingService,
+        test_student: User,
+        test_instructor_with_availability: User,
+        instructor_service: Service,
+    ):
+        profile = test_instructor_with_availability.instructor_profile
+        assert profile is not None
+        profile.current_tier_pct = Decimal("15.00")
+        profile.last_tier_eval_at = None
+        db.commit()
+
+        now = datetime.now(timezone.utc)
+        for offset in range(3):
+            create_completed_test_booking(
+                db,
+                test_student,
+                test_instructor_with_availability,
+                instructor_service,
+                completed_at=now - timedelta(days=offset + 1),
+                offset_index=500 + offset,
+            )
+
+        booking = create_test_booking(
+            db,
+            test_student,
+            test_instructor_with_availability,
+            instructor_service,
+            (now - timedelta(days=1)).date(),
+            time(11, 0),
+            time(12, 0),
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            offset_index=550,
+        )
+        db.commit()
+
+        booking_service_integration.complete_booking(booking.id, test_instructor_with_availability)
+
+        db.refresh(profile)
+        assert profile.current_tier_pct == Decimal("15.00")
+        assert profile.last_tier_eval_at is None
 
 
 class TestMarkNoShowIntegration:
@@ -3610,6 +3728,56 @@ class TestInstructorCompletionIntegration:
                 booking_id=booking.id,
                 instructor=test_instructor_with_availability,
             )
+
+    def test_instructor_mark_complete_updates_tier_on_eleventh_recent_lesson(
+        self,
+        db: Session,
+        booking_service_integration: BookingService,
+        test_student: User,
+        test_instructor_with_availability: User,
+        instructor_service: Service,
+    ):
+        profile = test_instructor_with_availability.instructor_profile
+        assert profile is not None
+        profile.current_tier_pct = Decimal("12.00")
+        profile.last_tier_eval_at = None
+        db.commit()
+
+        now = datetime.now(timezone.utc)
+        for offset in range(10):
+            create_completed_test_booking(
+                db,
+                test_student,
+                test_instructor_with_availability,
+                instructor_service,
+                completed_at=now - timedelta(days=offset + 1),
+                offset_index=600 + offset,
+            )
+
+        booking = create_test_booking(
+            db,
+            test_student,
+            test_instructor_with_availability,
+            instructor_service,
+            (now - timedelta(days=1)).date(),
+            time(12, 0),
+            time(13, 0),
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            offset_index=700,
+        )
+        booking.booking_start_utc = now - timedelta(hours=2)
+        booking.booking_end_utc = now - timedelta(hours=1)
+        db.commit()
+
+        booking_service_integration.instructor_mark_complete(
+            booking_id=booking.id,
+            instructor=test_instructor_with_availability,
+            notes="Tier threshold lesson",
+        )
+
+        db.refresh(profile)
+        assert profile.current_tier_pct == Decimal("10")
+        assert profile.last_tier_eval_at is not None
 
     def test_instructor_dispute_completion_sets_manual_review(
         self,

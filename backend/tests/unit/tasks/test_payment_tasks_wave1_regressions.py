@@ -218,7 +218,11 @@ def test_auto_complete_booking_referral_failure_still_auto_completes():
                                 "app.tasks.payment_tasks._process_capture_for_booking",
                                 return_value={"success": True},
                             ):
-                                result = payment_tasks._auto_complete_booking("booking-id", now)
+                                with patch("app.tasks.payment_tasks.PricingService") as pricing_cls:
+                                    pricing_cls.return_value.evaluate_and_persist_instructor_tier = (
+                                        MagicMock()
+                                    )
+                                    result = payment_tasks._auto_complete_booking("booking-id", now)
 
     assert result["auto_completed"] is True
     assert result["captured"] is True

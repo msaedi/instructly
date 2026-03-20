@@ -4453,6 +4453,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructors/me/commission-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Commission Status
+         * @description Get current instructor's commission tier status.
+         */
+        get: operations["get_my_commission_status_api_v1_instructors_me_commission_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructors/me/generate-bio": {
         parameters: {
             query?: never;
@@ -11852,6 +11872,57 @@ export type components = {
          * @enum {string}
          */
         CohortUserType: "student" | "instructor";
+        /**
+         * CommissionStatusResponse
+         * @description Instructor-facing commission tier status.
+         */
+        CommissionStatusResponse: {
+            /**
+             * Activity Window Days
+             * @description Configured activity window length used for tier progress
+             */
+            activity_window_days: number;
+            /**
+             * Commission Rate Pct
+             * @description Commission percentage as whole percent
+             */
+            commission_rate_pct: number;
+            /**
+             * Completed Lessons 30D
+             * @description Completed lessons in the configured activity window
+             */
+            completed_lessons_30d: number;
+            /**
+             * Is Founding
+             * @default false
+             */
+            is_founding: boolean;
+            /**
+             * Lessons To Next Tier
+             * @description Remaining lessons needed to unlock the next tier
+             */
+            lessons_to_next_tier?: number | null;
+            /**
+             * Next Tier Name
+             * @description Next tier key for progress display; null for founding and pro
+             */
+            next_tier_name?: string | null;
+            /**
+             * Next Tier Threshold
+             * @description Completed lesson threshold needed to unlock the next tier
+             */
+            next_tier_threshold?: number | null;
+            /**
+             * Tier Name
+             * @description Current display tier: "founding", "entry", "growth", or "pro"
+             */
+            tier_name: string;
+            /**
+             * Tiers
+             * @description Entry/Growth/Pro ladder
+             */
+            tiers?: components["schemas"]["TierInfo"][];
+        };
         /**
          * CommunicationChannel
          * @enum {string}
@@ -20105,7 +20176,10 @@ export type components = {
             /** Message */
             message: string;
         };
-        /** SetupIntentResponse */
+        /**
+         * SetupIntentResponse
+         * @description Response for SetupIntent creation — provides client_secret for PaymentElement.
+         */
         SetupIntentResponse: {
             /**
              * Client Secret
@@ -20631,6 +20705,49 @@ export type components = {
              * @description Commission percentage expressed as decimal
              */
             pct: number;
+        };
+        /**
+         * TierInfo
+         * @description Instructor tier metadata for commission ladder display.
+         */
+        TierInfo: {
+            /**
+             * Commission Pct
+             * @description Commission percentage as whole percent
+             */
+            commission_pct: number;
+            /**
+             * Display Name
+             * @description Human-readable tier label
+             */
+            display_name: string;
+            /**
+             * Is Current
+             * @description Whether this is the displayed current tier
+             * @default false
+             */
+            is_current: boolean;
+            /**
+             * Is Unlocked
+             * @description Whether the instructor has unlocked this tier based on recent lesson volume
+             * @default false
+             */
+            is_unlocked: boolean;
+            /**
+             * Max Lessons
+             * @description Maximum completed lessons for this tier; null for open-ended tiers
+             */
+            max_lessons?: number | null;
+            /**
+             * Min Lessons
+             * @description Minimum completed lessons for this tier
+             */
+            min_lessons: number;
+            /**
+             * Name
+             * @description Tier key: "entry", "growth", or "pro"
+             */
+            name: string;
         };
         /**
          * TimeSlot
@@ -29004,6 +29121,47 @@ export interface operations {
                 content?: never;
             };
             /** @description User is not an instructor or insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_my_commission_status_api_v1_instructors_me_commission_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatusResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is not an instructor */
             403: {
                 headers: {
                     [name: string]: unknown;

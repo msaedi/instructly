@@ -10,3 +10,11 @@ def test_booking_rules_config_travel_buffer_message_matches_validator() -> None:
             default_non_travel_buffer_minutes=30,
             default_travel_buffer_minutes=15,
         )
+
+
+def test_booking_rules_config_travel_buffer_still_requires_absolute_minimum() -> None:
+    with pytest.raises(ValidationError, match="greater than or equal to 30"):
+        BookingRulesConfig(
+            default_non_travel_buffer_minutes=10,
+            default_travel_buffer_minutes=15,
+        )

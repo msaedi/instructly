@@ -210,10 +210,17 @@ def test_student_instructor_filters_and_counts(
     )
     assert completed_booking.booking_date in distinct_dates
 
-    count_last_30 = repo.count_instructor_completed_last_30d(
-        test_instructor_with_availability.id
+    count_last_30 = repo.count_instructor_completed_in_window(
+        test_instructor_with_availability.id,
+        30,
     )
     assert count_last_30 >= 1
+    completion_stats = repo.get_instructor_completion_stats_in_window(
+        [test_instructor_with_availability.id],
+        30,
+    )
+    assert completion_stats[test_instructor_with_availability.id][0] >= 1
+    assert completion_stats[test_instructor_with_availability.id][1] is not None
     assert repo.get_instructor_last_completed_at(
         test_instructor_with_availability.id
     ) is not None
@@ -241,6 +248,38 @@ def test_student_instructor_filters_and_counts(
         week_dates=week_dates,
     )
     assert week_bookings
+
+
+def test_completed_in_window_stats(
+    db, test_student, test_instructor_with_availability, test_booking
+):
+    repo = BookingRepository(db)
+    today = datetime.now(timezone.utc).date()
+    completed_at = datetime.now(timezone.utc) - timedelta(days=2)
+
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today - timedelta(days=2),
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        status=BookingStatus.COMPLETED,
+        offset_index=10,
+        completed_at=completed_at,
+    )
+    db.commit()
+
+    assert (
+        repo.count_instructor_completed_in_window(test_instructor_with_availability.id, 30) >= 1
+    )
+    stats = repo.get_instructor_completion_stats_in_window(
+        [test_instructor_with_availability.id],
+        30,
+    )
+    assert stats[test_instructor_with_availability.id][0] >= 1
+    assert stats[test_instructor_with_availability.id][1] is not None
 
 
 def test_payment_and_status_updates(
@@ -1314,7 +1353,12 @@ def test_booking_repository_error_paths(
             week_dates=[date.today()],
         )
     with pytest.raises(RepositoryException):
-        repo.count_instructor_completed_last_30d(test_instructor_with_availability.id)
+        repo.count_instructor_completed_in_window(test_instructor_with_availability.id, 30)
+    with pytest.raises(RepositoryException):
+        repo.get_instructor_completion_stats_in_window(
+            [test_instructor_with_availability.id],
+            30,
+        )
     with pytest.raises(RepositoryException):
         repo.get_instructor_last_completed_at(test_instructor_with_availability.id)
     with pytest.raises(RepositoryException):

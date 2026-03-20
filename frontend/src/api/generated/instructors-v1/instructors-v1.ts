@@ -25,6 +25,7 @@ import type {
   CalendarSettingsAcknowledgeResponse,
   CalendarSettingsResponse,
   CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  CommissionStatusResponse,
   CoverageFeatureCollectionResponse,
   GenerateBioResponse,
   HTTPValidationError,
@@ -800,6 +801,160 @@ export const useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAck
     queryClient
   );
 };
+/**
+ * Get current instructor's commission tier status.
+ * @summary Get My Commission Status
+ */
+export const getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetUrl = () => {
+  return `/api/v1/instructors/me/commission-status`;
+};
+
+export const getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet = async (
+  options?: RequestInit
+): Promise<CommissionStatusResponse> => {
+  return customFetch<CommissionStatusResponse>(
+    getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryKey = () => {
+  return [`/api/v1/instructors/me/commission-status`] as const;
+};
+
+export const getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>
+  > = ({ signal }) =>
+    getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>
+>;
+export type GetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryError = ErrorType<void>;
+
+export function useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet<
+  TData = Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+  TError = ErrorType<void>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+          TError,
+          Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet<
+  TData = Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+          TError,
+          Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet<
+  TData = Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get My Commission Status
+ */
+
+export function useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet<
+  TData = Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Generate a personalized bio for the current instructor using AI.
  * @summary Generate Bio

@@ -32,7 +32,7 @@ instructors:
         - advanced
   availability_pattern: flexible_academic
   current_tier_pct: 10.0
-  seed_completed_last_30d: 12
+  seed_completed_last_30d: 14
   first_name: Sarah
   last_name: Chen
   zip_code: '10010'
@@ -80,6 +80,8 @@ instructors:
       duration_options:
       - 60
   availability_pattern: afternoons_evenings
+  current_tier_pct: 12.0
+  seed_completed_last_30d: 7
   first_name: Jason
   last_name: Park
   zip_code: '10012'
@@ -1384,6 +1386,8 @@ instructors:
       age_groups:
       - Kids
   availability_pattern: afternoons_evenings
+  current_tier_pct: 15.0
+  seed_completed_last_30d: 3
   first_name: Emily
   last_name: Carter
   zip_code: '10072'

@@ -52,6 +52,21 @@ run_pytest() {
   fi
 }
 
+run_python() {
+  if [ -x "$REPO_ROOT/backend/venv/bin/python" ]; then
+    "$REPO_ROOT/backend/venv/bin/python" "$@"
+  elif [ -x "$REPO_ROOT/venv/bin/python" ]; then
+    "$REPO_ROOT/venv/bin/python" "$@"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 "$@"
+  elif command -v python >/dev/null 2>&1; then
+    python "$@"
+  else
+    echo "[pre-push] python not found. Activate backend venv (backend/venv)." >&2
+    return 127
+  fi
+}
+
 if [[ "${SKIP_RUFF:-0}" == "1" ]]; then
   echo "[pre-push] SKIP_RUFF=1 -> skipping ruff"
 else
@@ -67,12 +82,40 @@ else
 fi
 
 echo "[pre-push] Backend: pytest smoke (rate headers)"
-(cd backend && \
-  if [[ -f tests/integration/test_rate_headers_smoke.py ]]; then \
-    TZ=UTC run_pytest -q tests/integration/test_rate_headers_smoke.py; \
-  else \
-    echo "[pre-push] (info) smoke test file not found: tests/integration/test_rate_headers_smoke.py — skipping"; \
-  fi)
+(cd backend
+  if [[ -f tests/integration/test_rate_headers_smoke.py ]]; then
+    TZ=UTC INSTAINSTRU_ENV=integration run_python - <<'PY'
+import os
+
+from fastapi.testclient import TestClient
+
+os.environ.setdefault("is_testing", "true")
+os.environ.setdefault("rate_limit_enabled", "false")
+os.environ["SITE_MODE"] = "int"
+
+from app.main import app as asgi_app
+
+with TestClient(asgi_app) as client:
+    checks = [
+        ("get", "/api/v1/health", {}),
+        ("get", "/api/v1/search", {"params": {"q": "piano"}}),
+        ("post", "/api/v1/instructors/me", {"json": {"bio": "test"}}),
+    ]
+
+    for method, path, kwargs in checks:
+        response = getattr(client, method)(path, **kwargs)
+        assert response.status_code in (200, 201, 401, 403), (
+            f"Unexpected status for {path}: {response.status_code}"
+        )
+        assert "X-RateLimit-Limit" in response.headers, f"Missing rate limit header for {path}"
+        assert "X-RateLimit-Remaining" in response.headers, (
+            f"Missing rate remaining header for {path}"
+        )
+PY
+  else
+    echo "[pre-push] (info) smoke test file not found: tests/integration/test_rate_headers_smoke.py — skipping"
+  fi
+)
 
 echo "[pre-push] Backend: strict/envelope tests (flagged)"
 (cd backend && STRICT_SCHEMAS=true TZ=UTC run_pytest -q tests/integration/test_error_envelope.py)

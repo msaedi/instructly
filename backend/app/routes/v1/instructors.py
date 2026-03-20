@@ -9,6 +9,7 @@ Endpoints:
     GET / - List all instructor profiles (filtered by service)
     POST /me - Create instructor profile
     GET /me - Get current instructor's profile
+    GET /me/commission-status - Get current instructor's commission tier status
     PUT /me - Update instructor profile
     POST /me/go-live - Mark profile as live
     DELETE /me - Delete profile and revert to student role
@@ -32,6 +33,7 @@ from ...api.dependencies.auth import (
 from ...api.dependencies.services import (
     get_favorites_service,
     get_instructor_service,
+    get_pricing_service,
 )
 from ...core.exceptions import (
     BusinessRuleException,
@@ -50,6 +52,7 @@ from ...schemas.base_responses import PaginatedResponse
 from ...schemas.instructor import (
     CalendarSettingsAcknowledgeResponse,
     CalendarSettingsResponse,
+    CommissionStatusResponse,
     GenerateBioResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
@@ -64,6 +67,7 @@ from ...services.address_service import AddressService
 from ...services.bio_generation_service import BioGenerationService
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
+from ...services.pricing_service import PricingService
 from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
 logger = logging.getLogger(__name__)
@@ -241,6 +245,38 @@ async def get_my_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    except DomainException as e:
+        raise e.to_http_exception()
+
+
+@router.get(
+    "/me/commission-status",
+    response_model=CommissionStatusResponse,
+    dependencies=[Depends(rate_limit("read"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor"},
+        404: {"description": "Profile not found"},
+    },
+)
+async def get_my_commission_status(
+    current_user: User = Depends(get_current_active_user),
+    pricing_service: PricingService = Depends(get_pricing_service),
+) -> CommissionStatusResponse:
+    """Get current instructor's commission tier status."""
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can access commission status",
+        )
+
+    try:
+        return await asyncio.to_thread(
+            pricing_service.get_instructor_commission_status,
+            instructor_user_id=current_user.id,
+        )
     except NotFoundException:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     except DomainException as e:

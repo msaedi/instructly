@@ -179,6 +179,7 @@ class BookingService(BaseService):
         cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
         system_message_service: Optional[SystemMessageService] = None,
         config_service: Optional[ConfigService] = None,
+        pricing_service: Optional[PricingService] = None,
     ):
         """
         Initialize booking service.
@@ -192,6 +193,7 @@ class BookingService(BaseService):
             cache_service: Optional cache service for invalidation
             system_message_service: Optional system message service for conversation messages
             config_service: Optional config service for booking rules and pricing config
+            pricing_service: Optional pricing service for commission tier refresh
         """
         cache_impl = cache_service
         cache_adapter: Optional[CacheServiceSyncAdapter] = None
@@ -201,6 +203,7 @@ class BookingService(BaseService):
             cache_adapter = CacheServiceSyncAdapter(cache_impl)
         super().__init__(db, cache=cache_adapter)
         self.config_service = config_service or ConfigService(db)
+        self.pricing_service = pricing_service or PricingService(db)
         self.notification_service = notification_service or NotificationService(db, cache_adapter)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
@@ -227,6 +230,22 @@ class BookingService(BaseService):
         self.filter_repository = FilterRepository(db)
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
+
+    def _maybe_refresh_instructor_tier(self, instructor_user_id: str, booking_id: str) -> None:
+        if not instructor_user_id:
+            return
+
+        try:
+            self.pricing_service.evaluate_and_persist_instructor_tier(
+                instructor_user_id=str(instructor_user_id)
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed refreshing instructor tier after booking completion %s: %s",
+                booking_id,
+                exc,
+                exc_info=True,
+            )
 
     def _get_transfer_record(self, booking_id: str) -> BookingTransfer | None:
         """Return booking transfer satellite row when present."""
@@ -4444,6 +4463,8 @@ class BookingService(BaseService):
                 exc_info=True,
             )
 
+        self._maybe_refresh_instructor_tier(refreshed_booking.instructor_id, refreshed_booking.id)
+
         return refreshed_booking
 
     @BaseService.measure_operation("instructor_mark_complete")
@@ -4559,6 +4580,8 @@ class BookingService(BaseService):
                 exc,
                 exc_info=True,
             )
+
+        self._maybe_refresh_instructor_tier(refreshed.instructor_id, refreshed.id)
 
         return refreshed
 

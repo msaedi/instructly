@@ -1004,7 +1004,20 @@ class DatabaseSeeder:
     def seed_tier_maintenance_sessions(self, reason: str = "") -> int:
         """Seed tier maintenance sessions using a fresh session."""
         with self._session_scope() as session:
-            return self._seed_tier_maintenance_sessions(session, reason=reason)
+            seeded = self._seed_tier_maintenance_sessions(session, reason=reason)
+            if seeded:
+                session.commit()
+            return seeded
+
+    def _targeted_tier_seed_instructor_ids(self) -> set[str]:
+        """Return instructor user ids with explicit last-30-day completion targets."""
+        targeted_ids: set[str] = set()
+        for plan in self.instructor_seed_plan.values():
+            desired = int(plan.get("seed_completed_last_30d") or 0)
+            user_id = plan.get("user_id")
+            if desired > 0 and user_id:
+                targeted_ids.add(str(user_id))
+        return targeted_ids
 
     def _slot_conflicts(
         self,
@@ -2163,6 +2176,11 @@ class DatabaseSeeder:
             )
             .all()
         )
+        targeted_instructor_ids = self._targeted_tier_seed_instructor_ids()
+        if targeted_instructor_ids:
+            active_instructors = [
+                instructor for instructor in active_instructors if instructor.id not in targeted_instructor_ids
+            ]
 
         if not active_students or not active_instructors:
             print("  ⚠️  No active students or instructors found for completed bookings")

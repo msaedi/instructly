@@ -116,6 +116,7 @@ class TestBookingServiceUnit:
         service_area_repo = Mock()
         service_area_repo.list_for_instructor.return_value = []
         service.service_area_repository = service_area_repo
+        service.pricing_service = Mock()
 
         return service
 
@@ -834,6 +835,9 @@ class TestBookingServiceUnit:
             booking_service.complete_booking(1, mock_instructor)
 
         booking_service.repository.complete_booking.assert_called_once_with(1)
+        booking_service.pricing_service.evaluate_and_persist_instructor_tier.assert_called_once_with(
+            instructor_user_id=mock_booking.instructor_id
+        )
 
     def test_instructor_mark_complete_schedules_capture_from_lesson_end(
         self,
@@ -873,6 +877,9 @@ class TestBookingServiceUnit:
         assert event_kwargs["event_data"]["payment_capture_scheduled_for"] == (
             lesson_end + timedelta(hours=24)
         ).isoformat()
+        booking_service.pricing_service.evaluate_and_persist_instructor_tier.assert_called_once_with(
+            instructor_user_id=booking.instructor_id
+        )
 
     def test_complete_booking_wrong_instructor(self, booking_service, mock_booking):
         """Test instructor can only complete their own bookings."""

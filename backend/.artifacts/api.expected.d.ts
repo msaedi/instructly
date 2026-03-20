@@ -3391,6 +3391,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/me/commission-status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_my_commission_status_api_v1_instructors_me_commission_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/me/generate-bio": {
  parameters: {
  query?: never;
@@ -7331,6 +7347,17 @@ export type components = {
  user_type: string;
  };
  CohortUserType: "student" | "instructor";
+ CommissionStatusResponse: {
+ activity_window_days: number;
+ commission_rate_pct: number;
+ completed_lessons_30d: number;
+ is_founding: boolean;
+ lessons_to_next_tier?: number | null;
+ next_tier_name?: string | null;
+ next_tier_threshold?: number | null;
+ tier_name: string;
+ tiers?: components["schemas"]["TierInfo"][];
+ };
  CommunicationChannel: "email" | "push" | "in_app";
  ConflictingBookingInfo: {
  booking_id?: string | null;
@@ -10356,6 +10383,15 @@ export type components = {
  max?: number | null;
  min: number;
  pct: number;
+ };
+ TierInfo: {
+ commission_pct: number;
+ display_name: string;
+ is_current: boolean;
+ is_unlocked: boolean;
+ max_lessons?: number | null;
+ min_lessons: number;
+ name: string;
  };
  TimeSlot: {
  end_time: string;
@@ -17552,6 +17588,43 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["CalendarSettingsAcknowledgeResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_my_commission_status_api_v1_instructors_me_commission_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CommissionStatusResponse"];
  };
  };
  401: {

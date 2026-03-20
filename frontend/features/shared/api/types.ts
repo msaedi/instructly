@@ -20,6 +20,8 @@ export type InstructorBookingResponse = components['schemas']['InstructorBooking
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfilePublic = components['schemas']['InstructorProfilePublic'];
+export type CommissionStatusResponse = components['schemas']['CommissionStatusResponse'];
+export type TierInfo = components['schemas']['TierInfo'];
 export type StudentInfoPublic = components['schemas']['StudentInfoPublic'];
 
 // Common endpoint payloads

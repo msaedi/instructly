@@ -38,7 +38,7 @@ from app.repositories.factory import RepositoryFactory
 from app.services.booking_service import BookingService
 from app.services.config_service import ConfigService
 from app.services.notification_service import NotificationService
-from app.services.pricing_service import PricingService
+from app.services.pricing_service import PricingService, TierEvaluationResults
 from app.services.stripe_service import StripeService
 from app.services.student_credit_service import StudentCreditService
 from app.services.timezone_service import TimezoneService
@@ -1878,6 +1878,17 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
                 exc,
                 exc_info=True,
             )
+        try:
+            PricingService(db1).evaluate_and_persist_instructor_tier(
+                instructor_user_id=instructor_id
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to refresh instructor tier for auto-completed booking %s: %s",
+                completed_booking_id,
+                exc,
+                exc_info=True,
+            )
     finally:
         db1.close()
 
@@ -2731,6 +2742,24 @@ def check_authorization_health() -> Dict[str, Any]:
     finally:
         if db is not None:
             db.close()
+
+
+@typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.evaluate_instructor_tiers")
+def evaluate_instructor_tiers(self: Any) -> TierEvaluationResults:
+    """Re-evaluate persisted instructor tiers as a daily safety net."""
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    try:
+        pricing_service = PricingService(db)
+        result = pricing_service.evaluate_active_instructor_tiers()
+        logger.info("Instructor tier evaluation completed: %s", result)
+        return result
+    except Exception as exc:
+        logger.error("Instructor tier evaluation failed: %s", exc)
+        raise self.retry(exc=exc, countdown=1800)
+    finally:
+        db.close()
 
 
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")

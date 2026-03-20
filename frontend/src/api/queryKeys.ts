@@ -37,6 +37,9 @@ export const queryKeys = {
     /** Current instructor profile - /instructors/me */
     me: ['instructors', 'me'] as const,
 
+    /** Current instructor commission status - /instructors/me/commission-status */
+    commissionStatus: ['instructors', 'commission-status'] as const,
+
     /** Instructor coverage (service areas) */
     coverage: (id: string) => ['instructors', 'coverage', id] as const,
   },
