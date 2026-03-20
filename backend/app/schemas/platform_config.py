@@ -22,4 +22,8 @@ class PlatformFees(BaseModel):
 
 class PublicConfigResponse(BaseModel):
     fees: PlatformFees
+    student_launch_enabled: bool = Field(
+        ...,
+        json_schema_extra={"default": False},
+    )
     updated_at: Optional[datetime] = None

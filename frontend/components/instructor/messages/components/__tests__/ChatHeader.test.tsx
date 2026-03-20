@@ -152,8 +152,8 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      expect(screen.getByText('Next Booking')).toBeInTheDocument();
-      expect(screen.getByText('Upcoming')).toBeInTheDocument();
+      expect(screen.getByText('Next booking')).toBeInTheDocument();
+      expect(screen.getByText('Upcoming')).toHaveClass('bg-emerald-50', 'text-emerald-700');
     });
 
     it('shows expand button for multiple bookings', () => {
@@ -186,6 +186,29 @@ describe('ChatHeader', () => {
       fireEvent.click(expandButton);
 
       expect(screen.getByText('Guitar Lesson')).toBeInTheDocument();
+    });
+
+    it('links booking cards to the booking detail page', () => {
+      render(
+        <ChatHeader
+          {...defaultProps}
+          activeConversation={mockConversationWithBooking}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+
+      expect(screen.getByRole('link', { name: /piano lesson/i })).toHaveAttribute(
+        'href',
+        '/instructor/bookings/booking-123'
+      );
+
+      fireEvent.click(screen.getByText(/\+1 more upcoming booking/));
+
+      expect(screen.getByRole('link', { name: /guitar lesson/i })).toHaveAttribute(
+        'href',
+        '/instructor/bookings/booking-456'
+      );
     });
   });
 

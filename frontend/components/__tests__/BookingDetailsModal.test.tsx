@@ -89,10 +89,10 @@ describe('BookingDetailsModal', () => {
     it('renders CONFIRMED status with green styling', () => {
       render(<BookingDetailsModal {...defaultProps} />);
       const badge = screen.getByText('CONFIRMED');
-      expect(badge).toHaveClass('bg-green-100', 'text-green-800');
+      expect(badge).toHaveClass('bg-emerald-50', 'text-emerald-700');
     });
 
-    it('renders COMPLETED status with gray styling', () => {
+    it('renders COMPLETED status with blue styling', () => {
       render(
         <BookingDetailsModal
           {...defaultProps}
@@ -100,7 +100,7 @@ describe('BookingDetailsModal', () => {
         />
       );
       const badge = screen.getByText('COMPLETED');
-      expect(badge).toHaveClass('bg-gray-100', 'text-gray-800');
+      expect(badge).toHaveClass('bg-blue-50', 'text-blue-700');
     });
 
     it('renders CANCELLED status with red styling', () => {
@@ -111,10 +111,10 @@ describe('BookingDetailsModal', () => {
         />
       );
       const badge = screen.getByText('CANCELLED');
-      expect(badge).toHaveClass('bg-red-100', 'text-red-800');
+      expect(badge).toHaveClass('bg-rose-50', 'text-rose-700');
     });
 
-    it('renders NO_SHOW status with yellow styling', () => {
+    it('renders NO_SHOW status with amber styling', () => {
       render(
         <BookingDetailsModal
           {...defaultProps}
@@ -122,7 +122,7 @@ describe('BookingDetailsModal', () => {
         />
       );
       const badge = screen.getByText('NO_SHOW');
-      expect(badge).toHaveClass('bg-yellow-100', 'text-yellow-800');
+      expect(badge).toHaveClass('bg-amber-50', 'text-amber-800');
     });
   });
 
@@ -497,7 +497,7 @@ describe('BookingDetailsModal', () => {
         />
       );
       const badge = screen.getByText('UNKNOWN_STATUS');
-      expect(badge).toHaveClass('bg-gray-100', 'text-gray-800');
+      expect(badge).toHaveClass('bg-gray-100', 'text-gray-700');
     });
   });
 

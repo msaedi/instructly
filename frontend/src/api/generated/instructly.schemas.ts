@@ -6996,6 +6996,7 @@ export interface PublicAvailabilitySummaryEntry {
 
 export interface PublicConfigResponse {
   fees: PlatformFees;
+  student_launch_enabled: boolean;
   updated_at?: string | null;
 }
 

@@ -15,6 +15,7 @@ import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 import { formatDisplayName } from '@/lib/format/displayName';
 import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { queryKeys } from '@/src/api/queryKeys';
+import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -175,12 +176,12 @@ function BookingsPageImpl() {
                 type="button"
                 role="tab"
                 aria-selected={activeTab === tab}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab ? 'border-b-2 border-[#7E22CE] text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'
-                }`}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${getTextWidthTabButtonClasses(activeTab === tab)}`}
                 onClick={() => handleTabChange(tab)}
               >
-                {tab === 'upcoming' ? 'Upcoming' : 'Past'}
+                <span className={getTextWidthTabLabelClasses(activeTab === tab)}>
+                  {tab === 'upcoming' ? 'Upcoming' : 'Past'}
+                </span>
               </button>
             ))}
           </div>
@@ -189,16 +190,16 @@ function BookingsPageImpl() {
               <BookingList
                 data={upcomingItems}
                 isLoading={showLoading}
-                emptyTitle="No upcoming bookings"
-                emptyDescription="New lessons will appear here once students confirm."
+                emptyTitle="No upcoming bookings — new bookings will appear here."
+                emptyDescription=""
                 onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
               />
             ) : (
               <BookingList
                 data={pastItems}
                 isLoading={showLoading}
-                emptyTitle="No past bookings yet"
-                emptyDescription="Completed lessons will show up as soon as they finish."
+                emptyTitle="No completed lessons yet — your completed sessions will appear here."
+                emptyDescription=""
                 onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
                 onComplete={handleMarkComplete}
                 onNoShow={handleNoShowClick}

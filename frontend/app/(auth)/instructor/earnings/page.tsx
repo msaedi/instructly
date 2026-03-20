@@ -13,6 +13,7 @@ import { logger } from '@/lib/logger';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
+import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
 function EarningsPageImpl() {
   const embedded = useEmbedded();
@@ -286,18 +287,28 @@ function EarningsPageImpl() {
         <div className="insta-surface-card">
           <div className="border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 pt-4">
               <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+              <div role="tablist" aria-label="Earnings tabs" className="flex items-center gap-4">
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'invoices'}
                 onClick={() => setActiveTab('invoices')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'invoices' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${getTextWidthTabButtonClasses(activeTab === 'invoices')}`}
               >
-                Invoices
+                <span className={getTextWidthTabLabelClasses(activeTab === 'invoices')}>
+                  Invoices
+                </span>
               </button>
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'payouts'}
                 onClick={() => setActiveTab('payouts')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'payouts' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${getTextWidthTabButtonClasses(activeTab === 'payouts')}`}
               >
-                Payouts
+                <span className={getTextWidthTabLabelClasses(activeTab === 'payouts')}>
+                  Payouts
+                </span>
               </button>
               </div>
               <div className="flex items-center gap-1.5">
