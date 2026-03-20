@@ -112,11 +112,11 @@ export function BookingList({
   if (!data || data.length === 0) {
     return (
       <div
-        className="flex min-h-40 items-center justify-center px-4 py-10 text-center"
+        className="rounded-xl border border-dashed border-gray-300 p-6 text-center insta-surface-card"
         data-testid={`${dataTestId}-empty`}
       >
         <div className="space-y-1">
-          <p className="text-sm text-gray-600 dark:text-gray-400">{emptyTitle}</p>
+          <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{emptyTitle}</p>
           {emptyDescription ? (
             <p className="text-sm text-gray-600 dark:text-gray-400">{emptyDescription}</p>
           ) : null}

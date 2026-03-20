@@ -1,4 +1,4 @@
-import { MessageSquare, type LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'referrals' | 'reviews' | 'availability' | 'account';
 
@@ -44,7 +44,6 @@ export const INSTRUCTOR_DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     kind: 'route',
     href: '/instructor/messages',
     mobileGroup: 'primary',
-    icon: MessageSquare,
   },
   { key: 'availability', label: 'Availability', kind: 'panel', mobileGroup: 'primary' },
   { key: 'earnings', label: 'Earnings', kind: 'panel', mobileGroup: 'secondary' },

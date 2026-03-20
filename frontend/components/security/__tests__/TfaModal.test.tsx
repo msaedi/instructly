@@ -5,6 +5,10 @@ import TfaModal from '../TfaModal';
 import { fetchWithAuth } from '@/lib/api';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { toast } from 'sonner';
+import { queryKeys as sessionQueryKeys } from '@/src/api/queryKeys';
+import { queryKeys as authContextQueryKeys } from '@/lib/react-query/queryClient';
+
+const pushMock = jest.fn();
 
 jest.mock('@/lib/api', () => ({
   fetchWithAuth: jest.fn(),
@@ -12,6 +16,12 @@ jest.mock('@/lib/api', () => ({
 
 jest.mock('@/hooks/queries/useTfaStatus', () => ({
   useTfaStatus: jest.fn(),
+}));
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: pushMock,
+  }),
 }));
 
 jest.mock('sonner', () => ({
@@ -33,19 +43,33 @@ const renderModal = (props?: { onClose?: jest.Mock; onChanged?: jest.Mock }) => 
       mutations: { retry: false },
     },
   });
+
+  queryClient.setQueryData(sessionQueryKeys.auth.me, { id: 'session-user' });
+  queryClient.setQueryData(authContextQueryKeys.user, { id: 'legacy-user' });
+  queryClient.setQueryData(['phone-status'], { phone_number: '+12125551001', verified: true });
+
   render(
     <QueryClientProvider client={queryClient}>
       <TfaModal onClose={onClose} onChanged={onChanged} />
     </QueryClientProvider>
   );
-  return { onClose, onChanged };
+
+  return { onClose, onChanged, queryClient };
 };
 
 describe('TfaModal', () => {
   beforeEach(() => {
     fetchWithAuthMock.mockReset();
     useTfaStatusMock.mockReset();
-    (toast.success as jest.Mock).mockClear();
+    pushMock.mockReset();
+    (toast.success as jest.Mock).mockReset();
+    (toast.error as jest.Mock).mockReset();
+
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
   });
 
   it('initiates setup and renders QR data when 2FA is disabled', async () => {
@@ -105,7 +129,7 @@ describe('TfaModal', () => {
     });
   });
 
-  it('verifies successfully and allows copy/regenerate', async () => {
+  it('shows backup codes first, keeps copy/regenerate, then redirects after acknowledgement', async () => {
     useTfaStatusMock.mockReturnValue({ data: { enabled: false }, isSuccess: true });
     fetchWithAuthMock
       .mockResolvedValueOnce({
@@ -121,20 +145,18 @@ describe('TfaModal', () => {
         json: jest.fn().mockResolvedValue({ backup_codes: ['code3'] }),
       });
 
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
-
-    const { onChanged } = renderModal();
+    const { onChanged, onClose, queryClient } = renderModal();
 
     const codeInput = await screen.findByPlaceholderText('123 456');
     await userEvent.type(codeInput, '123456');
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(toast.success).toHaveBeenCalledWith('Two‑factor authentication enabled');
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('code1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: "I've saved my backup codes" })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Close$/ })).not.toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalledWith('Two-factor authentication enabled. Please sign in again.');
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('code1\ncode2');
@@ -143,21 +165,41 @@ describe('TfaModal', () => {
     await waitFor(() => {
       expect(screen.getByText('code3')).toBeInTheDocument();
     });
+
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: "I've saved my backup codes" }));
+
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalledTimes(2);
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(pushMock).toHaveBeenCalledWith('/login');
+    });
+    expect(toast.success).toHaveBeenCalledWith('Two-factor authentication enabled. Please sign in again.');
+    expect(queryClient.getQueryData(sessionQueryKeys.auth.me)).toBeUndefined();
+    expect(queryClient.getQueryData(authContextQueryKeys.user)).toBeUndefined();
   });
 
-  it('disables 2FA when already enabled', async () => {
+  it('redirects to login immediately after disabling 2FA and clears session cache', async () => {
     useTfaStatusMock.mockReturnValue({ data: { enabled: true }, isSuccess: true });
     fetchWithAuthMock.mockResolvedValueOnce({ ok: true, json: jest.fn() });
 
-    const { onChanged } = renderModal();
+    const { onChanged, onClose, queryClient } = renderModal();
 
     const passwordInput = await screen.findByPlaceholderText('Current password');
     await userEvent.type(passwordInput, 'password');
     await userEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }));
 
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(toast.success).toHaveBeenCalledWith('Two‑factor authentication disabled');
-    expect(screen.getByText('Two-factor authentication has been disabled.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(pushMock).toHaveBeenCalledWith('/login');
+    });
+    expect(toast.success).toHaveBeenCalledWith('Two-factor authentication disabled. Please sign in again.');
+    expect(screen.queryByText('Two-factor authentication has been disabled.')).not.toBeInTheDocument();
+    expect(queryClient.getQueryData(sessionQueryKeys.auth.me)).toBeUndefined();
+    expect(queryClient.getQueryData(authContextQueryKeys.user)).toBeUndefined();
   });
 
   describe('network errors', () => {
@@ -328,7 +370,7 @@ describe('TfaModal', () => {
       await userEvent.type(codeInput, '123456');
       await userEvent.keyboard('{Enter}');
 
-      await waitFor(() => expect(onChanged).toHaveBeenCalled());
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     });
 
     it('does not submit verification on Enter when code is too short', async () => {
@@ -341,10 +383,9 @@ describe('TfaModal', () => {
       renderModal();
 
       const codeInput = await screen.findByPlaceholderText('123 456');
-      await userEvent.type(codeInput, '123'); // Only 3 digits
+      await userEvent.type(codeInput, '123');
       await userEvent.keyboard('{Enter}');
 
-      // Should only have called initiate, not verify
       expect(fetchWithAuthMock).toHaveBeenCalledTimes(1);
     });
 
@@ -358,7 +399,8 @@ describe('TfaModal', () => {
       await userEvent.type(passwordInput, 'mypassword');
       await userEvent.keyboard('{Enter}');
 
-      await waitFor(() => expect(onChanged).toHaveBeenCalled());
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+      expect(pushMock).toHaveBeenCalledWith('/login');
     });
 
     it('does not submit disable on Enter when password is empty', async () => {
@@ -370,18 +412,17 @@ describe('TfaModal', () => {
       passwordInput.focus();
       await userEvent.keyboard('{Enter}');
 
-      // Should not have called any API
       expect(fetchWithAuthMock).not.toHaveBeenCalled();
     });
 
-    it('closes modal on Escape key', async () => {
+    it('closes modal on Escape key when acknowledgement is not required', async () => {
       useTfaStatusMock.mockReturnValue({ data: { enabled: true }, isSuccess: true });
 
       const { onClose } = renderModal();
 
       await userEvent.keyboard('{Escape}');
 
-      expect(onClose).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -428,7 +469,6 @@ describe('TfaModal', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
-        // .catch(() => ({})) returns empty object, so falls back to default message
         expect(screen.getByText("That code didn't work. Please try again.")).toBeInTheDocument();
       });
     });
@@ -449,7 +489,6 @@ describe('TfaModal', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }));
 
       await waitFor(() => {
-        // .catch(() => ({})) returns empty object, so falls back to 'Failed to disable'
         expect(screen.getByText('Failed to disable')).toBeInTheDocument();
       });
     });
@@ -468,23 +507,7 @@ describe('TfaModal', () => {
       await screen.findByText('Secret (manual entry):');
       await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 
-      expect(onClose).toHaveBeenCalled();
-    });
-
-    it('closes modal via close button in disabled step', async () => {
-      useTfaStatusMock.mockReturnValue({ data: { enabled: true }, isSuccess: true });
-      fetchWithAuthMock.mockResolvedValueOnce({ ok: true, json: jest.fn() });
-
-      const { onClose } = renderModal();
-
-      const passwordInput = await screen.findByPlaceholderText('Current password');
-      await userEvent.type(passwordInput, 'password');
-      await userEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }));
-
-      await screen.findByText('Two-factor authentication has been disabled.');
-      await userEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-      expect(onClose).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 });

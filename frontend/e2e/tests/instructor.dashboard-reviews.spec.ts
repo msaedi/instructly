@@ -107,13 +107,12 @@ async function mockDashboardApis(page: Page) {
 }
 
 test.describe('[instructor] dashboard reviews snapshot', () => {
-  test('renders average rating and count', async ({ page }) => {
+  test('renders combined rating summary', async ({ page }) => {
     await mockDashboardApis(page);
     const baseURL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
 
     await page.goto(`${baseURL}/instructor/dashboard`);
 
-    await expect(page.getByTestId('reviews-avg')).toHaveText('4.5');
-    await expect(page.getByTestId('reviews-count')).toHaveText('3 reviews');
+    await expect(page.getByTestId('reviews-summary')).toHaveText('4.5★ (3)');
   });
 });

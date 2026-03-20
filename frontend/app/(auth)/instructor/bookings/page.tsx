@@ -190,16 +190,16 @@ function BookingsPageImpl() {
               <BookingList
                 data={upcomingItems}
                 isLoading={showLoading}
-                emptyTitle="No upcoming bookings — new bookings will appear here."
-                emptyDescription=""
+                emptyTitle="No upcoming bookings"
+                emptyDescription="New bookings will appear here."
                 onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
               />
             ) : (
               <BookingList
                 data={pastItems}
                 isLoading={showLoading}
-                emptyTitle="No completed lessons yet — your completed sessions will appear here."
-                emptyDescription=""
+                emptyTitle="No completed lessons yet"
+                emptyDescription="Your completed sessions will appear here."
                 onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
                 onComplete={handleMarkComplete}
                 onNoShow={handleNoShowClick}

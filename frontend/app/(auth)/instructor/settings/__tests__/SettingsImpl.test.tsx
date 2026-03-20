@@ -8,6 +8,7 @@ import { useSession } from '@/src/api/hooks/useSession';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
+import { toast } from 'sonner';
 
 jest.mock('@/components/UserProfileDropdown', () => {
   function MockUserProfileDropdown() {
@@ -60,6 +61,13 @@ jest.mock('@/features/shared/hooks/usePhoneVerification', () => ({
   usePhoneVerification: jest.fn(),
 }));
 
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 const fetchWithAuthMock = fetchWithAuth as jest.Mock;
 const getPreferencesMock = notificationPreferencesApi.getPreferences as jest.Mock;
 const updatePreferenceMock = notificationPreferencesApi.updatePreference as jest.Mock;
@@ -97,10 +105,38 @@ function renderEmbeddedSettings() {
 
 describe('SettingsImpl', () => {
   let currentTfaEnabled = true;
+  let phoneState: { phoneNumber: string; isVerified: boolean };
+  let updatePhoneMock: jest.Mock;
+  let sendVerificationMock: jest.Mock;
+  let confirmVerificationMock: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     currentTfaEnabled = true;
+    phoneState = {
+      phoneNumber: '+12125551001',
+      isVerified: true,
+    };
+    updatePhoneMock = jest.fn(async (phoneNumber: string) => {
+      phoneState = {
+        phoneNumber,
+        isVerified: false,
+      };
+      return {
+        phone_number: phoneNumber,
+        verified: false,
+      };
+    });
+    sendVerificationMock = jest.fn(async () => ({ success: true }));
+    confirmVerificationMock = jest.fn(async (code: string) => {
+      if (code === '123456') {
+        phoneState = {
+          ...phoneState,
+          isVerified: true,
+        };
+      }
+      return { success: true };
+    });
 
     useSessionMock.mockReturnValue({
       data: {
@@ -108,6 +144,7 @@ describe('SettingsImpl', () => {
         last_name: 'Morgan',
         email: 'alex@example.com',
         phone: '+12125551001',
+        zip_code: '10001',
       },
       isLoading: false,
     });
@@ -131,11 +168,23 @@ describe('SettingsImpl', () => {
       unsubscribe: jest.fn(),
     });
 
-    usePhoneVerificationMock.mockReturnValue({
-      phoneNumber: '+12125551001',
-      isVerified: true,
+    usePhoneVerificationMock.mockImplementation(() => ({
+      phoneNumber: phoneState.phoneNumber,
+      isVerified: phoneState.isVerified,
       isLoading: false,
-    });
+      updatePhone: {
+        mutateAsync: updatePhoneMock,
+        isPending: false,
+      },
+      sendVerification: {
+        mutateAsync: sendVerificationMock,
+        isPending: false,
+      },
+      confirmVerification: {
+        mutateAsync: confirmVerificationMock,
+        isPending: false,
+      },
+    }));
 
     getPreferencesMock.mockResolvedValue(defaultPreferences);
     updatePreferenceMock.mockResolvedValue({
@@ -162,25 +211,127 @@ describe('SettingsImpl', () => {
         };
       }
 
+      if (url === '/api/v1/me') {
+        return {
+          ok: true,
+          json: async () => ({}),
+        };
+      }
+
+      if (url === '/api/v1/addresses/me') {
+        return {
+          ok: true,
+          json: async () => ({
+            items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+          }),
+        };
+      }
+
+      if (url === '/api/v1/addresses/me/addr-1') {
+        return {
+          ok: true,
+          json: async () => ({}),
+        };
+      }
+
       throw new Error(`Unhandled request: ${url}`);
     });
   });
 
-  it('keeps only one embedded accordion section open and shows formatted read-only phone', async () => {
+  it('renders the redesigned account details layout and keeps only one accordion section open', async () => {
     const user = userEvent.setup();
 
     renderEmbeddedSettings();
 
     await user.click(screen.getByRole('button', { name: /Account details/i }));
 
-    expect(await screen.findByDisplayValue('(212) 555-1001')).toBeDisabled();
-    expect(screen.getByLabelText(/ZIP code/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/First name/i)).toHaveValue('Alex');
+    expect(screen.getByLabelText(/Last name · verified/i)).toHaveValue('Morgan');
+    expect(screen.getByLabelText(/Email · verified/i)).toHaveValue('alex@example.com');
+    expect(screen.getByLabelText(/ZIP code/i)).toHaveValue('10001');
+    expect(screen.getByLabelText(/Phone number/i)).toHaveValue('(212) 555-1001');
+    expect(screen.getByText('Verified')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Preferences/i }));
 
-    expect(screen.queryByLabelText(/ZIP code/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/First name/i)).not.toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
-    expect(screen.queryByText(/Phone number \(for SMS\)/i)).not.toBeInTheDocument();
+  });
+
+  it('saves only first name and ZIP code while syncing the default address ZIP', async () => {
+    const user = userEvent.setup();
+
+    renderEmbeddedSettings();
+
+    await user.click(screen.getByRole('button', { name: /Account details/i }));
+    await user.clear(screen.getByLabelText(/First name/i));
+    await user.type(screen.getByLabelText(/First name/i), 'Alicia');
+    await user.clear(screen.getByLabelText(/ZIP code/i));
+    await user.type(screen.getByLabelText(/ZIP code/i), '11211');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith(
+        '/api/v1/me',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            first_name: 'Alicia',
+            zip_code: '11211',
+          }),
+        })
+      );
+    });
+
+    const userPatchCall = fetchWithAuthMock.mock.calls.find(([url]) => url === '/api/v1/me');
+    expect(userPatchCall?.[1]?.body).not.toContain('last_name');
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/addresses/me');
+    expect(fetchWithAuthMock).toHaveBeenCalledWith(
+      '/api/v1/addresses/me/addr-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ postal_code: '11211' }),
+      })
+    );
+    expect(toast.success).toHaveBeenCalledWith('Account details updated');
+  });
+
+  it('transitions the inline phone verification flow from verified to pending and back', async () => {
+    const user = userEvent.setup();
+
+    renderEmbeddedSettings();
+
+    await user.click(screen.getByRole('button', { name: /Account details/i }));
+
+    const phoneInput = await screen.findByLabelText(/Phone number/i);
+    await user.clear(phoneInput);
+    await user.type(phoneInput, '2125552000');
+
+    expect(screen.queryByText('Verified')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeInTheDocument();
+    expect(screen.getByText("We'll send a 6-digit verification code to this number.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Verify' }));
+
+    await waitFor(() => {
+      expect(updatePhoneMock).toHaveBeenCalledWith('+12125552000');
+      expect(sendVerificationMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByText('Code sent to (XXX) XXX-2000')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Phone number/i)).toBeDisabled();
+
+    await user.type(screen.getByPlaceholderText('123456'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() => {
+      expect(confirmVerificationMock).toHaveBeenCalledWith('123456');
+      expect(screen.getByText('Verified')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Code sent to/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Phone number/i)).toHaveValue('(212) 555-2000');
+    expect(toast.success).toHaveBeenCalledWith('Phone number verified.');
   });
 
   it('renders the cleaned About links', async () => {
@@ -235,31 +386,6 @@ describe('SettingsImpl', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Promotional Email notifications' })).not.toBeDisabled();
-    });
-  });
-
-  it('shows Set up again after a successful 2FA disable', async () => {
-    const user = userEvent.setup();
-
-    renderEmbeddedSettings();
-
-    await user.click(screen.getByRole('button', { name: /Account security/i }));
-
-    const turnOffButton = await screen.findByRole('button', { name: 'Turn off' });
-    await user.click(turnOffButton);
-
-    const passwordInput = await screen.findByPlaceholderText('Current password');
-    await user.type(passwordInput, 'password');
-    await user.click(screen.getByRole('button', { name: 'Disable 2FA' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Two-factor authentication has been disabled.')).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Close' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Set up' })).toBeInTheDocument();
     });
   });
 });
