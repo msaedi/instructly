@@ -18,7 +18,8 @@ import { getPaymentStatusFromResponse, isCheckoutSuccess } from '@/features/shar
 import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { queryKeys as apiQueryKeys } from '@/src/api/queryKeys';
-import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services/bookings';
+import { fetchBookingDetails, cancelBookingImperative, useCheckAvailability } from '@/src/api/services/bookings';
+import type { AvailabilityCheckRequest } from '@/src/api/generated/instructly.schemas';
 import type { BookingResponse } from '@/features/shared/api/types';
 import { ApiProblemError } from '@/lib/api/fetch';
 
@@ -28,6 +29,10 @@ import { PricingPreviewContext, usePricingPreviewController, type PreviewCause }
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 import { useCredits } from '@/features/shared/payment/hooks/useCredits';
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
+import {
+  buildAvailabilityCheckRequest as buildAvailabilityCheckRequestPayload,
+  type AvailabilityCheckBooking,
+} from '../utils/buildAvailabilityCheckRequest';
 import {
   buildPricingPreviewQuotePayload,
   buildPricingPreviewQuotePayloadBase,
@@ -41,6 +46,11 @@ import {
   writeStoredCreditDecision,
   type StoredCreditDecision,
 } from '../utils/creditStorage';
+import {
+  getGenericMeetingLocationLabel,
+  resolveLocationType,
+  sanitizeMeetingLocation,
+} from '../utils/locationUtils';
 
 type StoredCreditsUiState = {
   creditsCollapsed: boolean;
@@ -122,7 +132,7 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
   return Number(fallback.toFixed(2));
 };
 
-type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
+type BookingWithMetadata = AvailabilityCheckBooking;
 
 const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata): BookingWithMetadata => {
   const durationMinutes = booking.duration_minutes ?? fallback.duration;
@@ -182,15 +192,19 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     error: bookingError,
     reset: resetBookingError,
   } = useCreateBooking();
+  const checkAvailability = useCheckAvailability();
 
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const [updatedBookingData, setUpdatedBookingData] = useState<BookingWithMetadata>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
   const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
+  const [instructorAvailabilityError, setInstructorAvailabilityError] = useState<string | null>(null);
+  const [isCheckingInstructorAvailability, setIsCheckingInstructorAvailability] = useState(false);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
   const [promoApplied, setPromoApplied] = useState(false);
   const [creditSliderCents, setCreditSliderCents] = useState(0);
   const [lastSuccessfulCreditCents, setLastSuccessfulCreditCents] = useState(0);
+  const instructorAvailabilityRequestIdRef = useRef(0);
   const resolvedInstructorId = useMemo(() => {
     const candidate =
       (updatedBookingData.instructorId ?? bookingData.instructorId ?? null);
@@ -341,29 +355,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       return null;
     }
 
-    const rawLocation = (updatedBookingData.location ?? bookingData.location ?? '').toString().trim();
-    const meetingLocation = rawLocation || 'Student provided address';
-    const normalizeLocationHint = (value: string) => {
-      const normalized = value.trim().toLowerCase();
-      if (!normalized) {
-        return '';
-      }
-      if (normalized === 'student_home') {
-        return 'student_location';
-      }
-      if (normalized === 'neutral') {
-        return 'neutral_location';
-      }
-      return normalized;
-    };
-
-    const metadataLocationType = normalizeLocationHint(String(mergedMetadata['location_type'] ?? ''));
-    const metadataModality = normalizeLocationHint(String(mergedMetadata['modality'] ?? ''));
-    const normalizedMetadataModality = metadataLocationType || metadataModality;
-    const isRemoteMetadata =
-      normalizedMetadataModality === 'remote' || normalizedMetadataModality === 'online';
-    const isRemoteLocation = /online|remote|virtual/i.test(meetingLocation);
-    const isRemote = isRemoteMetadata || isRemoteLocation;
+    const sanitizedLocation = sanitizeMeetingLocation(
+      updatedBookingData.location ?? bookingData.location ?? '',
+    );
+    const resolvedLocationType = resolveLocationType({
+      locationTypeHint: mergedMetadata['location_type'],
+      modalityHint: mergedMetadata['modality'],
+      fallbackLocation: sanitizedLocation,
+    });
 
     const allowedModalities: PricingPreviewSelection['modality'][] = [
       'remote',
@@ -373,9 +372,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       'neutral_location',
     ];
     const normalizedModality = (allowedModalities.find(
-      (value) => value === normalizedMetadataModality,
+      (value) => value === resolvedLocationType,
     ) ??
-      (isRemote ? 'remote' : 'in_person')) as PricingPreviewSelection['modality'];
+      (resolvedLocationType === 'online' ? 'remote' : resolvedLocationType)) as PricingPreviewSelection['modality'];
 
     const selection = {
       instructorId: resolvedInstructorId,
@@ -384,7 +383,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       startHHMM24,
       selectedDurationMinutes: durationMinutes,
       modality: normalizedModality,
-      meetingLocation: isRemote ? 'Online' : meetingLocation,
+      meetingLocation:
+        sanitizedLocation || getGenericMeetingLocationLabel(resolvedLocationType),
       appliedCreditCents: Math.max(0, Math.round(creditSliderCents)),
     };
 
@@ -671,12 +671,79 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         if (cause) {
           pendingPreviewCauseRef.current = cause;
           logDevInfo('[pricing-preview] Booking update cause determined', { cause });
+          setInstructorAvailabilityError(null);
         }
 
         return nextState;
       });
     },
     [determinePreviewCause]
+  );
+
+  const buildAvailabilityCheckRequest = useCallback(
+    (bookingCandidate: BookingWithMetadata): AvailabilityCheckRequest | null =>
+      buildAvailabilityCheckRequestPayload({
+        bookingCandidate,
+        updatedBookingData,
+        bookingData,
+      }),
+    [bookingData, updatedBookingData],
+  );
+
+  const runInstructorAvailabilityCheck = useCallback(
+    async (bookingCandidate: BookingWithMetadata): Promise<boolean> => {
+      const request = buildAvailabilityCheckRequest(bookingCandidate);
+      if (!request) {
+        setInstructorAvailabilityError(null);
+        setIsCheckingInstructorAvailability(false);
+        return true;
+      }
+
+      const requestId = instructorAvailabilityRequestIdRef.current + 1;
+      instructorAvailabilityRequestIdRef.current = requestId;
+      setIsCheckingInstructorAvailability(true);
+      setInstructorAvailabilityError(null);
+
+      try {
+        const response = await checkAvailability.mutateAsync({ data: request });
+        if (instructorAvailabilityRequestIdRef.current !== requestId) {
+          return Boolean(response.available);
+        }
+
+        if (!response.available) {
+          setInstructorAvailabilityError(
+            'This time slot is no longer available. Please select another time.',
+          );
+          return false;
+        }
+
+        setInstructorAvailabilityError(null);
+        return true;
+      } catch (error) {
+        if (instructorAvailabilityRequestIdRef.current === requestId) {
+          logger.error('Failed to run instructor availability preflight check', error as Error, {
+            bookingId: bookingCandidate.bookingId,
+          });
+          setInstructorAvailabilityError(
+            'Unable to verify availability right now. Please try again.',
+          );
+        }
+        return false;
+      } finally {
+        if (instructorAvailabilityRequestIdRef.current === requestId) {
+          setIsCheckingInstructorAvailability(false);
+        }
+      }
+    },
+    [buildAvailabilityCheckRequest, checkAvailability],
+  );
+
+  const handleTimeSelectionCommitted = useCallback(
+    async (nextBooking: BookingWithMetadata) => {
+      setInstructorAvailabilityError(null);
+      await runInstructorAvailabilityCheck(nextBooking);
+    },
+    [runInstructorAvailabilityCheck],
   );
 
   const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
@@ -1191,20 +1258,40 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       bookingData.totalAmount ??
       0;
     const referralDollars = referralAppliedCents / 100;
+    const bookingForSubmit: BookingWithMetadata = {
+      ...bookingData,
+      ...updatedBookingData,
+      metadata: {
+        ...(bookingData.metadata ?? {}),
+        ...(updatedBookingData.metadata ?? {}),
+      },
+    };
 
     setFloorViolationMessage(null);
-    // Set to processing state
-    goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Get instructor ID and service ID from booking data (now strings/ULIDs)
-      const instructorId = String(bookingData.instructorId || '');
-      // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
-      const serviceId = String((bookingData.metadata?.['serviceId'] || bookingData.serviceId) ?? '');
+      const isSlotStillAvailable = await runInstructorAvailabilityCheck(bookingForSubmit);
+      if (!isSlotStillAvailable) {
+        return;
+      }
+
+      // Set to processing state only after availability preflight succeeds
+      goToStep(PaymentStep.PROCESSING);
+
+      // Get instructor ID and service ID from canonical booking state
+      const instructorId = String(
+        bookingForSubmit.instructorId || resolvedInstructorId || '',
+      );
+      const serviceId = String(
+        (bookingForSubmit.metadata?.['serviceId'] ||
+          bookingForSubmit.serviceId ||
+          resolvedServiceId) ??
+          '',
+      );
 
       // If date is missing (null/undefined), try to recover from selectedSlot in sessionStorage
       let bookingDate: string;
-      if (!bookingData.date) {
+      if (!bookingForSubmit.date) {
         try {
           const slotRaw = sessionStorage.getItem('selectedSlot');
           if (slotRaw) {
@@ -1225,7 +1312,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
       } else {
         // Normalize: if date is an ISO timestamp string, convert to Date first
-        const rawDate: unknown = bookingData.date;
+        const rawDate: unknown = bookingForSubmit.date;
         const dateInput = typeof rawDate === 'string' && rawDate.includes('T')
           ? new Date(rawDate)
           : (rawDate as Date | string);
@@ -1237,12 +1324,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         instructorId,
         serviceId,
         bookingDate,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        duration: bookingData.duration,
-        metadata: bookingData.metadata,
-        lessonType: bookingData.lessonType,
-        fullBookingData: bookingData,
+        startTime: bookingForSubmit.startTime,
+        endTime: bookingForSubmit.endTime,
+        duration: bookingForSubmit.duration,
+        metadata: bookingForSubmit.metadata,
+        lessonType: bookingForSubmit.lessonType,
+        fullBookingData: bookingForSubmit,
       });
 
       // Step 1: Create booking via API
@@ -1266,14 +1353,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         serviceId,
         bookingDate,
         ...(instructorTimezone ? { instructorTimezone } : {}),
-        booking: {
-          ...bookingData,
-          ...updatedBookingData,
-          metadata: {
-            ...(bookingData.metadata ?? {}),
-            ...(updatedBookingData.metadata ?? {}),
-          },
-        },
+        booking: bookingForSubmit,
       });
 
       logDevInfo('Submitting booking payload', bookingPayload);
@@ -1434,6 +1514,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     resetBookingError();
     setLocalErrorMessage('');
     setFloorViolationMessage(null);
+    setInstructorAvailabilityError(null);
     goToStep(PaymentStep.METHOD_SELECTION);
   };
 
@@ -1490,7 +1571,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           referralAppliedCents={referralAppliedCents}
           referralActive={referralAppliedCents > 0}
           floorViolationMessage={floorViolationMessage}
+          instructorAvailabilityError={instructorAvailabilityError}
+          isCheckingInstructorAvailability={isCheckingInstructorAvailability}
           onClearFloorViolation={handleClearFloorViolation}
+          onTimeSelectionCommitted={handleTimeSelectionCommitted}
           onConfirm={processPayment}
           onBack={handleBackToMethodSelection}
           onChangePaymentMethod={handleChangePaymentMethodInline}
@@ -1560,7 +1644,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
               floorViolationMessage={floorViolationMessage}
+              instructorAvailabilityError={instructorAvailabilityError}
+              isCheckingInstructorAvailability={isCheckingInstructorAvailability}
               onClearFloorViolation={handleClearFloorViolation}
+              onTimeSelectionCommitted={handleTimeSelectionCommitted}
               onConfirm={processPayment}
               onBack={handleBackToMethodSelection}
               onChangePaymentMethod={handleChangePaymentMethodStepwise}

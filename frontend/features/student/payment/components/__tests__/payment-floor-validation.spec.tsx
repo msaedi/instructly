@@ -86,7 +86,7 @@ const baseBooking: BookingPayment & { metadata?: Record<string, unknown> } = {
   startTime: '10:00',
   endTime: '11:00',
   duration: 60,
-  location: '',
+  location: '123 Main St, New York, NY 10001',
   basePrice: 90,
   totalAmount: 100,
   bookingType: BookingType.STANDARD,
@@ -124,8 +124,8 @@ describe('PaymentConfirmation price floor handling', () => {
     const submitButton = screen.getByRole('button', { name: /Price must meet minimum/i });
     expect(submitButton).toBeDisabled();
 
-    const onlineOption = await screen.findByRole('button', { name: /online/i });
-    fireEvent.click(onlineOption);
+    fireEvent.click(screen.getByText('Lesson Location'));
+    fireEvent.click(await screen.findByText('Change'));
 
     await waitFor(() => {
       expect(

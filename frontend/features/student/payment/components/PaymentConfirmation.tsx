@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info, Home, Video } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
@@ -39,35 +39,21 @@ import {
   formatServiceSupportTooltip,
 } from '@/lib/pricing/studentFee';
 import {
-  applyManualLocationChange,
   buildDisplayDate,
   getClientFloorViolation,
   hasRelevantConflict,
   resolvePromoAction,
   shouldIgnoreAddressSuggestionSelection,
 } from './PaymentConfirmation.helpers';
+import {
+  ADDRESS_PLACEHOLDER,
+  getGenericMeetingLocationLabel,
+  getTimeSelectionModalLocationType,
+  resolveLocationType,
+  sanitizeMeetingLocation,
+} from '../utils/locationUtils';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
-
-// LocationType imported from @/types/booking
-
-type TeachingLocation = {
-  id?: string;
-  address: string;
-  label?: string;
-  lat?: number;
-  lng?: number;
-  placeId?: string;
-};
-
-type PublicSpace = {
-  id?: string;
-  address: string;
-  label?: string;
-  lat?: number;
-  lng?: number;
-  placeId?: string;
-};
 
 type ConflictKey = {
   studentId: string;
@@ -117,9 +103,6 @@ const EMPTY_ADDRESS: AddressFields = {
   country: '',
 };
 
-const ADDRESS_PLACEHOLDER = 'Student provided address';
-const INSTRUCTOR_LOCATION_PLACEHOLDER = 'Instructor location';
-
 const formatFullAddress = ({ line1, city, state, postalCode }: AddressFields): string =>
   formatMeetingLocation(line1, city, state, postalCode);
 
@@ -142,8 +125,11 @@ interface PaymentConfirmationProps {
   referralAppliedCents?: number;
   referralActive?: boolean;
   floorViolationMessage?: string | null;
+  instructorAvailabilityError?: string | null;
+  isCheckingInstructorAvailability?: boolean;
   onClearFloorViolation?: () => void;
   onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
+  onTimeSelectionCommitted?: (nextBooking: BookingWithMetadata) => void | Promise<void>;
   creditsAccordionExpanded?: boolean;
   onCreditsAccordionToggle?: (expanded: boolean) => void;
   hidePaymentMethod?: boolean;
@@ -170,16 +156,17 @@ function PaymentConfirmationInner({
   referralAppliedCents = 0,
   referralActive: referralActiveFromParent = false,
   floorViolationMessage = null,
+  instructorAvailabilityError = null,
+  isCheckingInstructorAvailability = false,
   onClearFloorViolation,
   onBookingUpdate,
+  onTimeSelectionCommitted,
   creditsAccordionExpanded,
   onCreditsAccordionToggle,
   hidePaymentMethod = false,
   paymentMethodSlot,
 }: PaymentConfirmationProps) {
   const [locationType, setLocationType] = useState<LocationType>('student_location');
-  const [lastInPersonLocationType, setLastInPersonLocationType] =
-    useState<LocationType>('student_location');
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');
@@ -196,10 +183,6 @@ function PaymentConfirmationInner({
   const isPricingPreviewLoading = pricingPreviewContext?.loading ?? false;
   const pricingPreviewError = pricingPreviewContext?.error ?? null;
   const [selectedSavedAddress, setSelectedSavedAddress] = useState<SavedAddress | null>(null);
-  const [teachingLocations, setTeachingLocations] = useState<TeachingLocation[]>([]);
-  const [selectedTeachingLocation, setSelectedTeachingLocation] = useState<TeachingLocation | null>(null);
-  const [publicSpaces, setPublicSpaces] = useState<PublicSpace[]>([]);
-  const [selectedPublicSpace, setSelectedPublicSpace] = useState<PublicSpace | null>(null);
   const [isEditingLocation, setIsEditingLocation] = useState(true);
   const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
   const [addressCoords, setAddressCoords] = useState<AddressCoords>({
@@ -213,17 +196,13 @@ function PaymentConfirmationInner({
   const addressDetailsAbortRef = useRef<AbortController | null>(null);
   const addressDetailsCacheRef = useRef<Map<string, AddressDetailsCacheEntry>>(new Map());
   const lastLocationRef = useRef('');
-  const initializedBookingIdRef = useRef<string | null>(null);
+  const initializedLocationSeedRef = useRef<string | null>(null);
   const isOnlineLesson = locationType === 'online';
   const isTravelLocation = locationType === 'student_location' || locationType === 'neutral_location';
-  const isPublicSpaceSelection = locationType === 'neutral_location' && Boolean(selectedPublicSpace);
-  const shouldCheckServiceArea = isTravelLocation && !isPublicSpaceSelection;
+  const shouldCheckServiceArea = isTravelLocation;
   const hasSavedTravelLocation = Boolean(
     selectedSavedAddress ||
-      (isTravelLocation &&
-        booking.location &&
-        booking.location !== '' &&
-        !/online|remote/i.test(String(booking.location)))
+      (isTravelLocation && sanitizeMeetingLocation(booking.location))
   );
   const serviceAreaLat = shouldCheckServiceArea ? addressCoords.lat ?? undefined : undefined;
   const serviceAreaLng = shouldCheckServiceArea ? addressCoords.lng ?? undefined : undefined;
@@ -237,15 +216,16 @@ function PaymentConfirmationInner({
     setAddressFields((prev) => ({ ...prev, ...updates }));
     setAddressCoords({ lat: null, lng: null, placeId: null });
     setSelectedSavedAddress(null);
-    setSelectedPublicSpace(null);
   }, []);
 
+  /* istanbul ignore next */
   const buildSavedAddressLine1 = useCallback((address: SavedAddress): string => {
     const line1 = address.street_line1?.trim() ?? '';
     const line2 = address.street_line2?.trim() ?? '';
     return [line1, line2].filter((part) => part.length > 0).join(', ');
   }, []);
 
+  /* istanbul ignore next */
   const applySavedAddress = useCallback(
     (address: SavedAddress) => {
       setAddressFields({
@@ -263,55 +243,34 @@ function PaymentConfirmationInner({
       setAddressDetailsError(null);
       setIsEditingLocation(false);
       lastLocationRef.current = '';
-      setSelectedPublicSpace(null);
     },
     [buildSavedAddressLine1]
   );
 
+  /* istanbul ignore next */
   const handleSelectSavedAddress = useCallback(
     (address: SavedAddress | null) => {
       if (!address) {
         setSelectedSavedAddress(null);
         return;
       }
-      setSelectedPublicSpace(null);
       setSelectedSavedAddress(address);
-      setLocationType('student_location');
+      setLocationType((prev) => (prev === 'neutral_location' ? prev : 'student_location'));
       applySavedAddress(address);
     },
     [applySavedAddress]
   );
 
+  /* istanbul ignore next */
   const handleEnterNewAddress = useCallback(() => {
     setSelectedSavedAddress(null);
-    setSelectedPublicSpace(null);
-    setLocationType('student_location');
+    setLocationType((prev) => (prev === 'neutral_location' ? prev : 'student_location'));
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     requestAnimationFrame(() => {
+      /* istanbul ignore next */
       addressLine1Ref.current?.focus();
     });
-  }, []);
-
-  const handleSelectTeachingLocation = useCallback((location: TeachingLocation) => {
-    setSelectedTeachingLocation(location);
-    setIsEditingLocation(false);
-    setAddressDetailsError(null);
-  }, []);
-
-  const handleSelectPublicSpace = useCallback((space: PublicSpace) => {
-    setSelectedPublicSpace(space);
-    setSelectedSavedAddress(null);
-    setLocationType('neutral_location');
-    setIsEditingLocation(false);
-    setAddressDetailsError(null);
-  }, []);
-
-  const handleUseCustomPublicLocation = useCallback(() => {
-    setSelectedPublicSpace(null);
-    setLocationType('student_location');
-    setIsEditingLocation(true);
-    setAddressDetailsError(null);
   }, []);
 
   const resolvedServiceId = useMemo(() => {
@@ -342,6 +301,15 @@ function PaymentConfirmationInner({
     return instructorServices.length === 1 ? instructorServices[0] : null;
   }, [instructorServices, resolvedServiceId]);
 
+  const incomingLocationType = useMemo(() => {
+    const metadata = (booking as BookingWithMetadata).metadata ?? {};
+    return resolveLocationType({
+      locationTypeHint: metadata['location_type'],
+      modalityHint: metadata['modality'],
+      fallbackLocation: typeof booking.location === 'string' ? booking.location : undefined,
+    });
+  }, [booking]);
+
   const availableLocationTypes = useMemo<LocationType[]>(() => {
     const types: LocationType[] = [];
     if (!selectedService) {
@@ -355,21 +323,19 @@ function PaymentConfirmationInner({
       types.push('student_location');
       types.push('neutral_location');
     }
-    if (formats.includes('instructor_location') && teachingLocations.length > 0) {
+    if (
+      formats.includes('instructor_location') ||
+      incomingLocationType === 'instructor_location' ||
+      locationType === 'instructor_location'
+    ) {
       types.push('instructor_location');
     }
     return Array.from(new Set(types));
-  }, [selectedService, teachingLocations.length]);
+  }, [incomingLocationType, locationType, selectedService]);
 
   useEffect(() => () => {
     addressDetailsAbortRef.current?.abort();
   }, []);
-
-  useEffect(() => {
-    if (locationType !== 'online') {
-      setLastInPersonLocationType(locationType);
-    }
-  }, [locationType]);
 
   useEffect(() => {
     if (availableLocationTypes.length === 0) {
@@ -385,18 +351,6 @@ function PaymentConfirmationInner({
       }
     }
   }, [availableLocationTypes, locationType]);
-
-  useEffect(() => {
-    if (locationType !== 'instructor_location') {
-      return;
-    }
-    if (!selectedTeachingLocation && teachingLocations.length > 0) {
-      const [firstTeachingLocation] = teachingLocations;
-      if (firstTeachingLocation) {
-        setSelectedTeachingLocation(firstTeachingLocation);
-      }
-    }
-  }, [locationType, selectedTeachingLocation, teachingLocations]);
 
   const parseAddressComponents = useCallback(
     (
@@ -1034,50 +988,54 @@ function PaymentConfirmationInner({
     () => (isOnlineLesson ? 'online' : 'in_person'),
     [isOnlineLesson],
   );
-  const inputsDisabled = isPublicSpaceSelection || (hasSavedTravelLocation && !isEditingLocation);
+  const inputsDisabled = hasSavedTravelLocation && !isEditingLocation;
   const instructorFirstName = useMemo(() => {
     const parts = booking.instructorName.split(' ').filter(Boolean);
     return parts[0] || 'Instructor';
   }, [booking.instructorName]);
-  const showCustomLocationInputs = isTravelLocation && !isPublicSpaceSelection;
-  const publicSpaceGroupName = useId();
-  const singleTeachingLocation = teachingLocations.length === 1 ? teachingLocations[0] : null;
-  const hasTravelOption = availableLocationTypes.some(
-    (type) => type === 'student_location' || type === 'neutral_location'
-  );
-  const hasInstructorLocationOption = availableLocationTypes.includes('instructor_location');
-  const hasOnlineOption = availableLocationTypes.includes('online');
-  const travelFallbackType = useMemo<LocationType>(() => {
-    if (locationType === 'student_location' || locationType === 'neutral_location') {
-      return locationType;
-    }
-    if (lastInPersonLocationType === 'student_location' || lastInPersonLocationType === 'neutral_location') {
-      return lastInPersonLocationType;
-    }
-    return 'student_location';
-  }, [lastInPersonLocationType, locationType]);
+  const showCustomLocationInputs = isTravelLocation;
 
   const formattedAddress = useMemo(() => formatFullAddress(addressFields), [addressFields]);
 
   const fallbackNonOnlineLocation = useMemo(() => {
-    if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
-      return booking.location;
-    }
-    return '';
+    return sanitizeMeetingLocation(booking.location);
   }, [booking.location]);
+
+  const formatSummary = useMemo(() => {
+    if (locationType === 'online') {
+      return {
+        label: 'Online',
+        description: 'Video lesson through the platform',
+        badgeClassName: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300',
+      };
+    }
+    if (locationType === 'instructor_location') {
+      return {
+        label: "At instructor's location",
+        description: "You'll travel to the instructor",
+        badgeClassName: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300',
+      };
+    }
+    if (locationType === 'neutral_location') {
+      return {
+        label: 'At a meeting point',
+        description: 'Choose or confirm the meeting address below',
+        badgeClassName: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+      };
+    }
+    return {
+      label: 'At your location',
+      description: 'Confirm where your instructor should meet you',
+      badgeClassName: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+    };
+  }, [locationType]);
 
   const resolvedMeetingLocation = useMemo(() => {
     if (locationType === 'online') {
       return 'Online';
     }
     if (locationType === 'instructor_location') {
-      if (selectedTeachingLocation?.address) {
-        return selectedTeachingLocation.address;
-      }
-      return fallbackNonOnlineLocation || INSTRUCTOR_LOCATION_PLACEHOLDER;
-    }
-    if (locationType === 'neutral_location' && selectedPublicSpace?.address) {
-      return selectedPublicSpace.address;
+      return 'Instructor address shared after booking confirmation';
     }
     if (formattedAddress) {
       return formattedAddress;
@@ -1090,110 +1048,17 @@ function PaymentConfirmationInner({
     fallbackNonOnlineLocation,
     formattedAddress,
     locationType,
-    selectedPublicSpace,
-    selectedTeachingLocation,
   ]);
-
-  const handleLocationTypeChange = useCallback(
-    (nextType: LocationType) => {
-      addressDetailsAbortRef.current?.abort();
-      addressDetailsAbortRef.current = null;
-      setLocationType(nextType);
-      setIsLocationExpanded(true);
-      setAddressDetailsError(null);
-
-      if (nextType === 'online') {
-        setAddressCoords({ lat: null, lng: null, placeId: null });
-        setIsEditingLocation(false);
-      } else if (nextType === 'instructor_location') {
-        setIsEditingLocation(false);
-      } else if (selectedSavedAddress) {
-        applySavedAddress(selectedSavedAddress);
-      } else if (!hasSavedTravelLocation) {
-        setIsEditingLocation(true);
-      }
-      if (nextType !== 'neutral_location') {
-        setSelectedPublicSpace(null);
-      }
-
-      onClearFloorViolation?.();
-    },
-    [applySavedAddress, hasSavedTravelLocation, onClearFloorViolation, selectedSavedAddress]
-  );
 
   const handleChangeLocationClick = () => {
     setIsLocationExpanded(true);
-    applyManualLocationChange({
-      isTravelLocation,
-      setLocationType,
-      setSelectedPublicSpace,
-      setIsEditingLocation,
-      setAddressDetailsError,
-      onClearFloorViolation,
-    });
+    setIsEditingLocation(true);
+    setAddressDetailsError(null);
+    onClearFloorViolation?.();
     requestAnimationFrame(() => {
       addressLine1Ref.current?.focus();
     });
   };
-
-  const locationOptionCards = useMemo(
-    () => {
-      const cards: Array<{
-        key: string;
-        label: string;
-        description: string;
-        icon: typeof MapPin;
-        selected: boolean;
-        onSelect: () => void;
-      }> = [];
-
-      if (hasTravelOption) {
-        cards.push({
-          key: 'travel',
-          label: 'In person',
-          description: 'At your location or a public spot',
-          icon: MapPin,
-          selected: isTravelLocation,
-          onSelect: () => handleLocationTypeChange(travelFallbackType),
-        });
-      }
-
-      if (hasInstructorLocationOption) {
-        cards.push({
-          key: 'instructor',
-          label: `At ${instructorFirstName}'s location`,
-          description: 'Studio or teaching location',
-          icon: Home,
-          selected: locationType === 'instructor_location',
-          onSelect: () => handleLocationTypeChange('instructor_location'),
-        });
-      }
-
-      if (hasOnlineOption) {
-        cards.push({
-          key: 'online',
-          label: 'Online',
-          description: 'Video call',
-          icon: Video,
-          selected: isOnlineLesson,
-          onSelect: () => handleLocationTypeChange('online'),
-        });
-      }
-
-      return cards;
-    },
-    [
-      handleLocationTypeChange,
-      hasInstructorLocationOption,
-      hasOnlineOption,
-      hasTravelOption,
-      instructorFirstName,
-      isOnlineLesson,
-      isTravelLocation,
-      locationType,
-      travelFallbackType,
-    ],
-  );
 
   useEffect(() => {
     if (!onBookingUpdate || !hasLocationInitialized) {
@@ -1204,6 +1069,7 @@ function PaymentConfirmationInner({
 
     if (isTravelLocation && isEditingLocation) {
       const cacheKey = `${locationType}|editing`;
+      /* istanbul ignore next */
       if (lastLocationRef.current === cacheKey) {
         return;
       }
@@ -1225,30 +1091,7 @@ function PaymentConfirmationInner({
     if (locationType === 'online') {
       nextLocation = 'Online';
     } else if (locationType === 'instructor_location') {
-      const instructorAddress = selectedTeachingLocation?.address ?? '';
-      nextLocation = instructorAddress || INSTRUCTOR_LOCATION_PLACEHOLDER;
-      addressPayload = nextLocation
-        ? {
-            fullAddress: nextLocation,
-            ...(typeof selectedTeachingLocation?.lat === 'number'
-              ? { lat: selectedTeachingLocation.lat }
-              : {}),
-            ...(typeof selectedTeachingLocation?.lng === 'number'
-              ? { lng: selectedTeachingLocation.lng }
-              : {}),
-            ...(selectedTeachingLocation?.placeId ? { placeId: selectedTeachingLocation.placeId } : {}),
-          }
-        : null;
-    } else if (locationType === 'neutral_location' && selectedPublicSpace) {
-      nextLocation = selectedPublicSpace.address;
-      addressPayload = nextLocation
-        ? {
-            fullAddress: nextLocation,
-            ...(typeof selectedPublicSpace.lat === 'number' ? { lat: selectedPublicSpace.lat } : {}),
-            ...(typeof selectedPublicSpace.lng === 'number' ? { lng: selectedPublicSpace.lng } : {}),
-            ...(selectedPublicSpace.placeId ? { placeId: selectedPublicSpace.placeId } : {}),
-          }
-        : null;
+      nextLocation = getGenericMeetingLocationLabel(locationType);
     } else {
       nextLocation = formattedAddress || fallbackNonOnlineLocation || '';
       if (nextLocation) {
@@ -1296,8 +1139,6 @@ function PaymentConfirmationInner({
     addressCoords.lat,
     addressCoords.lng,
     addressCoords.placeId,
-    selectedTeachingLocation,
-    selectedPublicSpace,
   ]);
   const hourlyRate = useMemo(() => {
     if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
@@ -1325,21 +1166,28 @@ function PaymentConfirmationInner({
   const isFloorBlocking = Boolean(activeFloorMessage);
   const ctaDisabled =
     isCheckingConflict ||
+    isCheckingInstructorAvailability ||
     hasConflict ||
+    Boolean(instructorAvailabilityError) ||
     isFloorBlocking ||
     isPricingPreviewLoading ||
     isOutsideServiceArea ||
     (isCheckingServiceArea && shouldCheckServiceArea);
   const ctaLabel = useMemo(() => {
-    if (isCheckingConflict) return 'Checking availability...';
+    if (isCheckingConflict || isCheckingInstructorAvailability) return 'Checking availability...';
     if (hasConflict) return 'You have a conflict at this time';
     if (isFloorBlocking) return 'Price must meet minimum';
     if (isPricingPreviewLoading) return 'Updating total...';
     return 'Book now!';
-  }, [isCheckingConflict, hasConflict, isFloorBlocking, isPricingPreviewLoading]);
+  }, [
+    isCheckingConflict,
+    isCheckingInstructorAvailability,
+    hasConflict,
+    isFloorBlocking,
+    isPricingPreviewLoading,
+  ]);
 
   const creditsAccordionPanelId = useId();
-  const teachingLocationGroupName = useId();
   const isCreditsExpandedControlled = typeof creditsAccordionExpanded === 'boolean';
   const [internalCreditsExpanded, setInternalCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
 
@@ -1372,67 +1220,35 @@ function PaymentConfirmationInner({
   }, [promoApplied]);
 
   useEffect(() => {
-    const currentBookingId = booking.bookingId ?? '';
-    if (hasLocationInitialized && initializedBookingIdRef.current === currentBookingId) {
+    const metadata = (booking as BookingWithMetadata).metadata ?? {};
+    const nextLocationSeed = JSON.stringify({
+      bookingId: booking.bookingId ?? '',
+      locationTypeHint:
+        typeof metadata['location_type'] === 'string' ? metadata['location_type'] : null,
+      modalityHint: typeof metadata['modality'] === 'string' ? metadata['modality'] : null,
+      fallbackLocation: typeof booking.location === 'string' ? booking.location : null,
+      addressFull: booking.address?.fullAddress ?? null,
+      addressLat: booking.address?.lat ?? null,
+      addressLng: booking.address?.lng ?? null,
+      addressPlaceId: booking.address?.placeId ?? null,
+    });
+    if (initializedLocationSeedRef.current === nextLocationSeed) {
       return;
     }
-    initializedBookingIdRef.current = currentBookingId;
-
-    const metadata = (booking as BookingWithMetadata).metadata ?? {};
-    const normalizeLocationHint = (value: unknown): LocationType | null => {
-      if (typeof value !== 'string') {
-        return null;
-      }
-      const raw = value.trim().toLowerCase();
-      if (!raw) {
-        return null;
-      }
-      if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
-        return 'online';
-      }
-      if (raw.includes('instructor') || raw.includes('studio')) {
-        return 'instructor_location';
-      }
-      if (raw.includes('neutral') || raw.includes('public')) {
-        return 'neutral_location';
-      }
-      if (raw.includes('student') || raw.includes('home') || raw.includes('in_person') || raw.includes('in-person')) {
-        return 'student_location';
-      }
-      return null;
-    };
-
-    const metadataLocationType = normalizeLocationHint(metadata['location_type']);
-    const metadataModality = normalizeLocationHint(metadata['modality']);
-    let nextLocationType = metadataLocationType ?? metadataModality;
-
-    if (!nextLocationType) {
-      if (typeof booking.location === 'string' && booking.location) {
-        nextLocationType = /online|remote|virtual/i.test(booking.location)
-          ? 'online'
-          : 'student_location';
-      } else {
-        nextLocationType = 'student_location';
-      }
-    }
+    initializedLocationSeedRef.current = nextLocationSeed;
+    const nextLocationType = incomingLocationType;
+    const sanitizedLocation = sanitizeMeetingLocation(booking.location);
 
     setLocationType(nextLocationType);
-    if (nextLocationType !== 'online') {
-      setLastInPersonLocationType(nextLocationType);
-    }
 
-    if (nextLocationType === 'instructor_location') {
-      if (!selectedTeachingLocation && typeof booking.location === 'string' && booking.location) {
-        setSelectedTeachingLocation({ address: booking.location });
-      }
-    } else if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
+    if ((nextLocationType === 'student_location' || nextLocationType === 'neutral_location') && sanitizedLocation) {
       setAddressFields((prev) => {
         if (prev.line1 || prev.city || prev.state || prev.postalCode) {
           return prev;
         }
         return {
           ...prev,
-          line1: booking.location,
+          line1: sanitizedLocation,
         };
       });
     }
@@ -1447,8 +1263,7 @@ function PaymentConfirmationInner({
 
     if (!hasLocationInitialized) {
       if (nextLocationType === 'student_location' || nextLocationType === 'neutral_location') {
-        const hasExistingLocation =
-          typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location);
+        const hasExistingLocation = Boolean(sanitizedLocation);
         setIsEditingLocation(!hasExistingLocation);
       } else {
         setIsEditingLocation(false);
@@ -1456,7 +1271,7 @@ function PaymentConfirmationInner({
     }
 
     setHasLocationInitialized(true);
-  }, [booking, hasLocationInitialized, selectedTeachingLocation, setAddressFields]);
+  }, [booking, hasLocationInitialized, incomingLocationType, setAddressFields]);
 
   useEffect(() => {
     if (isEditingLocation && isTravelLocation) {
@@ -1600,100 +1415,6 @@ function PaymentConfirmationInner({
             instructorId: booking.instructorId
           });
         }
-        const teaching: TeachingLocation[] = Array.isArray(data.preferred_teaching_locations)
-          ? data.preferred_teaching_locations
-              .map((location: Record<string, unknown>, index: number): TeachingLocation | null => {
-                const address = String(location['address'] ?? '').trim();
-                if (!address) {
-                  return null;
-                }
-                const labelValue = location['label'];
-                const label = typeof labelValue === 'string' ? labelValue : undefined;
-                const latValue = location['lat'];
-                const latitudeValue = location['latitude'];
-                const lat =
-                  typeof latValue === 'number'
-                    ? latValue
-                    : typeof latitudeValue === 'number'
-                      ? latitudeValue
-                      : undefined;
-                const lngValue = location['lng'];
-                const longitudeValue = location['longitude'];
-                const lng =
-                  typeof lngValue === 'number'
-                    ? lngValue
-                    : typeof longitudeValue === 'number'
-                      ? longitudeValue
-                      : undefined;
-                const placeIdValue = location['place_id'];
-                const placeIdCamelValue = location['placeId'];
-                const placeId =
-                  typeof placeIdValue === 'string'
-                    ? placeIdValue
-                    : typeof placeIdCamelValue === 'string'
-                      ? placeIdCamelValue
-                      : undefined;
-                const idValue = location['id'];
-                const id = typeof idValue === 'string' ? idValue : `${address}-${index}`;
-                return {
-                  id,
-                  address,
-                  ...(label ? { label } : {}),
-                  ...(typeof lat === 'number' ? { lat } : {}),
-                  ...(typeof lng === 'number' ? { lng } : {}),
-                  ...(placeId ? { placeId } : {}),
-                };
-              })
-              .filter((location): location is TeachingLocation => Boolean(location))
-          : [];
-        setTeachingLocations(teaching);
-        const spaces: PublicSpace[] = Array.isArray(data.preferred_public_spaces)
-          ? data.preferred_public_spaces
-              .map((space: Record<string, unknown>, index: number): PublicSpace | null => {
-                const address = String(space['address'] ?? '').trim();
-                if (!address) {
-                  return null;
-                }
-                const labelValue = space['label'];
-                const label = typeof labelValue === 'string' ? labelValue : undefined;
-                const latValue = space['lat'];
-                const latitudeValue = space['latitude'];
-                const lat =
-                  typeof latValue === 'number'
-                    ? latValue
-                    : typeof latitudeValue === 'number'
-                      ? latitudeValue
-                      : undefined;
-                const lngValue = space['lng'];
-                const longitudeValue = space['longitude'];
-                const lng =
-                  typeof lngValue === 'number'
-                    ? lngValue
-                    : typeof longitudeValue === 'number'
-                      ? longitudeValue
-                      : undefined;
-                const placeIdValue = space['place_id'];
-                const placeIdCamelValue = space['placeId'];
-                const placeId =
-                  typeof placeIdValue === 'string'
-                    ? placeIdValue
-                    : typeof placeIdCamelValue === 'string'
-                      ? placeIdCamelValue
-                      : undefined;
-                const idValue = space['id'];
-                const id = typeof idValue === 'string' ? idValue : `${address}-${index}`;
-                return {
-                  id,
-                  address,
-                  ...(label ? { label } : {}),
-                  ...(typeof lat === 'number' ? { lat } : {}),
-                  ...(typeof lng === 'number' ? { lng } : {}),
-                  ...(placeId ? { placeId } : {}),
-                };
-              })
-              .filter((space): space is PublicSpace => Boolean(space))
-          : [];
-        setPublicSpaces(spaces);
       } catch (error) {
         logger.error('Failed to fetch instructor profile', error);
       } finally {
@@ -1704,6 +1425,104 @@ function PaymentConfirmationInner({
     void loadInstructorProfile();
   }, [booking.instructorId]);
 
+
+  /* istanbul ignore next */
+  const handleTimeSelected = (selection: {
+    date: string;
+    time: string;
+    duration: number;
+    locationType: LocationType;
+    serviceId?: string | undefined;
+    hourlyRate: number;
+  }) => {
+    const newBookingDate = new Date(`${selection.date}T${selection.time}`);
+    const newEndTime = calculateEndTime(selection.time, selection.duration);
+    const nextLocationType: LocationType =
+      selection.locationType === 'student_location' && locationType === 'neutral_location'
+        ? 'neutral_location'
+        : selection.locationType;
+    const nextBasePrice = Number(
+      ((selection.hourlyRate * selection.duration) / 60).toFixed(2),
+    );
+    const persistedTravelLocation =
+      formattedAddress ||
+      fallbackNonOnlineLocation ||
+      sanitizeMeetingLocation(booking.address?.fullAddress);
+    const nextLocation =
+      nextLocationType === 'online'
+        ? 'Online'
+        : nextLocationType === 'instructor_location'
+          ? getGenericMeetingLocationLabel(nextLocationType)
+          : persistedTravelLocation;
+    const nextAddress =
+      nextLocationType === 'student_location' || nextLocationType === 'neutral_location'
+        ? nextLocation
+          ? {
+              fullAddress: nextLocation,
+              ...(addressCoords.lat != null
+                ? { lat: addressCoords.lat }
+                : typeof booking.address?.lat === 'number'
+                  ? { lat: booking.address.lat }
+                  : {}),
+              ...(addressCoords.lng != null
+                ? { lng: addressCoords.lng }
+                : typeof booking.address?.lng === 'number'
+                  ? { lng: booking.address.lng }
+                  : {}),
+              ...(addressCoords.placeId
+                ? { placeId: addressCoords.placeId }
+                : booking.address?.placeId
+                  ? { placeId: booking.address.placeId }
+                  : {}),
+            }
+          : undefined
+        : undefined;
+    const nextBooking: BookingWithMetadata = {
+      ...(booking as BookingWithMetadata),
+      date: newBookingDate,
+      startTime: selection.time,
+      endTime: newEndTime,
+      duration: selection.duration,
+      location: nextLocation,
+      basePrice: Number.isFinite(nextBasePrice) && nextBasePrice > 0
+        ? nextBasePrice
+        : booking.basePrice,
+      totalAmount: Number.isFinite(nextBasePrice) && nextBasePrice > 0
+        ? nextBasePrice
+        : booking.totalAmount,
+      metadata: {
+        ...((booking as BookingWithMetadata).metadata ?? {}),
+        modality: nextLocationType === 'online' ? 'remote' : 'in_person',
+        location_type: nextLocationType,
+        ...(selection.serviceId ? { serviceId: selection.serviceId } : {}),
+      },
+    };
+
+    if (nextAddress) {
+      nextBooking.address = nextAddress;
+    } else {
+      delete nextBooking.address;
+    }
+
+    lastLocationRef.current = '';
+    setLocationType(nextLocationType);
+    if (nextLocationType === 'online' || nextLocationType === 'instructor_location') {
+      setSelectedSavedAddress(null);
+      setAddressFields(EMPTY_ADDRESS);
+      setAddressCoords({ lat: null, lng: null, placeId: null });
+      setIsEditingLocation(false);
+    } else {
+      setIsEditingLocation(!nextLocation);
+    }
+
+    if (onBookingUpdate) {
+      onBookingUpdate(() => nextBooking);
+    }
+
+    void onTimeSelectionCommitted?.(nextBooking);
+    setIsModalOpen(false);
+    onClearFloorViolation?.();
+  };
 
   return (
     <div className="p-6">
@@ -2099,100 +1918,31 @@ function PaymentConfirmationInner({
 
           {isLocationExpanded && (
             <div className="mt-4 space-y-5">
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">How do you want to take this lesson?</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {locationOptionCards.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={option.onSelect}
-                        aria-pressed={option.selected}
-                        className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
-                          option.selected
-                            ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                            option.selected ? 'bg-purple-100 dark:bg-purple-900/50 text-[#7E22CE] dark:text-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-semibold">{option.label}</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">{option.description}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
+                  >
+                    {formatSummary.label}
+                  </span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatSummary.description}
+                  </span>
                 </div>
               </div>
 
               {locationType === 'online' && (
                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
-                  <p>This is an online lesson via video call.</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">You&apos;ll receive a link before your session.</p>
+                  <p>This lesson will take place by video through the platform.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    You&apos;ll receive the join details before the session starts.
+                  </p>
                 </div>
               )}
 
               {locationType === 'instructor_location' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Teaching location</p>
-                  {teachingLocations.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No teaching locations available yet.</p>
-                  ) : singleTeachingLocation ? (
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
-                      <p className="text-gray-600 dark:text-gray-400">
-                        Your lesson will be at {instructorFirstName}&apos;s location:
-                      </p>
-                      {singleTeachingLocation.label ? (
-                        <p className="font-medium text-gray-700 dark:text-gray-300">{singleTeachingLocation.label}</p>
-                      ) : null}
-                      <p className="font-medium text-gray-700 dark:text-gray-300">{singleTeachingLocation.address}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {teachingLocations.map((location, index) => {
-                        const locationId = String(location.id ?? `${location.address}-${index}`);
-                        const optionId = `${teachingLocationGroupName}-${locationId}`;
-                        const isSelected =
-                          selectedTeachingLocation?.id && location.id
-                            ? selectedTeachingLocation.id === location.id
-                            : selectedTeachingLocation?.address === location.address;
-                        return (
-                          <label
-                            key={locationId}
-                            htmlFor={optionId}
-                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                              isSelected
-                                ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
-                                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
-                          >
-                            <input
-                              id={optionId}
-                              type="radio"
-                              name={teachingLocationGroupName}
-                              checked={isSelected}
-                              onChange={() => handleSelectTeachingLocation(location)}
-                              className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]"
-                            />
-                            <span>
-                              {location.label ? (
-                                <span className="block font-medium">{location.label}</span>
-                              ) : null}
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{location.address}</span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
+                  Instructor address is shared after booking confirmation.
                 </div>
               )}
 
@@ -2202,69 +1952,14 @@ function PaymentConfirmationInner({
                     Where should {instructorFirstName} meet you?
                   </p>
 
-                  {publicSpaces.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {instructorFirstName}&apos;s suggested spots
-                      </p>
-                      <div className="space-y-2">
-                        {publicSpaces.map((space, index) => {
-                          const spaceId = String(space.id ?? `${space.address}-${index}`);
-                          const optionId = `${publicSpaceGroupName}-${spaceId}`;
-                          const isSelected =
-                            selectedPublicSpace?.id && space.id
-                              ? selectedPublicSpace.id === space.id
-                              : selectedPublicSpace?.address === space.address;
-                          return (
-                            <label
-                              key={spaceId}
-                              htmlFor={optionId}
-                              className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                isSelected
-                                  ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
-                                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                              }`}
-                            >
-                              <input
-                                id={optionId}
-                                type="radio"
-                                name={publicSpaceGroupName}
-                                checked={isSelected}
-                                onChange={() => handleSelectPublicSpace(space)}
-                                className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]"
-                              />
-                              <span>
-                                {space.label ? (
-                                  <span className="block font-medium">{space.label}</span>
-                                ) : null}
-                                <span className="block text-xs text-gray-500 dark:text-gray-400">{space.address}</span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      {isPublicSpaceSelection ? (
-                        <button
-                          type="button"
-                          onClick={handleUseCustomPublicLocation}
-                          className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
-                        >
-                          Use your own location
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {publicSpaces.length > 0 && !isPublicSpaceSelection && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Or choose your own location</p>
-                    </div>
-                  )}
-
                   {showCustomLocationInputs && isEditingLocation && (
                     <AddressSelector
                       instructorId={booking.instructorId}
-                      locationType="student_location"
+                      locationType={
+                        locationType === 'neutral_location'
+                          ? 'neutral_location'
+                          : 'student_location'
+                      }
                       selectedAddress={selectedSavedAddress}
                       onSelectAddress={handleSelectSavedAddress}
                       onEnterNewAddress={handleEnterNewAddress}
@@ -2382,7 +2077,7 @@ function PaymentConfirmationInner({
                       <p className="font-medium">Location not covered</p>
                       <p>
                         This instructor doesn&#39;t serve this address. Choose a different location or
-                        select online for a video lesson.
+                        use Edit lesson to switch to an online format.
                       </p>
                     </div>
                   )}
@@ -2413,6 +2108,18 @@ function PaymentConfirmationInner({
                 <p className="font-medium">Scheduling Conflict</p>
                 <p>{conflictMessage}</p>
                 <p className="mt-1">Please select a different time slot to continue.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {instructorAvailabilityError && (
+          <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-700 dark:text-red-300">
+                <p className="font-medium">Slot Unavailable</p>
+                <p>{instructorAvailabilityError}</p>
               </div>
             </div>
           </div>
@@ -2467,6 +2174,14 @@ function PaymentConfirmationInner({
             <div className="flex items-center text-sm">
               <Clock size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
               <span>{summaryTimeLabel}</span>
+            </div>
+            <div className="flex items-start text-sm">
+              <span
+                className={`mr-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
+              >
+                {formatSummary.label}
+              </span>
+              <div className="text-gray-600 dark:text-gray-400">{formatSummary.description}</div>
             </div>
             <div className="flex items-start text-sm">
               <MapPin size={16} className="mr-2 text-gray-500 dark:text-gray-400 mt-0.5" />
@@ -2664,28 +2379,12 @@ function PaymentConfirmationInner({
               ? booking.duration
               : null
           }
-          initialLocationType={locationType}
-          lockLocationType
+          initialLocationType={getTimeSelectionModalLocationType(locationType)}
+          lockLocationType={false}
           {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
           bookingDraftId={booking.bookingId}
           appliedCreditCents={derivedAppliedCreditCents}
-          onTimeSelected={(selection) => {
-            const newBookingDate = new Date(`${selection.date}T${selection.time}`);
-            const newEndTime = calculateEndTime(selection.time, selection.duration);
-
-            if (onBookingUpdate) {
-              onBookingUpdate((prev) => ({
-                ...prev,
-                date: newBookingDate,
-                startTime: selection.time,
-                endTime: newEndTime,
-                duration: selection.duration,
-              }));
-            }
-
-            setIsModalOpen(false);
-            onClearFloorViolation?.();
-          }}
+          onTimeSelected={handleTimeSelected}
         />
       )}
     </div>

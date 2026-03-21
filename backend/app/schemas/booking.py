@@ -971,6 +971,10 @@ class AvailabilityCheckRequest(StrictRequestModel):
 
     instructor_id: str = Field(..., description="Instructor to check")
     instructor_service_id: str = Field(..., description="Service to book")
+    exclude_booking_id: Optional[str] = Field(
+        None,
+        description="Optional booking ID to exclude during conflict checks",
+    )
     booking_date: date = Field(..., description="Date to check")
     start_time: time = Field(..., description="Start time to check (HH:MM)")
     end_time: time = Field(..., description="End time to check (HH:MM)")

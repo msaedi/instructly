@@ -6423,6 +6423,7 @@ export type components = {
  AvailabilityCheckRequest: {
  booking_date: string;
  end_time: string;
+ exclude_booking_id?: string | null;
  instructor_id: string;
  instructor_service_id: string;
  location_lat?: number | null;

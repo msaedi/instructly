@@ -547,6 +547,7 @@ describe('InstructorCard', () => {
       await user.click(screen.getByRole('button', { name: /more options/i }));
 
       expect(onBookNow).toHaveBeenCalled();
+      expect(onBookNow.mock.calls[0]?.[1]).toEqual({ initialDurationMinutes: 30 });
     });
 
     it('navigates to reviews page when rating clicked', async () => {
@@ -994,20 +995,11 @@ describe('InstructorCard', () => {
   });
 
   describe('Book Now button', () => {
-    it('stores booking data in sessionStorage and navigates when clicked', async () => {
+    it('uses the same modal-open callback as More options when clicked', async () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateStr = tomorrow.toISOString().split('T')[0] as string;
-
-      const mockSetItem = jest.fn();
-      Object.defineProperty(window, 'sessionStorage', {
-        value: {
-          setItem: mockSetItem,
-          getItem: jest.fn(),
-          removeItem: jest.fn(),
-        },
-        writable: true,
-      });
+      const onBookNow = jest.fn();
 
       const instructor = createInstructor({
         services: [{ id: 'svc-123', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
@@ -1016,6 +1008,7 @@ describe('InstructorCard', () => {
       renderWithProviders(
         <InstructorCard
           instructor={instructor}
+          onBookNow={onBookNow}
           availabilityData={{
             availabilityByDate: {
               [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
@@ -1028,25 +1021,61 @@ describe('InstructorCard', () => {
       const bookNowButton = screen.getByRole('button', { name: /next available/i });
       await user.click(bookNowButton);
 
-      expect(mockSetItem).toHaveBeenCalledWith('bookingData', expect.any(String));
-      expect(mockSetItem).toHaveBeenCalledWith('serviceId', 'svc-123');
-      expect(mockPush).toHaveBeenCalledWith('/student/booking/confirm');
+      expect(onBookNow).toHaveBeenCalledTimes(1);
+      expect(onBookNow.mock.calls[0]?.[1]).toEqual({
+        preSelectedDate: dateStr,
+        initialDurationMinutes: 60,
+      });
+      expect(mockPush).not.toHaveBeenCalledWith('/student/booking/confirm');
     });
 
-    it('calculates end time correctly for different durations', async () => {
+    it('passes the selected card duration into both booking entry points', async () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateStr = tomorrow.toISOString().split('T')[0] as string;
+      const onBookNow = jest.fn();
 
-      const mockSetItem = jest.fn();
-      Object.defineProperty(window, 'sessionStorage', {
-        value: {
-          setItem: mockSetItem,
-          getItem: jest.fn(),
-          removeItem: jest.fn(),
-        },
-        writable: true,
+      const instructor = createInstructor({
+        services: [{
+          id: 'svc-123',
+          service_catalog_id: 'cat-1',
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
+          duration_options: [30, 45, 60],
+        }],
       });
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          onBookNow={onBookNow}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
+            },
+          }}
+        />
+      );
+
+      const user = userEvent.setup();
+      await user.click(screen.getByLabelText(/45 min/i));
+      await user.click(screen.getByRole('button', { name: /next available/i }));
+      await user.click(screen.getByRole('button', { name: /more options/i }));
+
+      expect(onBookNow.mock.calls[0]?.[1]).toEqual({
+        preSelectedDate: dateStr,
+        initialDurationMinutes: 45,
+      });
+      expect(onBookNow.mock.calls[1]?.[1]).toEqual({
+        initialDurationMinutes: 45,
+      });
+    });
+
+    it('still opens the modal callback when the next slot reflects a longer duration service', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+      const onBookNow = jest.fn();
 
       const instructor = createInstructor({
         services: [{ id: 'svc-123', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [90] }],
@@ -1055,6 +1084,7 @@ describe('InstructorCard', () => {
       renderWithProviders(
         <InstructorCard
           instructor={instructor}
+          onBookNow={onBookNow}
           availabilityData={{
             availabilityByDate: {
               [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '13:00' }] },
@@ -1066,13 +1096,7 @@ describe('InstructorCard', () => {
       const user = userEvent.setup();
       await user.click(screen.getByRole('button', { name: /next available/i }));
 
-      // Verify booking data was stored with correct end time (10:00 + 90min = 11:30)
-      const bookingDataCall = mockSetItem.mock.calls.find(
-        (call: [string, string]) => call[0] === 'bookingData'
-      );
-      expect(bookingDataCall).toBeDefined();
-      const bookingData = JSON.parse(bookingDataCall[1]);
-      expect(bookingData.endTime).toBe('11:30');
+      expect(onBookNow).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -2194,16 +2218,11 @@ describe('InstructorCard', () => {
   });
 
   describe('book now button click with available slot', () => {
-    it('stores correct booking data including lessonType from service name', async () => {
+    it('opens the booking modal instead of navigating directly to checkout', async () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateStr = tomorrow.toISOString().split('T')[0] as string;
-
-      const mockSetItem = jest.fn();
-      Object.defineProperty(window, 'sessionStorage', {
-        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
-        writable: true,
-      });
+      const onBookNow = jest.fn();
 
       mockUseServicesCatalog.mockReturnValue({
         data: [{ id: 'cat-piano', name: 'Piano', description: 'Piano lessons', subcategory_id: 'sub-1' }],
@@ -2216,6 +2235,7 @@ describe('InstructorCard', () => {
       renderWithProviders(
         <InstructorCard
           instructor={instructor}
+          onBookNow={onBookNow}
           availabilityData={{
             availabilityByDate: {
               [dateStr]: { available_slots: [{ start_time: '14:00', end_time: '16:00' }] },
@@ -2228,28 +2248,15 @@ describe('InstructorCard', () => {
       const bookBtn = screen.getByRole('button', { name: /next available/i });
       await user.click(bookBtn);
 
-      expect(mockSetItem).toHaveBeenCalledWith('bookingData', expect.any(String));
-      const bookingData = JSON.parse(
-        mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'bookingData')?.[1] ?? '{}'
-      );
-      expect(bookingData.lessonType).toBe('Piano');
-      expect(bookingData.duration).toBe(60);
-      expect(bookingData.basePrice).toBe(80);
-      expect(bookingData.startTime).toBe('14:00');
-      expect(bookingData.endTime).toBe('15:00');
-      expect(mockPush).toHaveBeenCalledWith('/student/booking/confirm');
+      expect(onBookNow).toHaveBeenCalledTimes(1);
+      expect(mockPush).not.toHaveBeenCalledWith('/student/booking/confirm');
     });
 
-    it('falls back to "Service" when no service name is available', async () => {
+    it('still opens the modal callback when no service name is available', async () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateStr = tomorrow.toISOString().split('T')[0] as string;
-
-      const mockSetItem = jest.fn();
-      Object.defineProperty(window, 'sessionStorage', {
-        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
-        writable: true,
-      });
+      const onBookNow = jest.fn();
 
       mockUseServicesCatalog.mockReturnValue({ data: [] });
 
@@ -2260,6 +2267,7 @@ describe('InstructorCard', () => {
       renderWithProviders(
         <InstructorCard
           instructor={instructor}
+          onBookNow={onBookNow}
           availabilityData={{
             availabilityByDate: {
               [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
@@ -2272,22 +2280,14 @@ describe('InstructorCard', () => {
       const bookBtn = screen.getByRole('button', { name: /next available/i });
       await user.click(bookBtn);
 
-      const bookingData = JSON.parse(
-        mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'bookingData')?.[1] ?? '{}'
-      );
-      expect(bookingData.lessonType).toBe('Service');
+      expect(onBookNow).toHaveBeenCalledTimes(1);
     });
 
-    it('stores empty serviceId when service has no id', async () => {
+    it('still opens the modal callback when the service id is missing', async () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dateStr = tomorrow.toISOString().split('T')[0] as string;
-
-      const mockSetItem = jest.fn();
-      Object.defineProperty(window, 'sessionStorage', {
-        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
-        writable: true,
-      });
+      const onBookNow = jest.fn();
 
       const instructor = createInstructor({
         services: [{ service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] } as Instructor['services'][0]],
@@ -2296,6 +2296,7 @@ describe('InstructorCard', () => {
       renderWithProviders(
         <InstructorCard
           instructor={instructor}
+          onBookNow={onBookNow}
           availabilityData={{
             availabilityByDate: {
               [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
@@ -2307,8 +2308,7 @@ describe('InstructorCard', () => {
       const user = userEvent.setup();
       await user.click(screen.getByRole('button', { name: /next available/i }));
 
-      const serviceIdCall = mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'serviceId');
-      expect(serviceIdCall).toBeDefined();
+      expect(onBookNow).toHaveBeenCalledTimes(1);
     });
   });
 

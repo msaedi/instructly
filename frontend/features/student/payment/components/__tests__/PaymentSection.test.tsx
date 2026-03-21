@@ -50,6 +50,7 @@ jest.mock('@/services/api/payments', () => ({
 jest.mock('@/src/api/services/bookings', () => ({
   fetchBookingDetails: jest.fn(),
   cancelBookingImperative: jest.fn(),
+  useCheckAvailability: jest.fn(),
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -85,6 +86,8 @@ let latestPaymentConfirmationProps:
       booking: BookingWithMetadata;
       paymentMethod: PaymentMethod;
       creditEarliestExpiry?: string | null | undefined;
+      instructorAvailabilityError?: string | null | undefined;
+      isCheckingInstructorAvailability?: boolean | undefined;
     }
   | null = null;
 
@@ -92,6 +95,8 @@ type BookingWithMetadata = BookingPayment & {
   metadata?: Record<string, unknown>;
   serviceId?: string;
 };
+
+let mockCommittedTimeSelectionOverride: Partial<BookingWithMetadata> | null = null;
 
 let latestPaymentProcessingProps:
   | {
@@ -120,6 +125,9 @@ jest.mock('../PaymentConfirmation', () => {
     onChangePaymentMethod,
     onCreditsAccordionToggle,
     onClearFloorViolation,
+    onTimeSelectionCommitted,
+    instructorAvailabilityError,
+    isCheckingInstructorAvailability,
     paymentMethodSlot,
   }: {
     booking: BookingWithMetadata;
@@ -133,9 +141,18 @@ jest.mock('../PaymentConfirmation', () => {
     onChangePaymentMethod?: () => void;
     onCreditsAccordionToggle?: (expanded: boolean) => void;
     onClearFloorViolation?: () => void;
+    onTimeSelectionCommitted?: (nextBooking: BookingWithMetadata) => void | Promise<void>;
+    instructorAvailabilityError?: string | null;
+    isCheckingInstructorAvailability?: boolean;
     paymentMethodSlot?: React.ReactNode;
   }) {
-    latestPaymentConfirmationProps = { booking, paymentMethod, creditEarliestExpiry };
+    latestPaymentConfirmationProps = {
+      booking,
+      paymentMethod,
+      creditEarliestExpiry,
+      instructorAvailabilityError,
+      isCheckingInstructorAvailability,
+    };
     return (
       <div data-testid="payment-confirmation">
         {paymentMethodSlot}
@@ -203,6 +220,44 @@ jest.mock('../PaymentConfirmation', () => {
             Invalidate Duration
           </button>
         )}
+        {onTimeSelectionCommitted && (
+          <button
+            onClick={() => {
+              const baseCommittedBooking: BookingWithMetadata = {
+                ...booking,
+                date: new Date('2025-06-20T00:00:00Z'),
+                startTime: '15:00',
+                endTime: '16:00',
+                duration: 60,
+                location: 'Updated Address',
+                metadata: {
+                  ...(booking.metadata ?? {}),
+                  location_type: 'student_location',
+                  serviceId:
+                    typeof booking.metadata?.['serviceId'] === 'string'
+                      ? booking.metadata['serviceId']
+                      : 'service-789',
+                },
+              };
+              void onTimeSelectionCommitted({
+                ...baseCommittedBooking,
+                ...(mockCommittedTimeSelectionOverride ?? {}),
+                metadata: {
+                  ...(baseCommittedBooking.metadata ?? {}),
+                  ...(mockCommittedTimeSelectionOverride?.metadata ?? {}),
+                },
+              });
+            }}
+          >
+            Commit Time Selection
+          </button>
+        )}
+        {instructorAvailabilityError && (
+          <div data-testid="instructor-availability-error">{instructorAvailabilityError}</div>
+        )}
+        {isCheckingInstructorAvailability && (
+          <div data-testid="instructor-availability-loading">Checking availability</div>
+        )}
       </div>
     );
   };
@@ -249,6 +304,7 @@ const useCreateBookingMock = useCreateBooking as jest.Mock;
 const usePaymentFlowMock = usePaymentFlow as jest.Mock;
 const usePricingPreviewControllerMock = usePricingPreviewController as jest.Mock;
 const useCreditsMock = useCredits as jest.Mock;
+const useCheckAvailabilityMock = jest.requireMock('@/src/api/services/bookings').useCheckAvailability as jest.Mock;
 const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
 
 const createWrapper = () => {
@@ -291,6 +347,7 @@ describe('PaymentSection', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCommittedTimeSelectionOverride = null;
     latestPaymentConfirmationProps = null;
     latestPaymentProcessingProps = null;
     latestPaymentSuccessProps = null;
@@ -331,6 +388,10 @@ describe('PaymentSection', () => {
       data: { available: 50, expires_at: null },
       isLoading: false,
       refetch: jest.fn(),
+    });
+
+    useCheckAvailabilityMock.mockReturnValue({
+      mutateAsync: jest.fn().mockResolvedValue({ available: true }),
     });
 
     paymentServiceMock.listPaymentMethods.mockResolvedValue([
@@ -420,6 +481,326 @@ describe('PaymentSection', () => {
       fireEvent.click(screen.getByText('Back'));
 
       expect(goToStep).toHaveBeenCalledWith(PaymentStep.METHOD_SELECTION);
+    });
+  });
+
+  describe('instructor availability preflight', () => {
+    const confirmationFlowState = {
+      currentStep: PaymentStep.CONFIRMATION,
+      paymentMethod: PaymentMethod.CREDIT_CARD,
+      creditsToUse: 0,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    };
+
+    it('checks availability before submit and forwards exclude_booking_id for reschedules', async () => {
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            instructor_id: 'instructor-456',
+            instructor_service_id: 'service-789',
+            location_type: 'student_location',
+            exclude_booking_id: 'booking-123',
+          }),
+        });
+      });
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('runs the same availability check after a committed time edit and omits exclude_booking_id for new bookings', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            bookingId: '',
+            metadata: { serviceId: 'service-789', location_type: 'student_location' },
+          }}
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            instructor_id: 'instructor-456',
+            instructor_service_id: 'service-789',
+            booking_date: '2025-06-20',
+            start_time: '15:00',
+            end_time: '16:00',
+            location_type: 'student_location',
+          }),
+        });
+      });
+
+      const request = mutateAsync.mock.calls.at(-1)?.[0]?.data as Record<string, unknown>;
+      expect(request['exclude_booking_id']).toBeUndefined();
+    });
+
+    it('blocks submit and surfaces an inline error when the slot is no longer available', async () => {
+      const createBookingMock = jest.fn();
+      const mutateAsync = jest.fn().mockResolvedValue({ available: false });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(createBookingMock).not.toHaveBeenCalled();
+        expect(screen.getByTestId('instructor-availability-error')).toHaveTextContent(
+          'This time slot is no longer available. Please select another time.',
+        );
+      });
+    });
+
+    it('skips the preflight API when a committed time edit has no instructor id', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+      mockCommittedTimeSelectionOverride = { instructorId: '' };
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            instructorId: '',
+          }}
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).not.toHaveBeenCalled();
+      });
+    });
+
+    it('skips the preflight API when a committed time edit has an invalid booking date', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+      mockCommittedTimeSelectionOverride = {
+        date: 'not-a-date' as unknown as Date,
+      };
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).not.toHaveBeenCalled();
+      });
+    });
+
+    it('skips the preflight API when a committed time edit is missing or has an invalid start time', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      mockCommittedTimeSelectionOverride = {
+        startTime: '' as unknown as string,
+      };
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).not.toHaveBeenCalled();
+      });
+
+      mockCommittedTimeSelectionOverride = {
+        startTime: 'not-a-time',
+      };
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).not.toHaveBeenCalled();
+      });
+    });
+
+    it('parses string durations and falls back to a computed end time when the committed edit end time is invalid', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+      mockCommittedTimeSelectionOverride = {
+        duration: '75' as unknown as number,
+        endTime: 'invalid-end-time',
+      };
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            selected_duration: 75,
+            start_time: '15:00',
+            end_time: '16:15',
+          }),
+        });
+      });
+    });
+
+    it('skips the preflight API when a committed time edit has no usable duration', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({ available: true });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+      mockCommittedTimeSelectionOverride = {
+        duration: undefined as unknown as number,
+        metadata: {
+          serviceId: 'service-789',
+          location_type: 'student_location',
+        },
+      };
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            duration: undefined as unknown as number,
+            metadata: {
+              serviceId: 'service-789',
+              location_type: 'student_location',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).not.toHaveBeenCalled();
+      });
+    });
+
+    it('ignores stale availability responses when a newer preflight request is already in flight', async () => {
+      let resolveFirst: ((value: { available: boolean }) => void) | undefined;
+      let resolveSecond: ((value: { available: boolean }) => void) | undefined;
+      const mutateAsync = jest
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ available: boolean }>((resolve) => {
+              resolveFirst = resolve;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ available: boolean }>((resolve) => {
+              resolveSecond = resolve;
+            }),
+        );
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledTimes(2);
+      });
+
+      resolveFirst?.({ available: false });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByTestId('instructor-availability-error')).not.toBeInTheDocument();
+
+      resolveSecond?.({ available: true });
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('instructor-availability-error')).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -11217,8 +11598,8 @@ describe('PaymentSection', () => {
       });
     });
 
-    it('quoteSelection uses "Student provided address" when location is empty', async () => {
-      // Line 325: rawLocation empty → meetingLocation = 'Student provided address'
+    it('quoteSelection uses the generic travel label when location is empty', async () => {
+      // Empty locations now fall back to the generic read-only travel label.
       const noLocationBooking = {
         ...mockBookingData,
         location: '',
@@ -12438,7 +12819,7 @@ describe('PaymentSection', () => {
           instructor_id: 'instructor-456',
           instructor_service_id: 'service-789',
           location_type: 'student_location',
-          meeting_location: 'Student provided address',
+          meeting_location: 'At your location',
         });
       });
     });

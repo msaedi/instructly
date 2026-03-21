@@ -329,6 +329,20 @@ def test_availability_check_request_allows_midnight_rollover() -> None:
     assert request.end_time == time(0, 0)
 
 
+def test_availability_check_request_accepts_exclude_booking_id() -> None:
+    request = AvailabilityCheckRequest(
+        instructor_id="inst",
+        instructor_service_id="svc",
+        exclude_booking_id="booking-123",
+        booking_date="2024-01-01",
+        start_time="10:00",
+        end_time="11:00",
+        location_type="online",
+    )
+
+    assert request.exclude_booking_id == "booking-123"
+
+
 def test_upcoming_booking_response_coerce_price() -> None:
     class BadAmount:
         def __init__(self) -> None:

@@ -1,5 +1,10 @@
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import type { PricingPreviewQuotePayload, PricingPreviewQuotePayloadBase } from '@/lib/api/pricing';
+import {
+  getGenericMeetingLocationLabel,
+  resolveLocationType,
+  sanitizeMeetingLocation,
+} from './locationUtils';
 
 type BookingForPayload = {
   instructorId: string;
@@ -32,45 +37,13 @@ export type PricingPreviewSelection = {
   appliedCreditCents?: number;
 };
 
-const modalityToLocationType: Record<string, PricingPreviewQuotePayloadBase['location_type']> = {
-  remote: 'online',
-  online: 'online',
-  virtual: 'online',
-  in_person: 'student_location',
-  inperson: 'student_location',
-  'in-person': 'student_location',
-  student_home: 'student_location',
-  studenthome: 'student_location',
-  student_location: 'student_location',
-  instructor_location: 'instructor_location',
-  instructorlocation: 'instructor_location',
-  neutral: 'neutral_location',
-  neutral_location: 'neutral_location',
-};
-
 const inferLocationType = (booking: BookingForPayload): PricingPreviewQuotePayloadBase['location_type'] => {
   const metadata = booking.metadata ?? {};
-  const hintRaw =
-    typeof metadata['location_type'] === 'string'
-      ? metadata['location_type']
-      : typeof metadata['modality'] === 'string'
-        ? metadata['modality']
-        : '';
-  const location = booking.location.toLowerCase();
-
-  if (hintRaw) {
-    const normalized = hintRaw.toLowerCase().replace(/\s+/g, '_');
-    const mapped = modalityToLocationType[normalized];
-    if (mapped) {
-      return mapped;
-    }
-  }
-
-  if (location.includes('online') || location.includes('remote') || location.includes('virtual')) {
-    return 'online';
-  }
-
-  return 'student_location';
+  return resolveLocationType({
+    locationTypeHint: metadata['location_type'],
+    modalityHint: metadata['modality'],
+    fallbackLocation: booking.location,
+  });
 };
 
 const isSelection = (value: BookingForPayload | PricingPreviewSelection): value is PricingPreviewSelection =>
@@ -118,6 +91,7 @@ export function buildPricingPreviewQuotePayloadBase(
   const bookingDateSource = booking.date instanceof Date ? booking.date : new Date(`${booking.date}T00:00:00`);
   const bookingDate = formatDateForAPI(bookingDateSource);
   const locationType = inferLocationType(booking);
+  const sanitizedMeetingLocation = sanitizeMeetingLocation(booking.location);
 
   return {
     instructor_id: booking.instructorId,
@@ -126,7 +100,7 @@ export function buildPricingPreviewQuotePayloadBase(
     start_time: booking.startTime,
     selected_duration: booking.duration,
     location_type: locationType,
-    meeting_location: booking.location,
+    meeting_location: sanitizedMeetingLocation || getGenericMeetingLocationLabel(locationType),
   };
 }
 

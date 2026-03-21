@@ -1318,6 +1318,8 @@ export interface AvailabilityCheckRequest {
   booking_date: string;
   /** End time to check (HH:MM) */
   end_time: string;
+  /** Optional booking ID to exclude during conflict checks */
+  exclude_booking_id?: string | null;
   /** Instructor to check */
   instructor_id: string;
   /** Service to book */

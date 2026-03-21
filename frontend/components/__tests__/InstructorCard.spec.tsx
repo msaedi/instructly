@@ -117,7 +117,9 @@ describe('InstructorCard next available booking', () => {
     jest.useRealTimers();
   });
 
-  it('uses the selected duration when booking the next available slot', async () => {
+  it('uses the same modal-open callback as More options for Next Available', async () => {
+    const onBookNow = jest.fn();
+
     renderWithQueryClient(
       <InstructorCard
         instructor={buildInstructor()}
@@ -126,21 +128,20 @@ describe('InstructorCard next available booking', () => {
             available_slots: [{ start_time: '10:00', end_time: '11:00' }],
           },
         })}
+        onBookNow={onBookNow}
       />
     );
 
     fireEvent.click(screen.getByLabelText(/60 min/));
     fireEvent.click(screen.getByRole('button', { name: /Next Available/ }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/student/booking/confirm'));
-
-    const stored = sessionStorage.getItem('bookingData');
-    expect(stored).toBeTruthy();
-    const parsed = JSON.parse(stored as string);
-    expect(parsed.duration).toBe(60);
-    expect(parsed.endTime).toBe('11:00');
-    expect(parsed.basePrice).toBe(60);
-    expect(parsed.totalAmount).toBe(60);
+    await waitFor(() => expect(onBookNow).toHaveBeenCalledTimes(1));
+    expect(onBookNow.mock.calls[0]?.[1]).toEqual({
+      preSelectedDate: '2024-06-01',
+      initialDurationMinutes: 60,
+    });
+    expect(pushMock).not.toHaveBeenCalledWith('/student/booking/confirm');
+    expect(sessionStorage.getItem('bookingData')).toBeNull();
   });
   it('updates the next available label when duration changes', async () => {
     renderWithQueryClient(
@@ -255,6 +256,7 @@ describe('InstructorCard rendering', () => {
 
     fireEvent.click(moreOptionsButton);
     expect(onBookNow).toHaveBeenCalledTimes(1);
+    expect(onBookNow.mock.calls[0]?.[1]).toEqual({ initialDurationMinutes: 30 });
   });
 
   it('renders instructor card container', () => {

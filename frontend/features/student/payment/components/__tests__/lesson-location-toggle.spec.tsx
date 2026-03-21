@@ -1,4 +1,5 @@
-import { render, fireEvent, waitFor, screen, act } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentMethod, PAYMENT_STATUS, type PaymentStatus } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
@@ -25,24 +26,7 @@ jest.mock('@/lib/apiBase', () => ({
 }));
 
 jest.mock('@/src/api/services/instructors', () => ({
-  fetchInstructorProfile: jest.fn().mockResolvedValue({
-    services: [
-      {
-        id: 'svc-1',
-        skill: 'Math',
-        min_hourly_rate: 80,
-        duration_options: [60],
-        offers_online: true,
-        offers_travel: true,
-        offers_at_location: false,
-        format_prices: [
-          { format: 'online', hourly_rate: 80 },
-          { format: 'student_location', hourly_rate: 80 },
-        ],
-      },
-    ],
-    preferred_teaching_locations: [],
-  }),
+  fetchInstructorProfile: jest.fn(),
 }));
 
 jest.mock('@/features/shared/api/schemas/instructorProfile', () => ({
@@ -51,7 +35,8 @@ jest.mock('@/features/shared/api/schemas/instructorProfile', () => ({
 
 jest.mock('@/features/student/booking/components/TimeSelectionModal', () => ({
   __esModule: true,
-  default: () => null,
+  default: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="mock-time-selection-modal" /> : null,
 }));
 
 type BookingWithMetadata = {
@@ -86,23 +71,21 @@ function createBooking(overrides: Partial<BookingWithMetadata> = {}): BookingWit
     totalAmount: 95,
     bookingType: BookingType.STANDARD,
     paymentStatus: PAYMENT_STATUS.SCHEDULED,
-    metadata: { modality: 'remote' },
+    metadata: { modality: 'remote', location_type: 'online' },
     ...overrides,
   };
 }
 
-describe('Lesson Location toggle', () => {
-  let fetchMock: jest.SpyInstance;
+describe('Lesson Location checkout flow', () => {
   const fetchInstructorProfileMock = fetchInstructorProfile as jest.Mock;
   const useServiceAreaCheckMock = useServiceAreaCheck as jest.Mock;
+
   const flushConflicts = async () => {
     await act(async () => {
       jest.advanceTimersByTime(300);
       await Promise.resolve();
     });
   };
-
-  const getLessonAddressInput = () => screen.getByTestId('addr-street') as HTMLInputElement;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -125,97 +108,17 @@ describe('Lesson Location toggle', () => {
       preferred_teaching_locations: [],
       preferred_public_spaces: [],
     });
-    useServiceAreaCheckMock.mockReturnValue({ data: null, isLoading: false });
-    fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
-      const url = typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.href
-          : (input as { url?: string }).url ?? '';
-
-      if (url.includes('/api/v1/instructors/')) {
-        return Promise.resolve({
-          ok: true,
-          headers: { get: () => 'application/json' },
-          json: async () => ({
-            services: [
-              {
-                id: 'svc-1',
-                skill: 'Math',
-                min_hourly_rate: 80,
-                duration_options: [60],
-                offers_online: true,
-                offers_travel: true,
-                offers_at_location: false,
-                format_prices: [
-                  { format: 'online', hourly_rate: 80 },
-                  { format: 'student_location', hourly_rate: 80 },
-                ],
-              },
-            ],
-            preferred_teaching_locations: [],
-            preferred_public_spaces: [],
-          }),
-        } as unknown as Response);
-      }
-
-      if (url.includes('/api/v1/addresses/places/autocomplete')) {
-        return Promise.resolve({
-          ok: true,
-          headers: { get: () => 'application/json' },
-          json: async () => ({
-            items: [
-              {
-                place_id: 'place_1',
-                description: '225 Cherry St, Brooklyn, NY 11201',
-                provider: 'google',
-              },
-            ],
-          }),
-        } as unknown as Response);
-      }
-
-      if (url.includes('/api/v1/addresses/places/details')) {
-        expect(url).toContain('place_id=place_1');
-        expect(url).toContain('provider=google');
-        return Promise.resolve({
-          ok: true,
-          headers: { get: () => 'application/json' },
-          json: async () => ({
-            result: {
-              address: {
-                line1: '225 Cherry St',
-                city: 'Brooklyn',
-                state: 'NY',
-                postal: '11201',
-                country: 'US',
-              },
-              formatted_address: '225 Cherry St, Brooklyn, NY 11201',
-            },
-          }),
-        } as unknown as Response);
-      }
-
-      return Promise.resolve({
-        ok: true,
-        headers: { get: () => 'application/json' },
-        json: async () => ({}),
-      } as unknown as Response);
-    });
+    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: true }, isLoading: false });
   });
 
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
-    fetchMock.mockRestore();
+    fetchInstructorProfileMock.mockReset();
   });
 
-  it('maintains remote modality and disables address inputs when online', async () => {
+  it('shows online bookings as read-only and hides checkout format toggles', async () => {
     const booking = createBooking();
-    let latestBooking = { ...booking };
-    const onBookingUpdate = jest.fn((updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
-      latestBooking = updater({ ...latestBooking });
-    });
 
     render(
       <PaymentConfirmation
@@ -223,160 +126,23 @@ describe('Lesson Location toggle', () => {
         paymentMethod={PaymentMethod.CREDIT_CARD}
         onConfirm={jest.fn()}
         onBack={jest.fn()}
-        onBookingUpdate={onBookingUpdate}
-      />
+      />,
     );
 
     await flushConflicts();
-    await waitFor(() => expect(onBookingUpdate).toHaveBeenCalled());
-    await waitFor(() => expect(latestBooking.metadata?.['modality']).toBe('remote'));
-    if (!screen.queryByText(/How do you want to take this lesson/i)) {
-      fireEvent.click(screen.getByText('Lesson Location'));
-    }
-    const onlineOption = await screen.findByRole('button', { name: /online/i });
-    expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
-    expect(latestBooking.location).toBe('Online');
-    expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('addr-city')).not.toBeInTheDocument();
-  });
-
-  it('allows switching to an address and updates booking metadata/location', async () => {
-    const booking = createBooking();
-    let latestBooking = { ...booking };
-    const onBookingUpdate = jest.fn((updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
-      latestBooking = updater({ ...latestBooking });
-    });
-
-    render(
-      <PaymentConfirmation
-        booking={booking}
-        paymentMethod={PaymentMethod.CREDIT_CARD}
-        onConfirm={jest.fn()}
-        onBack={jest.fn()}
-        onBookingUpdate={onBookingUpdate}
-      />
-    );
-
-    await flushConflicts();
-    if (!screen.queryByText(/How do you want to take this lesson/i)) {
-      fireEvent.click(screen.getByText('Lesson Location'));
-    }
-    const onlineOption = await screen.findByRole('button', { name: /online/i });
-    await waitFor(() => expect(onlineOption).toHaveAttribute('aria-pressed', 'true'));
-
-    const inPersonOption = await screen.findByRole('button', { name: /in person/i });
-    fireEvent.click(inPersonOption);
-
-    await waitFor(() => expect(onlineOption).toHaveAttribute('aria-pressed', 'false'));
-
-    const addressInput = getLessonAddressInput();
-    expect(addressInput).not.toBeDisabled();
-    expect(addressInput).toHaveValue('');
-
-    fireEvent.change(addressInput, { target: { value: '225 Ch' } });
-
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-      await Promise.resolve();
-    });
-
-    const suggestion = await screen.findByRole('option', {
-      name: /225 Cherry St, Brooklyn, NY 11201/i,
-    });
-    fireEvent.click(suggestion);
-
-    await flushConflicts();
-
-    await waitFor(() => expect(screen.getByTestId('addr-street')).toHaveValue('225 Cherry St'));
-    await waitFor(() => expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn'));
-    await waitFor(() => expect(screen.getByTestId('addr-state')).toHaveValue('NY'));
-    await waitFor(() => expect(screen.getByTestId('addr-zip')).toHaveValue('11201'));
-
-    await waitFor(() => expect(latestBooking.metadata?.['modality']).toBe('in_person'));
-    await waitFor(() =>
-      expect(latestBooking.location).toBe('225 Cherry St, Brooklyn, NY 11201'),
-    );
-
     fireEvent.click(screen.getByText('Lesson Location'));
-    await waitFor(() =>
-      expect(screen.getAllByText('225 Cherry St, Brooklyn, NY 11201')[0]).toBeInTheDocument(),
-    );
-  });
 
-  it('uses suggested public spaces and skips service area warnings until custom location', async () => {
-    const booking = createBooking({ location: '', metadata: {} });
-    let latestBooking = { ...booking };
-    const onBookingUpdate = jest.fn((updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
-      latestBooking = updater({ ...latestBooking });
-    });
-
-    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: false }, isLoading: false });
-    fetchInstructorProfileMock.mockResolvedValueOnce({
-      services: [
-        {
-          id: 'svc-1',
-          skill: 'Math',
-          min_hourly_rate: 80,
-          duration_options: [60],
-          offers_online: true,
-          offers_travel: true,
-          offers_at_location: false,
-          format_prices: [
-            { format: 'online', hourly_rate: 80 },
-            { format: 'student_location', hourly_rate: 80 },
-          ],
-        },
-      ],
-      preferred_teaching_locations: [],
-      preferred_public_spaces: [
-        {
-          id: 'space-1',
-          label: 'Bryant Park',
-          address: 'Bryant Park, New York, NY',
-          lat: 40.7536,
-          lng: -73.9832,
-          place_id: 'place_park',
-        },
-      ],
-    });
-
-    render(
-      <PaymentConfirmation
-        booking={booking}
-        paymentMethod={PaymentMethod.CREDIT_CARD}
-        onConfirm={jest.fn()}
-        onBack={jest.fn()}
-        onBookingUpdate={onBookingUpdate}
-      />
-    );
-
-    await flushConflicts();
-    await waitFor(() => expect(fetchInstructorProfileMock).toHaveBeenCalled());
-    if (!screen.queryByText(/How do you want to take this lesson/i)) {
-      fireEvent.click(screen.getByText('Lesson Location'));
-    }
-    await waitFor(() => expect(screen.getByRole('button', { name: /in person/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /in person/i }));
-
-    const suggestion = await screen.findByText('Bryant Park');
-    fireEvent.click(suggestion);
-
-    await waitFor(() => {
-      expect(latestBooking.location).toBe('Bryant Park, New York, NY');
-    });
+    expect(screen.getAllByText('Online').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Video lesson through the platform').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /online/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /in person/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
-    expect(screen.queryByText('Location not covered')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Use your own location'));
-
-    expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-    expect(screen.getByText('Location not covered')).toBeInTheDocument();
   });
 
-  it('Change button enables editing of a saved location and focuses the address field', async () => {
+  it('Change enables editing of a saved travel location while preserving in-person metadata', async () => {
     const booking = createBooking({
       location: '456 Market St, Springfield',
-      metadata: { modality: 'in_person' },
+      metadata: { modality: 'in_person', location_type: 'student_location' },
     });
     let latestBooking = { ...booking };
     const onBookingUpdate = jest.fn((updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
@@ -390,27 +156,40 @@ describe('Lesson Location toggle', () => {
         onConfirm={jest.fn()}
         onBack={jest.fn()}
         onBookingUpdate={onBookingUpdate}
-      />
+      />,
     );
 
     await flushConflicts();
     fireEvent.click(screen.getByText('Lesson Location'));
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }));
 
-    const changeButton = await screen.findByRole('button', { name: /change/i });
-    fireEvent.click(changeButton);
-
-    const displayInput = (await screen
-      .findByDisplayValue(/456 Market St/i)
-      .catch(() => null)) as HTMLInputElement | null;
-    const addressInput = displayInput ?? getLessonAddressInput();
+    const addressInput = screen.getByTestId('addr-street') as HTMLInputElement;
     await waitFor(() => expect(addressInput).not.toBeDisabled());
     await waitFor(() => expect(document.activeElement).toBe(addressInput));
     expect(latestBooking.metadata?.['modality']).toBe('in_person');
   });
 
-  it('shows multiple teaching locations when instructor location is selected', async () => {
-    const booking = createBooking({ location: '', metadata: {} });
+  it('uses Edit lesson as the path to reopen the full time-selection modal', async () => {
+    render(
+      <PaymentConfirmation
+        booking={createBooking()}
+        paymentMethod={PaymentMethod.CREDIT_CARD}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
 
+    await flushConflicts();
+    expect(screen.queryByTestId('mock-time-selection-modal')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Edit lesson'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-time-selection-modal')).toBeInTheDocument();
+    });
+  });
+
+  it('shows the generic instructor-location note instead of an address input', async () => {
     fetchInstructorProfileMock.mockResolvedValueOnce({
       services: [
         {
@@ -418,40 +197,38 @@ describe('Lesson Location toggle', () => {
           skill: 'Math',
           min_hourly_rate: 80,
           duration_options: [60],
-          offers_online: true,
+          offers_online: false,
           offers_travel: false,
           offers_at_location: true,
-          format_prices: [
-            { format: 'online', hourly_rate: 80 },
-            { format: 'instructor_location', hourly_rate: 80 },
-          ],
+          format_prices: [{ format: 'instructor_location', hourly_rate: 80 }],
         },
       ],
       preferred_teaching_locations: [
         { id: 'loc-1', label: 'Downtown Studio', address: '123 Studio Lane' },
-        { id: 'loc-2', label: 'Uptown Studio', address: '456 Studio Way' },
       ],
       preferred_public_spaces: [],
     });
 
     render(
       <PaymentConfirmation
-        booking={booking}
+        booking={createBooking({
+          location: "At instructor's location",
+          metadata: { modality: 'studio', location_type: 'instructor_location' },
+        })}
         paymentMethod={PaymentMethod.CREDIT_CARD}
         onConfirm={jest.fn()}
         onBack={jest.fn()}
-      />
+      />,
     );
 
     await flushConflicts();
-    if (!screen.queryByText(/How do you want to take this lesson/i)) {
-      fireEvent.click(screen.getByText('Lesson Location'));
-    }
+    fireEvent.click(screen.getByText('Lesson Location'));
 
-    const instructorOption = await screen.findByRole('button', { name: /at lee's location/i });
-    fireEvent.click(instructorOption);
-
-    expect(await screen.findByText('Downtown Studio')).toBeInTheDocument();
-    expect(screen.getByText('Uptown Studio')).toBeInTheDocument();
+    expect(screen.getAllByText("At instructor's location").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("You'll travel to the instructor").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText('Instructor address shared after booking confirmation').length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
   });
 });

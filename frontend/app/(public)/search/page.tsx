@@ -2154,11 +2154,17 @@ function SearchPageInner() {
                             handleInteraction('view_profile');
                           }}
                           compact={isStacked}
-                          onBookNow={(e) => {
+                          onBookNow={(e, selection) => {
                             e?.preventDefault?.();
                             e?.stopPropagation?.();
                             setShowTimeSelection(true);
-                            setTimeSelectionContext({ instructor: enhancedInstructor, preSelectedDate: null, preSelectedTime: null, serviceId: enhancedInstructor.services?.[0]?.id });
+                            setTimeSelectionContext({
+                              instructor: enhancedInstructor,
+                              preSelectedDate: selection?.preSelectedDate ?? null,
+                              preSelectedTime: selection?.preSelectedTime ?? null,
+                              initialDurationMinutes: selection?.initialDurationMinutes ?? null,
+                              serviceId: enhancedInstructor.services?.[0]?.id,
+                            });
                           }}
                         />
                       </div>
@@ -2243,6 +2249,9 @@ function SearchPageInner() {
           }}
           {...(getString(timeSelectionContext, 'preSelectedDate') && { preSelectedDate: getString(timeSelectionContext, 'preSelectedDate') })}
           {...(getString(timeSelectionContext, 'preSelectedTime') && { preSelectedTime: getString(timeSelectionContext, 'preSelectedTime') })}
+          {...(getNumber(timeSelectionContext, 'initialDurationMinutes', 0) > 0 && {
+            initialDurationMinutes: getNumber(timeSelectionContext, 'initialDurationMinutes', 0),
+          })}
           {...(getString(timeSelectionContext, 'serviceId') && { serviceId: getString(timeSelectionContext, 'serviceId') })}
         />
       )}

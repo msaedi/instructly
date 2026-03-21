@@ -24,6 +24,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _run_immediately(
+    coro_fn: Callable[[], Coroutine[Any, Any, None]],
+    context: str,
+) -> None:
+    """
+    Execute cache invalidation from sync contexts without a running event loop.
+
+    Uses a temporary event loop and closes any per-loop cache Redis client before
+    the loop exits so sync worker threads do not silently drop invalidations.
+    """
+
+    async def _runner() -> None:
+        try:
+            await coro_fn()
+        finally:
+            try:
+                from app.core.cache_redis import close_async_cache_redis_client
+
+                await close_async_cache_redis_client()
+            except Exception:
+                logger.debug("Non-fatal cache cleanup error for %s", context, exc_info=True)
+
+    try:
+        asyncio.run(_runner())
+    except Exception as exc:
+        logger.warning("Synchronous cache invalidation failed: %s - %s", context, exc)
+
+
 def _fire_and_forget(coro_fn: Callable[[], Coroutine[Any, Any, None]], context: str) -> None:
     """
     Fire-and-forget async execution with graceful fallback.
@@ -51,9 +79,11 @@ def _fire_and_forget(coro_fn: Callable[[], Coroutine[Any, Any, None]], context: 
 
         task.add_done_callback(_consume_task_exception)
     except RuntimeError:
-        # No running event loop - we're in a sync context
-        # Best-effort: log and skip (don't block the caller)
-        logger.debug("No event loop for cache invalidation: %s", context)
+        # No running event loop - execute immediately in a temporary loop so
+        # sync worker-thread call sites (for example asyncio.to_thread routes)
+        # still invalidate search cache.
+        logger.debug("No event loop for cache invalidation, running synchronously: %s", context)
+        _run_immediately(coro_fn, context)
     except Exception as e:
         # Cache invalidation is best-effort, don't fail the operation
         logger.warning("Cache invalidation error: %s - %s", context, e)
