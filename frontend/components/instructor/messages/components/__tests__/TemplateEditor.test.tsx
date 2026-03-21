@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { format } from 'date-fns';
 import { TemplateEditor, type TemplateEditorProps } from '../TemplateEditor';
 import type { TemplateItem } from '../../types';
 import { copyToClipboard, rewriteTemplateContent, deriveTemplatePreview } from '../../utils/templates';
@@ -159,6 +160,49 @@ describe('TemplateEditor', () => {
 
       expect(onDraftChange).toHaveBeenCalledWith('tmpl-1', 'Updated body content');
       expect(onTemplatesUpdate).toHaveBeenCalled();
+    });
+
+    it('shows a formatted last updated timestamp when available', () => {
+      const updatedAt = '2026-03-16T10:45:00.000Z';
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={[
+            {
+              ...mockTemplates[0]!,
+              updatedAt,
+            },
+            mockTemplates[1]!,
+          ]}
+        />
+      );
+
+      expect(
+        screen.getByText(`Last updated: ${format(new Date(updatedAt), 'MMM d, yyyy, h:mm a')}`)
+      ).toBeInTheDocument();
+    });
+
+    it('hides the last updated label when timestamp is missing', () => {
+      render(<TemplateEditor {...defaultProps} />);
+
+      expect(screen.queryByText(/Last updated:/i)).not.toBeInTheDocument();
+    });
+
+    it('hides the last updated label when timestamp is invalid', () => {
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={[
+            {
+              ...mockTemplates[0]!,
+              updatedAt: 'not-a-real-timestamp',
+            },
+            mockTemplates[1]!,
+          ]}
+        />
+      );
+
+      expect(screen.queryByText(/Last updated:/i)).not.toBeInTheDocument();
     });
   });
 

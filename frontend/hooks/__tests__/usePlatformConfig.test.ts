@@ -38,6 +38,7 @@ describe('usePlatformConfig', () => {
         tier_3: 0.10,
         student_booking_fee: 0.12,
       },
+      student_launch_enabled: false,
     };
     fetchPlatformConfig.mockResolvedValue(mockConfig);
 
@@ -91,7 +92,7 @@ describe('usePlatformFees', () => {
       tier_3: 0.06,
       student_booking_fee: 0.10,
     };
-    fetchPlatformConfig.mockResolvedValue({ fees: customFees });
+    fetchPlatformConfig.mockResolvedValue({ fees: customFees, student_launch_enabled: true });
 
     const { result } = renderHook(() => usePlatformFees(), {
       wrapper: createWrapper(),
@@ -100,5 +101,26 @@ describe('usePlatformFees', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.fees).toEqual(customFees);
+  });
+
+  it('preserves the student launch flag on the raw platform config', async () => {
+    fetchPlatformConfig.mockResolvedValue({
+      fees: {
+        founding_instructor: 0.08,
+        tier_1: 0.15,
+        tier_2: 0.12,
+        tier_3: 0.10,
+        student_booking_fee: 0.12,
+      },
+      student_launch_enabled: true,
+    });
+
+    const { result } = renderHook(() => usePlatformConfig(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.config?.student_launch_enabled).toBe(true);
   });
 });

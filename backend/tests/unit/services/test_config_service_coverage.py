@@ -25,6 +25,7 @@ ORIGINAL_GET_DEFAULT_BUFFER_MINUTES = ConfigService.get_default_buffer_minutes
 def clear_config_service_caches() -> None:
     ConfigService._clear_pricing_cache()
     ConfigService._clear_booking_rules_cache()
+    ConfigService._clear_public_platform_cache()
 
 
 class TestConfigServiceInit:
@@ -494,6 +495,60 @@ class TestConfigServiceBookingRules:
         ):
             service = ConfigService(db)
             assert service.get_overnight_earliest_hour(location_type) == expected_hour
+
+
+class TestConfigServicePublicPlatformConfig:
+    """Tests for public platform config support."""
+
+    def test_get_public_platform_config_returns_default_when_no_record(self) -> None:
+        db = MagicMock()
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_repo.get_by_key.return_value = None
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_public_platform_config()
+
+            mock_repo.get_by_key.assert_called_once_with("public_platform")
+            assert config == {"student_launch_enabled": False}
+            assert updated_at is None
+
+    def test_get_public_platform_config_returns_stored_bool_flag(self) -> None:
+        db = MagicMock()
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = {"student_launch_enabled": True}
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_public_platform_config()
+
+            assert config == {"student_launch_enabled": True}
+            assert updated_at == record_time
+
+    def test_get_public_platform_config_ignores_invalid_flag_values(self) -> None:
+        db = MagicMock()
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = {"student_launch_enabled": "yes"}
+            mock_record.updated_at = None
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_public_platform_config()
+
+            assert config == {"student_launch_enabled": False}
+            assert updated_at is None
 
     @pytest.mark.parametrize(
         ("target", "expected"),

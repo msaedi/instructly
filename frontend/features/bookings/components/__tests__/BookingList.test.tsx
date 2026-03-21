@@ -31,7 +31,9 @@ describe('BookingList', () => {
       />
     );
 
-    expect(screen.getByTestId('booking-list-empty')).toBeInTheDocument();
+    const emptyState = screen.getByTestId('booking-list-empty');
+    expect(emptyState).toBeInTheDocument();
+    expect(emptyState).toHaveClass('border-dashed', 'insta-surface-card');
     expect(screen.getByText(/no bookings/i)).toBeInTheDocument();
   });
 

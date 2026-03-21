@@ -1,13 +1,17 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
-import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
+import { tfaStatusQueryKey, useTfaStatus } from '@/hooks/queries/useTfaStatus';
 import Modal from '@/components/Modal';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { queryKeys as sessionQueryKeys } from '@/src/api/queryKeys';
+import { queryKeys as authContextQueryKeys } from '@/lib/react-query/queryClient';
 
 type TfaSetupInitiateResponse = components['schemas']['TFASetupInitiateResponse'];
 type TfaSetupVerifyResponse = components['schemas']['TFASetupVerifyResponse'];
@@ -19,7 +23,7 @@ type Props = {
 };
 
 export default function TfaModal({ onClose, onChanged }: Props) {
-  const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled' | 'disabled'>('idle');
+  const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled'>('idle');
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -27,10 +31,30 @@ export default function TfaModal({ onClose, onChanged }: Props) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requiresBackupCodeAcknowledgement, setRequiresBackupCodeAcknowledgement] = useState(false);
   const hasInitiatedRef = useRef(false);
+  const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Use React Query hook for 2FA status (deduplicates calls)
   const { data: tfaStatus, isSuccess: tfaStatusLoaded } = useTfaStatus();
+
+  const clearClientAuthState = () => {
+    queryClient.setQueryData(sessionQueryKeys.auth.me, null);
+    queryClient.setQueryData(authContextQueryKeys.user, null);
+    queryClient.removeQueries({ queryKey: sessionQueryKeys.auth.me });
+    queryClient.removeQueries({ queryKey: authContextQueryKeys.user });
+    queryClient.removeQueries({ queryKey: tfaStatusQueryKey });
+    queryClient.removeQueries({ queryKey: ['phone-status'] });
+  };
+
+  const redirectToLoginAfterReauth = (message: string) => {
+    clearClientAuthState();
+    onChanged();
+    onClose();
+    toast.success(message);
+    router.push('/login');
+  };
 
   // Note: Escape key handling is now managed by Modal (Radix Dialog)
 
@@ -87,9 +111,13 @@ export default function TfaModal({ onClose, onChanged }: Props) {
       }
       const data = (await res.json()) as TfaSetupVerifyResponse;
       setBackupCodes(data.backup_codes || []);
+      setRequiresBackupCodeAcknowledgement(true);
       setStep('enabled');
+      queryClient.setQueryData(tfaStatusQueryKey, (prev?: { enabled?: boolean }) => ({
+        ...prev,
+        enabled: true,
+      }));
       onChanged();
-      toast.success('Two‑factor authentication enabled');
     } catch {
       setError('Network error.');
     } finally {
@@ -112,9 +140,11 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         setLoading(false);
         return;
       }
-      setStep('disabled');
-      onChanged();
-      toast.success('Two‑factor authentication disabled');
+      queryClient.setQueryData(tfaStatusQueryKey, (prev?: { enabled?: boolean }) => ({
+        ...prev,
+        enabled: false,
+      }));
+      redirectToLoginAfterReauth('Two-factor authentication disabled. Please sign in again.');
     } catch {
       setError('Network error.');
     } finally {
@@ -142,22 +172,31 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     }
   };
 
+  const acknowledgeBackupCodes = () => {
+    redirectToLoginAfterReauth('Two-factor authentication enabled. Please sign in again.');
+  };
+
   return (
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Two-Factor Authentication"
-      description="Manage two-factor authentication settings for your account"
+      title="Connect your authenticator app"
+      description="Use an authenticator app to secure your account with one-time codes."
       size="md"
       autoHeight
-      closeOnEscape={!loading}
-      closeOnBackdrop={!loading}
+      showCloseButton={!requiresBackupCodeAcknowledgement}
+      closeOnEscape={!loading && !requiresBackupCodeAcknowledgement}
+      closeOnBackdrop={!loading && !requiresBackupCodeAcknowledgement}
     >
       <div className="space-y-4">
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         {step === 'show' && (
           <>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium">Step 1:</span> Scan the QR code using your authenticator app,
+              then enter the 6-digit code from the app.
+            </p>
             {qr && (
               <Image
                 src={qr}
@@ -176,7 +215,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
             )}
             <div>
               <label htmlFor="tfa-code" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                Enter 6-digit code
+                <span className="font-medium">Step 2:</span> Enter your 6-digit code
               </label>
               <input
                 id="tfa-code"
@@ -208,7 +247,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 onClick={verify}
                 disabled={loading}
               >
-                {loading ? 'Verifying…' : 'Verify & Enable'}
+                {loading ? 'Verifying…' : 'Verify'}
               </button>
             </div>
           </>
@@ -247,57 +286,57 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 </div>
               </div>
             )}
-            <div className="mt-6 border-t pt-4 space-y-3">
-              <p className="text-sm text-gray-700 dark:text-gray-300">To disable 2FA, confirm your password.</p>
-              <input
-                type="password"
-                id="disable-password"
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="Current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
-                    e.preventDefault();
-                    void disable();
-                  }
-                }}
-                autoComplete="current-password"
-              />
-              <div className="flex justify-end gap-3">
+            {requiresBackupCodeAcknowledgement ? (
+              <div className="mt-6 border-t pt-4 space-y-3">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Save these backup codes somewhere secure before continuing. You will need them if you lose access to your authenticator app.
+                </p>
                 <button
                   type="button"
-                  className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
-                  onClick={onClose}
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`}
-                  onClick={() => void disable()}
+                  className="insta-primary-btn inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={acknowledgeBackupCodes}
                   disabled={loading}
                 >
-                  {loading ? 'Disabling…' : 'Disable 2FA'}
+                  I&apos;ve saved my backup codes
                 </button>
               </div>
-            </div>
-          </>
-        )}
-
-        {step === 'disabled' && (
-          <>
-            <p className="text-sm text-gray-700 dark:text-gray-300">Two-factor authentication has been disabled.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                autoFocus
-                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
-                onClick={onClose}
-              >
-                Close
-              </button>
-            </div>
+            ) : (
+              <div className="mt-6 border-t pt-4 space-y-3">
+                <p className="text-sm text-gray-700 dark:text-gray-300">To disable 2FA, confirm your password.</p>
+                <input
+                  type="password"
+                  id="disable-password"
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  placeholder="Current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
+                      e.preventDefault();
+                      void disable();
+                    }
+                  }}
+                  autoComplete="current-password"
+                />
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`}
+                    onClick={() => void disable()}
+                    disabled={loading}
+                  >
+                    {loading ? 'Disabling…' : 'Disable 2FA'}
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

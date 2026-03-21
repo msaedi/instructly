@@ -5,5 +5,5 @@ import InstructorProfileForm from '@/features/instructor-profile/InstructorProfi
 
 export default function InstructorProfilePage() {
   const embedded = useEmbedded();
-  return <InstructorProfileForm context="dashboard" embedded={embedded} />;
+  return <InstructorProfileForm context="dashboard" embedded={embedded} showPersonalInfo={false} />;
 }

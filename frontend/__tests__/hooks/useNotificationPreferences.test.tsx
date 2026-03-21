@@ -122,4 +122,47 @@ describe('useNotificationPreferences', () => {
       expect(result.current.preferences?.promotional['email']).toBe(false);
     });
   });
+
+  it('tracks which preference is updating', async () => {
+    let resolveUpdate: (() => void) | undefined;
+
+    mockedApi.updatePreference.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = () =>
+            resolve({
+              id: 'pref-1',
+              category: 'promotional',
+              channel: 'email',
+              enabled: true,
+              locked: false,
+            });
+        })
+    );
+
+    const { result } = renderHook(() => useNotificationPreferences(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.preferences?.promotional['email']).toBe(false);
+    });
+
+    act(() => {
+      result.current.updatePreference('promotional', 'email', true);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isUpdating).toBe(true);
+      expect(result.current.isPreferenceUpdating('promotional', 'email')).toBe(true);
+      expect(result.current.isPreferenceUpdating('promotional', 'push')).toBe(false);
+    });
+
+    act(() => {
+      resolveUpdate?.();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isUpdating).toBe(false);
+      expect(result.current.isPreferenceUpdating('promotional', 'email')).toBe(false);
+    });
+  });
 });

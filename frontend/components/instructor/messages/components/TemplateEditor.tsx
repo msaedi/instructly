@@ -7,6 +7,7 @@
  */
 
 import { useRef, useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { Copy, Plus, Sparkles } from 'lucide-react';
 import type { TemplateItem } from '../types';
 import { deriveTemplatePreview, copyToClipboard, rewriteTemplateContent } from '../utils/templates';
@@ -85,7 +86,12 @@ export function TemplateEditor({
       onTemplatesUpdate((prev) =>
         prev.map((template) =>
           template.id === templateId
-            ? { ...template, body: improved, preview: deriveTemplatePreview(improved) }
+            ? {
+                ...template,
+                body: improved,
+                preview: deriveTemplatePreview(improved),
+                updatedAt: new Date().toISOString(),
+              }
             : template
         )
       );
@@ -106,6 +112,12 @@ export function TemplateEditor({
 
   const current = templates.find((item) => item.id === selectedTemplateId) || templates[0];
   const content = current ? templateDrafts[current.id] ?? current.body : '';
+  const updatedAtLabel = (() => {
+    if (!current?.updatedAt) return null;
+    const parsed = new Date(current.updatedAt);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return format(parsed, 'MMM d, yyyy, h:mm a');
+  })();
 
   return (
     <div className="insta-surface-card overflow-hidden">
@@ -174,7 +186,9 @@ export function TemplateEditor({
                       className="w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400 dark:text-gray-300"
                     />
                   </div>
-                  <p className="text-xs insta-onboarding-subtitle mt-1">Last updated manually.</p>
+                  {updatedAtLabel ? (
+                    <p className="text-xs insta-onboarding-subtitle mt-1">Last updated: {updatedAtLabel}</p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -204,7 +218,12 @@ export function TemplateEditor({
                   onTemplatesUpdate((prev) =>
                     prev.map((template) =>
                       template.id === current.id
-                        ? { ...template, body: nextValue, preview: deriveTemplatePreview(nextValue) }
+                        ? {
+                            ...template,
+                            body: nextValue,
+                            preview: deriveTemplatePreview(nextValue),
+                            updatedAt: new Date().toISOString(),
+                          }
                         : template
                     )
                   );

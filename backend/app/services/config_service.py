@@ -58,6 +58,9 @@ DEFAULT_PRICING_CONFIG: Dict[str, Any] = PricingConfig(
 DEFAULT_BOOKING_RULES_CONFIG: Dict[str, Any] = BookingRulesConfig(
     **BOOKING_RULES_DEFAULTS,
 ).model_dump()
+DEFAULT_PUBLIC_PLATFORM_CONFIG: Dict[str, Any] = {
+    "student_launch_enabled": False,
+}
 
 
 class ConfigService(BaseService):
@@ -71,6 +74,8 @@ class ConfigService(BaseService):
     _pricing_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
     _BOOKING_RULES_CACHE_TTL_SECONDS: ClassVar[float] = 60.0
     _booking_rules_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
+    _PUBLIC_PLATFORM_CACHE_TTL_SECONDS: ClassVar[float] = 60.0
+    _public_platform_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
 
     def __init__(self, db: Session) -> None:
         super().__init__(db)
@@ -85,6 +90,11 @@ class ConfigService(BaseService):
     def _clear_pricing_cache(cls) -> None:
         """Clear the in-memory pricing cache."""
         cls._pricing_cache = None
+
+    @classmethod
+    def _clear_public_platform_cache(cls) -> None:
+        """Clear the in-memory public platform config cache."""
+        cls._public_platform_cache = None
 
     @staticmethod
     def _get_booking_rules_int(config: Dict[str, Any], key: str) -> int:
@@ -166,6 +176,31 @@ class ConfigService(BaseService):
             updated_at = record.updated_at
 
         type(self)._booking_rules_cache = (deepcopy(resolved), updated_at, fetched_at)
+        return deepcopy(resolved), updated_at
+
+    @BaseService.measure_operation("get_public_platform_config")
+    def get_public_platform_config(self) -> Tuple[Dict[str, Any], datetime | None]:
+        cached = type(self)._public_platform_cache
+        fetched_at = time.monotonic()
+        if cached and fetched_at - cached[2] < type(self)._PUBLIC_PLATFORM_CACHE_TTL_SECONDS:
+            return deepcopy(cached[0]), cached[1]
+
+        record = self.repo.get_by_key("public_platform")
+        if record is None or not record.value_json:
+            resolved = deepcopy(DEFAULT_PUBLIC_PLATFORM_CONFIG)
+            updated_at = None
+        else:
+            value_json = record.value_json if isinstance(record.value_json, dict) else {}
+            resolved = deepcopy(DEFAULT_PUBLIC_PLATFORM_CONFIG)
+            launch_flag = value_json.get("student_launch_enabled")
+            resolved["student_launch_enabled"] = (
+                launch_flag
+                if isinstance(launch_flag, bool)
+                else DEFAULT_PUBLIC_PLATFORM_CONFIG["student_launch_enabled"]
+            )
+            updated_at = record.updated_at
+
+        type(self)._public_platform_cache = (deepcopy(resolved), updated_at, fetched_at)
         return deepcopy(resolved), updated_at
 
     @BaseService.measure_operation("set_pricing_config")

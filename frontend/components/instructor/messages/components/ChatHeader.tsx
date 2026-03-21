@@ -6,9 +6,11 @@
  */
 
 import { useRef, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MoreVertical, X, Calendar } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { ConversationEntry, ConversationBooking } from '../types';
+import { CONFIRMED_BOOKING_BADGE_CLASSES } from '@/lib/bookingStatus';
 
 export type ChatHeaderProps = {
   isComposeView: boolean;
@@ -210,18 +212,21 @@ export function ChatHeader({
                       <div className="space-y-3">
                         {/* Header row with NEXT BOOKING label and Upcoming tag */}
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#7E22CE] uppercase tracking-wide">Next Booking</span>
-                          <span className="px-2 py-0.5 text-xs font-medium text-[#7E22CE] border border-[#7E22CE] rounded-full">
+                          <span className="text-xs font-semibold text-[#7E22CE]">Next booking</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONFIRMED_BOOKING_BADGE_CLASSES}`}>
                             Upcoming
                           </span>
                         </div>
 
                         {/* Next booking details in purple container */}
-                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                        <Link
+                          href={`/instructor/bookings/${nextBooking.id}`}
+                          className="block rounded-lg border border-purple-200 bg-purple-50 p-3 transition-colors hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                        >
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nextBooking.service_name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(nextBooking.date)}, {formatTime12h(nextBooking.start_time)}</p>
                           <p className="text-[10px] text-gray-400 dark:text-gray-300 font-mono mt-1 truncate">{nextBooking.id}</p>
-                        </div>
+                        </Link>
 
                         {/* Expand/collapse for more bookings */}
                         {upcomingCount > 1 && (
@@ -241,11 +246,15 @@ export function ChatHeader({
                         {showUpcomingBookings && remainingBookings.length > 0 && (
                           <div className="space-y-2 pt-2">
                             {remainingBookings.map((booking) => (
-                              <div key={booking.id} className="p-2.5 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                              <Link
+                                key={booking.id}
+                                href={`/instructor/bookings/${booking.id}`}
+                                className="block rounded-lg border border-gray-200 bg-gray-50 p-2.5 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
+                              >
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}</p>
                                 <p className="text-[10px] text-gray-400 dark:text-gray-300 font-mono mt-1 truncate">{booking.id}</p>
-                              </div>
+                              </Link>
                             ))}
                           </div>
                         )}

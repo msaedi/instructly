@@ -101,6 +101,7 @@ export type TemplateItem = {
   subject: string;
   preview: string;
   body: string;
+  updatedAt?: string | null;
 };
 
 /**

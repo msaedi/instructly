@@ -415,7 +415,7 @@ describe('Instructor Booking Details Page', () => {
 
       const statusBadge = screen.getByText('NO_SHOW');
       expect(statusBadge).toBeInTheDocument();
-      expect(statusBadge).toHaveClass('bg-yellow-100', 'text-yellow-800');
+      expect(statusBadge).toHaveClass('bg-amber-50', 'text-amber-800');
     });
   });
 });

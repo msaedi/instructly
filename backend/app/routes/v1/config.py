@@ -64,10 +64,25 @@ async def get_public_config(db: Session = Depends(get_db)) -> PublicConfigRespon
     """Return public platform configuration for frontend display."""
 
     service = ConfigService(db)
-    config_result = service.get_pricing_config()
-    if isawaitable(config_result):
-        config_dict, updated_at = await config_result
+    pricing_result = service.get_pricing_config()
+    if isawaitable(pricing_result):
+        config_dict, pricing_updated_at = await pricing_result
     else:
-        config_dict, updated_at = config_result
+        config_dict, pricing_updated_at = pricing_result
+    public_platform_result = service.get_public_platform_config()
+    if isawaitable(public_platform_result):
+        public_platform_config, public_platform_updated_at = await public_platform_result
+    else:
+        public_platform_config, public_platform_updated_at = public_platform_result
+    updated_candidates = [
+        candidate
+        for candidate in (pricing_updated_at, public_platform_updated_at)
+        if candidate is not None
+    ]
+    updated_at = max(updated_candidates) if updated_candidates else None
     fees = _build_platform_fees(config_dict)
-    return PublicConfigResponse(fees=fees, updated_at=updated_at)
+    return PublicConfigResponse(
+        fees=fees,
+        student_launch_enabled=bool(public_platform_config.get("student_launch_enabled", False)),
+        updated_at=updated_at,
+    )

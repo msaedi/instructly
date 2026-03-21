@@ -16,6 +16,7 @@ import {
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { Star as PhosphorStar } from '@phosphor-icons/react';
 import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
@@ -38,6 +39,7 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
+import { usePlatformConfig } from '@/hooks/usePlatformConfig';
 import { useQuery } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
@@ -46,6 +48,15 @@ import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { getReviewFillPercent, getReviewsCardSummary } from '@/lib/dashboardReviews';
+import {
+  INSTRUCTOR_DASHBOARD_NAV_ITEMS,
+  MOBILE_NAV_PRIMARY_ITEMS,
+  MOBILE_NAV_SECONDARY_ITEMS,
+  isDashboardPanel,
+  type DashboardPanel,
+} from '@/lib/instructorDashboardNav';
+import { getPublicProfileLaunchState } from '@/lib/publicProfileLaunch';
 
 type DashboardLinkResponse = components['schemas']['DashboardLinkResponse'];
 type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
@@ -53,38 +64,27 @@ type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string; label?: string };
-type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'referrals' | 'reviews' | 'availability' | 'account';
-
-const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
-  'dashboard',
-  'profile',
-  'bookings',
-  'earnings',
-  'referrals',
-  'reviews',
-  'availability',
-  'account',
-]);
-
-const isDashboardPanel = (value: string | null): value is DashboardPanel => {
-  return value !== null && DASHBOARD_PANEL_KEYS.has(value as DashboardPanel);
-};
-
-const MOBILE_NAV_PRIMARY: Array<{ key: DashboardPanel; label: string }> = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'bookings', label: 'Bookings' },
-  { key: 'availability', label: 'Availability' },
-];
-
-const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'earnings', label: 'Earnings' },
-  { key: 'referrals', label: 'Referrals' },
-  { key: 'reviews', label: 'Reviews' },
-  { key: 'account', label: 'Account' },
-];
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+function ReviewRatingStar({ rating }: { rating?: number | null }) {
+  const fillPercent = getReviewFillPercent(rating);
+
+  return (
+    <div className="relative h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true">
+      <PhosphorStar
+        weight="regular"
+        className="absolute inset-0 h-full w-full text-[#7E22CE]/35"
+      />
+      <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
+        <PhosphorStar
+          weight="fill"
+          className="h-full w-full text-[#7E22CE]"
+        />
+      </div>
+    </div>
+  );
+}
 
 function DashboardPopover({
   icon: Icon,
@@ -209,6 +209,7 @@ export default function InstructorDashboardNew() {
   const [showMessages, setShowMessages] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMoreMobile, setShowMoreMobile] = useState(false);
+  const { config: platformConfig } = usePlatformConfig();
   // Conversations for badge/dropdown
   const { data: conversationList } = useQuery({
     queryKey: ['conversations', 'dashboard', 'active'],
@@ -235,6 +236,9 @@ export default function InstructorDashboardNew() {
   });
   const unreadConversations = (conversationList?.conversations ?? []).filter(
     (conv) => (conv.unread_count ?? 0) > 0
+  );
+  const publicProfileLaunchState = getPublicProfileLaunchState(
+    platformConfig?.student_launch_enabled
   );
   // Badge should reflect number of conversations with unread messages, not total unread messages
   const unreadConversationsCount = unreadConversations.length;
@@ -437,10 +441,8 @@ export default function InstructorDashboardNew() {
     (typeof ratingsData?.overall?.rating === 'number'
       ? ratingsData.overall.rating.toFixed(1)
       : null);
-  const reviewSubtitle =
-    reviewCount > 0 ? `${reviewCount} review${reviewCount === 1 ? '' : 's'}` : 'Not yet available';
-  const reviewAverageText =
-    reviewCount > 0 && reviewAverageDisplay ? reviewAverageDisplay : '–';
+  const reviewRatingValue = ratingsData?.overall?.rating ?? null;
+  const reviewSummaryText = getReviewsCardSummary(reviewAverageDisplay, reviewCount);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -847,26 +849,49 @@ export default function InstructorDashboardNew() {
               <div>
                 <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Quick access</div>
                 <ul className="space-y-2">
-                  {MOBILE_NAV_PRIMARY.map((item) => (
+                  {MOBILE_NAV_PRIMARY_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.kind === 'panel' && activePanel === item.key;
+                    return (
                     <li key={item.key}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handlePanelChange(item.key);
-                          setIsMobileMenuOpen(false);
-                          setShowMoreMobile(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                          activePanel === item.key
-                            ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                            : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                        }`}
-                        aria-current={activePanel === item.key ? 'page' : undefined}
-                      >
-                        {item.label}
-                      </button>
+                      {item.kind === 'panel' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handlePanelChange(item.key);
+                            setIsMobileMenuOpen(false);
+                            setShowMoreMobile(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
+                          }`}
+                          aria-current={isActive ? 'page' : undefined}
+                        >
+                          <span className="flex items-center gap-2">
+                            {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                            <span>{item.label}</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            setShowMoreMobile(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300"
+                        >
+                          <span className="flex items-center gap-2">
+                            {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                            <span>{item.label}</span>
+                          </span>
+                        </Link>
+                      )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
@@ -882,26 +907,49 @@ export default function InstructorDashboardNew() {
                 </button>
                 {showMoreMobile && (
                   <ul id="mobile-nav-more" className="mt-2 space-y-2 px-1">
-                    {MOBILE_NAV_SECONDARY.map((item) => (
+                    {MOBILE_NAV_SECONDARY_ITEMS.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = item.kind === 'panel' && activePanel === item.key;
+                      return (
                       <li key={item.key}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handlePanelChange(item.key);
-                            setIsMobileMenuOpen(false);
-                            setShowMoreMobile(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                            activePanel === item.key
-                              ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                          }`}
-                          aria-current={activePanel === item.key ? 'page' : undefined}
-                        >
-                          {item.label}
-                        </button>
+                        {item.kind === 'panel' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handlePanelChange(item.key);
+                              setIsMobileMenuOpen(false);
+                              setShowMoreMobile(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                              isActive
+                                ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                                : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
+                            }`}
+                            aria-current={isActive ? 'page' : undefined}
+                          >
+                            <span className="flex items-center gap-2">
+                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                              <span>{item.label}</span>
+                            </span>
+                          </button>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              setShowMoreMobile(false);
+                            }}
+                            className="block w-full text-left px-3 py-2 rounded-md text-sm text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300"
+                          >
+                            <span className="flex items-center gap-2">
+                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                              <span>{item.label}</span>
+                            </span>
+                          </Link>
+                        )}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </div>
@@ -923,118 +971,40 @@ export default function InstructorDashboardNew() {
             <div className="insta-surface-card p-4">
               <nav>
                 <ul className="space-y-1">
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('dashboard')}
-                      aria-current={activePanel === 'dashboard' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'dashboard'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Dashboard
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('account')}
-                      aria-current={activePanel === 'account' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'account'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Account
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('profile')}
-                      aria-current={activePanel === 'profile' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'profile'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Instructor Profile
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('bookings')}
-                      aria-current={activePanel === 'bookings' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'bookings'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Bookings
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('earnings')}
-                      aria-current={activePanel === 'earnings' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'earnings'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Earnings
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('referrals')}
-                      aria-current={activePanel === 'referrals' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'referrals'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Referrals
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('availability')}
-                      aria-current={activePanel === 'availability' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'availability'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Availability
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => handlePanelChange('reviews')}
-                      aria-current={activePanel === 'reviews' ? 'page' : undefined}
-                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
-                        activePanel === 'reviews'
-                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
-                      }`}
-                    >
-                      Reviews
-                    </button>
-                  </li>
+                  {INSTRUCTOR_DASHBOARD_NAV_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.kind === 'panel' && activePanel === item.key;
+                    const className = `w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                      isActive
+                        ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                        : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
+                    }`;
+
+                    return (
+                      <li key={item.key}>
+                        {item.kind === 'panel' ? (
+                          <button
+                            type="button"
+                            onClick={() => handlePanelChange(item.key)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={className}
+                          >
+                            <span className="flex items-center gap-2">
+                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                              <span>{item.label}</span>
+                            </span>
+                          </button>
+                        ) : (
+                          <Link href={item.href} className={className}>
+                            <span className="flex items-center gap-2">
+                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                              <span>{item.label}</span>
+                            </span>
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </nav>
             </div>
@@ -1059,16 +1029,14 @@ export default function InstructorDashboardNew() {
           subtitle="Your profile, schedule, and earnings at a glance"
           subtitleClassName="text-gray-600 dark:text-gray-400 text-sm"
           actions={(() => {
-            const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0);
-            const isEnabled = Date.now() >= releaseTs;
             return (
               <button
                 onClick={() => { if (profile) router.push(`/instructors/${profile.user_id}`); }}
-                disabled={!isEnabled}
-                aria-disabled={!isEnabled}
-                title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
+                disabled={!publicProfileLaunchState.isEnabled}
+                aria-disabled={!publicProfileLaunchState.isEnabled}
+                title={publicProfileLaunchState.title}
                 className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isEnabled
+                  publicProfileLaunchState.isEnabled
                     ? 'insta-secondary-btn'
                     : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-300 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700'
                 }`}
@@ -1128,17 +1096,15 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Reviews</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white" data-testid="reviews-avg">
-                  {reviewAverageText}
-                </p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1" data-testid="reviews-count">
-                  {reviewSubtitle}
+                <p
+                  className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1"
+                  data-testid="reviews-summary"
+                >
+                  {reviewSummaryText}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
+                <ReviewRatingStar rating={reviewRatingValue} />
               </div>
             </div>
           </button>

@@ -17734,6 +17734,11 @@ export type components = {
         /** PublicConfigResponse */
         PublicConfigResponse: {
             fees: components["schemas"]["PlatformFees"];
+            /**
+             * Student Launch Enabled
+             * @default false
+             */
+            student_launch_enabled: boolean;
             /** Updated At */
             updated_at?: string | null;
         };

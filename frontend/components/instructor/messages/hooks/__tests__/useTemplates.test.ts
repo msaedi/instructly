@@ -19,14 +19,19 @@ const deriveTemplatePreviewMock = deriveTemplatePreview as jest.Mock;
 
 describe('useTemplates', () => {
   const mockTemplates = [
-    { id: 'tmpl-1', subject: 'Welcome', body: 'Welcome to our class!', preview: 'Welcome to our...' },
-    { id: 'tmpl-2', subject: 'Reminder', body: 'Lesson reminder text', preview: 'Lesson reminder...' },
+    { id: 'tmpl-1', subject: 'Welcome', body: 'Welcome to our class!', preview: 'Welcome to our...', updatedAt: null },
+    { id: 'tmpl-2', subject: 'Reminder', body: 'Lesson reminder text', preview: 'Lesson reminder...', updatedAt: null },
   ];
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-16T10:45:00Z'));
     loadStoredTemplatesMock.mockReturnValue(mockTemplates);
     deriveTemplatePreviewMock.mockImplementation((text: string) => text.substring(0, 20) + '...');
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('initializes with templates from storage', () => {
@@ -80,6 +85,7 @@ describe('useTemplates', () => {
 
     const updated = result.current.templates.find((t) => t.id === 'tmpl-1');
     expect(updated?.subject).toBe('New Welcome Subject');
+    expect(updated?.updatedAt).toBe('2026-03-16T10:45:00.000Z');
   });
 
   it('handleTemplateSubjectChange does not affect other templates', () => {
@@ -113,6 +119,20 @@ describe('useTemplates', () => {
     });
 
     expect(deriveTemplatePreviewMock).toHaveBeenCalledWith('New body for preview test');
+  });
+
+  it('does not stamp updatedAt for a pristine newly created empty template', () => {
+    loadStoredTemplatesMock.mockReturnValue([
+      { id: 'tmpl-new', subject: 'Untitled template', body: '', preview: '', updatedAt: null },
+    ]);
+
+    const { result } = renderHook(() => useTemplates());
+
+    act(() => {
+      result.current.handleTemplateDraftChange('tmpl-new', '');
+    });
+
+    expect(result.current.templates[0]?.updatedAt).toBeNull();
   });
 
   it('setSelectedTemplateId changes selected template', () => {

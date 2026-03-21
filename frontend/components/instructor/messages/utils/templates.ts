@@ -200,7 +200,7 @@ export const loadStoredTemplates = (): TemplateItem[] => {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return getDefaultTemplates();
     const cleaned = (parsed as unknown[])
-      .map((item: unknown) => {
+      .map((item: unknown): TemplateItem | null => {
         if (!item || typeof item !== 'object') return null;
         const id = typeof (item as { id?: unknown }).id === 'string' && (item as { id?: string }).id
           ? (item as { id: string }).id
@@ -214,12 +214,17 @@ export const loadStoredTemplates = (): TemplateItem[] => {
           typeof (item as { preview?: unknown }).preview === 'string'
             ? (item as { preview: string }).preview
             : '';
+        const updatedAt =
+          typeof (item as { updatedAt?: unknown }).updatedAt === 'string'
+            ? (item as { updatedAt: string }).updatedAt
+            : null;
         const preview = previewCandidate.trim() ? previewCandidate : deriveTemplatePreview(body);
         return {
           id,
           subject,
           body,
           preview,
+          ...(updatedAt ? { updatedAt } : {}),
         };
       })
       .filter((item): item is TemplateItem => item !== null);

@@ -13,7 +13,7 @@ import { BGCStep } from '@/components/instructor/BGCStep';
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload, type BGCStatus } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
-import { ShieldCheck } from 'lucide-react';
+import { Rocket, ShieldCheck } from 'lucide-react';
 import { useGoLiveInstructor } from '@/src/api/services/instructors';
 import { logger } from '@/lib/logger';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -393,7 +393,12 @@ export default function OnboardingStatusPage() {
             onClick={goLive}
             className="insta-primary-btn px-8 py-4 text-lg rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
-            {canGoLive ? '🎉 Go live' : 'Complete required steps to go live'}
+            {canGoLive ? (
+              <span className="inline-flex items-center gap-2">
+                <Rocket className="h-5 w-5" aria-hidden="true" />
+                <span>Go live</span>
+              </span>
+            ) : 'Complete required steps to go live'}
           </button>
         </div>
       </div>

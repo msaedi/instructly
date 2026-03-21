@@ -40,10 +40,11 @@ export function useTemplates(): UseTemplatesResult {
   }, [templates]);
 
   const handleTemplateSubjectChange = useCallback((templateId: string, nextSubject: string) => {
+    const updatedAt = new Date().toISOString();
     setTemplates((prev) =>
       prev.map((template) =>
         template.id === templateId
-          ? { ...template, subject: nextSubject }
+          ? { ...template, subject: nextSubject, updatedAt }
           : template
       )
     );
@@ -54,7 +55,24 @@ export function useTemplates(): UseTemplatesResult {
     setTemplates((prev) =>
       prev.map((template) =>
         template.id === templateId
-          ? { ...template, body, preview: deriveTemplatePreview(body) }
+          ? (() => {
+              const isPristineNewTemplate =
+                template.body === '' &&
+                template.preview === '' &&
+                template.updatedAt == null &&
+                body === '';
+
+              if (isPristineNewTemplate) {
+                return template;
+              }
+
+              return {
+                ...template,
+                body,
+                preview: deriveTemplatePreview(body),
+                updatedAt: new Date().toISOString(),
+              };
+            })()
           : template
       )
     );

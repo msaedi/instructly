@@ -4,6 +4,7 @@ import { AlertTriangle, CalendarDays, CheckCircle, ChevronRight, Clock, User } f
 import { Fragment } from 'react';
 import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 import { formatDisplayName } from '@/lib/format/displayName';
+import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 export type BookingListItem = {
   id: string;
@@ -47,14 +48,6 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelled',
   NO_SHOW: 'No-show',
   IN_PROGRESS: 'In Progress',
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  CONFIRMED: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
-  COMPLETED: 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-indigo-200',
-  CANCELLED: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
-  NO_SHOW: 'bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200',
-  IN_PROGRESS: 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200',
 };
 
 /**
@@ -122,8 +115,12 @@ export function BookingList({
         className="rounded-xl border border-dashed border-gray-300 p-6 text-center insta-surface-card"
         data-testid={`${dataTestId}-empty`}
       >
-        <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{emptyTitle}</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{emptyDescription}</p>
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{emptyTitle}</p>
+          {emptyDescription ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">{emptyDescription}</p>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -135,8 +132,7 @@ export function BookingList({
         const inProgress = isInProgress(booking);
         const displayStatus = inProgress ? 'IN_PROGRESS' : booking.status;
         const status = STATUS_LABELS[displayStatus] ?? booking.status ?? 'Pending';
-        const badgeClasses =
-          STATUS_STYLES[displayStatus] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+        const badgeClasses = getBookingStatusBadgeClasses(displayStatus);
         const studentName = formatDisplayName(
           booking.student?.first_name,
           booking.student?.last_initial,

@@ -12,6 +12,7 @@ import { formatDisplayName } from '@/lib/format/displayName';
 import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { queryKeys } from '@/src/api/queryKeys';
+import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 export default function BookingDetailsPage() {
   const params = useParams();
@@ -80,21 +81,6 @@ export default function BookingDetailsPage() {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-        return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      case 'COMPLETED':
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-      case 'CANCELLED':
-        return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'NO_SHOW':
-        return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -131,7 +117,7 @@ export default function BookingDetailsPage() {
               <h1 className="text-2xl font-bold">Booking #{booking.id}</h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Created on {new Date(booking.created_at).toLocaleDateString()}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(booking.status)}`}>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getBookingStatusBadgeClasses(booking.status)}`}>
               {booking.status}
             </span>
           </div>

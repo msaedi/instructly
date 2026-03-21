@@ -11,6 +11,7 @@ export type PlatformFees = {
 
 export type PlatformConfig = {
   fees: PlatformFees;
+  student_launch_enabled: boolean;
   updated_at?: string | null;
 };
 

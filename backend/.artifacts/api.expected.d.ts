@@ -9409,6 +9409,7 @@ export type components = {
  };
  PublicConfigResponse: {
  fees: components["schemas"]["PlatformFees"];
+ student_launch_enabled: boolean;
  updated_at?: string | null;
  };
  PublicDayAvailability: {

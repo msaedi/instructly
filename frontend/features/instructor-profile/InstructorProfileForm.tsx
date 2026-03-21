@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Tag } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, BookOpen, ChevronDown, Camera } from 'lucide-react';
+import { User as UserIcon, ChevronDown, Camera } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
@@ -106,6 +107,7 @@ function toTitle(s: string): string {
 type InstructorProfileFormProps = {
   context?: 'dashboard' | 'onboarding';
   embedded?: boolean;
+  showPersonalInfo?: boolean;
   onStepStatusChange?: (status: 'done' | 'failed') => void;
 };
 
@@ -114,7 +116,7 @@ export type InstructorProfileFormHandle = {
 };
 
 const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, InstructorProfileFormProps>(function InstructorProfileForm(
-  { context = 'dashboard', embedded: embeddedProp, onStepStatusChange }: InstructorProfileFormProps,
+  { context = 'dashboard', embedded: embeddedProp, showPersonalInfo = true, onStepStatusChange }: InstructorProfileFormProps,
   ref
 ) {
   const isOnboarding = context === 'onboarding';
@@ -185,6 +187,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openServiceAreas, setOpenServiceAreas] = useState(shouldDefaultExpand);
   const [openPreferredLocations, setOpenPreferredLocations] = useState(shouldDefaultExpand);
   const [openSkills, setOpenSkills] = useState(false);
+  const shouldRenderPersonalInfo = isOnboarding || showPersonalInfo;
 
   // Derive profile picture status from instructor profile hook (avoids duplicate API call)
   useEffect(() => {
@@ -921,17 +924,19 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
       {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
       <div className={embedded ? 'mt-0 sm:mt-0 insta-dashboard-accordion-stack--dividers' : 'mt-0 sm:mt-6 insta-dashboard-accordion-stack--dividers'}>
-        {/* Personal Information Section */}
-        <PersonalInfoCard
-          context={context}
-          profile={profile}
-          lastNameError={lastNameError}
-          onProfileChange={handleProfileChange}
-          isOpen={openPersonal}
-          onToggle={() => setOpenPersonal((v) => !v)}
-        />
-        {/* Mobile divider before Profile Details */}
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+        {shouldRenderPersonalInfo && (
+          <>
+            <PersonalInfoCard
+              context={context}
+              profile={profile}
+              lastNameError={lastNameError}
+              onProfileChange={handleProfileChange}
+              isOpen={openPersonal}
+              onToggle={() => setOpenPersonal((v) => !v)}
+            />
+            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+          </>
+        )}
 
         {/* Professional Information Section */}
         <BioCard
@@ -965,7 +970,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-[#7E22CE]" />
+                    <Tag className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="insta-dashboard-accordion-title">Skills & Pricing</span>

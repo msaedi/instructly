@@ -4,6 +4,7 @@ import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { formatInstructorFromUser, formatFullName } from '@/utils/nameDisplay';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
+import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 /**
  * BookingDetailsModal Component
@@ -89,21 +90,6 @@ export default function BookingDetailsModal({
     });
   };
 
-  /**
-   * Get status badge color classes
-   * @param status - Booking status
-   * @returns CSS classes for status badge
-   */
-  const getStatusColor = (status: string): string => {
-    const statusColors: Record<string, string> = {
-      CONFIRMED: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
-      COMPLETED: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
-      CANCELLED: 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
-      NO_SHOW: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
-    };
-    return statusColors[status.toUpperCase()] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -127,7 +113,7 @@ export default function BookingDetailsModal({
           {/* Status and Confirmation */}
           <div className="flex items-center justify-between">
             <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+              className={`px-3 py-1 rounded-full text-sm font-medium ${getBookingStatusBadgeClasses(
                 booking.status
               )}`}
             >

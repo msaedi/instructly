@@ -9,12 +9,32 @@ from app.routes.v1 import config as routes
 
 
 class _ServiceStub:
-    def __init__(self, *, async_result: bool = False, config: dict | None = None):
+    def __init__(
+        self,
+        *,
+        async_result: bool = False,
+        config: dict | None = None,
+        public_platform_config: dict | None = None,
+        pricing_updated_at: datetime | None = None,
+        public_platform_updated_at: datetime | None = None,
+    ):
         self.async_result = async_result
         self.config = config or PRICING_DEFAULTS
+        self.public_platform_config = public_platform_config or {"student_launch_enabled": False}
+        self.pricing_updated_at = pricing_updated_at or datetime.now(timezone.utc)
+        self.public_platform_updated_at = public_platform_updated_at
 
     def get_pricing_config(self):
-        result = (self.config, datetime.now(timezone.utc))
+        result = (self.config, self.pricing_updated_at)
+        if self.async_result:
+            async def _async():
+                return result
+
+            return _async()
+        return result
+
+    def get_public_platform_config(self):
+        result = (self.public_platform_config, self.public_platform_updated_at)
         if self.async_result:
             async def _async():
                 return result
@@ -85,3 +105,24 @@ async def test_get_public_config_uses_platform_fees(monkeypatch):
     assert response.fees.founding_instructor == 0.04
     assert response.fees.tier_1 == 0.06
     assert response.fees.student_booking_fee == 0.02
+    assert response.student_launch_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_get_public_config_includes_student_launch_flag_and_latest_timestamp(monkeypatch):
+    pricing_updated_at = datetime(2026, 3, 1, tzinfo=timezone.utc)
+    public_platform_updated_at = datetime(2026, 3, 15, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        routes,
+        "ConfigService",
+        lambda _db: _ServiceStub(
+            public_platform_config={"student_launch_enabled": True},
+            pricing_updated_at=pricing_updated_at,
+            public_platform_updated_at=public_platform_updated_at,
+        ),
+    )
+
+    response = await routes.get_public_config(db=None)
+
+    assert response.student_launch_enabled is True
+    assert response.updated_at == public_platform_updated_at
