@@ -2,6 +2,11 @@ import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { addMinutesHHMM, to24HourTime } from '@/lib/time';
 import type { CreateBookingRequest } from '@/features/shared/api/client';
 import type { BookingPayment } from '../types';
+import {
+  getGenericMeetingLocationLabel,
+  resolveLocationType,
+  sanitizeMeetingLocation,
+} from './locationUtils';
 
 interface BuildCreateBookingPayloadParams {
   instructorId: string;
@@ -64,55 +69,6 @@ function normalizeNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-type NormalizedLocationType =
-  | 'student_location'
-  | 'instructor_location'
-  | 'online'
-  | 'neutral_location';
-
-function normalizeLocationType(
-  modality: unknown,
-  locationTypeOverride: unknown,
-  fallbackLocation: string | undefined,
-): NormalizedLocationType {
-  const normalizeHint = (value: unknown): NormalizedLocationType | null => {
-    if (typeof value !== 'string') {
-      return null;
-    }
-    const raw = value.toLowerCase().trim();
-    if (!raw) {
-      return null;
-    }
-    if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
-      return 'online';
-    }
-    if (raw.includes('instructor') || raw.includes('studio')) {
-      return 'instructor_location';
-    }
-    if (raw.includes('neutral') || raw.includes('public')) {
-      return 'neutral_location';
-    }
-    if (raw.includes('student') || raw.includes('home') || raw.includes('in_person') || raw.includes('in-person')) {
-      return 'student_location';
-    }
-    return null;
-  };
-
-  const override = normalizeHint(locationTypeOverride);
-  if (override) {
-    return override;
-  }
-  const normalizedModality = normalizeHint(modality);
-  if (normalizedModality) {
-    return normalizedModality;
-  }
-  const fallback = normalizeHint(fallbackLocation);
-  if (fallback) {
-    return fallback;
-  }
-  return 'student_location';
-}
-
 /**
  * Build the payload expected by POST /bookings/ using the booking selection state.
  */
@@ -137,19 +93,20 @@ export function buildCreateBookingPayload({
     booking.startTime,
     booking.endTime,
   );
-  const locationType = normalizeLocationType(
-    metadata['modality'],
-    metadata['location_type'],
-    booking.location,
-  );
+  const locationType = resolveLocationType({
+    modalityHint: metadata['modality'],
+    locationTypeHint: metadata['location_type'],
+    fallbackLocation: typeof booking.location === 'string' ? booking.location : undefined,
+  });
   const addressFromMetadata =
-    typeof metadata['location_address'] === 'string' ? metadata['location_address'] : undefined;
+    sanitizeMeetingLocation(metadata['location_address']);
   const addressFromBooking =
-    typeof booking.address?.fullAddress === 'string' ? booking.address.fullAddress : undefined;
+    sanitizeMeetingLocation(booking.address?.fullAddress);
+  const fallbackLocation = sanitizeMeetingLocation(booking.location);
   const locationAddress =
     locationType === 'online'
       ? undefined
-      : addressFromBooking ?? addressFromMetadata ?? booking.location;
+      : addressFromBooking || addressFromMetadata || fallbackLocation || undefined;
   const locationLat =
     locationType === 'online'
       ? undefined
@@ -166,14 +123,8 @@ export function buildCreateBookingPayload({
           ? metadata['location_place_id']
           : undefined) ??
         (typeof metadata['place_id'] === 'string' ? metadata['place_id'] : undefined);
-  const fallbackLocation =
-    typeof booking.location === 'string' && booking.location.trim().length > 0
-      ? booking.location
-      : undefined;
   const meetingLocation =
-    locationAddress ??
-    fallbackLocation ??
-    (locationType === 'online' ? 'Online' : 'In-person lesson');
+    locationAddress ?? (fallbackLocation || getGenericMeetingLocationLabel(locationType));
   const normalizedDate = normalizeBookingDate(bookingDate);
   const resolvedTimezone =
     normalizeTimezone(instructorTimezone) ??

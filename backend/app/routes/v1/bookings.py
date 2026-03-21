@@ -350,7 +350,7 @@ async def check_availability(
             end_time=check_data.end_time,
             service_id=check_data.instructor_service_id,
             instructor_service_id=None,
-            exclude_booking_id=None,
+            exclude_booking_id=check_data.exclude_booking_id,
             location_type=check_data.location_type,
             student_id=current_user.id,
             selected_duration=check_data.selected_duration,

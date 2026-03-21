@@ -219,6 +219,33 @@ class TestAsyncInvalidationFunctions:
         await asyncio.sleep(0.01)
         assert invalidation_called["count"] >= 1
 
+    def test_invalidate_on_availability_change_runs_without_event_loop(
+        self, monkeypatch
+    ) -> None:
+        """Sync worker threads should invalidate immediately instead of silently skipping."""
+        monkeypatch.setattr(
+            app_config, "settings", SimpleNamespace(is_testing=False), raising=False
+        )
+
+        invalidation_called = {"count": 0}
+
+        async def track_invalidation() -> int:
+            invalidation_called["count"] += 1
+            return 2
+
+        cache_service = SearchCacheService(cache_service=None)
+        cache_service.invalidate_response_cache = track_invalidation
+        cache_module.set_search_cache(cache_service)
+
+        def no_running_loop() -> None:
+            raise RuntimeError("no running event loop")
+
+        monkeypatch.setattr(cache_module.asyncio, "get_running_loop", no_running_loop)
+
+        cache_module.invalidate_on_availability_change("inst-sync")
+
+        assert invalidation_called["count"] == 1
+
     @pytest.mark.asyncio
     async def test_invalidate_on_price_change_async_execution(self, monkeypatch) -> None:
         """Test that invalidate_on_price_change executes (line 166)."""

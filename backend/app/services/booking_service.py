@@ -77,6 +77,7 @@ from .notification_templates import (
     STUDENT_BOOKING_CONFIRMED,
 )
 from .pricing_service import PricingService
+from .search.cache_invalidation import invalidate_on_availability_change
 from .sms_templates import (
     BOOKING_CANCELLED_INSTRUCTOR,
     BOOKING_CANCELLED_STUDENT,
@@ -1000,6 +1001,17 @@ class BookingService(BaseService):
             )
 
             booking = refreshed_booking
+
+        # The checkout flow creates bookings through this path, so availability/search
+        # caches must be invalidated here after the booking transaction commits.
+        try:
+            self._invalidate_booking_caches(booking)
+        except Exception:
+            logger.debug(
+                "Failed to invalidate booking caches after payment setup for booking %s",
+                booking.id,
+                exc_info=True,
+            )
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
@@ -6644,11 +6656,12 @@ class BookingService(BaseService):
                 self.cache_service.invalidate_instructor_availability(
                     booking.instructor_id, [booking.booking_date]
                 )
+                invalidate_on_availability_change(str(booking.instructor_id))
                 # Invalidate booking statistics cache for the instructor (actively used)
                 stats_cache_key = f"booking_stats:instructor:{booking.instructor_id}"
                 self.cache_service.delete(stats_cache_key)
                 logger.debug(
-                    "Invalidated availability and stats caches for instructor %s",
+                    "Invalidated availability, search, and stats caches for instructor %s",
                     booking.instructor_id,
                 )
             except Exception as cache_error:

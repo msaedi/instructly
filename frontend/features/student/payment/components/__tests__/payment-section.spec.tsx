@@ -6,10 +6,14 @@ import { BookingType, PaymentMethod, PAYMENT_STATUS } from '../../types';
 // Mock v1 bookings service
 const mockFetchBookingDetails = jest.fn();
 const mockCancelBookingImperative = jest.fn();
+const mockUseCheckAvailability = jest.fn(() => ({
+  mutateAsync: jest.fn().mockResolvedValue({ available: true }),
+}));
 
 jest.mock('@/src/api/services/bookings', () => ({
   fetchBookingDetails: (...args: unknown[]) => mockFetchBookingDetails(...args),
   cancelBookingImperative: (...args: unknown[]) => mockCancelBookingImperative(...args),
+  useCheckAvailability: () => mockUseCheckAvailability(),
 }));
 
 // Type alias

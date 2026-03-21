@@ -230,6 +230,28 @@ describe('buildCreateBookingPayload', () => {
     expect(payload).not.toHaveProperty('location_address');
   });
 
+  it('uses metadata.durationMinutes when explicit duration is missing', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-duration-minutes',
+      serviceId: 'svc-duration-minutes',
+      bookingDate: '2025-08-03',
+      booking: {
+        ...baseBooking,
+        duration: undefined as unknown as number,
+        startTime: '9:00am',
+        endTime: '10:15am',
+        location: '123 Main St',
+        metadata: {
+          modality: 'in_person',
+          durationMinutes: 75,
+        },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(75);
+    expect(payload.end_time).toBe('10:15');
+  });
+
   it('throws when booking start or end time is missing', () => {
     expect(() =>
       buildCreateBookingPayload({
@@ -345,10 +367,8 @@ describe('buildCreateBookingPayload', () => {
     // All hints are whitespace-only, so normalizeHint returns null for each
     // Falls back to default 'student_location'
     expect(payload.location_type).toBe('student_location');
-    // booking.location is '   ' (whitespace) which is truthy, so fallbackLocation = '   '
-    // meetingLocation = locationAddress ?? fallbackLocation ?? ...
-    // locationAddress = booking.location = '   ', so meeting_location = '   '
-    expect(payload.meeting_location).toBe('   ');
+    // Blank location strings are sanitized and replaced with the generic travel label.
+    expect(payload.meeting_location).toBe('At your location');
   });
 
   it('normalizeHint handles non-string values (number, boolean)', () => {
@@ -623,7 +643,7 @@ describe('buildCreateBookingPayload', () => {
     expect(payload.selected_duration).toBe(60);
   });
 
-  it('uses "In-person lesson" as meeting_location fallback for non-online bookings with no location', () => {
+  it('uses the generic travel label as meeting_location fallback for non-online bookings with no location', () => {
     const payload = buildCreateBookingPayload({
       instructorId: 'inst-noloc',
       serviceId: 'svc-noloc',
@@ -637,10 +657,7 @@ describe('buildCreateBookingPayload', () => {
       },
     });
 
-    // locationAddress = undefined ?? undefined ?? undefined = undefined
-    // fallbackLocation = undefined (typeof undefined !== 'string')
-    // meetingLocation = undefined ?? undefined ?? 'In-person lesson'
-    expect(payload.meeting_location).toBe('In-person lesson');
+    expect(payload.meeting_location).toBe('At your location');
     expect(payload.location_type).toBe('student_location');
   });
 

@@ -1243,6 +1243,78 @@ def test_invalidate_booking_caches_handles_errors(booking_service: BookingServic
     cache.delete_pattern.assert_called()
 
 
+def test_invalidate_booking_caches_also_invalidates_search_cache(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(instructor_id="inst-123")
+    cache = MagicMock()
+    booking_service.cache_service = cache
+
+    with patch("app.services.booking_service.invalidate_on_availability_change") as invalidate_search:
+        booking_service._invalidate_booking_caches(booking)
+
+    cache.invalidate_instructor_availability.assert_called_once_with(
+        "inst-123",
+        [booking.booking_date],
+    )
+    invalidate_search.assert_called_once_with("inst-123")
+
+
+def test_create_booking_with_payment_setup_invalidates_caches_after_commit(
+    booking_service: BookingService,
+    mock_repository: MagicMock,
+) -> None:
+    student = SimpleNamespace(id=generate_ulid())
+    booking_data = SimpleNamespace(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=None,
+    )
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    booking = make_booking(
+        instructor_id=booking_data.instructor_id,
+        total_price=100.0,
+    )
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._create_booking_record = Mock(return_value=booking)
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+    mock_repository.transaction.return_value = _transaction_cm()
+    mock_repository.get_by_id.return_value = booking
+
+    with patch("app.services.stripe_service.StripeService") as stripe_service_cls, patch(
+        "app.services.booking_service.stripe.SetupIntent.create"
+    ) as setup_intent_create, patch(
+        "app.repositories.payment_repository.PaymentRepository"
+    ) as payment_repo_cls:
+        stripe_service_cls.return_value.get_or_create_customer.return_value = SimpleNamespace(
+            stripe_customer_id="cus_123"
+        )
+        setup_intent_create.return_value = SimpleNamespace(
+            id="seti_123",
+            client_secret="seti_secret_123",
+            status="requires_payment_method",
+        )
+        payment_repo_cls.return_value.create_payment_event = Mock()
+
+        result = booking_service.create_booking_with_payment_setup(
+            student,
+            booking_data,
+            selected_duration=60,
+        )
+
+    assert result is booking
+    booking_service._invalidate_booking_caches.assert_called_once_with(booking)
+
+
 def test_invalidate_booking_cache_id_missing(booking_service: BookingService) -> None:
     booking_service.repository.get_by_id.return_value = None
     booking_service._invalidate_booking_caches = Mock()

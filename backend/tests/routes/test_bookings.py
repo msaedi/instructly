@@ -609,12 +609,13 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["available"] is True
 
-    def test_check_availability_forwards_optional_duration_and_coordinates(
+    def test_check_availability_forwards_optional_duration_coordinates_and_exclusion(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
-        """Optional duration and coordinates should reach the service preflight intact."""
+        """Optional preflight fields should reach the service intact."""
         instructor_id = generate_ulid()
         service_id = generate_ulid()
+        exclude_booking_id = generate_ulid()
         mock_booking_service.check_availability.return_value = {
             "available": True,
             "reason": None,
@@ -634,6 +635,7 @@ class TestBookingRoutes:
                 "selected_duration": 60,
                 "location_lat": 40.781,
                 "location_lng": -73.966,
+                "exclude_booking_id": exclude_booking_id,
             },
             headers=auth_headers_student,
         )
@@ -645,6 +647,7 @@ class TestBookingRoutes:
         assert kwargs["selected_duration"] == 60
         assert kwargs["location_lat"] == 40.781
         assert kwargs["location_lng"] == -73.966
+        assert kwargs["exclude_booking_id"] == exclude_booking_id
 
     def test_get_booking_stats_instructor_only(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service

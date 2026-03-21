@@ -876,10 +876,24 @@ export async function setupAllMocks(
   // NOTE: Removed generic '**/api/**' catch-all to avoid double-handling routes.
   // Specific mocks above handle needed endpoints; others will fall through to network.
 
+  // Mock check-availability before generic booking POST handling.
+  await page.route('**/api/v1/bookings/check-availability', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ available: true, reason: null, conflicts_with: [] }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
   // Mock v1 booking creation to allow confirmation step to proceed
   await routeContext.route('**/api/v1/bookings**', async (route: Route) => {
     const req = route.request();
-    if (req.method() === 'POST') {
+    const pathname = new URL(req.url()).pathname;
+    if (req.method() === 'POST' && pathname === '/api/v1/bookings') {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -906,7 +920,8 @@ export async function setupAllMocks(
   // Also register page-level v1 booking route to ensure interception regardless of context routing
   await page.route('**/api/v1/bookings*', async (route: Route) => {
     const req = route.request();
-    if (req.method() === 'POST') {
+    const pathname = new URL(req.url()).pathname;
+    if (req.method() === 'POST' && pathname === '/api/v1/bookings') {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',

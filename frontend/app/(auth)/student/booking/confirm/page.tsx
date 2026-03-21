@@ -411,7 +411,10 @@ export default function BookingConfirmationPage() {
             bookingData={{
               ...bookingData,
               // Pass the service ID if needed
-              metadata: { serviceId },
+              metadata: {
+                ...(((bookingData as BookingPayment & { metadata?: Record<string, unknown> }).metadata) ?? {}),
+                ...(serviceId ? { serviceId } : {}),
+              },
             }}
             onSuccess={handlePaymentSuccess}
             onError={handlePaymentError}

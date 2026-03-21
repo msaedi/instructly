@@ -50,14 +50,10 @@ interface NextSlotResult {
   displayText: string;
 }
 
-const calculateEndTime = (startTime: string, durationMinutes: number): string => {
-  const parts = startTime.split(':');
-  const hours = Number(at(parts, 0) || 0);
-  const minutes = Number(at(parts, 1) || 0);
-  const totalMinutes = hours * 60 + minutes + durationMinutes;
-  const endHours = Math.floor(totalMinutes / 60);
-  const endMinutes = totalMinutes % 60;
-  return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+type BookNowSelection = {
+  preSelectedDate?: string;
+  preSelectedTime?: string;
+  initialDurationMinutes?: number;
 };
 
 const parseIsoDateToLocal = (value: string): Date | null => {
@@ -112,7 +108,7 @@ interface InstructorCardProps {
   instructor: Instructor;
   availabilityData?: InstructorAvailabilityData;
   onViewProfile?: () => void;
-  onBookNow?: (e?: React.MouseEvent) => void;
+  onBookNow?: (e?: React.MouseEvent, selection?: BookNowSelection) => void;
   compact?: boolean;
   bookingDraftId?: string;
   appliedCreditCents?: number;
@@ -153,9 +149,6 @@ function InstructorCard({
   const formatPrices = primaryService?.format_prices ?? [];
   const minRate = primaryService?.min_hourly_rate ?? 0;
   const { rate: contextualRate, label: contextualLabel, isFrom: contextualIsFrom } = getContextualPrice(formatPrices, minRate, searchLessonType);
-  const safeHourlyRate = contextualRate;
-  const getLessonAmountForDuration = (durationMinutes: number): number =>
-    Number(((safeHourlyRate * durationMinutes) / 60).toFixed(2));
 
   useEffect(() => {
     setSelectedDuration(fallbackDurationMinutes);
@@ -756,33 +749,15 @@ const findNextAvailableSlot = (
             <button
               onClick={(e) => {
                 e.preventDefault();
-                if (nextAvailableSlot) {
-                  // Navigate directly to booking confirmation with the next available slot
-                  const bookingData = {
-                    instructorId: instructor.user_id,
-                    instructorName: formatDisplayName(
-                      instructor.user.first_name,
-                      instructor.user.last_initial,
-                      `Instructor #${instructor.user_id}`,
-                    ),
-                    lessonType: (at(instructor.services, 0) ? getServiceName(at(instructor.services, 0)!) : '') || 'Service',
-                    date: nextAvailableSlot.date,
-                    startTime: nextAvailableSlot.time,
-                    endTime: calculateEndTime(nextAvailableSlot.time, resolvedDurationMinutes),
-                    duration: resolvedDurationMinutes,
-                    location: '', // Leave empty to let user enter their address
-                    basePrice: getLessonAmountForDuration(resolvedDurationMinutes),
-                    totalAmount: getLessonAmountForDuration(resolvedDurationMinutes),
-                    freeCancellationUntil: parseIsoDateToLocal(nextAvailableSlot.date) ?? new Date(),
-                  };
-
-                  // Store booking data in sessionStorage
-                  sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
-                  sessionStorage.setItem('serviceId', instructor.services[0]?.id || '');
-
-                  // Navigate to booking confirmation
-                  router.push('/student/booking/confirm');
-                }
+                onBookNow?.(
+                  e,
+                  nextAvailableSlot
+                    ? {
+                        preSelectedDate: nextAvailableSlot.date,
+                        initialDurationMinutes: resolvedDurationMinutes,
+                      }
+                    : undefined,
+                );
               }}
               disabled={!nextAvailableSlot}
               className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
@@ -799,7 +774,9 @@ const findNextAvailableSlot = (
             <button
               onClick={(e) => {
                 e.preventDefault();
-                onBookNow?.(e);
+                onBookNow?.(e, {
+                  initialDurationMinutes: resolvedDurationMinutes,
+                });
               }}
               className={`flex-1 text-center bg-white dark:bg-gray-800 text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors cursor-pointer`}
             >

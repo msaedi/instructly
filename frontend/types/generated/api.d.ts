@@ -9524,6 +9524,11 @@ export type components = {
              */
             end_time: string;
             /**
+             * Exclude Booking Id
+             * @description Optional booking ID to exclude during conflict checks
+             */
+            exclude_booking_id?: string | null;
+            /**
              * Instructor Id
              * @description Instructor to check
              */
