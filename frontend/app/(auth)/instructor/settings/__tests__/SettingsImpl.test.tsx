@@ -53,6 +53,12 @@ jest.mock('@/features/shared/hooks/usePhoneVerification', () => ({
   usePhoneVerification: jest.fn(),
 }));
 
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+  }),
+}));
+
 jest.mock('sonner', () => ({
   toast: {
     success: jest.fn(),
@@ -78,7 +84,7 @@ const defaultPreferences = {
   promotional: { email: false, push: false, sms: false },
 };
 
-function renderEmbeddedSettings() {
+function renderSettings(embedded: boolean = true) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -88,7 +94,7 @@ function renderEmbeddedSettings() {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <SettingsImpl embedded />
+      <SettingsImpl embedded={embedded} />
     </QueryClientProvider>
   );
 
@@ -203,6 +209,16 @@ describe('SettingsImpl', () => {
         };
       }
 
+      if (url === '/api/v1/2fa/setup/initiate') {
+        return {
+          ok: true,
+          json: async () => ({
+            qr_code_data_url: 'data:image/png;base64,mock',
+            secret: 'ABC123',
+          }),
+        };
+      }
+
       if (url === '/api/v1/me') {
         return {
           ok: true,
@@ -233,7 +249,7 @@ describe('SettingsImpl', () => {
   it('renders the redesigned account details layout and keeps only one accordion section open', async () => {
     const user = userEvent.setup();
 
-    renderEmbeddedSettings();
+    renderSettings();
 
     await user.click(screen.getByRole('button', { name: /Account details/i }));
 
@@ -251,7 +267,7 @@ describe('SettingsImpl', () => {
   });
 
   it('does not render referral content in settings', () => {
-    renderEmbeddedSettings();
+    renderSettings();
 
     expect(screen.queryByText(/Referrals & rewards/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Invite friends by email/i)).not.toBeInTheDocument();
@@ -261,7 +277,7 @@ describe('SettingsImpl', () => {
   it('saves only first name and ZIP code while syncing the default address ZIP', async () => {
     const user = userEvent.setup();
 
-    renderEmbeddedSettings();
+    renderSettings();
 
     await user.click(screen.getByRole('button', { name: /Account details/i }));
     await user.clear(screen.getByLabelText(/First name/i));
@@ -299,7 +315,7 @@ describe('SettingsImpl', () => {
   it('transitions the inline phone verification flow from verified to pending and back', async () => {
     const user = userEvent.setup();
 
-    renderEmbeddedSettings();
+    renderSettings();
 
     await user.click(screen.getByRole('button', { name: /Account details/i }));
 
@@ -337,7 +353,7 @@ describe('SettingsImpl', () => {
   it('renders the cleaned About links', async () => {
     const user = userEvent.setup();
 
-    renderEmbeddedSettings();
+    renderSettings();
 
     await user.click(screen.getByRole('button', { name: /^About\b/i }));
 
@@ -345,6 +361,79 @@ describe('SettingsImpl', () => {
     expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/legal#privacy');
     expect(screen.getByRole('link', { name: 'Terms & Conditions' })).toHaveAttribute('href', '/legal#terms');
     expect(screen.getByRole('link', { name: 'Support' })).toHaveAttribute('href', '/support');
+  });
+
+  it('renders a merged Security section with the off-state 2FA toggle and opens setup flow', async () => {
+    currentTfaEnabled = false;
+    const user = userEvent.setup();
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Security/i }));
+
+    expect(screen.getByText('Security')).toBeInTheDocument();
+    expect(screen.queryByText('Account security')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Password$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Keep your account safe')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Off')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('Add an extra layer of security with an authenticator app')
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText('Password')).toBeInTheDocument();
+
+    const tfaToggle = screen.getByRole('switch', { name: 'Two-factor authentication' });
+    expect(tfaToggle).toHaveClass('bg-gray-200');
+
+    await user.click(tfaToggle);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Connect your authenticator app' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Secret (manual entry):')).toBeInTheDocument();
+  });
+
+  it('renders the enabled 2FA state and opens the disable flow from the merged Security section', async () => {
+    const user = userEvent.setup();
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Security/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Enabled')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your account is protected with two-factor authentication')
+      ).toBeInTheDocument();
+    });
+
+    const tfaToggle = screen.getByRole('switch', { name: 'Two-factor authentication' });
+    expect(tfaToggle).toHaveClass('bg-purple-600');
+
+    await user.click(tfaToggle);
+
+    await waitFor(() => {
+      expect(screen.getByText('To disable 2FA, confirm your password.')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Disable 2FA' })).toBeInTheDocument();
+  });
+
+  it('renders Security and Account Status sections on the standalone settings route', async () => {
+    renderSettings(false);
+
+    expect(screen.getByText('Security')).toBeInTheDocument();
+    expect(screen.getByText('Keep your account safe')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Two-factor authentication' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Account Status')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause account' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
   });
 
   it('only disables the toggled notification preference while an update is pending', async () => {
@@ -365,7 +454,7 @@ describe('SettingsImpl', () => {
         })
     );
 
-    renderEmbeddedSettings();
+    renderSettings();
 
     await user.click(screen.getByRole('button', { name: /Preferences/i }));
 

@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Info, SlidersHorizontal } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, UserRoundPen } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, Shield, Power, UserRoundPen } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 import type { AddressListResponse, ApiErrorResponse } from '@/features/shared/api/types';
@@ -33,7 +34,7 @@ const PREFERENCE_DEFAULTS = {
 
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
-type OpenSection = 'account' | 'security' | 'status' | 'password' | 'preferences' | 'about' | null;
+type OpenSection = 'account' | 'security' | 'status' | 'preferences' | 'about' | null;
 
 const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
   lesson_updates: 'Lesson Updates',
@@ -92,44 +93,6 @@ function maskPhoneDisplay(phone: string): string {
   }
   return `(XXX) XXX-${digits.slice(-4)}`;
 }
-
-type ToggleSwitchProps = {
-  checked: boolean;
-  onChange?: () => void;
-  disabled?: boolean;
-  title?: string;
-  ariaLabel?: string;
-};
-
-const ToggleSwitch = memo(function ToggleSwitch({
-  checked,
-  onChange,
-  disabled = false,
-  title,
-  ariaLabel,
-}: ToggleSwitchProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onChange}
-      disabled={disabled}
-      title={title}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-});
 
 type PreferenceToggleProps = {
   category: PreferenceCategory;
@@ -252,7 +215,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [formInitialized, setFormInitialized] = useState(false);
 
   // React Query hooks for data fetching (replaces useEffect fetches)
-  const { data: tfaStatus } = useTfaStatus(embedded && openSection === 'security');
+  const shouldLoadTfaStatus = embedded ? openSection === 'security' : true;
+  const { data: tfaStatus, isLoading: tfaStatusLoading } = useTfaStatus(shouldLoadTfaStatus);
   const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
@@ -283,6 +247,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
+  const tfaToggleChecked = tfaEnabled === true;
+  const tfaToggleDisabled = tfaStatusLoading || showTfaModal;
+  const tfaStateLabel = tfaStatusLoading ? 'Loading…' : tfaToggleChecked ? 'Enabled' : 'Off';
+  const tfaStateSubtitle = tfaStatusLoading
+    ? 'Checking your current two-factor authentication status'
+    : tfaToggleChecked
+      ? 'Your account is protected with two-factor authentication'
+      : 'Add an extra layer of security with an authenticator app';
   const accountLoading = userLoading || addressLoading || phoneLoading;
   const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
   const preferencesDisabled = preferencesLoading;
@@ -317,6 +289,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const toggleSection = useCallback((section: Exclude<OpenSection, null>) => {
     setOpenSection((prev) => (prev === section ? null : section));
   }, []);
+  const openTfaModal = useCallback(() => {
+    if (tfaToggleDisabled) return;
+    setShowTfaModal(true);
+  }, [tfaToggleDisabled]);
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
@@ -407,6 +383,70 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       </div>
     );
   };
+
+  const renderSecurityContent = () => (
+    <div className="mt-4">
+      <div className="flex items-start justify-between gap-4 py-1">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two-factor authentication</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {tfaStateSubtitle}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span
+            className={`text-sm font-medium ${
+              tfaToggleChecked ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            {tfaStateLabel}
+          </span>
+          <ToggleSwitch
+            checked={tfaToggleChecked}
+            onChange={openTfaModal}
+            disabled={tfaToggleDisabled}
+            ariaLabel="Two-factor authentication"
+            title={tfaStatusLoading ? 'Loading two-factor authentication status' : 'Two-factor authentication'}
+          />
+        </div>
+      </div>
+      <div className="my-4 border-t border-gray-100 dark:border-gray-700" />
+      <div className="flex items-start justify-between gap-4 py-1">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Password</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Update your password to keep your login secure.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowChangePassword(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
+        >
+          Change password
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAccountStatusContent = () => (
+    <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
+      <button
+        type="button"
+        onClick={() => setShowPauseModal(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
+      >
+        Pause account
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowDeleteModal(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
+      >
+        Delete account
+      </button>
+    </div>
+  );
 
   // Sync hook data to local editable state (once on initial load)
   useEffect(() => {
@@ -855,150 +895,67 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           )}
         </div>
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('security')}
-              aria-expanded={openSection === 'security'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Account security</span>
-                  <span className="insta-dashboard-accordion-subtitle">Enable two-factor authentication for extra protection.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'security' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'security' && (
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two‑factor authentication</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Protect your account with a one‑time code from an authenticator app.
-                    </p>
+        <div className="p-6 insta-surface-card">
+          {embedded ? (
+            <>
+              <button
+                type="button"
+                className="insta-dashboard-accordion-trigger"
+                onClick={() => toggleSection('security')}
+                aria-expanded={openSection === 'security'}
+              >
+                <div className="insta-dashboard-accordion-leading">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-[#7E22CE]" />
                   </div>
-                  <button
-                    type="button"
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                      tfaEnabled
-                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
-                    } `}
-                    onClick={() => setShowTfaModal(true)}
-                  >
-                    {tfaEnabled ? 'Turn off' : 'Set up'}
-                  </button>
+                  <div>
+                    <span className="insta-dashboard-accordion-title">Security</span>
+                    <span className="insta-dashboard-accordion-subtitle">Keep your account safe</span>
+                  </div>
                 </div>
-                {showTfaModal && (
-                  <TfaModal
-                    onClose={() => setShowTfaModal(false)}
-                    onChanged={() => {
-                      // Invalidate cache to refetch 2FA status
-                      void invalidateTfaStatus();
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'security' ? 'rotate-180' : ''}`} />
+              </button>
+              {openSection === 'security' && renderSecurityContent()}
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-1">Security</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Keep your account safe</p>
+              {renderSecurityContent()}
+            </>
+          )}
+        </div>
 
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('status')}
-              aria-expanded={openSection === 'status'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Power className="w-6 h-6 text-[#7E22CE]" />
+        <div className="p-6 insta-surface-card">
+          {embedded ? (
+            <>
+              <button
+                type="button"
+                className="insta-dashboard-accordion-trigger"
+                onClick={() => toggleSection('status')}
+                aria-expanded={openSection === 'status'}
+              >
+                <div className="insta-dashboard-accordion-leading">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Power className="w-6 h-6 text-[#7E22CE]" />
+                  </div>
+                  <div>
+                    <span className="insta-dashboard-accordion-title">Account status</span>
+                    <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Account status</span>
-                  <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'status' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'status' && (
-              <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowPauseModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
-                >
-                  Pause account
-                </button>
-                {showPauseModal && (
-                  <PauseAccountModal
-                    onClose={() => setShowPauseModal(false)}
-                    onPaused={() => {
-                      setShowPauseModal(false);
-                    }}
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
-                >
-                  Delete account
-                </button>
-                {showDeleteModal && (
-                  <DeleteAccountModal
-                    email={email}
-                    onClose={() => setShowDeleteModal(false)}
-                    onDeleted={() => {
-                      setShowDeleteModal(false);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('password')}
-              aria-expanded={openSection === 'password'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <KeyRound className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Password</span>
-                  <span className="insta-dashboard-accordion-subtitle">Keep your login secure with a strong password.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'password' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'password' && (
-              <div className="mt-4 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowChangePassword(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
-                >
-                  Change password
-                </button>
-                {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
-              </div>
-            )}
-          </div>
-        )}
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'status' ? 'rotate-180' : ''}`} />
+              </button>
+              {openSection === 'status' && renderAccountStatusContent()}
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-1">Account Status</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Pause or close your instructor account if needed.</p>
+              {renderAccountStatusContent()}
+            </>
+          )}
+        </div>
 
         <div className="p-6 insta-surface-card">
           {embedded ? (
@@ -1080,6 +1037,32 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
         )}
+        {showTfaModal && (
+          <TfaModal
+            onClose={() => setShowTfaModal(false)}
+            onChanged={() => {
+              void invalidateTfaStatus();
+            }}
+          />
+        )}
+        {showPauseModal && (
+          <PauseAccountModal
+            onClose={() => setShowPauseModal(false)}
+            onPaused={() => {
+              setShowPauseModal(false);
+            }}
+          />
+        )}
+        {showDeleteModal && (
+          <DeleteAccountModal
+            email={email}
+            onClose={() => setShowDeleteModal(false)}
+            onDeleted={() => {
+              setShowDeleteModal(false);
+            }}
+          />
+        )}
+        {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
         </div>
       </div>
     </div>

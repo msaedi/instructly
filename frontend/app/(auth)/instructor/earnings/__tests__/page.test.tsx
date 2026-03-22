@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import InstructorEarningsPage from '../page';
 import { useCommissionStatus } from '@/hooks/queries/useCommissionStatus';
@@ -72,6 +73,7 @@ describe('Instructor earnings page', () => {
 
     mockUseInstructorEarnings.mockReturnValue({
       data: {
+        total_lesson_value: 80000,
         total_earned: 68000,
         total_fees: 12540,
         booking_count: 7,
@@ -80,7 +82,7 @@ describe('Instructor earnings page', () => {
         invoices: [
           {
             booking_id: 'bk_1',
-            lesson_date: '2025-01-01',
+            lesson_date: '2026-01-01',
             start_time: '10:00:00',
             service_name: 'Piano Basics',
             student_name: 'Emma J.',
@@ -93,7 +95,7 @@ describe('Instructor earnings page', () => {
             platform_fee_rate: 0.1,
             student_fee_cents: 1200,
             status: 'paid',
-            created_at: '2025-01-01T15:00:00Z',
+            created_at: '2026-01-01T15:00:00Z',
           },
         ],
       },
@@ -102,10 +104,20 @@ describe('Instructor earnings page', () => {
 
     mockUseInstructorPayouts.mockReturnValue({
       data: {
-        payouts: [],
+        payouts: [
+          {
+            id: 'po_1',
+            amount_cents: 68000,
+            created_at: '2027-02-12T14:00:00Z',
+            arrival_date: '2027-02-18',
+            status: 'paid',
+            failure_code: null,
+            failure_message: null,
+          },
+        ],
         total_paid_cents: 0,
         total_pending_cents: 0,
-        payout_count: 0,
+        payout_count: 1,
       },
       isLoading: false,
     } as unknown as ReturnType<typeof useInstructorPayouts>);
@@ -115,8 +127,16 @@ describe('Instructor earnings page', () => {
     jest.clearAllMocks();
   });
 
-  it('renders invoice rows with totals', () => {
-    render(<InstructorEarningsPage />);
+  it('renders three earnings stat cards and invoice rows with totals', () => {
+    const { container } = render(<InstructorEarningsPage />);
+
+    expect(container.querySelectorAll('.insta-dashboard-stat-card')).toHaveLength(3);
+    expect(screen.getByText('Gross Earnings')).toBeInTheDocument();
+    expect(screen.getByText('Net Earnings')).toBeInTheDocument();
+    expect(screen.getByText('Lessons')).toBeInTheDocument();
+    expect(screen.getByText('$800.00')).toBeInTheDocument();
+    expect(screen.getByText('$680.00')).toBeInTheDocument();
+    expect(screen.getByText('4 hrs')).toBeInTheDocument();
     expect(screen.getByText('Entry tier · 15%')).toBeInTheDocument();
     expect(screen.getByText('Piano Basics')).toBeInTheDocument();
     expect(screen.getByText('Emma J.')).toBeInTheDocument();
@@ -124,5 +144,45 @@ describe('Instructor earnings page', () => {
     expect(screen.getByText('$10.00')).toBeInTheDocument(); // platform fee
     expect(screen.getByText('$90.00')).toBeInTheDocument(); // instructor share
     expect(screen.getByText('$20.00')).toBeInTheDocument(); // tip
+  });
+
+  it('shows dynamic export years and defaults the modal to the current year', async () => {
+    const user = userEvent.setup();
+
+    render(<InstructorEarningsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Export transactions' }));
+
+    const yearField = screen.getByText('Year').parentElement;
+    expect(yearField).not.toBeNull();
+    const yearButton = within(yearField as HTMLElement).getByRole('button');
+    expect(yearButton).toHaveTextContent(String(new Date().getFullYear()));
+
+    await user.click(yearButton);
+
+    expect(screen.queryByRole('option', { name: '2025' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '2026' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '2027' })).toBeInTheDocument();
+  });
+
+  it('shows the refreshed empty invoice copy', () => {
+    mockUseInstructorEarnings.mockReturnValue({
+      data: {
+        total_lesson_value: 0,
+        total_earned: 0,
+        total_fees: 0,
+        booking_count: 0,
+        service_count: 0,
+        hours_invoiced: 0,
+        invoices: [],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useInstructorEarnings>);
+
+    render(<InstructorEarningsPage />);
+
+    expect(
+      screen.getByText('No invoices yet — your completed lessons will appear here.')
+    ).toBeInTheDocument();
   });
 });
