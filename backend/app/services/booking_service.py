@@ -5833,10 +5833,19 @@ class BookingService(BaseService):
             return
 
         normalized_location_type = normalize_location_type(location_type)
-        if not self._is_in_overnight_window(booking_time_local):
+        earliest_hour = self._get_overnight_earliest_hour(normalized_location_type)
+        start_hour, _window_end_hour = self.config_service.get_overnight_window_hours()
+
+        if booking_time_local.hour >= start_hour:
+            protected_lesson_date = booking_time_local.date() + timedelta(days=1)
+        elif booking_time_local.hour < earliest_hour:
+            protected_lesson_date = booking_time_local.date()
+        else:
             return
 
-        earliest_hour = self._get_overnight_earliest_hour(normalized_location_type)
+        if lesson_start_local.date() != protected_lesson_date:
+            return
+
         if 0 <= lesson_start_local.hour < earliest_hour:
             lesson_descriptor = (
                 "travel lessons"

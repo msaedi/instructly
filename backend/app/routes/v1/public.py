@@ -195,16 +195,22 @@ def _apply_public_booking_filters(
     now_local: Optional[datetime] = None
 
     overnight_min_start_minutes: Optional[int] = None
+    overnight_protected_date: Optional[date] = None
     instructor_repository = getattr(availability_service, "instructor_repository", None)
     profile_getter = getattr(instructor_repository, "get_by_user_id", None)
     if callable(profile_getter):
         profile = profile_getter(instructor_id)
         if bool(getattr(profile, "overnight_protection_enabled", False)):
             now_local = _get_user_now_by_id(instructor_id, availability_service.db)
-            if config_service.is_in_overnight_window(now_local):
-                overnight_min_start_minutes = (
-                    config_service.get_overnight_earliest_hour(resolved_location_type) * 60
-                )
+            earliest_hour = config_service.get_overnight_earliest_hour(resolved_location_type)
+            start_hour, _window_end_hour = config_service.get_overnight_window_hours()
+            if now_local.hour >= start_hour:
+                overnight_protected_date = now_local.date() + timedelta(days=1)
+            elif now_local.hour < earliest_hour:
+                overnight_protected_date = now_local.date()
+
+            if overnight_protected_date is not None:
+                overnight_min_start_minutes = earliest_hour * 60
 
     if min_advance_minutes <= 0 and overnight_min_start_minutes is None:
         return _recompute_public_totals(availability_by_date)
@@ -239,6 +245,8 @@ def _apply_public_booking_filters(
             minimum_start_minutes = start_min
             if (
                 overnight_min_start_minutes is not None
+                and overnight_protected_date is not None
+                and target_date == overnight_protected_date
                 and minimum_start_minutes < overnight_min_start_minutes
             ):
                 minimum_start_minutes = overnight_min_start_minutes
