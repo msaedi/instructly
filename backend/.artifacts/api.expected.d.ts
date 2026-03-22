@@ -7434,7 +7434,7 @@ export type components = {
  };
  CreateConversationRequest: {
  initial_message?: string | null;
- instructor_id: string;
+ other_user_id: string;
  };
  CreateConversationResponse: {
  created: boolean;

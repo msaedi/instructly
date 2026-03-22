@@ -179,15 +179,21 @@ class TestConversationService:
         service.get_upcoming_bookings_for_conversation = Mock(return_value=[])
         assert service.get_next_booking_for_conversation(SimpleNamespace()) is None
 
-    def test_validate_instructor_missing_user(self, service):
+    def test_resolve_conversation_participants_target_missing(self, service):
         repo = Mock()
-        repo.get_by_id.return_value = None
+        repo.get_by_id.side_effect = [
+            SimpleNamespace(id="student-1", is_instructor=False),
+            None,
+        ]
         with patch("app.services.conversation_service.RepositoryFactory.create_user_repository") as factory:
             factory.return_value = repo
-            ok, error = service.validate_instructor("user-1")
+            participants, error, error_code = service.resolve_conversation_participants(
+                "student-1", "user-1"
+            )
 
-        assert ok is False
-        assert error == "Instructor not found"
+        assert participants is None
+        assert error == "Target user not found"
+        assert error_code == "target_user_not_found"
 
     def test_get_typing_context_none(self, service):
         service.conversation_repository.get_by_id.return_value = None

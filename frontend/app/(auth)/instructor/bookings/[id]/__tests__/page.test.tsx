@@ -1,14 +1,26 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import BookingDetailsPage from '../page';
-import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { useCreateConversation } from '@/hooks/useCreateConversation';
+import {
+  useBooking,
+  useCompleteBooking,
+  useMarkBookingNoShow,
+} from '@/src/api/services/bookings';
 
-// Mock next/navigation
 jest.mock('next/navigation', () => ({
-  useParams: () => ({ id: '01ABC123456789DEFGHIJKLMN' }),
+  useParams: () => ({ id: '01KKQKWD9V9QF0J2T0AB3124' }),
 }));
 
-// Mock react-query client
+jest.mock('@/components/UserProfileDropdown', () => {
+  const MockUserProfileDropdown = () => <div data-testid="user-dropdown" />;
+  MockUserProfileDropdown.displayName = 'MockUserProfileDropdown';
+  return {
+    __esModule: true,
+    default: MockUserProfileDropdown,
+  };
+});
+
 const mockInvalidateQueries = jest.fn();
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
@@ -16,7 +28,6 @@ jest.mock('@tanstack/react-query', () => ({
   }),
 }));
 
-// Mock sonner toast
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
 jest.mock('sonner', () => ({
@@ -26,396 +37,364 @@ jest.mock('sonner', () => ({
   },
 }));
 
-// Mock booking service hooks
 jest.mock('@/src/api/services/bookings');
+jest.mock('@/hooks/useCreateConversation');
 
 const mockUseBooking = useBooking as jest.MockedFunction<typeof useBooking>;
 const mockUseCompleteBooking = useCompleteBooking as jest.MockedFunction<typeof useCompleteBooking>;
-const mockUseMarkBookingNoShow = useMarkBookingNoShow as jest.MockedFunction<typeof useMarkBookingNoShow>;
+const mockUseMarkBookingNoShow = useMarkBookingNoShow as jest.MockedFunction<
+  typeof useMarkBookingNoShow
+>;
+const mockUseCreateConversation = useCreateConversation as jest.MockedFunction<
+  typeof useCreateConversation
+>;
 
-// Helper to create a mock booking
+const completeMutateAsyncMock = jest.fn();
+const markNoShowMutateAsyncMock = jest.fn();
+const createConversationMock = jest.fn();
+
 const createMockBooking = (overrides = {}) => ({
-  id: '01ABC123456789DEFGHIJKLMN',
+  id: '01KKQKWD9V9QF0J2T0AB3124',
   status: 'CONFIRMED',
-  booking_date: '2025-01-01',
-  start_time: '10:00:00',
-  end_time: '11:00:00',
-  service_name: 'Piano Lesson',
-  duration_minutes: 60,
-  hourly_rate: 50,
-  total_price: 56,
-  location_type: 'student_location',
-  meeting_location: '123 Main St',
-  service_area: 'Manhattan',
-  student_id: '01STUDENT123456789DEFGHI',
+  booking_date: '2026-03-16',
+  start_time: '16:30:00',
+  end_time: '17:15:00',
+  service_name: 'Piano',
+  duration_minutes: 45,
+  hourly_rate: 110,
+  total_price: 82.5,
+  location_type: 'instructor_location',
+  meeting_location: 'Manhattan',
+  service_area: 'Upper East Side',
+  student_id: '01STUDENT123456789ABCDEFGH',
   student: {
+    id: '01STUDENT123456789ABCDEFGH',
     first_name: 'John',
-    last_initial: 'D.',
+    last_initial: 'S',
+    last_name: 'Smith',
+    email: 'john@example.com',
   },
   student_note: null,
   instructor_note: null,
   cancellation_reason: null,
   cancelled_at: null,
-  created_at: '2025-01-01T08:00:00Z',
+  created_at: '2026-03-14T08:00:00Z',
+  settlement_outcome: null,
+  instructor_payout_amount: null,
+  video_session_duration_seconds: null,
+  video_instructor_joined_at: null,
+  video_student_joined_at: null,
   ...overrides,
 });
 
 describe('Instructor Booking Details Page', () => {
-  const mockMutateAsync = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
 
-    // Default mutation mock
-    const defaultMutationMock = {
-      mutateAsync: mockMutateAsync.mockResolvedValue({}),
+    mockUseCompleteBooking.mockReturnValue({
+      mutateAsync: completeMutateAsyncMock.mockResolvedValue({}),
       isPending: false,
-    };
-
-    mockUseCompleteBooking.mockReturnValue(defaultMutationMock as unknown as ReturnType<typeof useCompleteBooking>);
-    mockUseMarkBookingNoShow.mockReturnValue(defaultMutationMock as unknown as ReturnType<typeof useMarkBookingNoShow>);
+    } as unknown as ReturnType<typeof useCompleteBooking>);
+    mockUseMarkBookingNoShow.mockReturnValue({
+      mutateAsync: markNoShowMutateAsyncMock.mockResolvedValue({}),
+      isPending: false,
+    } as unknown as ReturnType<typeof useMarkBookingNoShow>);
+    mockUseCreateConversation.mockReturnValue({
+      createConversation: createConversationMock,
+      isCreating: false,
+      error: null,
+    });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
-  describe('loading state', () => {
-    it('shows loading spinner when loading', () => {
-      mockUseBooking.mockReturnValue({
-        data: undefined,
-        isLoading: true,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
+  it('shows the loading spinner inside the dashboard shell', () => {
+    mockUseBooking.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
 
-      const { container } = render(<BookingDetailsPage />);
-      // Look for the spinner by class
-      expect(container.querySelector('.animate-spin')).toBeInTheDocument();
-    });
+    const { container } = render(<BookingDetailsPage />);
+
+    expect(screen.getByTestId('instructor-dashboard-shell')).toBeInTheDocument();
+    expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
-  describe('error state', () => {
-    it('shows error message when booking fails to load', () => {
-      mockUseBooking.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: new Error('Failed'),
-      } as unknown as ReturnType<typeof useBooking>);
+  it('shows an error message when the booking fails to load', () => {
+    mockUseBooking.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Failed'),
+    } as unknown as ReturnType<typeof useBooking>);
 
-      render(<BookingDetailsPage />);
-      expect(screen.getByText('Failed to load booking details')).toBeInTheDocument();
-    });
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('Failed to load booking details')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Bookings' })).toHaveAttribute(
+      'href',
+      '/instructor/dashboard?panel=bookings'
+    );
   });
 
-  describe('booking details display', () => {
-    it('renders booking details correctly', () => {
-      const booking = createMockBooking();
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
+  it('renders the redesigned detail page inside the instructor dashboard shell', () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
 
-      render(<BookingDetailsPage />);
+    render(<BookingDetailsPage />);
 
-      expect(screen.getByText('Piano Lesson')).toBeInTheDocument();
-      expect(screen.getByText('John D.')).toBeInTheDocument();
-      expect(screen.getByText('CONFIRMED')).toBeInTheDocument();
-      expect(screen.getByText('Duration: 60 minutes')).toBeInTheDocument();
-    });
+    expect(screen.getByTestId('instructor-dashboard-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('instructor-dashboard-sidebar')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Bookings' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Track upcoming sessions and review completed lessons all in one place.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Booking #KWD-3124')).toBeInTheDocument();
+    expect(screen.queryByText('Back to Bookings')).not.toBeInTheDocument();
+    expect(screen.queryByText('01KKQKWD9V9QF0J2T0AB3124')).not.toBeInTheDocument();
+    expect(screen.getByText('Created on 3/14/2026')).toBeInTheDocument();
+    expect(screen.getByText('John S.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
+    expect(screen.getByText('Monday, March 16')).toBeInTheDocument();
+    expect(screen.getByText('4:30 PM – 5:15 PM')).toBeInTheDocument();
+    expect(screen.getByText("At instructor's location · Manhattan")).toBeInTheDocument();
+    expect(screen.getByText('$110.00/hr')).toBeInTheDocument();
+    expect(screen.getByText('45 min')).toBeInTheDocument();
+    expect(screen.getByText('$82.50')).toBeInTheDocument();
+    expect(screen.queryByText('john@example.com')).not.toBeInTheDocument();
+    expect(screen.queryByText('John Smith')).not.toBeInTheDocument();
   });
 
-  describe('action buttons for past confirmed bookings', () => {
-    it('shows action buttons for past CONFIRMED bookings', () => {
-      // Create a booking that ended yesterday
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-        start_time: '10:00:00',
-        end_time: '11:00:00',
+  it('opens messaging for the student when Message is clicked', async () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Message' }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledWith('01STUDENT123456789ABCDEFGH', {
+        navigateToMessages: true,
       });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      expect(screen.getByText('Action Required')).toBeInTheDocument();
-      expect(screen.getByText('Mark Complete')).toBeInTheDocument();
-      expect(screen.getByText('Report No-Show')).toBeInTheDocument();
     });
+  });
 
-    it('hides action buttons for future CONFIRMED bookings', () => {
-      // Create a booking for tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: tomorrow.toISOString().split('T')[0],
-        start_time: '10:00:00',
-        end_time: '11:00:00',
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
-      expect(screen.queryByText('Mark Complete')).not.toBeInTheDocument();
-      expect(screen.queryByText('Report No-Show')).not.toBeInTheDocument();
-    });
-
-    it('hides action buttons for COMPLETED bookings', () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
+  it('renders completed payout status when payout data is available', () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
         status: 'COMPLETED',
-        booking_date: yesterday.toISOString().split('T')[0],
+        settlement_outcome: 'paid_out',
+        instructor_payout_amount: 80,
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText('Payout status')).toBeInTheDocument();
+    expect(screen.getByText('Paid Out · $80.00 payout')).toBeInTheDocument();
+  });
+
+  it('shows action buttons for past confirmed bookings and marks them complete', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('Action Required')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Complete' }));
+
+    await waitFor(() => {
+      expect(completeMutateAsyncMock).toHaveBeenCalledWith({
+        bookingId: '01KKQKWD9V9QF0J2T0AB3124',
       });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
-      expect(screen.queryByText('Mark Complete')).not.toBeInTheDocument();
     });
 
-    it('hides action buttons for CANCELLED bookings', () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Lesson marked as complete',
+      expect.any(Object)
+    );
+    expect(mockInvalidateQueries).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows an error toast when marking complete fails', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    completeMutateAsyncMock.mockRejectedValueOnce(new Error('Server error'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Complete' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        'Failed to mark lesson as complete',
+        expect.any(Object)
+      );
+    });
+  });
+
+  it('opens and closes the no-show modal, then submits a no-show', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report No-Show' }));
+    expect(
+      screen.getByText(/Are you sure you want to mark this lesson as a no-show/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Confirm No-Show')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report No-Show' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm No-Show' }));
+
+    await waitFor(() => {
+      expect(markNoShowMutateAsyncMock).toHaveBeenCalledWith({
+        bookingId: '01KKQKWD9V9QF0J2T0AB3124',
+        data: { no_show_type: 'student' },
+      });
+    });
+
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Lesson marked as no-show',
+      expect.any(Object)
+    );
+  });
+
+  it('shows an error toast when reporting a no-show fails', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    markNoShowMutateAsyncMock.mockRejectedValueOnce(new Error('Server error'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report No-Show' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm No-Show' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        'Failed to mark lesson as no-show',
+        expect.any(Object)
+      );
+    });
+  });
+
+  it('hides action buttons for future, completed, and cancelled bookings', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-10T12:00:00Z'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        booking_date: '2026-03-25',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    const { rerender } = render(<BookingDetailsPage />);
+
+    expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
+
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        status: 'COMPLETED',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+    rerender(<BookingDetailsPage />);
+
+    expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
+
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
         status: 'CANCELLED',
-        booking_date: yesterday.toISOString().split('T')[0],
         cancellation_reason: 'Student cancelled',
-        cancelled_at: yesterday.toISOString(),
-      });
+        cancelled_at: '2026-03-15T12:00:00Z',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+    rerender(<BookingDetailsPage />);
 
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
-      expect(screen.queryByText('Mark Complete')).not.toBeInTheDocument();
-    });
+    expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
   });
 
-  describe('mark complete action', () => {
-    it('calls complete mutation when Mark Complete is clicked', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      const completeButton = screen.getByText('Mark Complete');
-      fireEvent.click(completeButton);
-
-      await waitFor(() => {
-        expect(mockMutateAsync).toHaveBeenCalledWith({ bookingId: '01ABC123456789DEFGHIJKLMN' });
-      });
-
-      expect(mockToastSuccess).toHaveBeenCalledWith('Lesson marked as complete', expect.any(Object));
-      expect(mockInvalidateQueries).toHaveBeenCalled();
-    });
-
-    it('shows error toast when complete mutation fails', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      mockMutateAsync.mockRejectedValueOnce(new Error('Server error'));
-
-      render(<BookingDetailsPage />);
-
-      const completeButton = screen.getByText('Mark Complete');
-      fireEvent.click(completeButton);
-
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith('Failed to mark lesson as complete', expect.any(Object));
-      });
-    });
-  });
-
-  describe('no-show confirmation modal', () => {
-    it('opens no-show modal when Report No-Show is clicked', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      const noShowButton = screen.getByText('Report No-Show');
-      fireEvent.click(noShowButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Are you sure you want to mark this lesson as a no-show/)).toBeInTheDocument();
-      });
-
-      // Modal should show student name and buttons
-      expect(screen.getByText(/did not attend the scheduled lesson/)).toBeInTheDocument();
-      expect(screen.getByText('Confirm No-Show')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    });
-
-    it('closes modal when Cancel is clicked', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      // Open modal
-      fireEvent.click(screen.getByText('Report No-Show'));
-      await waitFor(() => {
-        expect(screen.getByText('Confirm No-Show')).toBeInTheDocument();
-      });
-
-      // Close modal - use getByRole to be more specific
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      await waitFor(() => {
-        expect(screen.queryByText('Confirm No-Show')).not.toBeInTheDocument();
-      });
-    });
-
-    it('calls no-show mutation when confirmed', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      render(<BookingDetailsPage />);
-
-      // Open modal
-      fireEvent.click(screen.getByText('Report No-Show'));
-      await waitFor(() => {
-        expect(screen.getByText('Confirm No-Show')).toBeInTheDocument();
-      });
-
-      // Confirm no-show
-      fireEvent.click(screen.getByText('Confirm No-Show'));
-
-      await waitFor(() => {
-        expect(mockMutateAsync).toHaveBeenCalledWith({
-          bookingId: '01ABC123456789DEFGHIJKLMN',
-          data: { no_show_type: 'student' },
-        });
-      });
-
-      expect(mockToastSuccess).toHaveBeenCalledWith('Lesson marked as no-show', expect.any(Object));
-    });
-
-    it('shows error toast when no-show mutation fails', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const booking = createMockBooking({
-        status: 'CONFIRMED',
-        booking_date: yesterday.toISOString().split('T')[0],
-      });
-
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
-
-      mockMutateAsync.mockRejectedValueOnce(new Error('Server error'));
-
-      render(<BookingDetailsPage />);
-
-      // Open modal
-      fireEvent.click(screen.getByText('Report No-Show'));
-      await waitFor(() => {
-        expect(screen.getByText('Confirm No-Show')).toBeInTheDocument();
-      });
-
-      // Confirm no-show
-      fireEvent.click(screen.getByText('Confirm No-Show'));
-
-      await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalledWith('Failed to mark lesson as no-show', expect.any(Object));
-      });
-    });
-  });
-
-  describe('NO_SHOW status display', () => {
-    it('displays NO_SHOW status with correct styling', () => {
-      const booking = createMockBooking({
+  it('renders preserved video, notes, and no-show states', () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
         status: 'NO_SHOW',
-      });
+        video_session_duration_seconds: 2100,
+        video_instructor_joined_at: '2026-03-16T16:30:00Z',
+        video_student_joined_at: '2026-03-16T16:32:00Z',
+        student_note: 'Please focus on scales.',
+        instructor_note: 'Great left-hand posture.',
+        cancellation_reason: 'Weather',
+        cancelled_at: '2026-03-16T12:00:00Z',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
 
-      mockUseBooking.mockReturnValue({
-        data: booking,
-        isLoading: false,
-        error: null,
-      } as unknown as ReturnType<typeof useBooking>);
+    render(<BookingDetailsPage />);
 
-      render(<BookingDetailsPage />);
+    expect(screen.getByText('No-show')).toHaveClass('bg-amber-50', 'text-amber-800');
+    expect(screen.getByText('Video Session')).toBeInTheDocument();
+    expect(screen.getByText('35m')).toBeInTheDocument();
+    expect(screen.getByText('Note from student')).toBeInTheDocument();
+    expect(screen.getByText('"Please focus on scales."')).toBeInTheDocument();
+    expect(screen.getByText('Instructor notes')).toBeInTheDocument();
+    expect(screen.getByText('Great left-hand posture.')).toBeInTheDocument();
+  });
 
-      const statusBadge = screen.getByText('NO_SHOW');
-      expect(statusBadge).toBeInTheDocument();
-      expect(statusBadge).toHaveClass('bg-amber-50', 'text-amber-800');
-    });
+  it('renders cancellation details for cancelled bookings', () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        status: 'CANCELLED',
+        cancellation_reason: 'Student cancelled',
+        cancelled_at: '2026-03-15T12:00:00Z',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('Cancellation Details')).toBeInTheDocument();
+    expect(screen.getByText(/Reason:/)).toBeInTheDocument();
+    expect(screen.getByText('Student cancelled')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled on 3/15/2026')).toBeInTheDocument();
   });
 });

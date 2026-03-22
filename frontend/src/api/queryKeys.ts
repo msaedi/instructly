@@ -14,6 +14,47 @@
  */
 const CACHE_VERSION = 'v1' as const;
 
+type InstructorBookingsFilters = {
+  status?: string;
+  upcoming?: boolean;
+  exclude_future_confirmed?: boolean;
+  include_past_confirmed?: boolean;
+  page?: number;
+  per_page?: number;
+};
+
+function normalizeInstructorBookingsFilters(
+  filters?: InstructorBookingsFilters
+): InstructorBookingsFilters {
+  const normalized: InstructorBookingsFilters = {};
+
+  if (filters?.status !== undefined) {
+    normalized.status = filters.status;
+  }
+
+  if (filters?.upcoming !== undefined) {
+    normalized.upcoming = filters.upcoming;
+  }
+
+  if (filters?.exclude_future_confirmed !== undefined) {
+    normalized.exclude_future_confirmed = filters.exclude_future_confirmed;
+  }
+
+  if (filters?.include_past_confirmed !== undefined) {
+    normalized.include_past_confirmed = filters.include_past_confirmed;
+  }
+
+  if (filters?.page !== undefined) {
+    normalized.page = filters.page;
+  }
+
+  if (filters?.per_page !== undefined) {
+    normalized.per_page = filters.per_page;
+  }
+
+  return normalized;
+}
+
 export const queryKeys = {
   /**
    * Authentication domain
@@ -61,8 +102,8 @@ export const queryKeys = {
       ['bookings', CACHE_VERSION, 'student', filters ?? {}] as const,
 
     /** List instructor bookings */
-    instructor: (filters?: { status?: string }) =>
-      ['bookings', CACHE_VERSION, 'instructor', filters ?? {}] as const,
+    instructor: (filters?: InstructorBookingsFilters) =>
+      ['bookings', CACHE_VERSION, 'instructor', normalizeInstructorBookingsFilters(filters)] as const,
 
     /** Get booking by ID */
     detail: (id: string) => ['bookings', CACHE_VERSION, 'detail', id] as const,

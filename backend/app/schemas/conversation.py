@@ -127,7 +127,7 @@ class MessagesResponse(BaseModel):
 class CreateConversationRequest(BaseModel):
     """Request to create a pre-booking conversation."""
 
-    instructor_id: str = Field(..., pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
+    other_user_id: str = Field(..., pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
     initial_message: Optional[str] = Field(None, min_length=1, max_length=1000)
 
 

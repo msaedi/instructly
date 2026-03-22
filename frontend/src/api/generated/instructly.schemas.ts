@@ -3246,7 +3246,7 @@ export interface CreateCheckoutRequest {
 export interface CreateConversationRequest {
   initial_message?: string | null;
   /** @pattern ^[0-9A-HJKMNP-TV-Z]{26}$ */
-  instructor_id: string;
+  other_user_id: string;
 }
 
 /**

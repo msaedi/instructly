@@ -218,14 +218,12 @@ function PaymentConfirmationInner({
     setSelectedSavedAddress(null);
   }, []);
 
-  /* istanbul ignore next */
   const buildSavedAddressLine1 = useCallback((address: SavedAddress): string => {
     const line1 = address.street_line1?.trim() ?? '';
     const line2 = address.street_line2?.trim() ?? '';
     return [line1, line2].filter((part) => part.length > 0).join(', ');
   }, []);
 
-  /* istanbul ignore next */
   const applySavedAddress = useCallback(
     (address: SavedAddress) => {
       setAddressFields({
@@ -247,7 +245,6 @@ function PaymentConfirmationInner({
     [buildSavedAddressLine1]
   );
 
-  /* istanbul ignore next */
   const handleSelectSavedAddress = useCallback(
     (address: SavedAddress | null) => {
       if (!address) {
@@ -261,14 +258,12 @@ function PaymentConfirmationInner({
     [applySavedAddress]
   );
 
-  /* istanbul ignore next */
   const handleEnterNewAddress = useCallback(() => {
     setSelectedSavedAddress(null);
     setLocationType((prev) => (prev === 'neutral_location' ? prev : 'student_location'));
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     requestAnimationFrame(() => {
-      /* istanbul ignore next */
       addressLine1Ref.current?.focus();
     });
   }, []);
@@ -1069,7 +1064,6 @@ function PaymentConfirmationInner({
 
     if (isTravelLocation && isEditingLocation) {
       const cacheKey = `${locationType}|editing`;
-      /* istanbul ignore next */
       if (lastLocationRef.current === cacheKey) {
         return;
       }
@@ -1425,8 +1419,6 @@ function PaymentConfirmationInner({
     void loadInstructorProfile();
   }, [booking.instructorId]);
 
-
-  /* istanbul ignore next */
   const handleTimeSelected = (selection: {
     date: string;
     time: string;

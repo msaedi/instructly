@@ -150,7 +150,7 @@ class TestCreateConversation:
         """Creates a new conversation between student and instructor."""
         res = client.post(
             "/api/v1/conversations",
-            json={"instructor_id": test_instructor_with_availability.id},
+            json={"other_user_id": test_instructor_with_availability.id},
             headers=auth_headers,
         )
         assert res.status_code == 200
@@ -172,7 +172,7 @@ class TestCreateConversation:
 
         res = client.post(
             "/api/v1/conversations",
-            json={"instructor_id": test_instructor_with_availability.id},
+            json={"other_user_id": test_instructor_with_availability.id},
             headers=auth_headers,
         )
         assert res.status_code == 200
@@ -187,7 +187,7 @@ class TestCreateConversation:
         res = client.post(
             "/api/v1/conversations",
             json={
-                "instructor_id": test_instructor_with_availability.id,
+                "other_user_id": test_instructor_with_availability.id,
                 "initial_message": "Hello, I'd like to book a lesson!",
             },
             headers=auth_headers,
@@ -206,9 +206,53 @@ class TestCreateConversation:
         """Returns 401 without authentication."""
         res = client.post(
             "/api/v1/conversations",
-            json={"instructor_id": test_instructor_with_availability.id},
+            json={"other_user_id": test_instructor_with_availability.id},
         )
         assert res.status_code == 401
+
+    def test_create_conversation_for_instructor_to_student(
+        self,
+        client,
+        test_student,
+        test_instructor_with_availability,
+        auth_headers_instructor,
+    ):
+        """Allows instructors to resolve or create a conversation with a student."""
+        res = client.post(
+            "/api/v1/conversations",
+            json={"other_user_id": test_student.id},
+            headers=auth_headers_instructor,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["id"]
+
+    def test_create_conversation_rejects_self_messaging(
+        self, client, test_student, auth_headers
+    ):
+        """Rejects attempts to message yourself."""
+        res = client.post(
+            "/api/v1/conversations",
+            json={"other_user_id": test_student.id},
+            headers=auth_headers,
+        )
+
+        assert res.status_code == 400
+        assert res.json()["detail"] == "Cannot message yourself"
+
+    def test_create_conversation_rejects_same_role_pairs(
+        self, client, test_instructor_2, auth_headers_instructor
+    ):
+        """Rejects pairs that are not exactly one instructor and one non-instructor."""
+        res = client.post(
+            "/api/v1/conversations",
+            json={"other_user_id": test_instructor_2.id},
+            headers=auth_headers_instructor,
+        )
+
+        assert res.status_code == 400
+        assert res.json()["detail"] == "Exactly one instructor and one non-instructor are required"
 
 
 class TestGetMessages:

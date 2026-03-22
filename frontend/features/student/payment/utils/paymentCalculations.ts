@@ -1,4 +1,5 @@
 import { TRANSACTION_LIMITS } from '@/features/shared/types/booking';
+import { formatPrice } from '@/lib/price';
 
 export const calculateCreditApplication = (
   totalAmount: number,
@@ -20,7 +21,7 @@ export type { BookingType } from '@/features/shared/types/booking';
 
 export const validateTransactionAmount = (amount: number): boolean => amount > 0 && amount <= TRANSACTION_LIMITS.MAX_TRANSACTION;
 
-export const formatCurrency = (amount: number): string => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+export const formatCurrency = (amount: number): string => formatPrice(amount);
 
 export const calculateTipAmount = (baseAmount: number, tipPercentage: number): number => {
   return baseAmount * (tipPercentage / 100);

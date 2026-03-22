@@ -110,15 +110,15 @@ export async function getConversation(conversationId: string): Promise<Conversat
 }
 
 /**
- * Create or get existing conversation with an instructor.
- * Used for pre-booking messaging.
+ * Create or get existing conversation with another user.
+ * Used for resolve-first messaging flows.
  */
 export async function createConversation(
-  instructorId: string,
+  otherUserId: string,
   initialMessage?: string
 ): Promise<CreateConversationResult> {
   const payload: CreateConversationPayload = {
-    instructor_id: instructorId,
+    other_user_id: otherUserId,
     ...(initialMessage !== undefined ? { initial_message: initialMessage } : {}),
   };
 
@@ -291,12 +291,12 @@ export function useCreateConversation() {
 
   return useMutation({
     mutationFn: ({
-      instructorId,
+      otherUserId,
       initialMessage,
     }: {
-      instructorId: string;
+      otherUserId: string;
       initialMessage?: string;
-    }) => createConversation(instructorId, initialMessage),
+    }) => createConversation(otherUserId, initialMessage),
     onError: (error) => {
       logger.warn('Failed to create conversation', { error });
       toast.error('Failed to start conversation. Please try again.');

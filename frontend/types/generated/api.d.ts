@@ -3551,10 +3551,9 @@ export type paths = {
         put?: never;
         /**
          * Create Conversation
-         * @description Create a new conversation (for pre-booking messaging).
+         * @description Create a new conversation or return the existing one.
          *
-         *     If conversation already exists, returns the existing one.
-         *     Only students can initiate conversations with instructors.
+         *     Conversations are always between exactly one instructor and one non-instructor.
          */
         post: operations["create_conversation_api_v1_conversations_post"];
         delete?: never;
@@ -12159,8 +12158,8 @@ export type components = {
         CreateConversationRequest: {
             /** Initial Message */
             initial_message?: string | null;
-            /** Instructor Id */
-            instructor_id: string;
+            /** Other User Id */
+            other_user_id: string;
         };
         /**
          * CreateConversationResponse

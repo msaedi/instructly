@@ -266,22 +266,21 @@ async def create_conversation(
     service: ConversationService = Depends(get_conversation_service),
 ) -> CreateConversationResponse:
     """
-    Create a new conversation (for pre-booking messaging).
+    Create a new conversation or return the existing one.
 
-    If conversation already exists, returns the existing one.
-    Only students can initiate conversations with instructors.
+    Conversations are always between exactly one instructor and one non-instructor.
     """
     # Service handles validation, creation, initial message, and transaction commit
     result = await asyncio.to_thread(
         service.create_conversation_with_message,
-        student_id=current_user.id,
-        instructor_id=request.instructor_id,
+        current_user_id=current_user.id,
+        other_user_id=request.other_user_id,
         initial_message=request.initial_message,
     )
 
     if not result.success:
         error_code = getattr(result, "error_code", None)
-        if error_code == "instructor_not_found":
+        if error_code in {"current_user_not_found", "target_user_not_found"}:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=result.error,

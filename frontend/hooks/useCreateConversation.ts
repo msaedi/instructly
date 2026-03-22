@@ -19,7 +19,7 @@ export interface CreateConversationOptions {
 
 export interface CreateConversationResult {
   createConversation: (
-    instructorId: string,
+    otherUserId: string,
     options?: CreateConversationOptions
   ) => Promise<{ id: string; created: boolean }>;
   isCreating: boolean;
@@ -32,13 +32,13 @@ export function useCreateConversation(): CreateConversationResult {
 
   const mutation = useMutation({
     mutationFn: async ({
-      instructorId,
+      otherUserId,
       initialMessage,
     }: {
-      instructorId: string;
+      otherUserId: string;
       initialMessage?: string;
     }) => {
-      return createConversation(instructorId, initialMessage);
+      return createConversation(otherUserId, initialMessage);
     },
     onSuccess: () => {
       // Invalidate conversations list to show the new/updated conversation
@@ -47,14 +47,14 @@ export function useCreateConversation(): CreateConversationResult {
   });
 
   const create = async (
-    instructorId: string,
+    otherUserId: string,
     options: CreateConversationOptions = {}
   ): Promise<{ id: string; created: boolean }> => {
     const { navigateToMessages = true, initialMessage } = options;
 
     try {
       const result = await mutation.mutateAsync({
-        instructorId,
+        otherUserId,
         ...(initialMessage !== undefined && { initialMessage }),
       });
 
