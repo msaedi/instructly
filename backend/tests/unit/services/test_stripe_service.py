@@ -754,7 +754,8 @@ class TestTransfersAndPaymentIntents:
             destination_account_id="acct_bonus",
             amount_cents=0,
             referrer_user_id="ref_1",
-            referred_instructor_id="inst_1",
+            referred_user_id="inst_1",
+            referral_type="instructor",
             was_founding_bonus=False,
         )
 
@@ -773,7 +774,8 @@ class TestTransfersAndPaymentIntents:
                 destination_account_id="acct_bonus",
                 amount_cents=7500,
                 referrer_user_id="ref_2",
-                referred_instructor_id="inst_2",
+                referred_user_id="inst_2",
+                referral_type="instructor",
                 was_founding_bonus=True,
             )
 
@@ -793,7 +795,8 @@ class TestTransfersAndPaymentIntents:
                     destination_account_id="acct_bonus",
                     amount_cents=5000,
                     referrer_user_id="ref_3",
-                    referred_instructor_id="inst_3",
+                    referred_user_id="inst_3",
+                    referral_type="instructor",
                     was_founding_bonus=False,
                 )
 

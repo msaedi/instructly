@@ -284,16 +284,15 @@ def test_create_instructor_referral_payout_integrity_error(db, monkeypatch, test
 
     monkeypatch.setattr(db, "flush", _raise_flush)
 
-    payout = repo.create_instructor_referral_payout(
-        referrer_user_id=test_instructor.id,
-        referred_instructor_id=test_instructor_with_availability.id,
-        triggering_booking_id=test_booking.id,
-        amount_cents=5000,
-        was_founding_bonus=False,
-        idempotency_key="dup-key",
-    )
-
-    assert payout is None
+    with pytest.raises(RepositoryException, match="Unable to create instructor referral payout"):
+        repo.create_instructor_referral_payout(
+            referrer_user_id=test_instructor.id,
+            referred_instructor_id=test_instructor_with_availability.id,
+            triggering_booking_id=test_booking.id,
+            amount_cents=5000,
+            was_founding_bonus=False,
+            idempotency_key="dup-key",
+        )
 
 
 def test_get_instructor_referral_payout_by_id(db, test_booking, test_instructor, test_instructor_with_availability):

@@ -163,6 +163,20 @@ describe('MessageInstructorButton', () => {
     expect(screen.getByRole('button')).toBeInTheDocument();
   });
 
+  it('uses the large icon sizing branch for lg buttons', () => {
+    render(
+      <MessageInstructorButton
+        instructorId="instructor_456"
+        instructorName="Sarah"
+        size="lg"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const icon = screen.getByRole('button').querySelector('svg');
+    expect(icon).toHaveClass('h-5', 'w-5');
+  });
+
   it('renders icon-only mode', () => {
     render(
       <MessageInstructorButton

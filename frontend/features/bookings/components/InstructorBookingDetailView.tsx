@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
 import { formatBookingLocationDetail } from '@/lib/bookingLocation';
 import { formatPrice } from '@/lib/price';
@@ -94,6 +95,13 @@ export function InstructorBookingDetailView({
     getStudentLastInitial(booking.student),
   );
   const payoutSummary = getPayoutStatusSummary(booking);
+  const showJoinLessonAction =
+    booking.status === 'CONFIRMED' &&
+    booking.location_type === 'online' &&
+    booking.can_join_lesson === true &&
+    typeof booking.join_opens_at === 'string' &&
+    typeof booking.join_closes_at === 'string';
+  const showActionSection = showJoinLessonAction || needsAction;
 
   return (
     <div className="mt-6">
@@ -203,6 +211,60 @@ export function InstructorBookingDetailView({
           ) : null}
         </div>
 
+        {showActionSection ? (
+          <>
+            <div className="px-6">
+              <Separator className={sectionDividerClassName} />
+            </div>
+            <div className="px-6 py-5">
+              {needsAction ? (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span className="font-medium">Action Required</span>
+                  </div>
+                  <p className="mt-1 text-sm text-amber-700 dark:text-amber-200">
+                    This lesson has ended. Please confirm the outcome.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-3">
+                {showJoinLessonAction ? (
+                  <JoinLessonButton
+                    bookingId={booking.id}
+                    joinOpensAt={booking.join_opens_at}
+                    joinClosesAt={booking.join_closes_at}
+                  />
+                ) : null}
+                {needsAction ? (
+                  <>
+                    <Button
+                      type="button"
+                      onClick={onMarkComplete}
+                      disabled={isActionPending}
+                      className="gap-2 bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Mark Complete
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onReportNoShow}
+                      disabled={isActionPending}
+                      className="gap-2 border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      Report No-Show
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </>
+        ) : null}
+
         {booking.video_session_duration_seconds != null ? (
           <>
             <div className="px-6">
@@ -288,46 +350,6 @@ export function InstructorBookingDetailView({
           </>
         ) : null}
 
-        {needsAction ? (
-          <>
-            <div className="px-6">
-              <Separator className={sectionDividerClassName} />
-            </div>
-            <div className="px-6 py-5">
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30">
-                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="font-medium">Action Required</span>
-                </div>
-                <p className="mt-1 text-sm text-amber-700 dark:text-amber-200">
-                  This lesson has ended. Please confirm the outcome.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  onClick={onMarkComplete}
-                  disabled={isActionPending}
-                  className="gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Mark Complete
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onReportNoShow}
-                  disabled={isActionPending}
-                  className="gap-2 border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                  Report No-Show
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : null}
       </Card>
     </div>
   );

@@ -1,180 +1,189 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import InstructorReferralsPage from '@/app/(auth)/instructor/referrals/page';
+import { copyToClipboard } from '@/lib/copy';
+import { shareOrCopy } from '@/features/shared/referrals/share';
 
 jest.mock('@/components/UserProfileDropdown', () => ({
   __esModule: true,
   default: () => <div data-testid="user-profile-dropdown" />,
 }));
 
+jest.mock('@/hooks/queries/useInstructorReferrals', () => ({
+  useInstructorReferralDashboard: jest.fn(),
+  formatCents: (cents: number) => `$${Math.round(cents / 100)}`,
+  formatReferralRewardDate: (value: string) =>
+    value === 'not-a-date' ? 'Date unavailable' : 'Mar 21, 2026',
+  formatReferralDisplayName: (firstName: string, lastInitial: string) =>
+    lastInitial ? `${firstName} ${lastInitial}.` : firstName,
+  getReferralRewardTypeLabel: (referralType: string) =>
+    referralType === 'instructor' ? 'Instructor referral' : 'Student referral',
+  getEmptyRewardMessage: (tab: string) => {
+    const messages: Record<string, string> = {
+      unlocked: 'No unlocked rewards yet. Rewards appear here once earned.',
+      pending: 'No pending rewards yet. Rewards appear here once a referral signs up.',
+      redeemed: 'No redeemed rewards yet. Rewards appear here after a payout completes.',
+    };
+    return messages[tab];
+  },
+}));
+
+jest.mock('@/lib/copy', () => ({
+  copyToClipboard: jest.fn(),
+}));
+
+jest.mock('@/features/shared/referrals/share', () => ({
+  shareOrCopy: jest.fn(),
+}));
+
 jest.mock('sonner', () => ({
   toast: {
     success: jest.fn(),
     error: jest.fn(),
-    info: jest.fn(),
   },
 }));
 
-jest.mock('@/hooks/queries/useInstructorReferrals', () => ({
-  useInstructorReferralStats: jest.fn(),
-  useReferredInstructors: jest.fn(),
-  formatCents: (cents: number) => `$${(cents / 100).toFixed(0)}`,
-  getPayoutStatusDisplay: (status: string) => {
-    const map: Record<string, { label: string; color: string }> = {
-      pending_live: { label: 'Awaiting Go-Live', color: 'gray' },
-      pending_lesson: { label: 'Awaiting First Lesson', color: 'yellow' },
-      pending_transfer: { label: 'Processing Payout', color: 'blue' },
-      paid: { label: 'Paid', color: 'green' },
-      failed: { label: 'Payout Failed', color: 'red' },
-    };
-    return map[status] || { label: 'Unknown', color: 'gray' };
-  },
-}));
-
-const mockStats = {
-  referralCode: 'TESTCODE',
-  referralLink: 'https://instainstru.com/r/TESTCODE',
-  totalReferred: 5,
-  pendingPayouts: 2,
-  completedPayouts: 3,
-  totalEarnedCents: 22500,
-  isFoundingPhase: true,
-  foundingSpotsRemaining: 42,
-  currentBonusCents: 7500,
+const hookModule = jest.requireMock('@/hooks/queries/useInstructorReferrals') as {
+  useInstructorReferralDashboard: jest.Mock;
+};
+const copyToClipboardMock = copyToClipboard as jest.MockedFunction<typeof copyToClipboard>;
+const shareOrCopyMock = shareOrCopy as jest.MockedFunction<typeof shareOrCopy>;
+const { toast } = jest.requireMock('sonner') as {
+  toast: {
+    success: jest.Mock;
+    error: jest.Mock;
+  };
 };
 
-const mockReferredInstructors = {
-  instructors: [
-    {
-      id: '1',
-      firstName: 'Sarah',
-      lastInitial: 'C.',
-      referredAt: new Date('2024-12-01'),
-      isLive: true,
-      wentLiveAt: new Date('2024-12-05'),
-      firstLessonCompletedAt: new Date('2024-12-10'),
-      payoutStatus: 'paid' as const,
-      payoutAmountCents: 7500,
-    },
-    {
-      id: '2',
-      firstName: 'Mike',
-      lastInitial: 'R.',
-      referredAt: new Date('2024-12-15'),
-      isLive: true,
-      wentLiveAt: new Date('2024-12-18'),
-      firstLessonCompletedAt: null,
-      payoutStatus: 'pending_lesson' as const,
-      payoutAmountCents: null,
-    },
-  ],
-  totalCount: 2,
+const dashboardResponse = {
+  referralCode: 'FNVC6KDW',
+  referralLink: 'https://beta.instainstru.com/r/FNVC6KDW',
+  instructorAmountCents: 5000,
+  studentAmountCents: 2000,
+  totalReferred: 4,
+  pendingPayouts: 2,
+  totalEarnedCents: 9000,
+  rewards: {
+    unlocked: [
+      {
+        id: 'reward-1',
+        amountCents: 5000,
+        date: '2026-03-21T12:00:00Z',
+        failureReason: null,
+        payoutStatus: 'pending',
+        refereeFirstName: 'Mina',
+        refereeLastInitial: 'T',
+        referralType: 'instructor' as const,
+      },
+    ],
+    pending: [
+      {
+        id: 'reward-2',
+        amountCents: 2000,
+        date: '2026-03-21T12:00:00Z',
+        failureReason: null,
+        payoutStatus: null,
+        refereeFirstName: 'Arlo',
+        refereeLastInitial: 'J',
+        referralType: 'student' as const,
+      },
+    ],
+    redeemed: [
+      {
+        id: 'reward-3',
+        amountCents: 5000,
+        date: '2026-03-21T12:00:00Z',
+        failureReason: null,
+        payoutStatus: 'paid',
+        refereeFirstName: 'Nora',
+        refereeLastInitial: 'L',
+        referralType: 'instructor' as const,
+      },
+    ],
+  },
 };
 
 describe('InstructorReferralsPage', () => {
-  const hooks = jest.requireMock('@/hooks/queries/useInstructorReferrals') as {
-    useInstructorReferralStats: jest.Mock;
-    useReferredInstructors: jest.Mock;
-  };
-
   beforeEach(() => {
-    hooks.useInstructorReferralStats.mockReset();
-    hooks.useReferredInstructors.mockReset();
-  });
-
-  it('renders loading state', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ isLoading: true });
-    hooks.useReferredInstructors.mockReturnValue({ isLoading: true });
-
-    render(<InstructorReferralsPage />);
-    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
-  });
-
-  it('renders referral stats', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ data: mockStats, isLoading: false });
-    hooks.useReferredInstructors.mockReturnValue({ data: mockReferredInstructors, isLoading: false });
-
-    render(<InstructorReferralsPage />);
-
-    expect(screen.getByText('Referrals')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
-    expect(screen.getByText('$225')).toBeInTheDocument();
-  });
-
-  it('shows founding phase alert when active', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ data: mockStats, isLoading: false });
-    hooks.useReferredInstructors.mockReturnValue({ data: mockReferredInstructors, isLoading: false });
-
-    render(<InstructorReferralsPage />);
-
-    expect(screen.getByText('Founding Phase Bonus')).toBeInTheDocument();
-    expect(screen.getByText(/42/)).toBeInTheDocument();
-  });
-
-  it('does not show founding alert when phase is over', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({
-      data: { ...mockStats, isFoundingPhase: false },
+    jest.clearAllMocks();
+    hookModule.useInstructorReferralDashboard.mockReturnValue({
+      data: dashboardResponse,
       isLoading: false,
+      isError: false,
     });
-    hooks.useReferredInstructors.mockReturnValue({ data: mockReferredInstructors, isLoading: false });
-
-    render(<InstructorReferralsPage />);
-
-    expect(screen.queryByText('Founding Phase Bonus')).not.toBeInTheDocument();
+    copyToClipboardMock.mockResolvedValue(true);
+    shareOrCopyMock.mockResolvedValue('shared');
   });
 
-  it('copies referral link on button click', async () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ data: mockStats, isLoading: false });
-    hooks.useReferredInstructors.mockReturnValue({ data: mockReferredInstructors, isLoading: false });
-
-    const writeText = jest.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText },
-      configurable: true,
-    });
-
+  it('renders the redesigned referrals dashboard', () => {
     render(<InstructorReferralsPage />);
 
-    fireEvent.click(screen.getByText('Copy link'));
+    expect(screen.getByRole('heading', { name: 'Referrals' })).toBeInTheDocument();
+    expect(screen.getByText('Refer an instructor')).toBeInTheDocument();
+    expect(screen.getByText('Refer a student')).toBeInTheDocument();
+    expect(screen.getByText('$50 cash')).toBeInTheDocument();
+    expect(screen.getByText('$20 cash')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('https://beta.instainstru.com/r/FNVC6KDW')).toBeInTheDocument();
+    expect(screen.getByText('Total referred')).toBeInTheDocument();
+    expect(screen.getByText('Pending payouts')).toBeInTheDocument();
+    expect(screen.getByText('Total earned')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Unlocked' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pending' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Redeemed' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Share your unique referral link with students or fellow instructors.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('They sign up and join iNSTAiNSTRU.')).toBeInTheDocument();
+    expect(screen.queryByText(/founding/i)).not.toBeInTheDocument();
+  });
+
+  it('copies the referral link from the copy button', async () => {
+    const user = userEvent.setup();
+
+    render(<InstructorReferralsPage />);
+    await user.click(screen.getByRole('button', { name: 'Copy referral link' }));
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith('https://instainstru.com/r/TESTCODE');
+      expect(copyToClipboardMock).toHaveBeenCalledWith('https://beta.instainstru.com/r/FNVC6KDW');
     });
+    expect(toast.success).toHaveBeenCalledWith('Referral link copied');
   });
 
-  it('displays referred instructors list', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ data: mockStats, isLoading: false });
-    hooks.useReferredInstructors.mockReturnValue({ data: mockReferredInstructors, isLoading: false });
+  it('switches reward tabs and renders the selected reward list', async () => {
+    const user = userEvent.setup();
 
     render(<InstructorReferralsPage />);
 
-    expect(screen.getByText('Sarah C.')).toBeInTheDocument();
-    expect(screen.getByText('Mike R.')).toBeInTheDocument();
-    expect(screen.getByText('Paid')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting First Lesson')).toBeInTheDocument();
+    expect(screen.getByText('Mina T.')).toBeInTheDocument();
+    expect(screen.getByText('Transfer pending')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Pending' }));
+    expect(screen.getByText('Arlo J.')).toBeInTheDocument();
+    expect(screen.getByText('Student referral')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Redeemed' }));
+    expect(screen.getByText('Nora L.')).toBeInTheDocument();
+    expect(screen.getByText('Transferred')).toBeInTheDocument();
   });
 
-  it('shows empty state when no referrals', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({ data: mockStats, isLoading: false });
-    hooks.useReferredInstructors.mockReturnValue({
-      data: { instructors: [], totalCount: 0 },
+  it('renders loading and error states', () => {
+    hookModule.useInstructorReferralDashboard.mockReturnValueOnce({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    const { rerender } = render(<InstructorReferralsPage />);
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+
+    hookModule.useInstructorReferralDashboard.mockReturnValueOnce({
+      data: undefined,
       isLoading: false,
+      isError: true,
     });
 
-    render(<InstructorReferralsPage />);
-
-    expect(screen.getByText('No referrals yet')).toBeInTheDocument();
-  });
-
-  it('shows error state on API failure', () => {
-    hooks.useInstructorReferralStats.mockReturnValue({
-      error: new Error('API Error'),
-      isLoading: false,
-    });
-    hooks.useReferredInstructors.mockReturnValue({ data: null, isLoading: false });
-
-    render(<InstructorReferralsPage />);
-
-    expect(screen.getByText(/Failed to load referral data/i)).toBeInTheDocument();
+    rerender(<InstructorReferralsPage />);
+    expect(screen.getByText(/Failed to load referrals right now/i)).toBeInTheDocument();
   });
 });

@@ -27,6 +27,26 @@ def test_get_referral_stats_returns_stats(client, auth_headers_instructor, test_
     assert "current_bonus_cents" in data
 
 
+def test_get_referral_dashboard_returns_shape(client, auth_headers_instructor, test_instructor):
+    response = client.get(
+        "/api/v1/instructor-referrals/dashboard",
+        headers=auth_headers_instructor,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "referral_code" in data
+    assert "referral_link" in data
+    assert "instructor_amount_cents" in data
+    assert "student_amount_cents" in data
+    assert "total_referred" in data
+    assert "pending_payouts" in data
+    assert "total_earned_cents" in data
+    assert "rewards" in data
+    assert set(data["rewards"].keys()) == {"pending", "unlocked", "redeemed"}
+
+
 @pytest.mark.parametrize(
     "site_mode,frontend_url,local_beta_origin,expected_base",
     [

@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Info, SlidersHorizontal } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift, UserRoundPen } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, UserRoundPen } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
@@ -23,8 +22,6 @@ import { useNotificationPreferences } from '@/features/shared/hooks/useNotificat
 import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
 import { formatPhoneDisplay } from '@/lib/phone';
 
-const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
-
 const PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, push: true, sms: false },
   messages: { email: false, push: true, sms: false },
@@ -36,7 +33,7 @@ const PREFERENCE_DEFAULTS = {
 
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
-type OpenSection = 'account' | 'refer' | 'security' | 'status' | 'password' | 'preferences' | 'about' | null;
+type OpenSection = 'account' | 'security' | 'status' | 'password' | 'preferences' | 'about' | null;
 
 const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
   lesson_updates: 'Lesson Updates',
@@ -309,7 +306,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     : !phoneVerified
       ? 'Verify your phone number to enable SMS notifications.'
       : undefined;
-  const inviterName = [firstName, lastName].filter(Boolean).join(' ').trim();
   const normalizedExistingPhone = formatPhoneForApi(phoneNumber || '');
   const normalizedPhoneInput = formatPhoneForApi(phoneInput);
   const hasPhoneValue = normalizedPhoneInput.length > 0;
@@ -859,67 +855,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           )}
         </div>
-
-        {/* Referrals & rewards */}
-        <div className="p-6 insta-surface-card">
-          {embedded ? (
-            <>
-              <button
-                type="button"
-                className="insta-dashboard-accordion-trigger"
-                onClick={() => toggleSection('refer')}
-                aria-expanded={openSection === 'refer'}
-              >
-                <div className="insta-dashboard-accordion-leading">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Gift className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <div>
-                    <span className="insta-dashboard-accordion-title">Refer instructors</span>
-                    <span className="insta-dashboard-accordion-subtitle">Share your link to invite peers and earn rewards.</span>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'refer' ? 'rotate-180' : ''}`} />
-              </button>
-              {openSection === 'refer' && (
-                <div className="mt-4">
-              <RewardsPanel
-                    inviterName={inviterName}
-                    hideHeader
-                    compactShare
-                    hideShareIcon
-                    minimalTabs
-                    compactInvite
-                    compactTabs
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Gift className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Refer instructors</h2>
-              </div>
-            </div>
-            <div className="mt-4">
-              <RewardsPanel
-                inviterName={inviterName}
-                hideHeader
-                compactShare
-                hideShareIcon
-                  minimalTabs
-                  compactInvite
-                  compactTabs
-                />
-              </div>
-            </>
-          )}
-        </div>
-
         {embedded && (
           <div className="p-6 insta-surface-card">
             <button

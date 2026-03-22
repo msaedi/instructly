@@ -4077,6 +4077,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructor-referrals/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referral Dashboard
+         * @description Get a page-ready dashboard payload for instructor referrals.
+         */
+        get: operations["get_referral_dashboard_api_v1_instructor_referrals_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructor-referrals/founding-status": {
         parameters: {
             query?: never;
@@ -6372,7 +6392,7 @@ export type paths = {
         };
         /**
          * Resolve Referral Slug
-         * @description Resolve referral slug and redirect to landing page.
+         * @description Resolve referral slug and redirect to signup with the canonical code.
          */
         get: operations["resolve_referral_slug_api_v1_r__slug__get"];
         put?: never;
@@ -18477,6 +18497,67 @@ export type components = {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * ReferralDashboardResponse
+         * @description Page-ready instructor referrals dashboard payload.
+         */
+        ReferralDashboardResponse: {
+            /** Instructor Amount Cents */
+            instructor_amount_cents: number;
+            /** Pending Payouts */
+            pending_payouts: number;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+            rewards: components["schemas"]["ReferralDashboardRewardsResponse"];
+            /** Student Amount Cents */
+            student_amount_cents: number;
+            /** Total Earned Cents */
+            total_earned_cents: number;
+            /** Total Referred */
+            total_referred: number;
+        };
+        /**
+         * ReferralDashboardRewardItem
+         * @description Normalized reward row for the instructor referrals dashboard.
+         */
+        ReferralDashboardRewardItem: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /** Id */
+            id: string;
+            /** Payout Status */
+            payout_status?: string | null;
+            /** Referee First Name */
+            referee_first_name: string;
+            /** Referee Last Initial */
+            referee_last_initial: string;
+            /**
+             * Referral Type
+             * @enum {string}
+             */
+            referral_type: "student" | "instructor";
+        };
+        /**
+         * ReferralDashboardRewardsResponse
+         * @description Reward groups for instructor referrals dashboard tabs.
+         */
+        ReferralDashboardRewardsResponse: {
+            /** Pending */
+            pending: components["schemas"]["ReferralDashboardRewardItem"][];
+            /** Redeemed */
+            redeemed: components["schemas"]["ReferralDashboardRewardItem"][];
+            /** Unlocked */
+            unlocked: components["schemas"]["ReferralDashboardRewardItem"][];
+        };
         /** ReferralErrorResponse */
         ReferralErrorResponse: {
             /** Reason */
@@ -28202,6 +28283,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_dashboard_api_v1_instructor_referrals_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralDashboardResponse"];
                 };
             };
         };

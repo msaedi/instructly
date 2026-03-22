@@ -6,7 +6,7 @@ Covers the journey from referral attribution to payout creation and API response
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -127,7 +127,7 @@ class TestInstructorReferralFullFlow:
         test_instructor_2: User,
         test_student: User,
     ) -> None:
-        """First completed lesson during founding phase creates a $75 payout."""
+        """First completed lesson creates the standard $50 instructor payout."""
         referrer = test_instructor
         referred = test_instructor_2
 
@@ -169,8 +169,8 @@ class TestInstructorReferralFullFlow:
         assert payout_id == payout.id
         assert payout.referrer_user_id == referrer.id
         assert payout.referred_instructor_id == referred.id
-        assert payout.amount_cents == 7500
-        assert payout.was_founding_bonus is True
+        assert payout.amount_cents == 5000
+        assert payout.was_founding_bonus is False
         assert payout.stripe_transfer_status == "pending"
 
     def test_second_lesson_does_not_create_duplicate_payout(
@@ -331,6 +331,119 @@ class TestReferralAPIIntegration:
         assert "instructors" in data
         assert "total_count" in data
         assert isinstance(data["instructors"], list)
+
+    def test_dashboard_endpoint_groups_pending_unlocked_and_redeemed(
+        self,
+        db: Session,
+        client: TestClient,
+        auth_headers_instructor: dict,
+        test_instructor: User,
+        test_instructor_2: User,
+        test_student: User,
+    ) -> None:
+        referrer = test_instructor
+        referral_service = ReferralService(db)
+        code = referral_service.ensure_code_for_user(referrer.id)
+        assert code is not None
+
+        pending_student = User(
+            email=f"pending-{datetime.now(timezone.utc).timestamp()}@example.com",
+            hashed_password="hashed",
+            first_name="Pending",
+            last_name="Student",
+            zip_code="11215",
+        )
+        db.add(pending_student)
+        db.flush()
+
+        unlocked_student = User(
+            email=f"unlocked-{datetime.now(timezone.utc).timestamp()}@example.com",
+            hashed_password="hashed",
+            first_name="Unlocked",
+            last_name="Student",
+            zip_code="11215",
+        )
+        db.add(unlocked_student)
+        db.flush()
+
+        redeemed_instructor = test_instructor_2
+        redeemed_profile = _get_instructor_profile(db, redeemed_instructor.id)
+        redeemed_profile.is_live = True
+
+        pending_attribution = ReferralAttribution(
+            code_id=code.id,
+            referred_user_id=pending_student.id,
+            source="test",
+            ts=datetime.now(timezone.utc),
+        )
+        unlocked_attribution = ReferralAttribution(
+            code_id=code.id,
+            referred_user_id=unlocked_student.id,
+            source="test",
+            ts=datetime.now(timezone.utc) - timedelta(hours=2),
+        )
+        redeemed_attribution = ReferralAttribution(
+            code_id=code.id,
+            referred_user_id=redeemed_instructor.id,
+            source="test",
+            ts=datetime.now(timezone.utc) - timedelta(hours=4),
+        )
+        db.add_all([pending_attribution, unlocked_attribution, redeemed_attribution])
+        db.flush()
+
+        unlocked_booking_id, unlocked_completed_at = _create_completed_booking(
+            db, instructor=referrer, student=unlocked_student
+        )
+        redeemed_booking_id, redeemed_completed_at = _create_completed_booking(
+            db, instructor=redeemed_instructor, student=test_student
+        )
+
+        db.add(
+            InstructorReferralPayout(
+                referrer_user_id=referrer.id,
+                referred_instructor_id=unlocked_student.id,
+                triggering_booking_id=unlocked_booking_id,
+                amount_cents=2000,
+                was_founding_bonus=False,
+                stripe_transfer_status="pending",
+                idempotency_key=f"instructor_referral_{unlocked_student.id}",
+            )
+        )
+        db.add(
+            InstructorReferralPayout(
+                referrer_user_id=referrer.id,
+                referred_instructor_id=redeemed_instructor.id,
+                triggering_booking_id=redeemed_booking_id,
+                amount_cents=5000,
+                was_founding_bonus=False,
+                stripe_transfer_status="completed",
+                transferred_at=redeemed_completed_at,
+                idempotency_key=f"instructor_referral_{redeemed_instructor.id}",
+            )
+        )
+        db.commit()
+
+        response = client.get(
+            "/api/v1/instructor-referrals/dashboard",
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["instructor_amount_cents"] == 5000
+        assert payload["student_amount_cents"] == 2000
+        assert payload["total_referred"] == 3
+        assert payload["pending_payouts"] == 2
+        assert payload["total_earned_cents"] == 5000
+        assert [item["referee_first_name"] for item in payload["rewards"]["pending"]] == [
+            "Pending"
+        ]
+        assert [item["referee_first_name"] for item in payload["rewards"]["unlocked"]] == [
+            "Unlocked"
+        ]
+        assert [item["referee_first_name"] for item in payload["rewards"]["redeemed"]] == [
+            redeemed_instructor.first_name
+        ]
 
     def test_founding_status_public_access(self, client: TestClient) -> None:
         response = client.get("/api/v1/instructor-referrals/founding-status")

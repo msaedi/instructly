@@ -18,14 +18,6 @@ jest.mock('@/components/UserProfileDropdown', () => {
   return MockUserProfileDropdown;
 });
 
-jest.mock('@/features/referrals/RewardsPanel', () => {
-  function MockRewardsPanel() {
-    return <div>Rewards panel</div>;
-  }
-
-  return MockRewardsPanel;
-});
-
 jest.mock('@/lib/api', () => ({
   fetchWithAuth: jest.fn(),
   API_ENDPOINTS: {
@@ -256,6 +248,14 @@ describe('SettingsImpl', () => {
 
     expect(screen.queryByLabelText(/First name/i)).not.toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
+  });
+
+  it('does not render referral content in settings', () => {
+    renderEmbeddedSettings();
+
+    expect(screen.queryByText(/Referrals & rewards/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invite friends by email/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Your referral link/i)).not.toBeInTheDocument();
   });
 
   it('saves only first name and ZIP code while syncing the default address ZIP', async () => {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, cast
+from typing import Literal, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
@@ -92,6 +92,46 @@ class FoundingStatusResponse(BaseModel):
     spots_remaining: int
 
 
+class ReferralDashboardRewardItem(BaseModel):
+    """Normalized reward row for the instructor referrals dashboard."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    referral_type: Literal["student", "instructor"]
+    referee_first_name: str
+    referee_last_initial: str
+    amount_cents: int
+    date: datetime
+    payout_status: Optional[str] = None
+    failure_reason: Optional[str] = None
+
+
+class ReferralDashboardRewardsResponse(BaseModel):
+    """Reward groups for instructor referrals dashboard tabs."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    pending: list[ReferralDashboardRewardItem]
+    unlocked: list[ReferralDashboardRewardItem]
+    redeemed: list[ReferralDashboardRewardItem]
+
+
+class ReferralDashboardResponse(BaseModel):
+    """Page-ready instructor referrals dashboard payload."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    referral_code: str
+    referral_link: str
+    instructor_amount_cents: int
+    student_amount_cents: int
+    total_referred: int
+    pending_payouts: int
+    total_earned_cents: int
+    rewards: ReferralDashboardRewardsResponse
+
+
 def _resolve_referral_base(request: Request | None = None) -> str:
     """Resolve referral link base origin.
 
@@ -155,6 +195,51 @@ def _determine_payout_status(
     if payout_status == "failed":
         return "failed"
     return "pending_transfer"
+
+
+def _get_standard_instructor_bonus_cents(config: dict[str, object]) -> int:
+    raw_value = config.get(
+        "instructor_standard_bonus_cents", config.get("instructor_amount_cents", 5000)
+    )
+    return _coerce_int(raw_value, default=5000)
+
+
+def _coerce_int(value: object, *, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _build_dashboard_reward_item(
+    *,
+    reward_id: str,
+    referral_type: Literal["student", "instructor"],
+    first_name: str,
+    last_name: str,
+    amount_cents: int,
+    date: datetime,
+    payout_status: Optional[str] = None,
+    failure_reason: Optional[str] = None,
+) -> ReferralDashboardRewardItem:
+    return ReferralDashboardRewardItem(
+        id=reward_id,
+        referral_type=referral_type,
+        referee_first_name=first_name,
+        referee_last_initial=format_last_initial(last_name, with_period=True),
+        amount_cents=amount_cents,
+        date=date,
+        payout_status=payout_status,
+        failure_reason=failure_reason,
+    )
 
 
 def _resolve_founding_info(db: Session) -> tuple[int, int, bool]:
@@ -243,9 +328,9 @@ async def get_referral_stats(
 
     cap, founding_count, is_founding = await run_in_threadpool(_resolve_founding_info, db)
     current_bonus = (
-        int(config.get("instructor_founding_bonus_cents", 7500))
+        _coerce_int(config.get("instructor_founding_bonus_cents", 7500), default=7500)
         if is_founding
-        else int(config.get("instructor_standard_bonus_cents", 5000))
+        else _get_standard_instructor_bonus_cents(config)
     )
 
     return ReferralStatsResponse(
@@ -258,6 +343,115 @@ async def get_referral_stats(
         is_founding_phase=is_founding,
         founding_spots_remaining=max(0, cap - founding_count),
         current_bonus_cents=current_bonus,
+    )
+
+
+@router.get("/dashboard", response_model=ReferralDashboardResponse)
+async def get_referral_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> ReferralDashboardResponse:
+    """Get a page-ready dashboard payload for instructor referrals."""
+
+    instructor_repo = InstructorProfileRepository(db)
+    instructor_profile = await run_in_threadpool(instructor_repo.get_by_user_id, current_user.id)
+    if not instructor_profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can access referral data",
+        )
+
+    referral_service = ReferralService(db)
+    referral_repo = ReferralRewardRepository(db)
+    config = await run_in_threadpool(get_effective_config, db)
+    code = await _require_referral_code(referral_service, current_user.id)
+
+    instructor_amount_cents = _get_standard_instructor_bonus_cents(config)
+    student_amount_cents = _coerce_int(config.get("student_amount_cents", 2000), default=2000)
+    dashboard_rows = await run_in_threadpool(
+        referral_repo.list_referrer_dashboard_rows,
+        current_user.id,
+    )
+
+    pending_items: list[ReferralDashboardRewardItem] = []
+    unlocked_items: list[ReferralDashboardRewardItem] = []
+    redeemed_items: list[ReferralDashboardRewardItem] = []
+    total_earned_cents = 0
+
+    for row in dashboard_rows:
+        referral_type = cast(Literal["student", "instructor"], row["referral_type"])
+        amount_cents = int(
+            row.get("payout_amount_cents")
+            or (instructor_amount_cents if referral_type == "instructor" else student_amount_cents)
+        )
+        payout_status = cast(Optional[str], row.get("stripe_transfer_status"))
+        first_lesson_completed_at = cast(Optional[datetime], row.get("first_lesson_completed_at"))
+        referred_at = cast(datetime, row["referred_at"])
+        payout_created_at = cast(Optional[datetime], row.get("payout_created_at"))
+        transferred_at = cast(Optional[datetime], row.get("transferred_at"))
+        failure_reason = cast(Optional[str], row.get("failure_reason"))
+        reward_id = cast(str, row.get("payout_id") or row["attribution_id"])
+        first_name = cast(str, row["first_name"])
+        last_name = cast(str, row.get("last_name") or "")
+
+        if payout_status == "completed":
+            redeemed_items.append(
+                _build_dashboard_reward_item(
+                    reward_id=reward_id,
+                    referral_type=referral_type,
+                    first_name=first_name,
+                    last_name=last_name,
+                    amount_cents=amount_cents,
+                    date=transferred_at
+                    or payout_created_at
+                    or first_lesson_completed_at
+                    or referred_at,
+                    payout_status="completed",
+                )
+            )
+            total_earned_cents += amount_cents
+            continue
+
+        if first_lesson_completed_at is not None or payout_status in {"pending", "failed"}:
+            unlocked_items.append(
+                _build_dashboard_reward_item(
+                    reward_id=reward_id,
+                    referral_type=referral_type,
+                    first_name=first_name,
+                    last_name=last_name,
+                    amount_cents=amount_cents,
+                    date=payout_created_at or first_lesson_completed_at or referred_at,
+                    payout_status=payout_status or "pending",
+                    failure_reason=failure_reason,
+                )
+            )
+            continue
+
+        pending_items.append(
+            _build_dashboard_reward_item(
+                reward_id=reward_id,
+                referral_type=referral_type,
+                first_name=first_name,
+                last_name=last_name,
+                amount_cents=amount_cents,
+                date=referred_at,
+            )
+        )
+
+    return ReferralDashboardResponse(
+        referral_code=code.code,
+        referral_link=_get_referral_link(code.code, code.vanity_slug, request=request),
+        instructor_amount_cents=instructor_amount_cents,
+        student_amount_cents=student_amount_cents,
+        total_referred=len(dashboard_rows),
+        pending_payouts=len(pending_items) + len(unlocked_items),
+        total_earned_cents=total_earned_cents,
+        rewards=ReferralDashboardRewardsResponse(
+            pending=pending_items,
+            unlocked=unlocked_items,
+            redeemed=redeemed_items,
+        ),
     )
 
 
@@ -339,9 +533,9 @@ async def get_popup_data(
 
     cap, founding_count, is_founding = await run_in_threadpool(_resolve_founding_info, db)
     current_bonus = (
-        int(config.get("instructor_founding_bonus_cents", 7500))
+        _coerce_int(config.get("instructor_founding_bonus_cents", 7500), default=7500)
         if is_founding
-        else int(config.get("instructor_standard_bonus_cents", 5000))
+        else _coerce_int(config.get("instructor_standard_bonus_cents", 5000), default=5000)
     )
 
     return PopupDataResponse(

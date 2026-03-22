@@ -222,13 +222,24 @@ export async function mockAuthenticatedPageBackgroundApis(
     await fulfillJson(route, { items: [], total: 0 });
   });
 
-  await routeTarget.route('**/api/v1/instructor-referrals/popup-data', async (route) => {
+  await routeTarget.route('**/api/v1/instructor-referrals/dashboard', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
-    // Default to disabled popup in non-referral specs.
-    // Referral-specific specs register a later route that overrides this.
-    await fulfillJson(route, { detail: 'Not found' }, 404);
+    await fulfillJson(route, {
+      referral_code: 'E2E-CODE',
+      referral_link: 'https://beta.instainstru.com/r/E2E-CODE',
+      instructor_amount_cents: 5000,
+      student_amount_cents: 2000,
+      total_referred: 0,
+      pending_payouts: 0,
+      total_earned_cents: 0,
+      rewards: {
+        pending: [],
+        unlocked: [],
+        redeemed: [],
+      },
+    });
   });
 }

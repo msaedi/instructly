@@ -3119,6 +3119,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructor-referrals/dashboard": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referral_dashboard_api_v1_instructor_referrals_dashboard_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructor-referrals/founding-status": {
  parameters: {
  query?: never;
@@ -9636,6 +9652,31 @@ export type components = {
  ReferralClaimResponse: {
  attributed: boolean;
  reason?: string | null;
+ };
+ ReferralDashboardResponse: {
+ instructor_amount_cents: number;
+ pending_payouts: number;
+ referral_code: string;
+ referral_link: string;
+ rewards: components["schemas"]["ReferralDashboardRewardsResponse"];
+ student_amount_cents: number;
+ total_earned_cents: number;
+ total_referred: number;
+ };
+ ReferralDashboardRewardItem: {
+ amount_cents: number;
+ date: string;
+ failure_reason?: string | null;
+ id: string;
+ payout_status?: string | null;
+ referee_first_name: string;
+ referee_last_initial: string;
+ referral_type: "student" | "instructor";
+ };
+ ReferralDashboardRewardsResponse: {
+ pending: components["schemas"]["ReferralDashboardRewardItem"][];
+ redeemed: components["schemas"]["ReferralDashboardRewardItem"][];
+ unlocked: components["schemas"]["ReferralDashboardRewardItem"][];
  };
  ReferralErrorResponse: {
  reason: string;
@@ -16760,6 +16801,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_referral_dashboard_api_v1_instructor_referrals_dashboard_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferralDashboardResponse"];
  };
  };
  };

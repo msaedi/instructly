@@ -1,228 +1,157 @@
-import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  useInstructorReferralStats,
-  useReferredInstructors,
-  useFoundingStatus,
-  useReferralPopupData,
-  formatCents,
-  getPayoutStatusDisplay,
-} from '../useInstructorReferrals';
-import { instructorReferralsApi } from '@/services/api/instructorReferrals';
+import { renderHook } from '@testing-library/react';
 
-jest.mock('@/services/api/instructorReferrals', () => ({
-  instructorReferralsApi: {
-    getStats: jest.fn(),
-    getReferredInstructors: jest.fn(),
-    getFoundingStatus: jest.fn(),
-    getPopupData: jest.fn(),
-  },
+import {
+  formatCents,
+  formatReferralDisplayName,
+  formatReferralRewardDate,
+  getEmptyRewardMessage,
+  getReferralRewardTypeLabel,
+  useInstructorReferralDashboard,
+} from '../useInstructorReferrals';
+import { useGetReferralDashboardApiV1InstructorReferralsDashboardGet } from '@/src/api/generated/instructor-referrals-v1/instructor-referrals-v1';
+
+jest.mock('@/src/api/generated/instructor-referrals-v1/instructor-referrals-v1', () => ({
+  useGetReferralDashboardApiV1InstructorReferralsDashboardGet: jest.fn(),
 }));
 
-const getStatsMock = instructorReferralsApi.getStats as jest.Mock;
-const getReferredMock = instructorReferralsApi.getReferredInstructors as jest.Mock;
-const getFoundingMock = instructorReferralsApi.getFoundingStatus as jest.Mock;
-const getPopupMock = instructorReferralsApi.getPopupData as jest.Mock;
+const useDashboardQueryMock = useGetReferralDashboardApiV1InstructorReferralsDashboardGet as jest.Mock;
 
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  const wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: queryClient }, children);
-  return { wrapper };
-};
-
-describe('useInstructorReferralStats', () => {
+describe('useInstructorReferralDashboard', () => {
   beforeEach(() => {
-    getStatsMock.mockReset();
+    useDashboardQueryMock.mockReset();
+    useDashboardQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      queryKey: ['/api/v1/instructor-referrals/dashboard'],
+    });
   });
 
-  it('returns referral stats on success', async () => {
-    getStatsMock.mockResolvedValueOnce({ referralCode: 'CODE' });
+  it('maps the dashboard payload into the frontend shape', () => {
+    renderHook(() => useInstructorReferralDashboard());
 
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useInstructorReferralStats(), { wrapper });
+    const options = useDashboardQueryMock.mock.calls[0][0] as {
+      query: {
+        enabled: boolean;
+        refetchOnWindowFocus: boolean;
+        staleTime: number;
+        select: (value: unknown) => unknown;
+      };
+    };
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.referralCode).toBe('CODE');
+    const mapped = options.query.select({
+      referral_code: 'FNVC6KDW',
+      referral_link: 'https://beta.instainstru.com/r/FNVC6KDW',
+      instructor_amount_cents: 5000,
+      student_amount_cents: 2000,
+      total_referred: 3,
+      pending_payouts: 1,
+      total_earned_cents: 7000,
+      rewards: {
+        pending: [
+          {
+            id: 'pending-1',
+            amount_cents: 2000,
+            date: '2026-03-20T10:00:00Z',
+            failure_reason: null,
+            payout_status: null,
+            referee_first_name: 'Sam',
+            referee_last_initial: 'L',
+            referral_type: 'student',
+          },
+        ],
+        unlocked: [],
+        redeemed: [],
+      },
+    });
+
+    expect(mapped).toEqual({
+      referralCode: 'FNVC6KDW',
+      referralLink: 'https://beta.instainstru.com/r/FNVC6KDW',
+      instructorAmountCents: 5000,
+      studentAmountCents: 2000,
+      totalReferred: 3,
+      pendingPayouts: 1,
+      totalEarnedCents: 7000,
+      rewards: {
+        pending: [
+          {
+            id: 'pending-1',
+            amountCents: 2000,
+            date: '2026-03-20T10:00:00Z',
+            failureReason: null,
+            payoutStatus: null,
+            refereeFirstName: 'Sam',
+            refereeLastInitial: 'L',
+            referralType: 'student',
+          },
+        ],
+        unlocked: [],
+        redeemed: [],
+      },
+    });
+    expect(options.query.enabled).toBe(true);
+    expect(options.query.refetchOnWindowFocus).toBe(false);
+    expect(typeof options.query.staleTime).toBe('number');
   });
 
-  it('reports errors when the API fails', async () => {
-    getStatsMock.mockRejectedValueOnce(new Error('Failed'));
+  it('passes through a disabled query state', () => {
+    renderHook(() => useInstructorReferralDashboard(false));
 
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useInstructorReferralStats(), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe('Failed');
-  });
-
-  it('does not run when disabled', async () => {
-    const { wrapper } = createWrapper();
-    renderHook(() => useInstructorReferralStats(false), { wrapper });
-
-    await waitFor(() => expect(getStatsMock).not.toHaveBeenCalled());
-  });
-});
-
-describe('useReferredInstructors', () => {
-  beforeEach(() => {
-    getReferredMock.mockReset();
-  });
-
-  it('returns referred instructors on success', async () => {
-    getReferredMock.mockResolvedValueOnce({ instructors: [{ id: '1' }], totalCount: 1 });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useReferredInstructors({ limit: 5, offset: 0 }),
-      { wrapper }
-    );
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(getReferredMock).toHaveBeenCalledWith({ limit: 5, offset: 0 });
-    expect(result.current.data?.instructors).toHaveLength(1);
-  });
-
-  it('reports errors when the API fails', async () => {
-    getReferredMock.mockRejectedValueOnce(new Error('Failed'));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useReferredInstructors(), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe('Failed');
-  });
-
-  it('does not run when disabled', async () => {
-    const { wrapper } = createWrapper();
-    renderHook(() => useReferredInstructors(undefined, false), { wrapper });
-
-    await waitFor(() => expect(getReferredMock).not.toHaveBeenCalled());
-  });
-});
-
-describe('useFoundingStatus', () => {
-  beforeEach(() => {
-    getFoundingMock.mockReset();
-  });
-
-  it('returns founding status on success', async () => {
-    getFoundingMock.mockResolvedValueOnce({ isFoundingPhase: true });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useFoundingStatus(), { wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.isFoundingPhase).toBe(true);
-  });
-
-  it('reports errors when the API fails', async () => {
-    getFoundingMock.mockRejectedValueOnce(new Error('Failed'));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useFoundingStatus(), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe('Failed');
-  });
-
-  it('does not run when disabled', async () => {
-    const { wrapper } = createWrapper();
-    renderHook(() => useFoundingStatus(false), { wrapper });
-
-    await waitFor(() => expect(getFoundingMock).not.toHaveBeenCalled());
-  });
-});
-
-describe('useReferralPopupData', () => {
-  beforeEach(() => {
-    getPopupMock.mockReset();
-  });
-
-  it('returns popup data on success', async () => {
-    getPopupMock.mockResolvedValueOnce({ referralCode: 'POPUP' });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useReferralPopupData(), { wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.referralCode).toBe('POPUP');
-  });
-
-  it('reports errors when the API fails', async () => {
-    getPopupMock.mockRejectedValueOnce(new Error('Failed'));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useReferralPopupData(), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe('Failed');
-  });
-
-  it('does not run when disabled', async () => {
-    const { wrapper } = createWrapper();
-    renderHook(() => useReferralPopupData(false), { wrapper });
-
-    await waitFor(() => expect(getPopupMock).not.toHaveBeenCalled());
+    expect(useDashboardQueryMock).toHaveBeenCalledWith({
+      query: expect.objectContaining({
+        enabled: false,
+      }),
+    });
   });
 });
 
 describe('formatCents', () => {
-  it('formats cents as dollars without decimals', () => {
-    expect(formatCents(2500)).toBe('$25');
-  });
-
-  it('handles zero cents', () => {
+  it('formats cents as whole dollars', () => {
+    expect(formatCents(5000)).toBe('$50');
     expect(formatCents(0)).toBe('$0');
-  });
-
-  it('rounds to the nearest dollar', () => {
-    expect(formatCents(995)).toBe('$10');
-  });
-
-  it('formats exactly one dollar', () => {
-    expect(formatCents(100)).toBe('$1');
-  });
-
-  it('formats large amounts correctly', () => {
-    expect(formatCents(9999)).toBe('$100');
-  });
-
-  it('formats small sub-dollar amounts', () => {
-    // 49 cents rounds to $0 since maximumFractionDigits is 0
-    expect(formatCents(49)).toBe('$0');
   });
 });
 
-describe('getPayoutStatusDisplay', () => {
-  it('maps pending_live to awaiting go-live', () => {
-    expect(getPayoutStatusDisplay('pending_live')).toEqual({ label: 'Awaiting Go-Live', color: 'gray' });
+describe('formatReferralRewardDate', () => {
+  it('formats ISO dates for display', () => {
+    expect(formatReferralRewardDate('2026-03-21T12:00:00Z')).toBe('Mar 21, 2026');
   });
 
-  it('maps pending_lesson to awaiting first lesson', () => {
-    expect(getPayoutStatusDisplay('pending_lesson')).toEqual({ label: 'Awaiting First Lesson', color: 'yellow' });
+  it('falls back when the date is invalid', () => {
+    expect(formatReferralRewardDate('not-a-date')).toBe('Date unavailable');
+  });
+});
+
+describe('formatReferralDisplayName', () => {
+  it('formats a first name and last initial', () => {
+    expect(formatReferralDisplayName('John', 'S')).toBe('John S.');
   });
 
-  it('maps pending_transfer to processing payout', () => {
-    expect(getPayoutStatusDisplay('pending_transfer')).toEqual({ label: 'Processing Payout', color: 'blue' });
+  it('falls back to first name when the initial is blank', () => {
+    expect(formatReferralDisplayName('John', '')).toBe('John');
   });
 
-  it('maps paid to green status', () => {
-    expect(getPayoutStatusDisplay('paid')).toEqual({ label: 'Paid', color: 'green' });
+  it('falls back when the first name is blank', () => {
+    expect(formatReferralDisplayName('', 'S')).toBe('Unknown referral');
+  });
+});
+
+describe('referral reward labels', () => {
+  it('maps referral type labels', () => {
+    expect(getReferralRewardTypeLabel('instructor')).toBe('Instructor referral');
+    expect(getReferralRewardTypeLabel('student')).toBe('Student referral');
   });
 
-  it('maps failed to red status', () => {
-    expect(getPayoutStatusDisplay('failed')).toEqual({ label: 'Payout Failed', color: 'red' });
-  });
-
-  it('falls back to unknown for unexpected values', () => {
-    expect(getPayoutStatusDisplay('unknown' as never)).toEqual({ label: 'Unknown', color: 'gray' });
-  });
-
-  it('falls back to unknown for empty string', () => {
-    expect(getPayoutStatusDisplay('' as never)).toEqual({ label: 'Unknown', color: 'gray' });
+  it('returns empty messages for each tab', () => {
+    expect(getEmptyRewardMessage('unlocked')).toBe(
+      'No unlocked rewards yet. Rewards appear here once earned.'
+    );
+    expect(getEmptyRewardMessage('pending')).toBe(
+      'No pending rewards yet. Rewards appear here once a referral signs up.'
+    );
+    expect(getEmptyRewardMessage('redeemed')).toBe(
+      'No redeemed rewards yet. Rewards appear here after a payout completes.'
+    );
   });
 });

@@ -22,6 +22,7 @@ import { ApiError, http, httpGet, httpPost } from '@/lib/http';
 import { getGuestSessionId } from '@/lib/searchTracking';
 import { useBetaConfig } from '@/lib/beta-config';
 import { isRecord, isUnknownArray } from '@/lib/typesafe';
+import { buildAuthHref, claimReferralCode } from '@/features/referrals/referralAuth';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
@@ -86,6 +87,7 @@ function SignUpForm() {
   const searchParams = useSearchParams();
   const { checkAuth, user } = useAuth();
   const betaConfig = useBetaConfig();
+  const referralCode = searchParams.get('ref');
 
   // Get the redirect parameter, but if it's the login page, use home instead
   let redirect = searchParams.get('redirect') || '/';
@@ -440,7 +442,13 @@ function SignUpForm() {
         if (err instanceof ApiError) {
           logger.error('Auto-login failed after registration', err, { status: err.status });
           const originalRedirect = searchParams.get('redirect') || '/';
-          router.push(`/login?redirect=${encodeURIComponent(originalRedirect)}&registered=true`);
+          router.push(
+            buildAuthHref('/login', {
+              redirect: originalRedirect,
+              ref: referralCode,
+              registered: true,
+            })
+          );
           return;
         }
         throw err;
@@ -481,6 +489,9 @@ function SignUpForm() {
           }
         } catch (e) {
           logger.warn('Failed to consume beta invite after signup', e instanceof Error ? e : new Error(String(e)));
+        }
+        if (referralCode) {
+          await claimReferralCode(referralCode);
         }
         const {
           phone,
@@ -682,7 +693,10 @@ function SignUpForm() {
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Looking to learn instead?{' '}
                     <Link
-                      href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      href={buildAuthHref('/signup', {
+                        redirect,
+                        ref: referralCode,
+                      })}
                       className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                     >
                       Sign up as a student
@@ -693,7 +707,10 @@ function SignUpForm() {
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Already have an account?{' '}
                     <Link
-                      href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      href={buildAuthHref('/login', {
+                        redirect,
+                        ref: referralCode,
+                      })}
                       className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
@@ -708,7 +725,11 @@ function SignUpForm() {
                 <span className="text-sm text-gray-600 dark:text-gray-400">
                   Looking to teach instead?{' '}
                   <Link
-                    href={`/signup?role=instructor${redirect !== '/' ? `&redirect=${encodeURIComponent(redirect)}` : ''}`}
+                    href={buildAuthHref('/signup', {
+                      role: 'instructor',
+                      redirect,
+                      ref: referralCode,
+                    })}
                     className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                   >
                     Sign up as Instructor
@@ -718,7 +739,10 @@ function SignUpForm() {
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Already have an account?{' '}
                     <Link
-                      href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      href={buildAuthHref('/login', {
+                        redirect,
+                        ref: referralCode,
+                      })}
                       className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >

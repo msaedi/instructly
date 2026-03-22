@@ -21,6 +21,7 @@ const loginFallback = (
 
 type LoginSearchParams = {
   redirect?: string | string[];
+  ref?: string | string[];
   returnTo?: string | string[];
 };
 
@@ -98,6 +99,7 @@ function LoginBackgroundLayers() {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const redirectCandidate = sanitizeRedirect(resolvedSearchParams.redirect);
+  const referralCandidate = sanitizeRedirect(resolvedSearchParams.ref);
   const returnToCandidate = sanitizeRedirect(resolvedSearchParams.returnTo);
   const redirect = redirectCandidate ?? returnToCandidate ?? '/';
 
@@ -106,7 +108,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <LoginBackgroundLayers />
       <div className="relative z-10">
         <Suspense fallback={loginFallback}>
-          <LoginClient redirect={redirect} />
+          <LoginClient redirect={redirect} referralCode={referralCandidate ?? null} />
         </Suspense>
       </div>
     </div>

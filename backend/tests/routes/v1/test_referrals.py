@@ -14,6 +14,7 @@ from app.repositories.referral_repository import ReferralClickRepository
 from app.repositories.user_repository import UserRepository
 from app.routes.v1.referrals import (
     _accepts_json,
+    _build_signup_redirect_url,
     _hash_value,
     _normalize_referral_landing_url,
     resolve_referral_slug,
@@ -128,6 +129,36 @@ async def test_resolve_slug_uses_request_client_when_no_forwarded_for():
 
     assert resolved.status_code in {200, 302}
     assert recorded.get("ip_hash") == _hash_value("203.0.113.42")
+
+
+def test_signup_redirect_uses_configured_frontend_not_backend_host(monkeypatch):
+    from app.routes.v1 import referrals as referral_routes
+
+    monkeypatch.setattr(
+        referral_routes,
+        "settings",
+        SimpleNamespace(
+            site_mode="local",
+            frontend_url="http://localhost:3000",
+            local_beta_frontend_origin="http://beta-local.instainstru.com:3000",
+        ),
+    )
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/r/CODE123",
+        "headers": [(b"host", b"localhost:8000")],
+        "query_string": b"",
+        "client": ("127.0.0.1", 1234),
+        "server": ("localhost", 8000),
+        "scheme": "http",
+    }
+    request = Request(scope)
+
+    redirect = _build_signup_redirect_url(request, "CODE123")
+
+    assert redirect == "http://localhost:3000/signup?ref=CODE123"
 
 
 def test_referral_ledger_service_exception_returns_500(

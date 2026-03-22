@@ -84,6 +84,9 @@ const createMockBooking = (overrides = {}) => ({
   video_session_duration_seconds: null,
   video_instructor_joined_at: null,
   video_student_joined_at: null,
+  can_join_lesson: false,
+  join_opens_at: null,
+  join_closes_at: null,
   ...overrides,
 });
 
@@ -187,6 +190,30 @@ describe('Instructor Booking Details Page', () => {
         navigateToMessages: true,
       });
     });
+  });
+
+  it('renders Join Lesson for confirmed online bookings inside the join window', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:28:00Z'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        location_type: 'online',
+        meeting_location: 'Online',
+        service_area: null,
+        can_join_lesson: true,
+        join_opens_at: '2026-03-16T16:25:00Z',
+        join_closes_at: '2026-03-16T16:41:15Z',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByTestId('join-lesson-button')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Join video lesson' })).toHaveAttribute(
+      'href',
+      '/lessons/01KKQKWD9V9QF0J2T0AB3124',
+    );
   });
 
   it('renders completed payout status when payout data is available', () => {

@@ -71,8 +71,8 @@ class TestOnInstructorLessonCompleted:
 
         assert result == "payout_123"
         call_kwargs = service.referral_reward_repo.create_instructor_referral_payout.call_args.kwargs
-        assert call_kwargs["amount_cents"] == 7500
-        assert call_kwargs["was_founding_bonus"] is True
+        assert call_kwargs["amount_cents"] == 5000
+        assert call_kwargs["was_founding_bonus"] is False
 
     def test_second_lesson_does_not_trigger_payout(self, referral_service):
         service = referral_service

@@ -1391,6 +1391,8 @@ function PaymentConfirmationInner({
 
   // Fetch instructor profile to get the actual service duration options
   useEffect(() => {
+    let isActive = true;
+
     const loadInstructorProfile = async () => {
       if (!booking.instructorId) return;
 
@@ -1398,6 +1400,9 @@ function PaymentConfirmationInner({
       try {
         // Use v1 instructors service
         const data = await fetchInstructorProfile(booking.instructorId);
+        if (!isActive) {
+          return;
+        }
         const services = data.services || [];
         if (services.length) {
           setInstructorServices(services.map((service) => ({
@@ -1410,13 +1415,22 @@ function PaymentConfirmationInner({
           });
         }
       } catch (error) {
+        if (!isActive) {
+          return;
+        }
         logger.error('Failed to fetch instructor profile', error);
       } finally {
-        setLoadingInstructor(false);
+        if (isActive) {
+          setLoadingInstructor(false);
+        }
       }
     };
 
     void loadInstructorProfile();
+
+    return () => {
+      isActive = false;
+    };
   }, [booking.instructorId]);
 
   const handleTimeSelected = (selection: {

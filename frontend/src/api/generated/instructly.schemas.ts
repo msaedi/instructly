@@ -7409,6 +7409,51 @@ export interface ReferralClaimResponse {
   reason?: string | null;
 }
 
+export type ReferralDashboardRewardItemReferralType =
+  (typeof ReferralDashboardRewardItemReferralType)[keyof typeof ReferralDashboardRewardItemReferralType];
+
+export const ReferralDashboardRewardItemReferralType = {
+  student: 'student',
+  instructor: 'instructor',
+} as const;
+
+/**
+ * Normalized reward row for the instructor referrals dashboard.
+ */
+export interface ReferralDashboardRewardItem {
+  amount_cents: number;
+  date: string;
+  failure_reason?: string | null;
+  id: string;
+  payout_status?: string | null;
+  referee_first_name: string;
+  referee_last_initial: string;
+  referral_type: ReferralDashboardRewardItemReferralType;
+}
+
+/**
+ * Reward groups for instructor referrals dashboard tabs.
+ */
+export interface ReferralDashboardRewardsResponse {
+  pending: ReferralDashboardRewardItem[];
+  redeemed: ReferralDashboardRewardItem[];
+  unlocked: ReferralDashboardRewardItem[];
+}
+
+/**
+ * Page-ready instructor referrals dashboard payload.
+ */
+export interface ReferralDashboardResponse {
+  instructor_amount_cents: number;
+  pending_payouts: number;
+  referral_code: string;
+  referral_link: string;
+  rewards: ReferralDashboardRewardsResponse;
+  student_amount_cents: number;
+  total_earned_cents: number;
+  total_referred: number;
+}
+
 export interface ReferralErrorResponse {
   reason: string;
 }
