@@ -6,7 +6,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createConversation, conversationQueryKeys } from '@/src/api/services/conversations';
 import { logger } from '@/lib/logger';
 
@@ -15,6 +15,8 @@ export interface CreateConversationOptions {
   navigateToMessages?: boolean;
   /** Optional initial message to send */
   initialMessage?: string;
+  /** Optional caller context for deciding the destination route */
+  viewerContext?: 'instructor' | 'student';
 }
 
 export interface CreateConversationResult {
@@ -26,8 +28,35 @@ export interface CreateConversationResult {
   error: Error | null;
 }
 
+function buildConversationDestination(
+  pathname: string | null,
+  viewerContext: 'instructor' | 'student' | undefined,
+  conversationId: string,
+): string {
+  const normalizedContext = viewerContext;
+  const isInstructorRoute = pathname?.startsWith('/instructor') ?? false;
+  const isStudentRoute = pathname?.startsWith('/student') ?? false;
+  const useStudentMessages = normalizedContext === 'student'
+    || isStudentRoute
+    || (!normalizedContext && !isInstructorRoute);
+
+  if (useStudentMessages) {
+    const nextParams = new URLSearchParams({
+      conversation: conversationId,
+    });
+    return `/student/messages?${nextParams.toString()}`;
+  }
+
+  const nextParams = new URLSearchParams({
+    panel: 'messages',
+    conversation: conversationId,
+  });
+  return `/instructor/dashboard?${nextParams.toString()}`;
+}
+
 export function useCreateConversation(): CreateConversationResult {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -50,7 +79,7 @@ export function useCreateConversation(): CreateConversationResult {
     otherUserId: string,
     options: CreateConversationOptions = {}
   ): Promise<{ id: string; created: boolean }> => {
-    const { navigateToMessages = true, initialMessage } = options;
+    const { navigateToMessages = true, initialMessage, viewerContext } = options;
 
     try {
       const result = await mutation.mutateAsync({
@@ -59,12 +88,7 @@ export function useCreateConversation(): CreateConversationResult {
       });
 
       if (navigateToMessages) {
-        // Navigate to the dashboard messages panel with the conversation selected
-        const nextParams = new URLSearchParams({
-          panel: 'messages',
-          conversation: result.id,
-        });
-        router.push(`/instructor/dashboard?${nextParams.toString()}`);
+        router.push(buildConversationDestination(pathname, viewerContext, result.id));
       }
 
       logger.debug('Conversation created/retrieved', {

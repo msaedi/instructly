@@ -21,7 +21,7 @@ const REFERRAL_OPTIONS = [
   { value: 'facebook', label: 'Facebook' },
   { value: 'google_search', label: 'Google Search' },
   { value: 'friend_colleague', label: 'Friend/Colleague' },
-  { value: 'instainstru_instructor', label: 'InstaInstru Instructor' },
+  { value: 'instainstru_instructor', label: 'iNSTAiNSTRU Instructor' },
   { value: 'other', label: 'Other' },
 ] as const;
 

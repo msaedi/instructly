@@ -69,10 +69,31 @@ function getFiltersForDisplay(
   return { stateFilter, apiTypeFilter };
 }
 
-function MessagesPanelContent() {
+export type MessagesViewerRole = 'instructor' | 'student';
+
+type MessagesPanelContentProps = {
+  viewerRole?: MessagesViewerRole;
+};
+
+export function MessagesPanelContent({
+  viewerRole = 'instructor',
+}: MessagesPanelContentProps) {
   const searchParams = useSearchParams();
   const { user: currentUser, isLoading: isLoadingUser } = useAuthStatus();
   const embedded = useEmbedded();
+  const counterpartLabel = viewerRole === 'student' ? 'Instructor' : 'Student';
+  const counterpartPluralLabel = viewerRole === 'student' ? 'Instructors' : 'Students';
+  const dashboardSubtitle = viewerRole === 'student'
+    ? 'Communicate with instructors and platform.'
+    : 'Communicate with students and platform.';
+  const bookingHrefForId = useCallback(
+    (bookingId: string) => (
+      viewerRole === 'student'
+        ? `/student/lessons/${bookingId}`
+        : `/instructor/bookings/${bookingId}`
+    ),
+    [viewerRole],
+  );
 
   // Read conversation ID from URL parameter (for deep linking from MessageInstructorButton)
   const conversationFromUrl = searchParams.get('conversation');
@@ -105,6 +126,7 @@ function MessagesPanelContent() {
     isLoadingUser,
     stateFilter,
     typeFilter: apiTypeFilter,
+    counterpartFallbackLabel: counterpartLabel,
   });
 
   // Mutation hook for conversation state management
@@ -699,7 +721,7 @@ function MessagesPanelContent() {
           id={embedded ? 'messages-first-card' : undefined}
           icon={MessageSquare}
           title="Messages"
-          subtitle="Communicate with students and platform."
+          subtitle={dashboardSubtitle}
         />
 
         <div className="mb-4 insta-surface-card p-4">
@@ -753,6 +775,7 @@ function MessagesPanelContent() {
                 messageDisplay={messageDisplay}
                 isLoading={isLoadingConversations}
                 error={conversationError}
+                counterpartPluralLabel={counterpartPluralLabel}
                 archivedMessagesByThread={archivedMessagesByThread}
                 trashMessagesByThread={trashMessagesByThread}
                 onSearchChange={setSearchQuery}
@@ -773,6 +796,8 @@ function MessagesPanelContent() {
                       composeRecipient={composeRecipient}
                       composeRecipientQuery={composeRecipientQuery}
                       composeSuggestions={composeSuggestions}
+                      counterpartLabel={counterpartLabel}
+                      bookingHrefForId={bookingHrefForId}
                       onComposeRecipientQueryChange={setComposeRecipientQuery}
                       onComposeRecipientSelect={(conv) => { setComposeRecipient(conv); setComposeRecipientQuery(''); }}
                       onComposeRecipientClear={() => { setComposeRecipient(null); setComposeRecipientQuery(''); }}

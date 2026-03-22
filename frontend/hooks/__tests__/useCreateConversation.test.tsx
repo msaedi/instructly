@@ -4,11 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useCreateConversation } from '../useCreateConversation';
 import { createConversation, conversationQueryKeys } from '@/src/api/services/conversations';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
+  usePathname: jest.fn(),
 }));
 
 jest.mock('@/src/api/services/conversations', () => ({
@@ -25,6 +26,7 @@ jest.mock('@/lib/logger', () => ({
 
 const createConversationMock = createConversation as jest.Mock;
 const useRouterMock = useRouter as jest.Mock;
+const usePathnameMock = usePathname as jest.Mock;
 const loggerErrorMock = logger.error as jest.Mock;
 
 describe('useCreateConversation', () => {
@@ -33,6 +35,7 @@ describe('useCreateConversation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useRouterMock.mockReturnValue({ push });
+    usePathnameMock.mockReturnValue('/instructor/dashboard');
   });
 
   const createWrapper = () => {
@@ -60,6 +63,48 @@ describe('useCreateConversation', () => {
 
     expect(push).toHaveBeenCalledWith('/instructor/dashboard?panel=messages&conversation=conv-1');
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: conversationQueryKeys.all });
+  });
+
+  it('navigates students to the student messages route', async () => {
+    createConversationMock.mockResolvedValue({ id: 'conv-student', created: true });
+    usePathnameMock.mockReturnValue('/search');
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.createConversation('instr-1', { viewerContext: 'student' });
+    });
+
+    expect(push).toHaveBeenCalledWith('/student/messages?conversation=conv-student');
+  });
+
+  it('prefers the current student pathname for dual-role users', async () => {
+    createConversationMock.mockResolvedValue({ id: 'conv-dual', created: true });
+    usePathnameMock.mockReturnValue('/student/lessons');
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.createConversation('instr-2');
+    });
+
+    expect(push).toHaveBeenCalledWith('/student/messages?conversation=conv-dual');
+  });
+
+  it('defaults to the student messages route when pathname is unavailable', async () => {
+    createConversationMock.mockResolvedValue({ id: 'conv-fallback', created: true });
+    usePathnameMock.mockReturnValue(undefined);
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.createConversation('instr-3');
+    });
+
+    expect(push).toHaveBeenCalledWith('/student/messages?conversation=conv-fallback');
   });
 
   it('skips navigation when navigateToMessages is false', async () => {

@@ -132,10 +132,12 @@ describe('messages/index.ts exports', () => {
       expect(messageModule.TRASH_LABEL).toBe('All messages trashed');
     });
 
-    it('exports FILTER_OPTIONS', () => {
-      expect(messageModule.FILTER_OPTIONS).toBeInstanceOf(Array);
-      expect(messageModule.FILTER_OPTIONS).toHaveLength(3);
-      expect(messageModule.FILTER_OPTIONS[0]).toEqual({ label: 'All', value: 'all' });
+    it('exports getFilterOptions', () => {
+      expect(typeof messageModule.getFilterOptions).toBe('function');
+      const filterOptions = messageModule.getFilterOptions();
+      expect(filterOptions).toBeInstanceOf(Array);
+      expect(filterOptions).toHaveLength(3);
+      expect(filterOptions[0]).toEqual({ label: 'All', value: 'all' });
     });
 
     it('exports DEFAULT_TEMPLATES', () => {

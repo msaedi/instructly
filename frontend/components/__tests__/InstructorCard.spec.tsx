@@ -24,6 +24,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: pushMock,
   }),
+  usePathname: () => '/search',
 }));
 
 jest.mock('@/hooks/queries/useFavoriteStatus', () => ({

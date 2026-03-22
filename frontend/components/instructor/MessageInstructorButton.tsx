@@ -7,6 +7,7 @@
 
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCreateConversation } from '@/hooks/useCreateConversation';
@@ -38,6 +39,16 @@ export function MessageInstructorButton({
 }: MessageInstructorButtonProps) {
   const { createConversation, isCreating } = useCreateConversation();
   const { user, isAuthenticated, redirectToLogin } = useAuth();
+  const pathname = usePathname();
+
+  const viewerContext: 'instructor' | 'student' = (() => {
+    if (pathname?.startsWith('/instructor')) return 'instructor';
+    if (pathname?.startsWith('/student')) return 'student';
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    if (roles.includes('student') && !roles.includes('instructor')) return 'student';
+    if (roles.includes('instructor') && !roles.includes('student')) return 'instructor';
+    return 'student';
+  })();
 
   const handleClick = async () => {
     if (!isAuthenticated) {
@@ -49,7 +60,10 @@ export function MessageInstructorButton({
     // Don't allow instructor to message themselves
     if (user?.id === instructorId) return;
 
-    await createConversation(instructorId, { navigateToMessages: true });
+    await createConversation(instructorId, {
+      navigateToMessages: true,
+      viewerContext,
+    });
   };
 
   // Don't show button if user is the instructor
