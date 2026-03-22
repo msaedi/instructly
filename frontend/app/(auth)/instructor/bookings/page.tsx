@@ -1,20 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, Calendar } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { ArrowLeft, Calendar } from 'lucide-react';
 
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
-import { formatDisplayName } from '@/lib/format/displayName';
-import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
-import { queryKeys } from '@/src/api/queryKeys';
 import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
@@ -39,18 +34,10 @@ function BookingsPageImpl() {
   const embedded = useEmbedded();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
-  const tabFromUrl = parseTab(searchParams.get(TAB_PARAM));
-  const [activeTab, setActiveTab] = useState<TabValue>(tabFromUrl);
-  const [noShowModalBookingId, setNoShowModalBookingId] = useState<string | null>(null);
-
-  // Mutations for complete and no-show actions
-  const completeBooking = useCompleteBooking();
-  const markNoShow = useMarkBookingNoShow();
+  const activeTab = parseTab(searchParams.get(TAB_PARAM));
 
   const handleTabChange = useCallback(
     (value: TabValue) => {
-      setActiveTab(value);
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set(TAB_PARAM, value);
       // Use correct base path depending on whether we're embedded in dashboard
@@ -61,7 +48,6 @@ function BookingsPageImpl() {
   );
 
   const upcomingQuery = useInstructorBookings({
-    status: 'CONFIRMED',
     upcoming: true,
     page: 1,
     perPage: PAGE_SIZE,
@@ -82,49 +68,7 @@ function BookingsPageImpl() {
   const upcomingItems = useMemo(() => pluckBookings(upcomingQuery.data), [pluckBookings, upcomingQuery.data]);
   const pastItems = useMemo(() => pluckBookings(pastQuery.data), [pluckBookings, pastQuery.data]);
 
-  const showLoading = upcomingQuery.isLoading || pastQuery.isLoading;
-
-  // Get the booking data for the no-show modal
-  const noShowModalBooking = useMemo(() => {
-    if (!noShowModalBookingId) return null;
-    return pastItems.find((b) => b.id === noShowModalBookingId) ?? null;
-  }, [noShowModalBookingId, pastItems]);
-
-  // Handler for Mark Complete button
-  const handleMarkComplete = useCallback(async (bookingId: string) => {
-    try {
-      await completeBooking.mutateAsync({ bookingId });
-      toast.success('Lesson marked as complete', { duration: 3000 });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
-    } catch {
-      toast.error('Failed to mark lesson as complete', { duration: 4000 });
-    }
-  }, [completeBooking, queryClient]);
-
-  // Handler for opening the No-Show modal
-  const handleNoShowClick = useCallback((bookingId: string) => {
-    setNoShowModalBookingId(bookingId);
-  }, []);
-
-  // Handler for confirming No-Show in the modal
-  const handleConfirmNoShow = useCallback(async () => {
-    if (!noShowModalBookingId) return;
-    try {
-      await markNoShow.mutateAsync({
-        bookingId: noShowModalBookingId,
-        data: { no_show_type: 'student' },
-      });
-      toast.success('Lesson marked as no-show', { duration: 3000 });
-      setNoShowModalBookingId(null);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(noShowModalBookingId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
-    } catch {
-      toast.error('Failed to mark lesson as no-show', { duration: 4000 });
-    }
-  }, [noShowModalBookingId, markNoShow, queryClient]);
-
-  const isActionPending = completeBooking.isPending || markNoShow.isPending;
+  const showLoading = activeTab === 'upcoming' ? upcomingQuery.isLoading : pastQuery.isLoading;
 
   return (
     <div className="min-h-screen insta-dashboard-page">
@@ -192,7 +136,6 @@ function BookingsPageImpl() {
                 isLoading={showLoading}
                 emptyTitle="No upcoming bookings"
                 emptyDescription="New bookings will appear here."
-                onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
               />
             ) : (
               <BookingList
@@ -200,60 +143,11 @@ function BookingsPageImpl() {
                 isLoading={showLoading}
                 emptyTitle="No completed lessons yet"
                 emptyDescription="Your completed sessions will appear here."
-                onViewDetails={(id) => router.push(`/instructor/bookings/${id}`)}
-                onComplete={handleMarkComplete}
-                onNoShow={handleNoShowClick}
-                isActionPending={isActionPending}
               />
             )}
           </div>
         </div>
       </div>
-
-      {/* No-Show Confirmation Modal */}
-      {noShowModalBookingId !== null && noShowModalBooking !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
-            <div className="mb-4">
-              <div className="mb-2 flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="h-6 w-6" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Report No-Show</h3>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Are you sure you want to mark this lesson as a no-show? This indicates that
-                <span className="font-medium">
-                  {' '}
-                  {formatDisplayName(
-                    noShowModalBooking.student?.first_name,
-                    noShowModalBooking.student?.last_initial,
-                    'the student',
-                  )}
-                </span>{' '}
-                did not attend the scheduled lesson.
-              </p>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">The student will still be charged for the lesson.</p>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
-                onClick={() => setNoShowModalBookingId(null)}
-                disabled={markNoShow.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={handleConfirmNoShow}
-                disabled={markNoShow.isPending}
-              >
-                {markNoShow.isPending ? 'Marking...' : 'Confirm No-Show'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

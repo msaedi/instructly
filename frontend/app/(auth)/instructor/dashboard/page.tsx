@@ -264,6 +264,10 @@ export default function InstructorDashboardNew() {
     () => dynamic(() => import('../bookings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
+  const MessagesPanel = useMemo(
+    () => dynamic(() => import('../messages/embedded').then((m) => m.default), { ssr: false }),
+    []
+  );
   const EarningsPanel = useMemo(
     () => dynamic(() => import('../earnings/embedded').then((m) => m.default), { ssr: false }),
     []
@@ -296,10 +300,13 @@ export default function InstructorDashboardNew() {
       const referralsAnchor = typeof document !== 'undefined' ? document.getElementById('referrals-first-card') : null;
       const reviewsAnchor = typeof document !== 'undefined' ? document.getElementById('reviews-first-card') : null;
       const availabilityAnchor = typeof document !== 'undefined' ? document.getElementById('availability-first-card') : null;
+      const messagesAnchor = typeof document !== 'undefined' ? document.getElementById('messages-first-card') : null;
       const firstCard = activePanel === 'profile'
         ? (profileAnchor as HTMLElement | null)
         : activePanel === 'bookings'
           ? (bookingsAnchor as HTMLElement | null)
+          : activePanel === 'messages'
+            ? (messagesAnchor as HTMLElement | null)
           : activePanel === 'earnings'
             ? (earningsAnchor as HTMLElement | null)
             : activePanel === 'referrals'
@@ -777,12 +784,12 @@ export default function InstructorDashboardNew() {
                     <li>
                       <button
                         className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                        onClick={() => {
-                          setShowMessages(false);
-                          router.push('/instructor/messages');
-                        }}
-                      >
-                        Open inbox
+                          onClick={() => {
+                            setShowMessages(false);
+                            handlePanelChange('messages');
+                          }}
+                        >
+                          Open inbox
                       </button>
                     </li>
                   </>
@@ -800,7 +807,7 @@ export default function InstructorDashboardNew() {
                           type="button"
                           onClick={() => {
                             setShowMessages(false);
-                            router.push(`/instructor/messages?conversation=${conv.id}`);
+                            router.push(`/instructor/dashboard?panel=messages&conversation=${conv.id}`);
                           }}
                           className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
@@ -851,10 +858,9 @@ export default function InstructorDashboardNew() {
                 <ul className="space-y-2">
                   {MOBILE_NAV_PRIMARY_ITEMS.map((item) => {
                     const Icon = item.icon;
-                    const isActive = item.kind === 'panel' && activePanel === item.key;
+                    const isActive = activePanel === item.key;
                     return (
-                    <li key={item.key}>
-                      {item.kind === 'panel' ? (
+                      <li key={item.key}>
                         <button
                           type="button"
                           onClick={() => {
@@ -874,22 +880,7 @@ export default function InstructorDashboardNew() {
                             <span>{item.label}</span>
                           </span>
                         </button>
-                      ) : (
-                        <Link
-                          href={item.href}
-                          onClick={() => {
-                            setIsMobileMenuOpen(false);
-                            setShowMoreMobile(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300"
-                        >
-                          <span className="flex items-center gap-2">
-                            {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                            <span>{item.label}</span>
-                          </span>
-                        </Link>
-                      )}
-                    </li>
+                      </li>
                     );
                   })}
                 </ul>
@@ -909,10 +900,9 @@ export default function InstructorDashboardNew() {
                   <ul id="mobile-nav-more" className="mt-2 space-y-2 px-1">
                     {MOBILE_NAV_SECONDARY_ITEMS.map((item) => {
                       const Icon = item.icon;
-                      const isActive = item.kind === 'panel' && activePanel === item.key;
+                      const isActive = activePanel === item.key;
                       return (
-                      <li key={item.key}>
-                        {item.kind === 'panel' ? (
+                        <li key={item.key}>
                           <button
                             type="button"
                             onClick={() => {
@@ -932,22 +922,7 @@ export default function InstructorDashboardNew() {
                               <span>{item.label}</span>
                             </span>
                           </button>
-                        ) : (
-                          <Link
-                            href={item.href}
-                            onClick={() => {
-                              setIsMobileMenuOpen(false);
-                              setShowMoreMobile(false);
-                            }}
-                            className="block w-full text-left px-3 py-2 rounded-md text-sm text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300"
-                          >
-                            <span className="flex items-center gap-2">
-                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                              <span>{item.label}</span>
-                            </span>
-                          </Link>
-                        )}
-                      </li>
+                        </li>
                       );
                     })}
                   </ul>
@@ -973,7 +948,7 @@ export default function InstructorDashboardNew() {
                 <ul className="space-y-1">
                   {INSTRUCTOR_DASHBOARD_NAV_ITEMS.map((item) => {
                     const Icon = item.icon;
-                    const isActive = item.kind === 'panel' && activePanel === item.key;
+                    const isActive = activePanel === item.key;
                     const className = `w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                       isActive
                         ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
@@ -982,26 +957,17 @@ export default function InstructorDashboardNew() {
 
                     return (
                       <li key={item.key}>
-                        {item.kind === 'panel' ? (
-                          <button
-                            type="button"
-                            onClick={() => handlePanelChange(item.key)}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={className}
-                          >
-                            <span className="flex items-center gap-2">
-                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                              <span>{item.label}</span>
-                            </span>
-                          </button>
-                        ) : (
-                          <Link href={item.href} className={className}>
-                            <span className="flex items-center gap-2">
-                              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                              <span>{item.label}</span>
-                            </span>
-                          </Link>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handlePanelChange(item.key)}
+                          aria-current={isActive ? 'page' : undefined}
+                          className={className}
+                        >
+                          <span className="flex items-center gap-2">
+                            {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                            <span>{item.label}</span>
+                          </span>
+                        </button>
                       </li>
                     );
                   })}
@@ -1369,6 +1335,11 @@ export default function InstructorDashboardNew() {
             {activePanel === 'bookings' && (
               <div className="min-h-[60vh] overflow-visible">
                 <BookingsPanel />
+              </div>
+            )}
+            {activePanel === 'messages' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <MessagesPanel />
               </div>
             )}
             {activePanel === 'earnings' && (

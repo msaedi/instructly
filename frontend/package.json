@@ -173,17 +173,18 @@
       "running": false
     }
   ],
-  "typeCoverage": {
-    "atLeast": 100,
-    "ignoreFiles": [
-      "^types/generated/.*$",
-      "^e2e/.*$",
-      "^\\.next/.*$",
-      ".*__tests__/.*",
-      ".*\\.test\\.ts$",
-      ".*\\.test\\.tsx$"
-    ]
-  },
+    "typeCoverage": {
+      "atLeast": 100,
+      "ignoreFiles": [
+        "types/generated/**",
+        "e2e/**",
+        ".next/**",
+        ".next-test/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ]
+    },
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix --max-warnings=0"

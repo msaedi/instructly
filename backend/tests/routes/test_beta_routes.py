@@ -1,4 +1,10 @@
+import asyncio
+
 from fastapi.testclient import TestClient
+
+from app.api.dependencies.services import get_cache_service_dep
+from app.auth import decode_email_verification_token
+from app.routes.v1 import auth as auth_routes
 
 
 def _create_invite(db, email: str | None = None):
@@ -19,6 +25,21 @@ def _make_token_for_user(user_email: str):
     from app.auth import create_access_token
 
     return create_access_token(data={"sub": user_email})
+
+
+def _make_email_verification_token(email: str) -> str:
+    from app.auth import create_email_verification_token
+
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
+    return token
 
 
 class TestBetaRoutes:
@@ -171,6 +192,7 @@ class TestBetaRoutes:
                 "last_name": "Cleaner",
                 "zip_code": "10001",
                 "role": "student",
+                "email_verification_token": _make_email_verification_token(email),
                 "metadata": {"invite_code": code},
             },
         )

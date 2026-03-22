@@ -831,7 +831,7 @@ async def test_public_availability_cache_hit_applies_live_overnight_filter(monke
     )
 
     slots = result.availability_by_date[target_day.isoformat()].available_slots
-    assert slots == [PublicTimeSlot(start_time="09:00", end_time="12:00")]
+    assert slots == [PublicTimeSlot(start_time="08:00", end_time="12:00")]
 
 
 @pytest.mark.asyncio

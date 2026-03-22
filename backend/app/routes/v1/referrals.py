@@ -62,6 +62,7 @@ from ...services.referral_checkout_service import (
     ReferralCheckoutService,
 )
 from ...services.referral_service import ReferralService
+from ...utils.url_validation import is_allowed_origin, origin_from_header
 
 logger = logging.getLogger("referral.api.v1")
 
@@ -130,6 +131,52 @@ def _normalize_referral_landing_url(raw_url: str) -> str:
     return urlunparse(normalized)
 
 
+def _resolve_frontend_origin(request: Request) -> str:
+    configured_frontend = (settings.frontend_url or "").strip()
+    local_beta_base = (settings.local_beta_frontend_origin or "").strip()
+    mode = (settings.site_mode or "").strip().lower()
+
+    if mode not in {"local", "beta-local"}:
+        return configured_frontend or local_beta_base
+
+    candidates: list[str] = []
+
+    request_origin = origin_from_header(request.headers.get("origin")) or origin_from_header(
+        request.headers.get("referer")
+    )
+    if request_origin and is_allowed_origin(request_origin):
+        candidates.append(request_origin)
+
+    if configured_frontend and is_allowed_origin(configured_frontend):
+        candidates.append(configured_frontend.rstrip("/"))
+    if local_beta_base and is_allowed_origin(local_beta_base):
+        candidates.append(local_beta_base.rstrip("/"))
+
+    if configured_frontend:
+        candidates.append(configured_frontend.rstrip("/"))
+    if local_beta_base:
+        candidates.append(local_beta_base.rstrip("/"))
+
+    return candidates[0] if candidates else ""
+
+
+def _build_signup_redirect_url(request: Request, code: str) -> str:
+    base = _resolve_frontend_origin(request)
+    if not base:
+        return f"/signup?ref={code}"
+
+    parsed = urlparse(base)
+    path = (parsed.path or "").rstrip("/")
+    if path.endswith("/referrals"):
+        path = path[: -len("/referrals")]
+    elif path.endswith("/referral"):
+        path = path[: -len("/referral")]
+
+    signup_path = f"{path}/signup" if path else "/signup"
+    normalized = parsed._replace(path=signup_path, params="", query=f"ref={code}", fragment="")
+    return urlunparse(normalized)
+
+
 # --- Public Router: Slug Resolution ---
 
 
@@ -140,7 +187,7 @@ async def resolve_referral_slug(
     response: Response,
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> Response:
-    """Resolve referral slug and redirect to landing page."""
+    """Resolve referral slug and redirect to signup with the canonical code."""
     code_obj = await run_in_threadpool(referral_service.resolve_code, slug)
     if not code_obj:
         return HTMLResponse(
@@ -171,7 +218,7 @@ async def resolve_referral_slug(
         ts=datetime.now(timezone.utc),
     )
 
-    landing_url = _normalize_referral_landing_url(settings.frontend_referral_landing_url)
+    landing_url = _build_signup_redirect_url(request, code_value)
 
     if _accepts_json(request.headers.get("accept")):
         _set_referral_cookie(response, code_value)

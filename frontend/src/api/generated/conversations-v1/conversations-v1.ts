@@ -221,10 +221,9 @@ export function useListConversationsApiV1ConversationsGet<
 }
 
 /**
- * Create a new conversation (for pre-booking messaging).
+ * Create a new conversation or return the existing one.
 
-If conversation already exists, returns the existing one.
-Only students can initiate conversations with instructors.
+Conversations are always between exactly one instructor and one non-instructor.
  * @summary Create Conversation
  */
 export const getCreateConversationApiV1ConversationsPostUrl = () => {

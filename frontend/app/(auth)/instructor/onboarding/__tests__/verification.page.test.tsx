@@ -321,7 +321,7 @@ describe('Verification page', () => {
     ).toBeInTheDocument();
   });
 
-  it('navigates to profile settings from the mismatch banner', async () => {
+  it('navigates to onboarding account setup from the mismatch banner', async () => {
     mockRawData = makeRawData({
       identity_verified_at: '2026-03-05T12:00:00Z',
       identity_verification_session_id: 'vs_verified',
@@ -334,7 +334,7 @@ describe('Verification page', () => {
       expect(screen.getByRole('button', { name: /update my name/i })).toBeInTheDocument()
     );
     fireEvent.click(screen.getByRole('button', { name: /update my name/i }));
-    expect(mockPush).toHaveBeenCalledWith('/instructor/settings');
+    expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/account-setup');
   });
 
   it('shows BGC mismatch banner when bgc_name_mismatch is true', async () => {

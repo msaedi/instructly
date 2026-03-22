@@ -99,6 +99,8 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
             return {"status": "error", "reason": "stripe_not_onboarded"}
 
         destination_account_id = stripe_account.stripe_account_id
+        referred_profile = instructor_repo.get_by_user_id(payout.referred_instructor_id)
+        referral_type = "instructor" if referred_profile else "student"
 
         stripe_service = StripeService(
             db,
@@ -111,7 +113,8 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
                 destination_account_id=destination_account_id,
                 amount_cents=payout.amount_cents,
                 referrer_user_id=payout.referrer_user_id,
-                referred_instructor_id=payout.referred_instructor_id,
+                referred_user_id=payout.referred_instructor_id,
+                referral_type=referral_type,
                 was_founding_bonus=payout.was_founding_bonus,
             )
             transfer_id = None

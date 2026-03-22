@@ -10,6 +10,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { submitServiceAreasOnce } from '@/app/(auth)/instructor/profile/serviceAreaSubmit';
 import { useRouter } from 'next/navigation';
+import { queryKeys } from '@/src/api/queryKeys';
 
 jest.mock('@/hooks/queries/useInstructorProfileMe', () => ({
   useInstructorProfileMe: jest.fn(),
@@ -47,6 +48,43 @@ jest.mock('@/lib/profileServiceAreas', () => ({
 
 jest.mock('@/app/(auth)/instructor/profile/serviceAreaSubmit', () => ({
   submitServiceAreasOnce: jest.fn(),
+}));
+
+let capturedPhoneVerificationOptions:
+  | {
+      initialPhoneNumber?: string;
+      onVerified?: (() => void | Promise<void>) | undefined;
+    }
+  | undefined;
+
+const mockPhoneVerificationFlow = {
+  phoneNumber: '',
+  phoneVerified: false,
+  phoneLoading: false,
+  phoneInput: '',
+  phoneCode: '',
+  resendCooldown: 0,
+  hasPhoneVerificationCodeSent: false,
+  showVerifiedPhoneState: false,
+  showPendingPhoneState: false,
+  showVerifyPhoneAction: true,
+  updatePhonePending: false,
+  sendVerificationPending: false,
+  confirmVerificationPending: false,
+  handlePhoneInputChange: jest.fn(),
+  setPhoneCode: jest.fn(),
+  sendCode: jest.fn(async () => undefined),
+  confirmCode: jest.fn(async () => undefined),
+};
+
+jest.mock('@/features/shared/hooks/usePhoneVerificationFlow', () => ({
+  usePhoneVerificationFlow: jest.fn((options?: {
+    initialPhoneNumber?: string;
+    onVerified?: (() => void | Promise<void>) | undefined;
+  }) => {
+    capturedPhoneVerificationOptions = options;
+    return mockPhoneVerificationFlow;
+  }),
 }));
 
 jest.mock('@/components/dashboard/SectionHeroCard', () => {
@@ -234,6 +272,7 @@ describe('InstructorProfileForm', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    capturedPhoneVerificationOptions = undefined;
     mockUseSession.mockReturnValue({ data: null, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: null, isLoading: false });
     mockUseInvalidateUserAddresses.mockReturnValue(jest.fn());
@@ -252,6 +291,35 @@ describe('InstructorProfileForm', () => {
     render(<InstructorProfileForm />, { wrapper: Wrapper });
 
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
+
+  it('invalidates the auth session query after onboarding phone verification succeeds', async () => {
+    const { Wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001', phone: '+12125550101' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), has_profile_picture: true },
+      isLoading: false,
+    });
+
+    render(<InstructorProfileForm context="onboarding" />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(capturedPhoneVerificationOptions?.initialPhoneNumber).toBe('+12125550101');
+    });
+
+    await act(async () => {
+      await capturedPhoneVerificationOptions?.onVerified?.();
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.auth.me });
   });
 
   it('prefills data and saves successfully', async () => {

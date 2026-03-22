@@ -1228,6 +1228,7 @@ export interface AuthUserWithPermissionsResponse {
   beta_phase?: string | null;
   beta_role?: string | null;
   email: string;
+  email_verified?: boolean | null;
   first_name: string;
   /** True if founding instructor status was granted during registration */
   founding_instructor_granted?: boolean | null;
@@ -3246,7 +3247,7 @@ export interface CreateCheckoutRequest {
 export interface CreateConversationRequest {
   initial_message?: string | null;
   /** @pattern ^[0-9A-HJKMNP-TV-Z]{26}$ */
-  instructor_id: string;
+  other_user_id: string;
 }
 
 /**
@@ -7409,6 +7410,51 @@ export interface ReferralClaimResponse {
   reason?: string | null;
 }
 
+export type ReferralDashboardRewardItemReferralType =
+  (typeof ReferralDashboardRewardItemReferralType)[keyof typeof ReferralDashboardRewardItemReferralType];
+
+export const ReferralDashboardRewardItemReferralType = {
+  student: 'student',
+  instructor: 'instructor',
+} as const;
+
+/**
+ * Normalized reward row for the instructor referrals dashboard.
+ */
+export interface ReferralDashboardRewardItem {
+  amount_cents: number;
+  date: string;
+  failure_reason?: string | null;
+  id: string;
+  payout_status?: string | null;
+  referee_first_name: string;
+  referee_last_initial: string;
+  referral_type: ReferralDashboardRewardItemReferralType;
+}
+
+/**
+ * Reward groups for instructor referrals dashboard tabs.
+ */
+export interface ReferralDashboardRewardsResponse {
+  pending: ReferralDashboardRewardItem[];
+  redeemed: ReferralDashboardRewardItem[];
+  unlocked: ReferralDashboardRewardItem[];
+}
+
+/**
+ * Page-ready instructor referrals dashboard payload.
+ */
+export interface ReferralDashboardResponse {
+  instructor_amount_cents: number;
+  pending_payouts: number;
+  referral_code: string;
+  referral_link: string;
+  rewards: ReferralDashboardRewardsResponse;
+  student_amount_cents: number;
+  total_earned_cents: number;
+  total_referred: number;
+}
+
 export interface ReferralErrorResponse {
   reason: string;
 }
@@ -7764,13 +7810,24 @@ export const RevenuePeriod = {
   this_quarter: 'this_quarter',
 } as const;
 
+export interface ReviewResponseModel {
+  created_at: string;
+  id: string;
+  instructor_id: string;
+  response_text: string;
+  review_id: string;
+}
+
 export interface ReviewItem {
   created_at: string;
   id: string;
   instructor_service_id: string;
   rating: number;
+  response?: ReviewResponseModel | null;
   review_text: string | null;
   reviewer_display_name?: string | null;
+  reviewer_first_name?: string | null;
+  reviewer_last_initial?: string | null;
 }
 
 export interface ReviewListPageResponse {
@@ -7780,14 +7837,6 @@ export interface ReviewListPageResponse {
   per_page: number;
   reviews: ReviewItem[];
   total: number;
-}
-
-export interface ReviewResponseModel {
-  created_at: string;
-  id: string;
-  instructor_id: string;
-  response_text: string;
-  review_id: string;
 }
 
 export interface ReviewSubmitRequest {
@@ -7806,8 +7855,11 @@ export interface ReviewSubmitResponse {
   id: string;
   instructor_service_id: string;
   rating: number;
+  response?: ReviewResponseModel | null;
   review_text: string | null;
   reviewer_display_name?: string | null;
+  reviewer_first_name?: string | null;
+  reviewer_last_initial?: string | null;
   tip_client_secret?: string | null;
   tip_status?: string | null;
 }
@@ -8216,6 +8268,14 @@ export type SearchReferrersResponse = SearchReferrer[];
  * Search trends over time response.
  */
 export type SearchTrendsResponse = DailySearchTrend[];
+
+export interface SendEmailVerificationRequest {
+  email: string;
+}
+
+export interface SendEmailVerificationResponse {
+  message: string;
+}
 
 /**
  * Request to send a message.
@@ -8752,6 +8812,7 @@ export interface UserRegistrationMetadata {
 
 export interface UserCreate {
   email: string;
+  email_verification_token?: string | null;
   /**
    * @minLength 1
    * @maxLength 50
@@ -8765,6 +8826,7 @@ export interface UserCreate {
    */
   last_name: string;
   metadata?: UserRegistrationMetadata | null;
+  /** @minLength 8 */
   password: string;
   phone?: string | null;
   role?: string | null;
@@ -8909,6 +8971,21 @@ export interface ValidationSummary {
  */
 export interface VapidPublicKeyResponse {
   public_key: string;
+}
+
+export interface VerifyEmailCodeRequest {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   * @pattern ^\d{6}$
+   */
+  code: string;
+  email: string;
+}
+
+export interface VerifyEmailCodeResponse {
+  expires_in_seconds: number;
+  verification_token: string;
 }
 
 /**

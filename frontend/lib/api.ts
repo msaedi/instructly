@@ -225,6 +225,8 @@ export const API_ENDPOINTS = {
   LOGIN: '/api/v1/auth/login',
   REGISTER: '/api/v1/auth/register',
   ME: '/api/v1/auth/me',
+  SEND_EMAIL_VERIFICATION: '/api/v1/auth/send-email-verification',
+  VERIFY_EMAIL_CODE: '/api/v1/auth/verify-email-code',
 
   // Instructor endpoints (migrated to v1)
   INSTRUCTORS: '/api/v1/instructors',

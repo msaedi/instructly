@@ -38,7 +38,7 @@ import type { ErrorType } from '../../orval-mutator';
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Resolve referral slug and redirect to landing page.
+ * Resolve referral slug and redirect to signup with the canonical code.
  * @summary Resolve Referral Slug
  */
 export const getResolveReferralSlugApiV1RSlugGetUrl = (slug: string) => {

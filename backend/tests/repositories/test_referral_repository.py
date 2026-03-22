@@ -8,6 +8,7 @@ import uuid
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import Query as SAQuery
 import ulid
 
 from app.core.exceptions import RepositoryException
@@ -22,6 +23,7 @@ from app.models.referrals import (
     RewardStatus,
 )
 from app.repositories.referral_repository import (
+    REFERRER_DASHBOARD_MAX_ROWS,
     ReferralAttributionRepository,
     ReferralClickRepository,
     ReferralCodeRepository,
@@ -259,6 +261,30 @@ def test_referral_attribution_create_if_absent_flushes(db):
     assert repo.exists_for_user(referred.id) is True
 
 
+def test_list_referrer_dashboard_rows_applies_safety_limit(db, monkeypatch):
+    referrer = _create_user(db, "dashboard_limit_referrer@example.com")
+    code = _create_referral_code(db, referrer.id)
+    referred = _create_user(db, "dashboard_limit_referred@example.com")
+    _create_attribution(db, code_id=code.id, referred_user_id=referred.id)
+    repo = ReferralRewardRepository(db)
+    captured_limit: dict[str, int | None] = {"value": None}
+    original_all = SAQuery.all
+
+    def _capture_all(self):
+        limit_clause = getattr(self, "_limit_clause", None)
+        captured_limit["value"] = None if limit_clause is None else int(limit_clause.value)
+        return []
+
+    monkeypatch.setattr(SAQuery, "all", _capture_all)
+    try:
+        rows = repo.list_referrer_dashboard_rows(referrer.id)
+    finally:
+        monkeypatch.setattr(SAQuery, "all", original_all)
+
+    assert rows == []
+    assert captured_limit["value"] == REFERRER_DASHBOARD_MAX_ROWS
+
+
 def test_create_instructor_referrer_reward(db):
     referrer = _create_user(db, "instructor_referrer@example.com")
     referred = _create_user(db, "instructor_referred@example.com")
@@ -284,16 +310,15 @@ def test_create_instructor_referral_payout_integrity_error(db, monkeypatch, test
 
     monkeypatch.setattr(db, "flush", _raise_flush)
 
-    payout = repo.create_instructor_referral_payout(
-        referrer_user_id=test_instructor.id,
-        referred_instructor_id=test_instructor_with_availability.id,
-        triggering_booking_id=test_booking.id,
-        amount_cents=5000,
-        was_founding_bonus=False,
-        idempotency_key="dup-key",
-    )
-
-    assert payout is None
+    with pytest.raises(RepositoryException, match="Unable to create instructor referral payout"):
+        repo.create_instructor_referral_payout(
+            referrer_user_id=test_instructor.id,
+            referred_instructor_id=test_instructor_with_availability.id,
+            triggering_booking_id=test_booking.id,
+            amount_cents=5000,
+            was_founding_bonus=False,
+            idempotency_key="dup-key",
+        )
 
 
 def test_get_instructor_referral_payout_by_id(db, test_booking, test_instructor, test_instructor_with_availability):

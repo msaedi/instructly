@@ -222,12 +222,12 @@ def test_send_message_auto_tags_booking_id(
     assert message_multi.booking_id is None
 
 
-def test_create_conversation_with_message_and_invalid_instructor(
+def test_create_conversation_with_message_and_invalid_participants(
     db, conversation_service, test_student, test_instructor_with_availability
 ):
     result = conversation_service.create_conversation_with_message(
-        student_id=test_student.id,
-        instructor_id=test_instructor_with_availability.id,
+        current_user_id=test_student.id,
+        other_user_id=test_instructor_with_availability.id,
         initial_message="Hi",
     )
     assert result.success is True
@@ -235,8 +235,8 @@ def test_create_conversation_with_message_and_invalid_instructor(
     assert result.conversation_id
 
     invalid = conversation_service.create_conversation_with_message(
-        student_id=test_student.id,
-        instructor_id=test_student.id,
+        current_user_id=test_student.id,
+        other_user_id=test_student.id,
         initial_message="Invalid",
     )
     assert invalid.success is False

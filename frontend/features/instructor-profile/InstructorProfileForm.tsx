@@ -17,6 +17,7 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useSession } from '@/src/api/hooks/useSession';
 import { queryKeys } from '@/src/api/queryKeys';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { usePhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerificationFlow';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
@@ -179,6 +180,12 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const { data: addressesDataFromHook, isLoading: isAddressesLoading } = useUserAddresses();
   const invalidateUserAddresses = useInvalidateUserAddresses();
   const queryClient = useQueryClient();
+  const phoneVerificationFlow = usePhoneVerificationFlow({
+    initialPhoneNumber: userDataFromHook?.phone ?? '',
+    onVerified: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+    },
+  });
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
   const shouldDefaultExpand = isOnboarding;
@@ -930,6 +937,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               context={context}
               profile={profile}
               lastNameError={lastNameError}
+              phoneVerificationFlow={isOnboarding ? phoneVerificationFlow : null}
               onProfileChange={handleProfileChange}
               isOpen={openPersonal}
               onToggle={() => setOpenPersonal((v) => !v)}

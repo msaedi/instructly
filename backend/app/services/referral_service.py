@@ -9,7 +9,6 @@ from typing import Dict, Iterable, List, Optional, cast
 
 from sqlalchemy.orm import Session
 
-from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.config import resolve_referrals_step
 from app.core.exceptions import RepositoryException, ServiceException
 from app.events.referral_events import (
@@ -245,6 +244,7 @@ class ReferralService(BaseService):
             amount_cents=amount_cents,
         )
 
+        payout_id: str | None = None
         with self.transaction():
             attribution = self.referral_attribution_repo.get_by_referred_user_id(
                 student_id, for_update=True
@@ -279,17 +279,28 @@ class ReferralService(BaseService):
             expire_ts = self._add_months(unlock_ts, config["expiry_months"])
             booking_prefix = booking_id_str.replace("-", "")[:12]
 
-            student_reward, referrer_reward = self.referral_reward_repo.create_student_pair(
+            referrer_profile = self.instructor_profile_repo.get_by_user_id(inviter_id)
+            student_reward = self.referral_reward_repo.create_student_reward_for_referred_user(
                 student_user_id=student_id,
                 inviter_user_id=inviter_id,
                 amount_cents=config["student_amount_cents"],
                 unlock_ts=unlock_ts,
                 expire_ts=expire_ts,
-                rule_version_student=f"S1-{booking_prefix}",
-                rule_version_referrer=f"S2-{booking_prefix}",
+                rule_version=f"S1-{booking_prefix}",
             )
+            pending_rewards: list[ReferralReward] = [student_reward]
 
-            pending_rewards = [student_reward, referrer_reward]
+            if referrer_profile is None:
+                referrer_reward = self.referral_reward_repo.create_student_reward_for_referrer(
+                    referrer_user_id=inviter_id,
+                    referred_user_id=student_id,
+                    amount_cents=config["student_amount_cents"],
+                    unlock_ts=unlock_ts,
+                    expire_ts=expire_ts,
+                    rule_version=f"S2-{booking_prefix}",
+                )
+                pending_rewards.append(referrer_reward)
+
             for reward in pending_rewards:
                 if reward.status == RewardStatus.PENDING:
                     emit_reward_pending(
@@ -302,11 +313,30 @@ class ReferralService(BaseService):
                     )
 
             if self_referral:
-                self._void_rewards((student_reward, referrer_reward), reason="self_referral")
+                self._void_rewards(tuple(pending_rewards), reason="self_referral")
                 return
 
             if self._is_velocity_abuse(inviter_id):
-                self._void_rewards((student_reward, referrer_reward), reason="velocity")
+                self._void_rewards(tuple(pending_rewards), reason="velocity")
+                return
+
+            if (
+                referrer_profile is not None
+                and getattr(referrer_profile, "stripe_connected_account", None) is not None
+            ):
+                payout = self.referral_reward_repo.create_instructor_referral_payout(
+                    referrer_user_id=inviter_id,
+                    referred_instructor_id=student_id,
+                    triggering_booking_id=booking_id_str,
+                    amount_cents=int(config["student_amount_cents"]),
+                    was_founding_bonus=False,
+                    idempotency_key=f"instructor_referral_student_{booking_id_str}",
+                )
+                if payout is not None:
+                    payout_id = cast(str, payout.id)
+
+        if payout_id:
+            self._queue_referral_payout(payout_id)
 
     @BaseService.measure_operation("referrals.on_instructor_lesson_completed")
     def on_instructor_lesson_completed(
@@ -321,7 +351,7 @@ class ReferralService(BaseService):
         Called when an instructor's student completes a lesson.
 
         Triggers instructor referral payout if this was the instructor's first completed lesson
-        and they were referred by another instructor with a Stripe connected account.
+        and they were referred by another instructor.
         """
 
         config = self._get_config()
@@ -375,37 +405,16 @@ class ReferralService(BaseService):
                     referrer_user_id,
                 )
                 return None
-
-            if not referrer_profile.stripe_connected_account:
-                logger.warning(
-                    "Referrer %s missing Stripe connected account; skipping payout",
+            if getattr(referrer_profile, "stripe_connected_account", None) is None:
+                logger.info(
+                    "Referrer %s has no connected Stripe account; skipping instructor referral payout",
                     referrer_user_id,
                 )
                 return None
+            amount_cents = self._get_standard_instructor_bonus_cents(config)
+            was_founding_bonus = False
 
-            pricing_config, _ = self.config_service.get_pricing_config()
-            cap_default = PRICING_DEFAULTS["founding_instructor_cap"]
-            cap_raw = pricing_config.get("founding_instructor_cap", cap_default)
-            try:
-                cap = int(cap_raw)
-            except (TypeError, ValueError):
-                cap = int(cap_default)
-
-            # Determine payout amount based on founding phase.
-            # Note: Near the cap boundary, concurrent payouts may both receive the founding bonus.
-            # This is acceptable; worst case is a few extra $75 bonuses instead of $50.
-            # Advisory locks here would add complexity for minimal benefit.
-            founding_count = self.instructor_profile_repo.count_founding_instructors()
-            is_founding_phase = founding_count < cap
-
-            if is_founding_phase:
-                amount_cents = int(config.get("instructor_founding_bonus_cents", 7500))
-                was_founding_bonus = True
-            else:
-                amount_cents = int(config.get("instructor_standard_bonus_cents", 5000))
-                was_founding_bonus = False
-
-            idempotency_key = f"instructor_referral_{instructor_id}"
+            idempotency_key = f"instructor_referral_instructor_{booking_id_str}"
 
             payout = self.referral_reward_repo.create_instructor_referral_payout(
                 referrer_user_id=referrer_user_id,
@@ -429,19 +438,7 @@ class ReferralService(BaseService):
         )
 
         if payout_id:
-            try:
-                enqueue_task(
-                    "app.tasks.referral_tasks.process_instructor_referral_payout",
-                    args=(payout_id,),
-                )
-                logger.info("Queued referral payout task for payout_id=%s", payout_id)
-            except Exception as exc:
-                logger.error(
-                    "Failed to queue referral payout task for %s: %s",
-                    payout_id,
-                    exc,
-                    exc_info=True,
-                )
+            self._queue_referral_payout(payout_id)
 
         return payout_id
 
@@ -464,6 +461,29 @@ class ReferralService(BaseService):
                 user_id=user_id, status=RewardStatus.REDEEMED, limit=limit
             ),
         }
+
+    def _get_standard_instructor_bonus_cents(self, config: ReferralsEffectiveConfig) -> int:
+        return int(
+            config.get(
+                "instructor_standard_bonus_cents",
+                config.get("instructor_amount_cents", 5000),
+            )
+        )
+
+    def _queue_referral_payout(self, payout_id: str) -> None:
+        try:
+            enqueue_task(
+                "app.tasks.referral_tasks.process_instructor_referral_payout",
+                args=(payout_id,),
+            )
+            logger.info("Queued referral payout task for payout_id=%s", payout_id)
+        except Exception as exc:
+            logger.error(
+                "Failed to queue referral payout task for %s: %s",
+                payout_id,
+                exc,
+                exc_info=True,
+            )
 
     @BaseService.measure_operation("referrals.admin.config")
     def get_admin_config(self) -> AdminReferralsConfigOut:

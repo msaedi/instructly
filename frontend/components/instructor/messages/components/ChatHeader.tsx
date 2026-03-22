@@ -18,6 +18,8 @@ export type ChatHeaderProps = {
   composeRecipient: ConversationEntry | null;
   composeRecipientQuery: string;
   composeSuggestions: ConversationEntry[];
+  counterpartLabel?: string | undefined;
+  bookingHrefForId?: ((bookingId: string) => string) | undefined;
   onComposeRecipientQueryChange: (query: string) => void;
   onComposeRecipientSelect: (conversation: ConversationEntry) => void;
   onComposeRecipientClear: () => void;
@@ -73,6 +75,8 @@ export function ChatHeader({
   composeRecipient,
   composeRecipientQuery,
   composeSuggestions,
+  counterpartLabel = 'Student',
+  bookingHrefForId = (bookingId) => `/instructor/bookings/${bookingId}`,
   onComposeRecipientQueryChange,
   onComposeRecipientSelect,
   onComposeRecipientClear,
@@ -130,7 +134,7 @@ export function ChatHeader({
                           >
                             <span className="font-medium text-gray-900 dark:text-gray-100">{suggestion.name}</span>
                             <span className="block text-xs text-gray-500 dark:text-gray-400">
-                              {suggestion.type === 'platform' ? 'Platform' : 'Student'}
+                              {suggestion.type === 'platform' ? 'Platform' : counterpartLabel}
                             </span>
                           </button>
                         </li>
@@ -173,7 +177,7 @@ export function ChatHeader({
           <div>
             <h3 className="font-medium text-gray-900 dark:text-gray-100">{activeConversation?.name}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {activeConversation?.type === 'platform' ? 'Platform' : 'Student'}
+              {activeConversation?.type === 'platform' ? 'Platform' : counterpartLabel}
             </p>
           </div>
         </div>
@@ -220,7 +224,7 @@ export function ChatHeader({
 
                         {/* Next booking details in purple container */}
                         <Link
-                          href={`/instructor/bookings/${nextBooking.id}`}
+                          href={bookingHrefForId(nextBooking.id)}
                           className="block rounded-lg border border-purple-200 bg-purple-50 p-3 transition-colors hover:bg-purple-100 dark:hover:bg-purple-900/30"
                         >
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nextBooking.service_name}</p>
@@ -248,7 +252,7 @@ export function ChatHeader({
                             {remainingBookings.map((booking) => (
                               <Link
                                 key={booking.id}
-                                href={`/instructor/bookings/${booking.id}`}
+                                href={bookingHrefForId(booking.id)}
                                 className="block rounded-lg border border-gray-200 bg-gray-50 p-2.5 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
                               >
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>

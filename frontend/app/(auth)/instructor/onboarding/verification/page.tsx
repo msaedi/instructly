@@ -573,7 +573,7 @@ export default function Step4Verification() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => router.push('/instructor/settings')}
+                    onClick={() => router.push('/instructor/onboarding/account-setup')}
                     className="mt-3 border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
                   >
                     Update my name

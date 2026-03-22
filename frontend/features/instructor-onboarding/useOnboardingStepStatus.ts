@@ -168,6 +168,7 @@ export function canInstructorGoLive(rawData: {
   // Check personal info
   if (!user?.first_name?.trim()) missing.push('First name');
   if (!user?.last_name?.trim()) missing.push('Last name');
+  if (!user?.phone_verified) missing.push('Phone verification');
 
   // Check bio
   const bioLength = String(profile?.bio || '').trim().length;

@@ -406,8 +406,8 @@ def test_instructor_flow_creates_payout(db, referral_service, monkeypatch):
         .one()
     )
     assert payout.referrer_user_id == referrer.id
-    assert payout.amount_cents == 7500
-    assert payout.was_founding_bonus is True
+    assert payout.amount_cents == 5000
+    assert payout.was_founding_bonus is False
 
     second_attempt = referral_service.on_instructor_lesson_completed(
         instructor_user_id=instructor.id,
@@ -421,6 +421,103 @@ def test_instructor_flow_creates_payout(db, referral_service, monkeypatch):
         .count()
         == 1
     )
+
+
+def test_instructor_referrer_student_completion_creates_cash_payout_and_student_credit(
+    db, referral_service, monkeypatch
+):
+    referrer = _create_user(db, "cash-referrer")
+    student = _create_user(db, "referred-student")
+    referrer_profile = _create_instructor_with_stripe(db, referrer)
+    catalog = _get_or_create_catalog_entry(db)
+    service = InstructorService(
+        instructor_profile_id=referrer_profile.id,
+        service_catalog_id=catalog.id,
+        format_prices=[
+            {"format": "online", "hourly_rate": 90.0},
+        ],
+        duration_options=[45],
+        is_active=True,
+    )
+    db.add(service)
+    db.flush()
+
+    code = referral_service.issue_code(referrer_user_id=referrer.id)
+    completed_at = datetime.now(timezone.utc) - timedelta(days=2)
+
+    referral_service.record_click(code=code.code, channel="share")
+    referral_service.attribute_signup(
+        referred_user_id=student.id,
+        code=code.code,
+        source="web_click",
+        ts=completed_at,
+    )
+
+    queued: list[tuple[str, tuple[str, ...]]] = []
+    monkeypatch.setattr(
+        "app.services.referral_service.enqueue_task",
+        lambda task_name, args=(): queued.append((task_name, args)),
+    )
+
+    booking = create_booking_pg_safe(
+        db,
+        student_id=student.id,
+        instructor_id=referrer.id,
+        instructor_service_id=service.id,
+        booking_date=completed_at.date(),
+        start_time=time(14, 0),
+        end_time=time(14, 45),
+        status=BookingStatus.COMPLETED,
+        service_name="Student Referral Lesson",
+        hourly_rate=90.0,
+        total_price=67.5,
+        duration_minutes=45,
+        meeting_location="Online",
+        service_area="Brooklyn",
+    )
+    booking.completed_at = completed_at
+    db.flush()
+
+    referral_service.on_first_booking_completed(
+        user_id=student.id,
+        booking_id=booking.id,
+        amount_cents=8500,
+        completed_at=completed_at,
+    )
+
+    student_rewards = (
+        db.query(ReferralReward)
+        .filter(
+            ReferralReward.referrer_user_id == student.id,
+            ReferralReward.side == RewardSide.STUDENT,
+        )
+        .all()
+    )
+    assert len(student_rewards) == 1
+    assert student_rewards[0].amount_cents == settings.referrals_student_amount_cents
+
+    instructor_credit_rewards = (
+        db.query(ReferralReward)
+        .filter(
+            ReferralReward.referrer_user_id == referrer.id,
+            ReferralReward.side == RewardSide.STUDENT,
+        )
+        .count()
+    )
+    assert instructor_credit_rewards == 0
+
+    payout = (
+        db.query(InstructorReferralPayout)
+        .filter(InstructorReferralPayout.referred_instructor_id == student.id)
+        .one()
+    )
+    assert payout.referrer_user_id == referrer.id
+    assert payout.amount_cents == settings.referrals_student_amount_cents
+    assert payout.was_founding_bonus is False
+    assert payout.idempotency_key == f"instructor_referral_student_{booking.id}"
+    assert queued == [
+        ("app.tasks.referral_tasks.process_instructor_referral_payout", (payout.id,))
+    ]
 
 
 def test_idempotency_guarantees(db, referral_service, unlocker, wallet_service):

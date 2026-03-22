@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as dateFns from 'date-fns';
 import PaymentConfirmation from '../PaymentConfirmation';
@@ -9,6 +9,7 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import { getPlaceDetails } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 import * as timeLib from '@/lib/time';
 import { getReactEventHandler, invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { buildDisplayDate } from '../PaymentConfirmation.helpers';
@@ -393,10 +394,37 @@ const usePricingFloorsMock = usePricingFloors as jest.Mock;
 const fetchBookingsListMock = fetchBookingsList as jest.Mock;
 const fetchInstructorProfileMock = fetchInstructorProfile as jest.Mock;
 const getPlaceDetailsMock = getPlaceDetails as jest.Mock;
+const loggerErrorMock = logger.error as jest.MockedFunction<typeof logger.error>;
 const formatMock = dateFns.format as jest.MockedFunction<typeof dateFns.format>;
 const addMinutesHHMMMock = timeLib.addMinutesHHMM as jest.MockedFunction<typeof timeLib.addMinutesHHMM>;
 const actualDateFns = jest.requireActual('date-fns') as typeof import('date-fns');
 const actualTimeLib = jest.requireActual('@/lib/time') as typeof import('@/lib/time');
+type InstructorProfileResponse = Awaited<ReturnType<typeof fetchInstructorProfile>>;
+
+const originalFetchInstructorProfileMockResolvedValue = fetchInstructorProfileMock.mockResolvedValue;
+const originalFetchInstructorProfileMockRejectedValue = fetchInstructorProfileMock.mockRejectedValue;
+
+const queueInstructorProfileResolution = (value: InstructorProfileResponse) => {
+  fetchInstructorProfileMock.mockImplementation(
+    () =>
+      new Promise<InstructorProfileResponse>((resolve) => {
+        setTimeout(() => resolve(value), 0);
+      }),
+  );
+
+  return fetchInstructorProfileMock;
+};
+
+const queueInstructorProfileRejection = (error: unknown) => {
+  fetchInstructorProfileMock.mockImplementation(
+    () =>
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(error), 0);
+      }),
+  );
+
+  return fetchInstructorProfileMock;
+};
 
 const mockBooking: BookingPayment = {
   bookingId: 'booking-123',
@@ -442,6 +470,13 @@ describe('PaymentConfirmation', () => {
     onConfirm: jest.fn(),
     onBack: jest.fn(),
   };
+
+  beforeAll(() => {
+    fetchInstructorProfileMock.mockResolvedValue = ((value: InstructorProfileResponse) =>
+      queueInstructorProfileResolution(value)) as typeof fetchInstructorProfileMock.mockResolvedValue;
+    fetchInstructorProfileMock.mockRejectedValue = ((error: unknown) =>
+      queueInstructorProfileRejection(error)) as typeof fetchInstructorProfileMock.mockRejectedValue;
+  });
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -490,9 +525,22 @@ describe('PaymentConfirmation', () => {
     getPlaceDetailsMock.mockResolvedValue({ data: null, error: null });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await Promise.resolve();
+    });
+    cleanup();
     jest.clearAllTimers();
+    jest.restoreAllMocks();
     jest.useRealTimers();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+  });
+
+  afterAll(() => {
+    fetchInstructorProfileMock.mockResolvedValue = originalFetchInstructorProfileMockResolvedValue;
+    fetchInstructorProfileMock.mockRejectedValue = originalFetchInstructorProfileMockRejectedValue;
   });
 
   describe('rendering', () => {
@@ -2567,62 +2615,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe.skip('online lesson toggle with address update', () => {
-    it('updates booking when toggling to online', async () => {
-      const onBookingUpdate = jest.fn();
-      const user = setupUser();
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Toggle online option
-      const onlineOption = await screen.findByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-
-      // onBookingUpdate should be called
-      await waitFor(() => {
-        expect(onBookingUpdate).toHaveBeenCalled();
-      });
-    });
-
-    it('clears address fields when toggling to online', async () => {
-      const onBookingUpdate = jest.fn();
-      const user = setupUser();
-
-      const bookingWithAddress = {
-        ...mockBooking,
-        location: '123 Main St, New York, NY 10001',
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithAddress}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Toggle online option
-      const onlineOption = await screen.findByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-
-      await waitFor(() => {
-        const option = screen.getByRole('button', { name: /online/i });
-        expect(option).toHaveAttribute('aria-pressed', 'true');
-      });
-    });
-  });
-
   describe('edit lesson with instructor services', () => {
     it('handles instructor with multiple services', async () => {
       const user = setupUser();
@@ -2688,6 +2680,31 @@ describe('PaymentConfirmation', () => {
       await waitFor(() => {
 
       });
+    });
+
+    it('ignores instructor profile fetch failures that arrive after unmount', async () => {
+      let rejectProfile: ((reason?: unknown) => void) | null = null;
+
+      fetchInstructorProfileMock.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectProfile = reject;
+          }),
+      );
+
+      const { unmount } = render(<PaymentConfirmation {...defaultProps} />);
+
+      unmount();
+
+      await act(async () => {
+        rejectProfile?.(new Error('late failure'));
+        await Promise.resolve();
+      });
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        'Failed to fetch instructor profile',
+        expect.objectContaining({ message: 'late failure' }),
+      );
     });
   });
 
@@ -3308,6 +3325,52 @@ describe('PaymentConfirmation', () => {
       );
 
       // Should auto-expand because credits are applied
+      await waitFor(() => {
+        expect(screen.getByText('Credits to apply:')).toBeInTheDocument();
+      });
+    });
+
+    it('auto-expands on rerender when applied credits appear later in uncontrolled mode', async () => {
+      let previewState = {
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        loading: false,
+        error: null,
+      };
+
+      usePricingPreviewMock.mockImplementation(() => previewState);
+
+      const { rerender } = render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={50}
+          creditsUsed={0}
+        />
+      );
+
+      expect(screen.queryByText('Credits to apply:')).not.toBeInTheDocument();
+
+      previewState = {
+        ...previewState,
+        preview: {
+          ...previewState.preview,
+          credit_applied_cents: 1000,
+        },
+      };
+
+      rerender(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={50}
+          creditsUsed={10}
+        />
+      );
+
       await waitFor(() => {
         expect(screen.getByText('Credits to apply:')).toBeInTheDocument();
       });
@@ -4101,104 +4164,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe.skip('teaching locations edge cases', () => {
-    it('filters out teaching locations with empty addresses', async () => {
-      // Line 1654: Return null for empty address
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: '123 Main St', label: 'Studio A' },
-          { address: '', label: 'Empty Location' }, // Should be filtered
-          { address: '   ', label: 'Whitespace Location' }, // Should be filtered
-          { address: '456 Broadway', label: 'Studio B' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Select instructor location option - button text uses instructor's first name from booking
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        // Valid addresses should appear (use getAllByText as address appears in multiple places)
-        expect(screen.getAllByText('123 Main St').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('456 Broadway').length).toBeGreaterThan(0);
-        // Empty locations should not appear
-        expect(screen.queryByText('Empty Location')).not.toBeInTheDocument();
-      });
-    });
-
-    it('filters out public spaces with empty addresses', async () => {
-      // Line 1701: Return null for empty public space address
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          { address: 'Central Park', label: 'Park' },
-          { address: '', label: 'Empty Space' }, // Should be filtered
-          { address: 'Times Square', label: 'Plaza' },
-        ],
-      });
-
-      const bookingWithoutLocation = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Wait for the public spaces to be rendered (if available in current location type)
-      await waitFor(() => {
-        // Central Park should appear as a valid space
-        const centralParkText = screen.queryByText('Central Park');
-        if (centralParkText) {
-          expect(centralParkText).toBeInTheDocument();
-          // Empty space should not appear
-          expect(screen.queryByText('Empty Space')).not.toBeInTheDocument();
-        }
-      }, { timeout: 2000 });
-    });
-  });
-
   describe('credit slider touch events', () => {
     it('handles touch end event on credit slider', async () => {
       // Lines 2098-2101: Touch events for slider
@@ -4281,67 +4246,6 @@ describe('PaymentConfirmation', () => {
 
       await waitFor(() => {
         expect(onCreditAmountChange).toHaveBeenCalledWith(30);
-      });
-    });
-  });
-
-  describe.skip('teaching location selection', () => {
-    it('handles teaching location radio selection', async () => {
-      // Line 2234: Teaching location radio selection
-      const onBookingUpdate = jest.fn();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { id: 'loc-1', address: '123 Main St', label: 'Studio A' },
-          { id: 'loc-2', address: '456 Broadway', label: 'Studio B' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Select instructor location option - button text is "At John's location" where John comes from instructorName
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        // Use getAllByText since the address appears in multiple places
-        expect(screen.getAllByText('123 Main St').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('456 Broadway').length).toBeGreaterThan(0);
-      });
-
-      // Select second teaching location via radio input
-      const studio2Radio = screen.getByRole('radio', { name: /studio b/i });
-      fireEvent.click(studio2Radio);
-
-      await waitFor(() => {
-        expect(onBookingUpdate).toHaveBeenCalled();
       });
     });
   });
@@ -4447,6 +4351,39 @@ describe('PaymentConfirmation', () => {
 
       // Component should be ready for interaction
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
+    });
+
+    it('flushes the enter-new-address requestAnimationFrame focus callback', async () => {
+      const bookingNoLoc = { ...mockBooking, location: '' };
+      let queuedAnimationFrame: FrameRequestCallback | null = null;
+      const requestAnimationFrameSpy = jest
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((callback: FrameRequestCallback) => {
+          queuedAnimationFrame = callback;
+          return 1;
+        });
+
+      try {
+        render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId('address-selector')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTestId('enter-new-address-btn'));
+
+        await waitFor(() => {
+          expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+        });
+
+        act(() => {
+          queuedAnimationFrame?.(0);
+        });
+
+        expect(document.activeElement).toBe(screen.getByTestId('addr-street'));
+      } finally {
+        requestAnimationFrameSpy.mockRestore();
+      }
     });
   });
 
@@ -5467,81 +5404,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe.skip('teaching locations with fallback field names', () => {
-    it('extracts lat from "latitude" and lng from "longitude" fields', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '200 Fallback Ave',
-            label: 'Fallback Studio',
-            latitude: 40.72,
-            longitude: -73.88,
-            place_id: 'place_fb_123',
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      const booking: BookingPayment = {
-        ...mockBooking,
-        location: '200 Fallback Ave',
-        metadata: { location_type: 'instructor_location' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-      const instructorBtn = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorBtn);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('200 Fallback Ave').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('generates fallback id from address and index when id field is missing', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: 'No ID Location' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-      expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
-    });
-  });
-
   describe('public spaces with fallback field names', () => {
     it('extracts coordinates from latitude/longitude and place_id', async () => {
       fetchInstructorProfileMock.mockResolvedValue({
@@ -5891,90 +5753,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe.skip('selectedService single-service fallback', () => {
-    it('falls back to the only service when resolvedServiceId has no match', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'only-service',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-      });
-
-      // Booking with a serviceId that does not match any service
-      const booking: BookingPayment = {
-        ...mockBooking,
-        metadata: { serviceId: 'non-existent-id' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
-
-      // Should still render location options from the single service
-      fireEvent.click(screen.getByText('Lesson Location'));
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
-      });
-    });
-
-    it('returns null when no service matches and multiple services exist', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-a',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
-          },
-          {
-            id: 'svc-b',
-            skill: 'Guitar',
-            min_hourly_rate: 80,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 80 },
-              { format: 'student_location', hourly_rate: 80 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-      });
-
-      const booking: BookingPayment = {
-        ...mockBooking,
-        metadata: { serviceId: 'non-existent' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
-
-      // With selectedService null, availableLocationTypes is empty, so no location buttons
-      expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
-    });
-  });
-
   describe('client floor violation with modality label', () => {
     it('shows in-person modality label in floor warning', async () => {
       usePricingFloorsMock.mockReturnValue({
@@ -6109,69 +5887,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe.skip('instructor_location in availableLocationTypes', () => {
-    it('adds instructor_location only when offers_at_location AND teachingLocations exist', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: 'Studio 1', label: 'My Studio' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-      await waitFor(() => {
-        // instructor_location button should be available
-        expect(screen.getByRole('button', { name: /at john's location/i })).toBeInTheDocument();
-      });
-    });
-
-    it('does NOT add instructor_location when offers_at_location but teachingLocations is empty', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-      await waitFor(() => {
-        expect(screen.queryByRole('button', { name: /at john's location/i })).not.toBeInTheDocument();
-      });
-    });
-  });
-
   describe('conflict check error handling', () => {
     it('gracefully handles fetch error during conflict check', async () => {
       fetchBookingsListMock.mockRejectedValue(new Error('Network error'));
@@ -6181,49 +5896,6 @@ describe('PaymentConfirmation', () => {
       // Should not show conflict, should not crash
       expect(screen.queryByText('Scheduling Conflict')).not.toBeInTheDocument();
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
-    });
-  });
-
-  describe.skip('location initialization sets isEditingLocation', () => {
-    it('sets isEditingLocation to true when student_location with no existing location', async () => {
-      const bookingNoLoc: BookingPayment = {
-        ...mockBooking,
-        location: '',
-        metadata: { modality: 'in_person' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />
-      );
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Should be in editing mode (address input visible)
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
-      });
-    });
-
-    it('sets isEditingLocation to false for online location type', async () => {
-      const bookingOnline: BookingPayment = {
-        ...mockBooking,
-        location: '',
-        metadata: { modality: 'online' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingOnline} />);
-
-      await waitFor(() => {
-        if (!screen.queryByText(/How do you want to take this lesson/i)) {
-          fireEvent.click(screen.getByText('Lesson Location'));
-        }
-        const onlineBtn = screen.getByRole('button', { name: /online/i });
-        expect(onlineBtn).toHaveAttribute('aria-pressed', 'true');
-      });
-
-      // Address editing fields (addr-street, addr-city) should NOT be in the location section
-      expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('addr-city')).not.toBeInTheDocument();
     });
   });
 
@@ -6526,481 +6198,7 @@ describe('PaymentConfirmation', () => {
       expect(screen.queryByText(/can't be combined/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Enter a promo code/i)).not.toBeInTheDocument();
     });
-  });
-
-  describe.skip('instructor location normalization with lat/lng field variations', () => {
-    it('normalizes teaching locations using lat/lng fields (not latitude/longitude)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '500 Lat Lng St',
-            label: 'LatLng Studio',
-            lat: 40.75,
-            lng: -73.98,
-            place_id: 'place_latlng_1',
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      // Expand location section and select instructor location
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('500 Lat Lng St').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('normalizes teaching locations using latitude/longitude fields', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '600 Latitude Ave',
-            label: 'Latitude Studio',
-            latitude: 40.72,
-            longitude: -73.88,
-            placeId: 'place_latitude_1',
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('600 Latitude Ave').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('normalizes teaching location with missing id (falls back to address-index)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            // No id field - should fallback to `address-0`
-            address: '700 No Id Blvd',
-            label: 'No ID Studio',
-            lat: 40.71,
-            lng: -73.99,
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('700 No Id Blvd').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('normalizes public spaces using lat/lng and place_id fields', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          {
-            address: 'Prospect Park',
-            label: 'Bandshell Area',
-            lat: 40.66,
-            lng: -73.97,
-            place_id: 'place_prospect_1',
-          },
-        ],
-      });
-
-      const bookingWithoutLocation = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Component should render and process public spaces
-
-    });
-
-    it('normalizes public spaces using latitude/longitude and placeId fields', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          {
-            address: 'Hudson River Park',
-            label: 'Pier 46',
-            latitude: 40.73,
-            longitude: -74.01,
-            placeId: 'place_hudson_1',
-          },
-        ],
-      });
-
-      const bookingWithoutLocation = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-
-    });
-
-    it('normalizes public space with missing id (falls back to address-index)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          {
-            // No id field
-            address: 'Washington Square Park',
-            lat: 40.73,
-            lng: -73.99,
-          },
-          {
-            // No id field either
-            address: 'Union Square',
-            latitude: 40.735,
-            longitude: -73.99,
-            place_id: 'place_union_1',
-          },
-        ],
-      });
-
-      const bookingWithoutLocation = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-
-    });
-
-    it('handles non-array preferred_teaching_locations (defaults to empty array)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: 'not_an_array',
-        preferred_public_spaces: null,
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      // Should not crash - non-array values default to []
-      expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
-    });
-
-    it('handles undefined preferred_teaching_locations and preferred_public_spaces', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
-          },
-        ],
-        // No preferred_teaching_locations or preferred_public_spaces keys at all
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
-    });
-
-    it('filters out teaching locations with null-like address values', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: null, label: 'Null Address' },
-          { address: undefined, label: 'Undefined Address' },
-          { label: 'No Address Key' },
-          { address: '800 Valid St', label: 'Valid Studio' },
-        ],
-        preferred_public_spaces: [
-          { address: null, label: 'Null Space' },
-          { address: '900 Valid Park', label: 'Valid Park' },
-        ],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        // Only valid addresses should appear
-        expect(screen.getAllByText('800 Valid St').length).toBeGreaterThan(0);
-        // Null/undefined/missing address locations should be filtered out
-        expect(screen.queryByText('Null Address')).not.toBeInTheDocument();
-        expect(screen.queryByText('Undefined Address')).not.toBeInTheDocument();
-        expect(screen.queryByText('No Address Key')).not.toBeInTheDocument();
-      });
-    });
-
-    it('handles teaching location with label as non-string value', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '850 Numeric Label Ave',
-            label: 42, // Non-string label should be treated as undefined
-            lat: 'not_a_number', // Non-number lat should be ignored
-            lng: null, // null lng should be ignored
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('850 Numeric Label Ave').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('normalizes teaching location with both lat and latitude (lat takes precedence)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            id: 'loc-both',
-            address: '950 Both Coords Ln',
-            lat: 40.80,
-            latitude: 40.85,
-            lng: -73.95,
-            longitude: -73.90,
-            place_id: 'place_both',
-            placeId: 'camel_both',
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        // Both fields present - lat/place_id take precedence over latitude/placeId
-        expect(screen.getAllByText('950 Both Coords Ln').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('normalizes teaching location with only latitude/longitude (no lat/lng)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '1000 Only Latitude Rd',
-            latitude: 40.65,
-            longitude: -73.85,
-            placeId: 'camel_only',
-          },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      const instructorOption = await screen.findByRole('button', { name: /at john's location/i });
-      fireEvent.click(instructorOption);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('1000 Only Latitude Rd').length).toBeGreaterThan(0);
-      });
-    });
-  });
+  });;
 
   describe('handleAddressSuggestionSelect via PlacesAutocompleteInput', () => {
     const bookingNoLocation: BookingPayment = {
@@ -7481,6 +6679,53 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
 
+    it('preserves neutral meeting-point state when a sparse saved address is selected from edit mode', async () => {
+      const user = setupUser();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-public',
+            skill: 'Piano',
+            min_hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [{ address: 'Library Plaza' }],
+      });
+
+      const bookingAtMeetingPoint = {
+        ...mockBooking,
+        location: 'Library Plaza',
+        metadata: {
+          serviceId: 'svc-public',
+          location_type: 'neutral_location',
+        },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={bookingAtMeetingPoint} />
+      );
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+      await user.click(screen.getByText('Change'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-saved-address-sparse-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Saved address')).toBeInTheDocument();
+      });
+    });
+
     it('opens new address mode via enter new address button', async () => {
       const user = setupUser();
 
@@ -7523,123 +6768,7 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
       });
     });
-  });
-
-  describe.skip('handleLocationTypeChange middle branches', () => {
-    it('switches to instructor_location and disables editing', async () => {
-      const user = setupUser();
-      const onClearFloorViolation = jest.fn();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: 'Studio 1', label: 'My Studio', id: 'loc-1' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onClearFloorViolation={onClearFloorViolation}
-        />
-      );
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Wait for instructor location option to appear
-      const instructorBtn = await screen.findByRole('button', { name: /at john's location/i });
-      await user.click(instructorBtn);
-
-      // Should show teaching location text
-      await waitFor(() => {
-        expect(screen.getAllByText('Studio 1').length).toBeGreaterThan(0);
-      });
-
-      // Floor violation should have been cleared
-      expect(onClearFloorViolation).toHaveBeenCalled();
-    });
-
-    it('re-applies saved address when switching back to travel from online', async () => {
-      const user = setupUser();
-      const onBookingUpdate = jest.fn();
-
-      const bookingNoLoc: BookingPayment = {
-        ...mockBooking,
-        location: '',
-      };
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingNoLoc}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByTestId('select-saved-address-btn')).toBeInTheDocument();
-      });
-
-      // First, select a saved address
-      await user.click(screen.getByTestId('select-saved-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-
-      // Switch to online
-      const onlineBtn = await screen.findByRole('button', { name: /online/i });
-      await user.click(onlineBtn);
-
-      await waitFor(() => {
-        expect(onlineBtn).toHaveAttribute('aria-pressed', 'true');
-      });
-
-      // Switch back to in-person
-      const inPersonBtn = await screen.findByRole('button', { name: /in person/i });
-      await user.click(inPersonBtn);
-
-      // Should re-apply saved address
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-    });
-  });
+  });;
 
   describe('handleChangeLocationClick', () => {
     it('expands location section and enters edit mode', async () => {
@@ -7805,6 +6934,110 @@ describe('PaymentConfirmation', () => {
       expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
       expect(screen.getAllByText('Video lesson through the platform').length).toBeGreaterThan(0);
     });
+
+    it('preserves neutral-location metadata and explicit coords when rescheduling a meeting point lesson', async () => {
+      const user = setupUser();
+      const onBookingUpdate = jest.fn();
+      const onTimeSelectionCommitted = jest.fn();
+
+      mockTimeSelectionModalSelectionOverride = {
+        locationType: 'student_location',
+        serviceId: 'svc-public',
+        hourlyRate: 110,
+      };
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-public',
+            skill: 'Piano',
+            min_hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+            format_prices: [{ format: 'student_location', hourly_rate: 110 }],
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [{ address: 'Library Plaza' }],
+      });
+
+      const meetingPointBooking = {
+        ...mockBooking,
+        location: '',
+        address: {
+          fullAddress: '123 Main St, New York, NY 10001',
+          lat: 40.7128,
+          lng: -74.006,
+          placeId: 'place_library_1',
+        },
+        metadata: {
+          serviceId: 'svc-public',
+          modality: 'in_person',
+          location_type: 'neutral_location',
+        },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={meetingPointBooking}
+          onBookingUpdate={onBookingUpdate}
+          onTimeSelectionCommitted={onTimeSelectionCommitted}
+        />
+      );
+
+      await user.click(screen.getByText('Edit lesson'));
+      await user.click(screen.getByTestId('confirm-time-selection'));
+
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+        expect(onTimeSelectionCommitted).toHaveBeenCalled();
+      });
+
+      const resolvedUpdates = onBookingUpdate.mock.calls
+        .map((call) => call[0])
+        .filter(
+          (update): update is (
+            prev: BookingPayment
+          ) => BookingPayment & {
+            metadata?: Record<string, unknown>;
+            address?: { fullAddress: string; lat: number; lng: number; placeId: string };
+          } => typeof update === 'function',
+        )
+        .map((update) => update(meetingPointBooking));
+
+      expect(resolvedUpdates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            location: '123 Main St, New York, NY 10001',
+            metadata: expect.objectContaining({
+              modality: 'in_person',
+              location_type: 'neutral_location',
+              serviceId: 'svc-public',
+            }),
+            address: expect.objectContaining({
+              placeId: 'place_library_1',
+              lat: 40.7128,
+              lng: -74.006,
+            }),
+          }),
+        ]),
+      );
+
+      expect(onTimeSelectionCommitted).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          location: '123 Main St, New York, NY 10001',
+          metadata: expect.objectContaining({
+            location_type: 'neutral_location',
+          }),
+          address: expect.objectContaining({
+            placeId: 'place_library_1',
+          }),
+        }),
+      );
+    });
   });
 
   describe('new checkout coverage for location state guards', () => {
@@ -7903,76 +7136,7 @@ describe('PaymentConfirmation', () => {
       });
       expect(screen.queryByText('Empty Studio')).not.toBeInTheDocument();
     });
-  });
-
-  describe.skip('onBookingUpdate effect with neutral_location and public space', () => {
-    it('calls onBookingUpdate with public space address payload', async () => {
-      const onBookingUpdate = jest.fn();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          { id: 'ps-1', address: 'Central Park North', label: 'Park', lat: 40.8, lng: -73.96, place_id: 'ps_1' },
-        ],
-      });
-
-      const bookingNoLoc: BookingPayment = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingNoLoc}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Wait for public spaces to appear
-      await waitFor(() => {
-        expect(screen.getByText('Central Park North')).toBeInTheDocument();
-      });
-
-      // Click the public space radio button
-      const parkRadio = screen.getByRole('radio', { name: /park/i });
-      fireEvent.click(parkRadio);
-
-      // onBookingUpdate should be called with neutral_location metadata
-      await waitFor(() => {
-        expect(onBookingUpdate).toHaveBeenCalled();
-        const lastCall = onBookingUpdate.mock.calls[onBookingUpdate.mock.calls.length - 1];
-        if (typeof lastCall?.[0] === 'function') {
-          const result = lastCall[0]({
-            ...bookingNoLoc,
-            metadata: {},
-          });
-          expect(result.metadata).toEqual(expect.objectContaining({
-            location_type: 'neutral_location',
-          }));
-        }
-      });
-    });
-  });
+  });;
 
   describe('credit slider onChange handler', () => {
     it('updates display value during slider drag', async () => {
@@ -8011,129 +7175,7 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByText('$25.00')).toBeInTheDocument();
       });
     });
-  });
-
-  describe.skip('public space use-custom-location flow', () => {
-    it('switches from public space selection to custom location input', async () => {
-      const user = setupUser();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          { id: 'ps-1', address: 'Central Park', label: 'Park' },
-        ],
-      });
-
-      const bookingNoLoc: BookingPayment = {
-        ...mockBooking,
-        location: '',
-      };
-
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />
-      );
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Select the public space first
-      await waitFor(() => {
-        expect(screen.getByText('Central Park')).toBeInTheDocument();
-      });
-
-      const parkRadio = screen.getByRole('radio', { name: /park/i });
-      fireEvent.click(parkRadio);
-
-      // Should show "Use your own location" button when a public space is selected
-      await waitFor(() => {
-        expect(screen.getByText('Use your own location')).toBeInTheDocument();
-      });
-
-      // Click it to switch to custom location
-      await user.click(screen.getByText('Use your own location'));
-
-      // Should show the address input form instead
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe.skip('onBookingUpdate with instructor_location address payload', () => {
-    it('fires onBookingUpdate with instructor teaching location coordinates', async () => {
-      const onBookingUpdate = jest.fn();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { id: 'loc-1', address: '100 Studio Lane', lat: 40.7, lng: -73.9, placeId: 'place_studio' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      const bookingWithInstructorLoc: BookingPayment = {
-        ...mockBooking,
-        location: '100 Studio Lane',
-        metadata: { location_type: 'instructor_location' },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithInstructorLoc}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      // Wait for initialization
-      await waitFor(() => {
-        expect(onBookingUpdate).toHaveBeenCalled();
-      });
-
-      // The updater function should include the instructor location address
-      const lastCall = onBookingUpdate.mock.calls[onBookingUpdate.mock.calls.length - 1];
-      if (typeof lastCall?.[0] === 'function') {
-        const result = lastCall[0]({
-          ...bookingWithInstructorLoc,
-          metadata: {},
-        });
-        expect(result.location).toBe('100 Studio Lane');
-        expect(result.address).toMatchObject({
-          fullAddress: '100 Studio Lane',
-        });
-      }
-    });
-  });
+  });;;
 
   describe('conflict key null with abort controller cleanup', () => {
     it('aborts existing conflict check when conflict key becomes null', async () => {
@@ -8249,60 +7291,7 @@ describe('PaymentConfirmation', () => {
         expect(onBookingUpdate).toHaveBeenCalled();
       });
     });
-  });
-
-  describe.skip('travelFallbackType computation', () => {
-    it('uses lastInPersonLocationType when current type is not travel', async () => {
-      const user = setupUser();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: 'Studio 1', id: 'loc-1' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // First switch to instructor_location
-      const instructorBtn = await screen.findByRole('button', { name: /at john's location/i });
-      await user.click(instructorBtn);
-
-      // Then switch to online
-      const onlineBtn = await screen.findByRole('button', { name: /online/i });
-      await user.click(onlineBtn);
-
-      await waitFor(() => {
-        expect(onlineBtn).toHaveAttribute('aria-pressed', 'true');
-      });
-
-      // Now switch to in-person - should fall back to student_location (default)
-      const inPersonBtn = await screen.findByRole('button', { name: /in person/i });
-      await user.click(inPersonBtn);
-
-      await waitFor(() => {
-        expect(inPersonBtn).toHaveAttribute('aria-pressed', 'true');
-      });
-    });
-  });
+  });;
 
   describe('credits accordion toggle in uncontrolled mode', () => {
     it('toggles uncontrolled credits accordion and calls callback', async () => {
@@ -8787,7 +7776,6 @@ describe('PaymentConfirmation', () => {
   });
 
 
-
   describe('onBookingUpdate removes address when no payload', () => {
     it('strips address field when location has no address payload', async () => {
       const onBookingUpdate = jest.fn();
@@ -9022,1115 +8010,7 @@ describe('PaymentConfirmation', () => {
       // Should derive 90 minutes from 14:00-15:30
       expect(screen.getByText('Lesson (90 min)')).toBeInTheDocument();
     });
-  });
-
-  describe.skip('branch coverage: optional chaining and nullish coalescing paths', () => {
-    it('renders with pricingPreviewContext returning null', async () => {
-      usePricingPreviewMock.mockReturnValue(null);
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      // Should fall back gracefully when preview context is null
-
-    });
-
-    it('renders with undefined pricingPreview.preview', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: undefined,
-        loading: false,
-        error: null,
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-
-    });
-
-    it('renders summary with pricingPreviewError fallback (total after credits)', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: null,
-        loading: false,
-        error: 'Pricing unavailable',
-      });
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          creditsUsed={10}
-          referralAppliedCents={500}
-        />
-      );
-
-      // When preview is null and error exists, total falls back to booking amount minus credits
-      expect(screen.getByText('Unavailable')).toBeInTheDocument();
-      expect(screen.getByText(/Pricing unavailable/)).toBeInTheDocument();
-    });
-
-    it('renders with NaN basePrice on booking (non-finite)', async () => {
-      const bookingNaN = {
-        ...mockBooking,
-        basePrice: NaN,
-      };
-
-      usePricingPreviewMock.mockReturnValue({
-        preview: null,
-        loading: false,
-        error: null,
-      });
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNaN} />);
-
-      // fallbackBasePrice in pricingDisplayValues treats NaN as 0
-      expect(screen.getByText('$0.00')).toBeInTheDocument();
-    });
-
-    it('renders with zero hourly rate (non-finite duration)', async () => {
-      const bookingZeroDuration = {
-        ...mockBooking,
-        duration: 0,
-        endTime: '',
-        basePrice: 0,
-      };
-
-      usePricingFloorsMock.mockReturnValue({
-        floors: {
-          private_in_person: 3000,
-          private_remote: 2000,
-        },
-        config: { student_fee_pct: 0.15 },
-      });
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingZeroDuration} />);
-
-      // hourlyRate is 0, clientFloorViolation should be null (early return)
-      expect(screen.queryByText(/Minimum for/)).not.toBeInTheDocument();
-    });
-
-    it('renders with no onCreditToggle (credits toggle button hidden)', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 10000,
-          student_fee_cents: 1500,
-          student_pay_cents: 10500,
-          credit_applied_cents: 1000,
-          line_items: [],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={10}
-          creditsAccordionExpanded={true}
-          // Deliberately omit onCreditToggle
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText('Credits to apply:')).toBeInTheDocument();
-      });
-
-      // When onCreditToggle is undefined, the Remove credits / Apply full balance button is not shown
-      expect(screen.queryByText('Remove credits')).not.toBeInTheDocument();
-      expect(screen.queryByText('Apply full balance')).not.toBeInTheDocument();
-    });
-
-    it('renders with no onCreditAmountChange (slider still renders)', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 10000,
-          student_fee_cents: 1500,
-          student_pay_cents: 10500,
-          credit_applied_cents: 1000,
-          line_items: [],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={10}
-          creditsAccordionExpanded={true}
-          // Deliberately omit onCreditAmountChange
-        />
-      );
-
-      // Slider is rendered without crashing even without onCreditAmountChange
-      const slider = screen.getByRole('slider');
-      expect(slider).toBeInTheDocument();
-    });
-
-    it('renders without onChangePaymentMethod (change button hidden)', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          cardLast4="4242"
-          cardBrand="Visa"
-          // Deliberately omit onChangePaymentMethod
-        />
-      );
-
-      // Expand payment section
-      fireEvent.click(screen.getByText('Payment Method'));
-
-      await waitFor(() => {
-        expect(screen.getByText(/Visa ending in 4242/)).toBeInTheDocument();
-      });
-
-      // Change button still renders but calls no-op if onChangePaymentMethod is undefined
-      const changeBtn = screen.getByText('Change');
-      fireEvent.click(changeBtn);
-      // No crash means the branch is covered
-    });
-
-    it('renders without onBookingUpdate (location changes do not update booking)', async () => {
-      const user = setupUser();
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          // Deliberately omit onBookingUpdate
-        />
-      );
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-      const onlineOption = await screen.findByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-
-      // Component doesn't crash when onBookingUpdate is missing
-      expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
-    });
-
-    it('covers displayAppliedCreditCents >= totalBeforeCreditsCents branch (full coverage by credits)', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 5000,
-          student_fee_cents: 750,
-          student_pay_cents: 0,
-          credit_applied_cents: 5750,
-          line_items: [],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={100}
-          creditsUsed={57.5}
-          creditsAccordionExpanded={true}
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText('Entire lesson covered by credits!')).toBeInTheDocument();
-      });
-    });
-
-    it('covers collapsedHasCredits sr-only branch', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 10000,
-          student_fee_cents: 1500,
-          student_pay_cents: 9000,
-          credit_applied_cents: 2500,
-          line_items: [],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={25}
-          creditsAccordionExpanded={false}
-        />
-      );
-
-      // Credits are applied but accordion is collapsed -> sr-only text shows
-      const srTexts = document.querySelectorAll('.sr-only');
-      const hasUsingSrText = Array.from(srTexts).some(el => el.textContent?.includes('Using'));
-      expect(hasUsingSrText).toBe(true);
-    });
-
-    it('covers instructorFirstName fallback when name is empty', () => {
-      const emptyNameBooking = {
-        ...mockBooking,
-        instructorName: '',
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={emptyNameBooking} />);
-
-      // instructorFirstName falls back to 'Instructor'
-      // This renders in location type cards (e.g., "At Instructor's location")
-
-    });
-
-    it('covers booking.address lat/lng/placeId initialization', () => {
-      const bookingWithAddress = {
-        ...mockBooking,
-        location: '123 Main St, New York, NY 10001',
-        address: {
-          fullAddress: '123 Main St, New York, NY 10001',
-          lat: 40.7128,
-          lng: -74.006,
-          placeId: 'place_addr_1',
-        },
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithAddress} />);
-
-
-    });
-
-    it('covers booking.address with null lat/lng/placeId', () => {
-      const bookingWithNullAddress = {
-        ...mockBooking,
-        location: '123 Main St, New York, NY 10001',
-        address: {
-          fullAddress: '123 Main St, New York, NY 10001',
-        },
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithNullAddress} />);
-
-
-    });
-
-    it('covers resolvedServiceId from sessionStorage fallback', async () => {
-      // Store serviceId in sessionStorage
-      window.sessionStorage.setItem('serviceId', 'session-service-id');
-
-      const bookingNoServiceId = {
-        ...mockBooking,
-        // No metadata.serviceId, no booking.serviceId
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoServiceId} />);
-
-
-
-      window.sessionStorage.removeItem('serviceId');
-    });
-
-    it('covers resolvedServiceId returning null when no source provides it', async () => {
-      window.sessionStorage.removeItem('serviceId');
-
-      const bookingNoServiceId = {
-        ...mockBooking,
-      };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoServiceId} />);
-
-
-    });
-
-    it('covers fallback when location type is not in availableLocationTypes', async () => {
-      // Setup: instructor only offers online, but booking has student_location
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-      });
-
-      const inPersonBooking = {
-        ...mockBooking,
-        location: '123 Main St',
-        metadata: {
-          modality: 'in_person',
-        },
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={inPersonBooking as BookingPayment}
-        />
-      );
-
-      // Wait for services to load - location type should fall back since
-      // student_location is not available (instructor doesn't offer travel)
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-    });
-
-    it('covers instructor_location type with teaching locations', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: '456 Studio Rd', label: 'Main Studio', lat: 40.7, lng: -74.0, place_id: 'p1' },
-          { address: '789 Practice Ave', lat: 40.71, lng: -74.01 },
-        ],
-        preferred_public_spaces: [
-          { address: 'Central Park', label: 'Central Park', lat: 40.78, longitude: -73.97, placeId: 'park1' },
-        ],
-      });
-
-      const bookingAtInstructor = {
-        ...mockBooking,
-        location: '456 Studio Rd',
-        metadata: {
-          modality: 'instructor_location',
-          location_type: 'instructor_location',
-        },
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingAtInstructor as BookingPayment}
-        />
-      );
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Should show teaching locations and the instructor's location option
-      await waitFor(() => {
-        expect(screen.getByText('Main Studio')).toBeInTheDocument();
-      });
-    });
-
-    it('covers teaching location with missing address (filtered out)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: '', label: 'Empty Address' },
-          { address: '  ', label: 'Whitespace Only' },
-          { address: '456 Studio Rd', label: 'Valid Studio', id: 'loc-1' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-    });
-
-    it('covers teaching location with longitude field (alternate name)', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          {
-            address: '456 Studio Rd',
-            latitude: 40.7128,
-            longitude: -74.006,
-            place_id: 'p_snake',
-          },
-        ],
-        preferred_public_spaces: [
-          {
-            address: 'Central Park',
-            latitude: 40.78,
-            longitude: -73.97,
-            placeId: 'park_camel',
-          },
-        ],
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-    });
-
-    it('covers parseAddressComponents with geometry.location fallback for lat/lng', async () => {
-      getPlaceDetailsMock.mockResolvedValue({
-        data: {
-          line1: '100 Test St',
-          city: 'Test City',
-          state: 'TS',
-          postal_code: '12345',
-          geometry: {
-            location: {
-              lat: 40.1234,
-              lng: -74.5678,
-            },
-          },
-        },
-        error: null,
-      });
-
-      const bookingNoLocation = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-
-      // Trigger address suggestion to exercise parseAddressComponents
-      fireEvent.click(screen.getByTestId('select-suggestion-with-placeid'));
-
-      await waitFor(() => {
-        // The address should be parsed from the API response
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-    });
-
-    it('covers parseAddressComponents with string lat/lng values', async () => {
-      getPlaceDetailsMock.mockResolvedValue({
-        data: {
-          line1: '200 String Coord St',
-          city: 'Numville',
-          state: 'NC',
-          postal_code: '99999',
-          latitude: '40.555',
-          longitude: '-74.111',
-          provider_id: 'prov_123',
-        },
-        error: null,
-      });
-
-      const bookingNoLocation = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('select-suggestion-with-placeid'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-    });
-
-    it('covers savedAddress.latitude/longitude as non-number (typeof !== number)', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      // The mock AddressSelector provides a saved address with numeric lat/lng.
-      // Test is about ensuring the branch runs through applySavedAddress.
-      fireEvent.click(screen.getByTestId('select-saved-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-    });
-
-    it('covers handleSelectSavedAddress with null (deselect)', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      // First select an address
-      fireEvent.click(screen.getByTestId('select-saved-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-
-      // Click the change button to go back to editing, then deselect
-      fireEvent.click(screen.getByText('Change'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('deselect-saved-address-btn'));
-
-      // Component should still work after deselect
-      expect(screen.getByText('Lesson Location')).toBeInTheDocument();
-    });
-
-    it('covers handleEnterNewAddress callback', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('enter-new-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-      });
-    });
-
-    it('covers credit expiry date rendered as Date object', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditEarliestExpiry={new Date('2025-12-31')}
-        />
-      );
-
-      expect(screen.getByText(/Earliest credit expiry:/)).toBeInTheDocument();
-    });
-
-    it('covers null creditEarliestExpiry explicitly', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditEarliestExpiry={null}
-        />
-      );
-
-      expect(screen.getByText('Credits expire 12 months after issue date')).toBeInTheDocument();
-    });
-
-    it('covers total display fallback when preview null and error null', async () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: null,
-        loading: false,
-        error: null,
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      // Should show skeleton (not "Unavailable") when no preview and no error
-      expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
-    });
-
-    it('covers previewAdditionalLineItems with negative amount_cents', () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 10000,
-          student_fee_cents: 1500,
-          student_pay_cents: 10500,
-          credit_applied_cents: 0,
-          line_items: [
-            { label: 'Special Discount', amount_cents: -300, type: 'discount' },
-          ],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      // Negative amount line item gets green styling (text-green-600)
-      expect(screen.getByText('Special Discount')).toBeInTheDocument();
-    });
-
-    it('covers previewAdditionalLineItems filter: item matching studentFeeCents', () => {
-      usePricingPreviewMock.mockReturnValue({
-        preview: {
-          base_price_cents: 10000,
-          student_fee_cents: 1500,
-          student_pay_cents: 11500,
-          credit_applied_cents: 0,
-          line_items: [
-            { label: 'Mystery Fee', amount_cents: 1500, type: 'fee' },
-            { label: 'Custom Add-on', amount_cents: 200, type: 'fee' },
-          ],
-        },
-        loading: false,
-        error: null,
-      });
-
-      render(<PaymentConfirmation {...defaultProps} />);
-
-      // Mystery Fee (matching student_fee_cents) should be filtered out
-      expect(screen.queryByText('Mystery Fee')).not.toBeInTheDocument();
-      // Custom Add-on should be shown
-      expect(screen.getByText('Custom Add-on')).toBeInTheDocument();
-    });
-
-    it('covers time selection modal with onBookingUpdate', async () => {
-      const onBookingUpdate = jest.fn();
-      const user = setupUser();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [30, 60, 90],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
-          },
-        ],
-      });
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          onBookingUpdate={onBookingUpdate}
-          onClearFloorViolation={jest.fn()}
-        />
-      );
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-
-      // Open modal and confirm time selection
-      await user.click(screen.getByText('Edit lesson'));
-      expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
-
-      await user.click(screen.getByTestId('confirm-time-selection'));
-
-      // onBookingUpdate should be called with new date/time/duration
-      expect(onBookingUpdate).toHaveBeenCalled();
-    });
-
-    it('covers promoApplyDisabled when referral is active', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={1000}
-        />
-      );
-
-      // Referral active -> promo section shows the referral message
-      expect(screen.getByText(/referral credit applied/i)).toBeInTheDocument();
-    });
-
-    it('covers isLastMinute false branch for cancellation policy text', async () => {
-      const standardBooking = {
-        ...mockBooking,
-        bookingType: BookingType.STANDARD,
-      };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={standardBooking} />
-      );
-
-      // Standard booking shows "Cancel free >24hrs"
-      expect(screen.getByText(/Cancel free >24hrs/)).toBeInTheDocument();
-    });
-
-    it('covers isLastMinute true branch (no cancel free text)', async () => {
-      const lastMinuteBooking = {
-        ...mockBooking,
-        bookingType: BookingType.LAST_MINUTE,
-      };
-
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={lastMinuteBooking} />
-      );
-
-      // Last minute booking should NOT show "Cancel free >24hrs"
-      const secureText = screen.getByText(/Secure payment/);
-      expect(secureText.textContent).not.toContain('Cancel free >24hrs');
-    });
-
-    it('covers location initialization from metadata location_type: instructor_location', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: '456 Studio Rd' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      const bookingAtInstructor = {
-        ...mockBooking,
-        location: '456 Studio Rd',
-        metadata: {
-          location_type: 'studio',
-        },
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingAtInstructor as BookingPayment}
-        />
-      );
-
-      await waitFor(() => {
-        expect(fetchInstructorProfileMock).toHaveBeenCalled();
-      });
-    });
-
-    it('re-syncs the format summary when booking metadata changes for the same booking id', async () => {
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [],
-      });
-
-      const bookingTravel = {
-        ...mockBooking,
-        bookingId: '',
-        serviceId: 'svc-1',
-        metadata: {
-          location_type: 'student_location',
-        },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      const { rerender } = await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={bookingTravel} />
-      );
-
-      await waitFor(() => {
-        expectFormatSummary('At your location', 'Confirm where your instructor should meet you');
-      });
-
-      const bookingAtInstructor = {
-        ...bookingTravel,
-        location: "At instructor's location",
-        metadata: {
-          location_type: 'instructor_location',
-        },
-      } as BookingPayment & { metadata: Record<string, unknown> };
-
-      rerender(
-        <PaymentConfirmation {...defaultProps} booking={bookingAtInstructor} />
-      );
-
-      await waitFor(() => {
-        expectFormatSummary("At instructor's location", "You'll travel to the instructor");
-      });
-    });
-
-    it('covers location initialization from metadata location_type: neutral', async () => {
-      const bookingNeutral = {
-        ...mockBooking,
-        location: 'Central Park',
-        metadata: {
-          location_type: 'neutral_location',
-        },
-      };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingNeutral as BookingPayment}
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
-      });
-    });
-
-    it('covers handleLocationTypeChange for instructor_location', async () => {
-      const user = setupUser();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: true,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [
-          { address: '456 Studio Rd' },
-        ],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Wait for the instructor location button after profile fetch resolves
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /at john's location/i })).toBeInTheDocument();
-      });
-
-      const instructorOption = screen.getByRole('button', { name: /at john's location/i });
-      await user.click(instructorOption);
-    });
-
-    it('covers handleLocationTypeChange with selectedSavedAddress', async () => {
-      const user = setupUser();
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingNoLoc}
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      // Select saved address first
-      fireEvent.click(screen.getByTestId('select-saved-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-
-      // Now toggle to online and back to in-person to test re-applying saved address
-      const onlineOption = screen.getByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-
-      const inPersonOption = screen.getByRole('button', { name: /in person/i });
-      await user.click(inPersonOption);
-
-      // Should re-apply the saved address
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-    });
-
-    it('covers handleChangeLocationClick with non-travel location', async () => {
-      const user = setupUser();
-
-      fetchInstructorProfileMock.mockResolvedValue({
-        services: [
-          {
-            id: 'svc-1',
-            skill: 'Piano',
-            min_hourly_rate: 100,
-            duration_options: [60],
-            offers_online: true,
-            offers_travel: true,
-            offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-              { format: 'student_location', hourly_rate: 100 },
-            ],
-          },
-        ],
-        preferred_teaching_locations: [],
-        preferred_public_spaces: [],
-      });
-
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // Wait for location option buttons to render after profile fetch
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
-      });
-
-      // Click online
-      const onlineOption = screen.getByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-    });
-
-    it('covers travelFallbackType from lastInPersonLocationType', async () => {
-      const user = setupUser();
-      const onBookingUpdate = jest.fn();
-
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onBookingUpdate={onBookingUpdate}
-        />
-      );
-
-      // Expand location section
-      fireEvent.click(screen.getByText('Lesson Location'));
-
-      // The in-person option uses travelFallbackType
-      const inPersonOption = await screen.findByRole('button', { name: /in person/i });
-      await user.click(inPersonOption);
-
-      // Toggle to online
-      const onlineOption = screen.getByRole('button', { name: /online/i });
-      await user.click(onlineOption);
-
-      // Toggle back to in-person - should use lastInPersonLocationType
-      await user.click(inPersonOption);
-
-      expect(inPersonOption).toHaveAttribute('aria-pressed', 'true');
-    });
-
-    it('covers buildSavedAddressLine1 with empty street_line2', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      // The mock address has street_line2 set to 'Apt 7'
-      // The buildSavedAddressLine1 joins line1 and line2 with comma
-      fireEvent.click(screen.getByTestId('select-saved-address-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-    });
-
-    it('handles sparse saved addresses without carrying over bogus coords or fields', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-
-      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId('select-saved-address-sparse-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Saved address')).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByText('Change'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('addr-street')).toHaveValue('');
-        expect(screen.getByTestId('addr-city')).toHaveValue('');
-        expect(screen.getByTestId('addr-state')).toHaveValue('');
-        expect(screen.getByTestId('addr-zip')).toHaveValue('');
-      });
-    });
-
-    it('handleEnterNewAddress flushes requestAnimationFrame focus callback (line 278)', async () => {
-      const bookingNoLoc = { ...mockBooking, location: '' };
-      const requestAnimationFrameSpy = jest
-        .spyOn(window, 'requestAnimationFrame')
-        .mockImplementation((callback: FrameRequestCallback) => {
-          callback(0);
-          return 1;
-        });
-
-      try {
-        render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
-
-        await waitFor(() => {
-          expect(screen.getByTestId('address-selector')).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByTestId('enter-new-address-btn'));
-
-        await waitFor(() => {
-          expect(screen.getByTestId('addr-street')).toBeInTheDocument();
-        });
-
-        expect(document.activeElement).toBe(screen.getByTestId('addr-street'));
-      } finally {
-        requestAnimationFrameSpy.mockRestore();
-      }
-    });
-  });
+  });;
 
   describe('normalizedLessonDuration fallback from booking.duration (line 959)', () => {
     it('falls back to booking.duration when durationMinutes rounds to 0', async () => {
@@ -10192,34 +8072,79 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('handleChangeLocationClick sets locationType to student_location (line 1157)', () => {
-    it('sets student_location when not travel location', async () => {
+    it('re-enters location editing from a saved address summary', async () => {
       const user = setupUser();
-      // Booking with online location initially
-      const onlineBooking = {
-        ...mockBooking,
-        location: 'online',
-        metadata: {
-          location_type: 'online',
-          serviceId: 'svc-1',
-        },
-      } as BookingPayment & { metadata: Record<string, unknown> };
+      const onClearFloorViolation = jest.fn();
 
       await renderWithConflictCheck(
         <PaymentConfirmation
           {...defaultProps}
-          booking={onlineBooking}
-          onClearFloorViolation={jest.fn()}
+          onClearFloorViolation={onClearFloorViolation}
         />
       );
 
-      // Look for the "Change" link/button for location
-      const changeButtons = screen.queryAllByText('Change');
-      if (changeButtons.length > 0) {
-        // Click the last Change button (location change)
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Saved address')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText('Change'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+
+      expect(onClearFloorViolation).toHaveBeenCalled();
+    });
+
+    it('flushes the change-location requestAnimationFrame focus callback', async () => {
+      const user = setupUser();
+      const onClearFloorViolation = jest.fn();
+      const queuedAnimationFrames: FrameRequestCallback[] = [];
+      const requestAnimationFrameSpy = jest
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((callback: FrameRequestCallback) => {
+          queuedAnimationFrames.push(callback);
+          return 1;
+        });
+      const focusSpy = jest.spyOn(HTMLInputElement.prototype, 'focus');
+
+      try {
+        await renderWithConflictCheck(
+          <PaymentConfirmation
+            {...defaultProps}
+            onClearFloorViolation={onClearFloorViolation}
+          />
+        );
+
+        fireEvent.click(screen.getByText('Lesson Location'));
+
+        await waitFor(() => {
+          expect(screen.getByText('Saved address')).toBeInTheDocument();
+        });
+
+        const frameCountBeforeClick = queuedAnimationFrames.length;
+        focusSpy.mockClear();
+        const changeButtons = screen.getAllByText('Change');
         await user.click(changeButtons[changeButtons.length - 1]!);
+
+        await waitFor(() => {
+          expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+        });
+
+        expect(queuedAnimationFrames.length).toBeGreaterThan(frameCountBeforeClick);
+        act(() => {
+          queuedAnimationFrames.at(-1)?.(0);
+        });
+
+        expect(onClearFloorViolation).toHaveBeenCalled();
+        expect(focusSpy).toHaveBeenCalledTimes(1);
+        expect(document.activeElement).toBe(screen.getByTestId('addr-street'));
+      } finally {
+        focusSpy.mockRestore();
+        requestAnimationFrameSpy.mockRestore();
       }
-
-
     });
   });
 
@@ -11713,6 +9638,49 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn');
       });
       expect(getPlaceDetailsMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('passes empty location types into the reschedule modal when format prices are missing', async () => {
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-bare',
+            skill: 'Piano',
+            min_hourly_rate: 100,
+            duration_options: undefined,
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: false,
+            format_prices: undefined,
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        metadata: { serviceId: 'svc-bare' },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={booking} />,
+      );
+
+      fireEvent.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(latestTimeSelectionModalProps).toMatchObject({
+          instructor: {
+            services: [
+              expect.objectContaining({
+                duration_options: [30, 60, 90],
+                location_types: [],
+              }),
+            ],
+          },
+        });
+      });
     });
   });
 });

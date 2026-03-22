@@ -24,7 +24,8 @@ class TestCreateReferralBonusTransfer:
             destination_account_id="acct_456",
             amount_cents=7500,
             referrer_user_id="referrer_789",
-            referred_instructor_id="referred_012",
+            referred_user_id="referred_012",
+            referral_type="instructor",
             was_founding_bonus=True,
         )
 
@@ -42,7 +43,8 @@ class TestCreateReferralBonusTransfer:
             destination_account_id="acct_referrer",
             amount_cents=5000,
             referrer_user_id="referrer_789",
-            referred_instructor_id="referred_012",
+            referred_user_id="referred_012",
+            referral_type="instructor",
             was_founding_bonus=False,
         )
 
@@ -59,7 +61,8 @@ class TestCreateReferralBonusTransfer:
             destination_account_id="acct_456",
             amount_cents=7500,
             referrer_user_id="referrer_789",
-            referred_instructor_id="referred_012",
+            referred_user_id="referred_012",
+            referral_type="instructor",
             was_founding_bonus=True,
         )
 
@@ -76,7 +79,8 @@ class TestCreateReferralBonusTransfer:
             destination_account_id="acct_456",
             amount_cents=7500,
             referrer_user_id="referrer_789",
-            referred_instructor_id="referred_012",
+            referred_user_id="referred_012",
+            referral_type="instructor",
             was_founding_bonus=True,
         )
 
@@ -84,7 +88,8 @@ class TestCreateReferralBonusTransfer:
         assert metadata["type"] == "instructor_referral_bonus"
         assert metadata["payout_id"] == "payout_123"
         assert metadata["referrer_user_id"] == "referrer_789"
-        assert metadata["referred_instructor_id"] == "referred_012"
+        assert metadata["referred_user_id"] == "referred_012"
+        assert metadata["referral_type"] == "instructor"
         assert metadata["was_founding_bonus"] == "true"
 
     @patch("stripe.Transfer.create")
@@ -99,7 +104,8 @@ class TestCreateReferralBonusTransfer:
                 destination_account_id="acct_456",
                 amount_cents=7500,
                 referrer_user_id="referrer_789",
-                referred_instructor_id="referred_012",
+                referred_user_id="referred_012",
+                referral_type="instructor",
                 was_founding_bonus=True,
             )
 
@@ -113,10 +119,30 @@ class TestCreateReferralBonusTransfer:
             destination_account_id="acct_456",
             amount_cents=7500,
             referrer_user_id="referrer_789",
-            referred_instructor_id="referred_012",
+            referred_user_id="referred_012",
+            referral_type="instructor",
             was_founding_bonus=True,
         )
 
         description = mock_stripe_create.call_args.kwargs["description"]
         assert "Founding" in description
         assert "$75" in description
+
+    @patch("stripe.Transfer.create")
+    def test_student_referral_description(self, mock_stripe_create, db):
+        mock_stripe_create.return_value = MagicMock(id="tr_test123")
+
+        service = StripeService(db, config_service=Mock(), pricing_service=Mock())
+        service.create_referral_bonus_transfer(
+            payout_id="payout_student",
+            destination_account_id="acct_456",
+            amount_cents=2000,
+            referrer_user_id="referrer_789",
+            referred_user_id="student_012",
+            referral_type="student",
+            was_founding_bonus=False,
+        )
+
+        call_kwargs = mock_stripe_create.call_args.kwargs
+        assert call_kwargs["description"] == "Student referral bonus - $20"
+        assert call_kwargs["metadata"]["type"] == "student_referral_bonus"

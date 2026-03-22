@@ -8,12 +8,9 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback, startTransition, type KeyboardEvent, Fragment } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
-import { ArrowLeft, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import {
   useAddReaction,
   useRemoveReaction,
@@ -25,6 +22,8 @@ import { sendTypingIndicator as sendConversationTypingIndicator } from '@/src/ap
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { logger } from '@/lib/logger';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { useEmbedded } from '../_embedded/EmbeddedContext';
 
 // Extracted components and hooks
 import {
@@ -70,9 +69,31 @@ function getFiltersForDisplay(
   return { stateFilter, apiTypeFilter };
 }
 
-export default function MessagesPage() {
+export type MessagesViewerRole = 'instructor' | 'student';
+
+type MessagesPanelContentProps = {
+  viewerRole?: MessagesViewerRole;
+};
+
+export function MessagesPanelContent({
+  viewerRole = 'instructor',
+}: MessagesPanelContentProps) {
   const searchParams = useSearchParams();
   const { user: currentUser, isLoading: isLoadingUser } = useAuthStatus();
+  const embedded = useEmbedded();
+  const counterpartLabel = viewerRole === 'student' ? 'Instructor' : 'Student';
+  const counterpartPluralLabel = viewerRole === 'student' ? 'Instructors' : 'Students';
+  const dashboardSubtitle = viewerRole === 'student'
+    ? 'Communicate with instructors and platform.'
+    : 'Communicate with students and platform.';
+  const bookingHrefForId = useCallback(
+    (bookingId: string) => (
+      viewerRole === 'student'
+        ? `/student/lessons/${bookingId}`
+        : `/instructor/bookings/${bookingId}`
+    ),
+    [viewerRole],
+  );
 
   // Read conversation ID from URL parameter (for deep linking from MessageInstructorButton)
   const conversationFromUrl = searchParams.get('conversation');
@@ -87,12 +108,6 @@ export default function MessagesPage() {
   const [messageDisplay, setMessageDisplay] = useState<MessageDisplayMode>('inbox');
   const [composeRecipient, setComposeRecipient] = useState<ConversationEntry | null>(null);
   const [composeRecipientQuery, setComposeRecipientQuery] = useState('');
-
-  // Header dropdowns
-  const msgRef = useRef<HTMLDivElement | null>(null);
-  const notifRef = useRef<HTMLDivElement | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
 
   // Auto-scroll ref
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -111,16 +126,7 @@ export default function MessagesPage() {
     isLoadingUser,
     stateFilter,
     typeFilter: apiTypeFilter,
-  });
-
-  // Global unread count and conversations for notification badge (always unfiltered)
-  const {
-    unreadConversationsCount: globalUnreadCount,
-    unreadConversations: globalUnreadConversations,
-  } = useConversations({
-    currentUserId: currentUser?.id,
-    isLoadingUser,
-    // No filters - always get global inbox unread count
+    counterpartFallbackLabel: counterpartLabel,
   });
 
   // Mutation hook for conversation state management
@@ -546,18 +552,6 @@ export default function MessagesPage() {
     return conv?.primaryBookingId ?? (conv?.bookingIds[0] ?? null);
   }, [conversations]);
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (msgRef.current?.contains(target) || notifRef.current?.contains(target)) return;
-      setShowMessages(false);
-      setShowNotifications(false);
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, []);
-
   // Auto-select first conversation (but only if current selection is valid)
   useEffect(() => {
     if (mailSection !== 'inbox' || filteredConversations.length === 0) return;
@@ -722,112 +716,34 @@ export default function MessagesPage() {
     : null;
 
   return (
-    <div className="h-screen insta-dashboard-page flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="insta-dashboard-header px-4 sm:px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between max-w-full">
-          <div className="flex items-center gap-4">
-            <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">
-                iNSTAiNSTRU
-              </h1>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2 pr-0 sm:pr-4">
-            {/* Messages dropdown */}
-            <div className="relative" ref={msgRef}>
-              <button
-                type="button"
-                onClick={() => { setShowMessages((v) => !v); setShowNotifications(false); }}
-                className="group relative inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors"
-                title="Messages"
-              >
-                <MessageSquare className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showMessages ? 'currentColor' : undefined }} />
-                {globalUnreadCount > 0 && (
-                  <span className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex min-w-[1.2rem] h-5 items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[0.65rem] font-semibold text-white">
-                    {globalUnreadCount > 9 ? '9+' : globalUnreadCount}
-                  </span>
-                )}
-              </button>
-              {showMessages && (
-                <div className="insta-header-dropdown absolute right-0 mt-2 w-80 rounded-lg z-50">
-                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    {globalUnreadConversations.length === 0 ? (
-                      <>
-                        <li className="px-2 py-2 text-sm text-gray-600 dark:text-gray-400">No unread messages.</li>
-                        <li>
-                          <button type="button" className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded" onClick={() => setShowMessages(false)}>
-                            Open inbox
-                          </button>
-                        </li>
-                      </>
-                    ) : (
-                      globalUnreadConversations.map((conv) => (
-                        <li key={conv.id}>
-                          <button type="button" onClick={() => { setShowMessages(false); setMessageDisplay('inbox'); handleConversationSelect(conv.id); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{conv.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{conv.lastMessage || 'New message'}</p>
-                          </button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
-            {/* Notifications dropdown */}
-            <NotificationBell
-              isOpen={showNotifications}
-              onOpenChange={(open) => {
-                setShowNotifications(open);
-                if (open) {
-                  setShowMessages(false);
-                }
-              }}
-              containerRef={notifRef}
-            />
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
+    <div className="flex h-full min-h-[calc(100vh-12rem)] flex-col">
+        <SectionHeroCard
+          id={embedded ? 'messages-first-card' : undefined}
+          icon={MessageSquare}
+          title="Messages"
+          subtitle={dashboardSubtitle}
+        />
 
-      <div className="flex-1 overflow-hidden">
-        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl h-full flex flex-col">
-        {/* Mobile back */}
-        <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE] mb-4 sm:hidden">
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to dashboard</span>
-        </Link>
-
-        {/* Title card */}
-        <div className="insta-surface-card p-6 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <MessageSquare className="w-6 h-6 text-[#7E22CE]" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Messages</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Communicate with students and platform</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Templates toggle */}
-        <div className="insta-surface-card p-4 mb-4">
+        <div className="mb-4 insta-surface-card p-4">
           <button
             type="button"
             onClick={() => setMailSection(mailSection === 'templates' ? 'inbox' : 'templates')}
-            className="w-full flex items-center justify-between text-left"
+            className="flex w-full items-center justify-between text-left"
           >
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Communication templates</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Access saved templates for quick replies.</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Communication templates
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Access saved templates for quick replies.
+              </p>
             </div>
-            <ChevronDown className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform ${mailSection === 'templates' ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              className={`h-5 w-5 text-gray-500 transition-transform dark:text-gray-400 ${mailSection === 'templates' ? 'rotate-180' : ''}`}
+            />
           </button>
         </div>
 
-        {/* Main content */}
         {mailSection === 'templates' ? (
           <TemplateEditor
             templates={templates}
@@ -836,7 +752,10 @@ export default function MessagesPage() {
             onTemplateSelect={setSelectedTemplateId}
             onTemplateCreate={() => {
               const newId = `template-${Date.now()}`;
-              setTemplates((prev) => [...prev, { id: newId, subject: 'Untitled template', preview: '', body: '' }]);
+              setTemplates((prev) => [
+                ...prev,
+                { id: newId, subject: 'Untitled template', preview: '', body: '' },
+              ]);
               setTemplateDrafts((prev) => ({ ...prev, [newId]: '' }));
               setSelectedTemplateId(newId);
             }}
@@ -845,8 +764,8 @@ export default function MessagesPage() {
             onTemplatesUpdate={setTemplates}
           />
         ) : (
-          <div className="flex-1 insta-surface-card overflow-hidden flex flex-col">
-            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          <div className="flex min-h-[680px] flex-1 flex-col overflow-hidden insta-surface-card">
+            <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
               {/* Sidebar */}
               <ConversationList
                 conversations={conversationSource}
@@ -856,6 +775,7 @@ export default function MessagesPage() {
                 messageDisplay={messageDisplay}
                 isLoading={isLoadingConversations}
                 error={conversationError}
+                counterpartPluralLabel={counterpartPluralLabel}
                 archivedMessagesByThread={archivedMessagesByThread}
                 trashMessagesByThread={trashMessagesByThread}
                 onSearchChange={setSearchQuery}
@@ -876,6 +796,8 @@ export default function MessagesPage() {
                       composeRecipient={composeRecipient}
                       composeRecipientQuery={composeRecipientQuery}
                       composeSuggestions={composeSuggestions}
+                      counterpartLabel={counterpartLabel}
+                      bookingHrefForId={bookingHrefForId}
                       onComposeRecipientQueryChange={setComposeRecipientQuery}
                       onComposeRecipientSelect={(conv) => { setComposeRecipient(conv); setComposeRecipientQuery(''); }}
                       onComposeRecipientClear={() => { setComposeRecipient(null); setComposeRecipientQuery(''); }}
@@ -1016,8 +938,29 @@ export default function MessagesPage() {
             </div>
           </div>
         )}
-        </div>
       </div>
-    </div>
   );
+}
+
+export default function MessagesPage() {
+  const embedded = useEmbedded();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dashboardHref = useMemo(() => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set('panel', 'messages');
+    return `/instructor/dashboard?${nextParams.toString()}`;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace(dashboardHref, { scroll: false });
+    }
+  }, [dashboardHref, embedded, router]);
+
+  if (!embedded) {
+    return null;
+  }
+
+  return <MessagesPanelContent />;
 }

@@ -42,6 +42,7 @@ from ..core.exceptions import ServiceException
 from ..models.booking import Booking
 from ..models.notification import Notification
 from ..models.user import User
+from ..repositories.conversation_repository import ConversationRepository
 from ..repositories.notification_repository import NotificationRepository
 from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
@@ -230,6 +231,7 @@ class NotificationService(BaseService):
         notification_repository: Optional[NotificationRepository],
     ) -> None:
         self.notification_repository = notification_repository or NotificationRepository(db)
+        self.conversation_repository = ConversationRepository(db)
         self.user_repository = UserRepository(db)
 
     def _init_push_service(
@@ -1344,6 +1346,23 @@ class NotificationService(BaseService):
             # Determine if sender is instructor or student
             sender_role = "instructor" if sender_id == booking.instructor_id else "student"
             sender_name = sender.first_name or sender.email or "Someone"
+            conversation = self.conversation_repository.find_by_pair(
+                booking.student_id,
+                booking.instructor_id,
+            )
+            conversation_id = getattr(conversation, "id", None)
+
+            notification_data: dict[str, Any] = {
+                "booking_id": booking.id,
+                "sender_id": sender_id,
+            }
+            if conversation_id:
+                notification_data["conversation_id"] = conversation_id
+                notification_data["url"] = (
+                    f"/instructor/messages?conversation={conversation_id}"
+                    if recipient_id == booking.instructor_id
+                    else f"/student/messages?conversation={conversation_id}"
+                )
 
             message_preview = message_content.strip()
             if len(message_preview) > 200:
@@ -1356,10 +1375,7 @@ class NotificationService(BaseService):
                     notification_type="booking_new_message",
                     title=f"New message from {sender_name}",
                     body=message_preview,
-                    data={
-                        "booking_id": booking.id,
-                        "sender_id": sender_id,
-                    },
+                    data=notification_data,
                     send_push=True,
                 )
 

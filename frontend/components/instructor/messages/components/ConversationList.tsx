@@ -10,7 +10,7 @@
 
 import { Pencil, Search } from 'lucide-react';
 import type { ConversationEntry, MessageWithAttachments, MessageDisplayMode } from '../types';
-import { COMPOSE_THREAD_ID, FILTER_OPTIONS } from '../constants';
+import { COMPOSE_THREAD_ID, getFilterOptions } from '../constants';
 import { ConversationItem } from './ConversationItem';
 
 export type ConversationListProps = {
@@ -21,6 +21,7 @@ export type ConversationListProps = {
   messageDisplay: MessageDisplayMode;
   isLoading: boolean;
   error: string | null;
+  counterpartPluralLabel?: string | undefined;
   archivedMessagesByThread: Record<string, MessageWithAttachments[]>;
   trashMessagesByThread: Record<string, MessageWithAttachments[]>;
   onSearchChange: (query: string) => void;
@@ -39,6 +40,7 @@ export function ConversationList({
   messageDisplay,
   isLoading,
   error,
+  counterpartPluralLabel = 'Students',
   archivedMessagesByThread,
   trashMessagesByThread,
   onSearchChange,
@@ -48,6 +50,8 @@ export function ConversationList({
   onConversationArchive,
   onConversationDelete,
 }: ConversationListProps) {
+  const filterOptions = getFilterOptions(counterpartPluralLabel);
+
   return (
     <aside className="w-full lg:w-80 xl:w-96 border-b border-gray-200 dark:border-gray-700 lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-full overflow-hidden">
       {/* Search and compose */}
@@ -74,7 +78,7 @@ export function ConversationList({
 
       {/* Filters */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-1.5 items-center">
-        {FILTER_OPTIONS.map((option) => {
+        {filterOptions.map((option) => {
           const isActive = option.value === typeFilter && messageDisplay === 'inbox';
           return (
             <button

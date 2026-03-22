@@ -3,8 +3,6 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
-import { InstructorReferralPopup } from '@/components/instructor/InstructorReferralPopup';
-import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function InstructorAuthLayout({ children }: { children: React.ReactNode }) {
@@ -13,9 +11,6 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
   const { isAuthenticated, isLoading, user } = useAuth();
   const roles = Array.isArray(user?.roles) ? user?.roles ?? [] : [];
   const isInstructor = roles.includes('instructor');
-  const isOnboardingPage = pathname?.startsWith('/instructor/onboarding') ?? false;
-  const { data: instructorProfile } = useInstructorProfileMe(isInstructor && !isOnboardingPage);
-  const isLive = instructorProfile?.is_live === true;
 
   useEffect(() => {
     if (isLoading) return;
@@ -42,10 +37,5 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
   const isAdmin = roles.includes('admin');
   if (!isAuthenticated || isAdmin || !isInstructor) return null;
 
-  return (
-    <>
-      {children}
-      <InstructorReferralPopup isLive={isLive} />
-    </>
-  );
+  return <>{children}</>;
 }

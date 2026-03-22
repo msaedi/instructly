@@ -1,72 +1,265 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Clock, Copy, DollarSign, ExternalLink, Gift, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Gift,
+  Share2,
+  UserRoundPlus,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import InviteByEmail from '@/features/referrals/InviteByEmail';
 import { shareOrCopy } from '@/features/shared/referrals/share';
-import { formatDisplayName } from '@/lib/format/displayName';
 import {
   formatCents,
-  getPayoutStatusDisplay,
-  useInstructorReferralStats,
-  useReferredInstructors,
+  formatReferralDisplayName,
+  formatReferralRewardDate,
+  getEmptyRewardMessage,
+  getReferralRewardTypeLabel,
+  type InstructorReferralReward,
+  type ReferralRewardTab,
+  useInstructorReferralDashboard,
 } from '@/hooks/queries/useInstructorReferrals';
+import { copyToClipboard } from '@/lib/copy';
+import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
+import { cn } from '@/lib/utils';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
-const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdown'), {
-  ssr: false,
-  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />,
-});
+const REWARD_TABS: ReferralRewardTab[] = ['unlocked', 'pending', 'redeemed'];
 
-const badgeStyles: Record<'gray' | 'yellow' | 'blue' | 'green' | 'red', string> = {
-  gray: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
-  yellow: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300',
-  blue: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
-  green: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300',
-  red: 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300',
-};
+const HOW_IT_WORKS_STEPS = [
+  'Share your unique referral link with students or fellow instructors.',
+  'They sign up and join iNSTAiNSTRU.',
+  'When they complete their first lesson, you earn your reward.',
+];
 
-const formatDate = (value: Date | null) => {
-  if (!value) return '—';
-  return value.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
+function InsetDivider() {
+  return (
+    <div className="px-6 sm:px-8" aria-hidden="true">
+      <div className="border-t border-gray-200 dark:border-gray-700" />
+    </div>
+  );
+}
 
-async function copyToClipboard(text: string) {
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    await navigator.clipboard.writeText(text);
-    return;
+function RewardOfferCard({
+  title,
+  amount,
+}: {
+  title: string;
+  amount: string;
+}) {
+  return (
+    <Card className="insta-surface-card border-gray-200/80 shadow-none">
+      <CardContent className="flex h-full items-start justify-between gap-4 p-6">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+          <p className="max-w-xs text-sm leading-6 text-gray-600 dark:text-gray-400">
+            Paid via Stripe when they complete their first lesson.
+          </p>
+        </div>
+        <Badge variant="success" className="shrink-0 px-3 py-1 text-sm font-semibold">
+          {amount} cash
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Users;
+}) {
+  return (
+    <Card className="insta-surface-card border-gray-200/80 shadow-none">
+      <CardContent className="flex items-start justify-between gap-4 p-6">
+        <div className="space-y-3">
+          <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">
+            {label}
+          </p>
+          <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-[#7E22CE] dark:bg-gray-800">
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatPayoutStatus(status: string | null): string | null {
+  switch (status) {
+    case 'paid':
+      return 'Transferred';
+    case 'failed':
+      return 'Needs attention';
+    case 'pending':
+      return 'Transfer pending';
+    default:
+      return null;
   }
+}
 
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', '');
-  textarea.style.position = 'absolute';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
+function RewardRow({ reward }: { reward: InstructorReferralReward }) {
+  const payoutStatus = formatPayoutStatus(reward.payoutStatus);
+
+  return (
+    <li className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/60">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {formatReferralDisplayName(reward.refereeFirstName, reward.refereeLastInitial)}
+            </p>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {getReferralRewardTypeLabel(reward.referralType)}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {formatReferralRewardDate(reward.date)}
+          </p>
+          {reward.failureReason ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{reward.failureReason}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {payoutStatus ? (
+            <Badge
+              variant={reward.payoutStatus === 'failed' ? 'destructive' : 'secondary'}
+              className="px-2.5 py-1 text-[11px] font-semibold"
+            >
+              {payoutStatus}
+            </Badge>
+          ) : null}
+          <Badge variant="outline" className="border-gray-200 px-2.5 py-1 text-sm font-semibold dark:border-gray-700">
+            {formatCents(reward.amountCents)}
+          </Badge>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function RewardsSection({
+  activeTab,
+  onTabChange,
+  rewards,
+}: {
+  activeTab: ReferralRewardTab;
+  onTabChange: (tab: ReferralRewardTab) => void;
+  rewards: InstructorReferralReward[];
+}) {
+  return (
+    <Card className="insta-surface-card border-gray-200/80 shadow-none">
+      <div className="px-6 py-6 sm:px-8">
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your rewards</h2>
+          <div
+            role="tablist"
+            aria-label="Referral reward tabs"
+            className="flex flex-wrap gap-5 border-b border-gray-200 pb-2 dark:border-gray-700"
+          >
+            {REWARD_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                className={cn('text-sm font-medium transition-colors', getTextWidthTabButtonClasses(activeTab === tab))}
+                onClick={() => onTabChange(tab)}
+              >
+                <span className={getTextWidthTabLabelClasses(activeTab === tab)}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <InsetDivider />
+      <div className="px-6 py-5 sm:px-8">
+        {rewards.length ? (
+          <ul className="space-y-3">
+            {rewards.map((reward) => (
+              <RewardRow key={reward.id} reward={reward} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-600 dark:text-gray-400">{getEmptyRewardMessage(activeTab)}</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function HowItWorksSection() {
+  return (
+    <Card className="insta-surface-card border-gray-200/80 shadow-none">
+      <CardContent className="space-y-5 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">How it works</h2>
+        <ol className="space-y-4">
+          {HOW_IT_WORKS_STEPS.map((step, index) => (
+            <li key={step} className="flex items-start gap-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-[#7E22CE] dark:bg-gray-800">
+                {index + 1}
+              </span>
+              <p className="pt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">{step}</p>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="h-36 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+        <div className="h-36 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      </div>
+      <div className="h-56 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="h-32 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+        <div className="h-32 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+        <div className="h-32 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      </div>
+      <div className="h-64 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      <div className="h-56 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+    </div>
+  );
 }
 
 export default function InstructorReferralsPage() {
   const embedded = useEmbedded();
-  const { data: stats, isLoading: statsLoading, error: statsError } = useInstructorReferralStats();
-  const {
-    data: referredData,
-    isLoading: referredLoading,
-    error: referredError,
-  } = useReferredInstructors({ limit: 50 });
+  const { data: dashboard, isLoading, isError } = useInstructorReferralDashboard();
+  const [activeTab, setActiveTab] = useState<ReferralRewardTab>('unlocked');
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const referralLink = dashboard?.referralLink ?? null;
+
+  const activeRewards = useMemo(
+    () => dashboard?.rewards[activeTab] ?? [],
+    [activeTab, dashboard]
+  );
 
   const triggerCopied = useCallback(() => {
     setCopied(true);
@@ -84,102 +277,67 @@ export default function InstructorReferralsPage() {
     };
   }, []);
 
-  const handleCopyLink = async () => {
-    if (!stats?.referralLink) return;
-    try {
-      await copyToClipboard(stats.referralLink);
+  const handleCopy = async () => {
+    if (!referralLink) {
+      return;
+    }
+
+    const success = await copyToClipboard(referralLink);
+    if (success) {
       triggerCopied();
       toast.success('Referral link copied');
-    } catch {
-      toast.error('Unable to copy link. Try again.');
+      return;
     }
+
+    toast.error('Unable to copy referral link right now.');
   };
 
   const handleShare = async () => {
-    if (!stats?.referralLink) return;
-    const payload: ShareData = {
-      title: 'Teach on iNSTAiNSTRU',
-      text: 'Join iNSTAiNSTRU as an instructor and earn more students in NYC.',
-      url: stats.referralLink,
-    };
-    const outcome = await shareOrCopy(payload, stats.referralLink);
+    if (!referralLink) {
+      return;
+    }
+
+    const outcome = await shareOrCopy(
+      {
+        title: 'Join iNSTAiNSTRU',
+        text: 'Join iNSTAiNSTRU and complete your first lesson to unlock your referral reward.',
+        url: referralLink,
+      },
+      referralLink
+    );
+
     if (outcome === 'shared') {
       toast.success('Share sheet opened');
-    } else if (outcome === 'copied') {
+      return;
+    }
+
+    if (outcome === 'copied') {
       triggerCopied();
       toast.success('Referral link copied');
-    } else {
-      toast.error('Unable to share right now.');
+      return;
     }
+
+    toast.error('Unable to share right now.');
   };
-
-  if (statsLoading) {
-    return (
-      <div className="animate-pulse space-y-6">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-        <div className="h-28 bg-gray-200 dark:bg-gray-700 rounded" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
-          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
-          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
-        </div>
-        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded" />
-      </div>
-    );
-  }
-
-  if (statsError || !stats) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Failed to load referral data. Please try again later.</p>
-      </div>
-    );
-  }
-
-  const referredCount = referredData?.totalCount ?? 0;
-  const referredItems = referredData?.instructors ?? [];
-
-  const foundingMessage = stats.isFoundingPhase ? (
-    <div className="insta-surface-card p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">Founding Phase Bonus</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Earn <span className="font-semibold text-gray-900 dark:text-white">{formatCents(stats.currentBonusCents)}</span>{' '}
-            per referral while founding spots remain. Only{' '}
-            <span className="font-semibold text-gray-900 dark:text-white">{stats.foundingSpotsRemaining}</span> left.
-          </p>
-        </div>
-        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-          <Gift className="h-5 w-5 text-[#7E22CE]" />
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   return (
     <div className="min-h-screen insta-dashboard-page">
       {!embedded && (
-        <header className="relative px-6 py-4 insta-dashboard-header">
-          <div className="flex items-center justify-between max-w-full">
+        <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
+          <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
+              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
-            <div className="pr-4">
+            <div className="pr-0 sm:pr-4">
               <UserProfileDropdown />
             </div>
           </div>
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden sm:block">
-            <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
-              <Link
-                href="/instructor/dashboard"
-                className="inline-flex items-center gap-1 text-[#7E22CE] pointer-events-auto"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                </svg>
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 sm:block">
+            <div className="pointer-events-auto container mx-auto max-w-6xl px-8 lg:px-32">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+                <ArrowLeft className="h-4 w-4" />
                 <span>Back to dashboard</span>
               </Link>
             </div>
@@ -187,11 +345,15 @@ export default function InstructorReferralsPage() {
         </header>
       )}
 
-      <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
+      <div className={embedded ? 'max-w-none px-0 py-0' : 'container mx-auto max-w-6xl px-8 py-8 lg:px-32'}>
         {!embedded && (
-          <div className="sm:hidden mb-2">
-            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
-              <ArrowLeft className="w-5 h-5" />
+          <div className="mb-2 sm:hidden">
+            <Link
+              href="/instructor/dashboard"
+              aria-label="Back to dashboard"
+              className="inline-flex items-center gap-1 text-[#7E22CE]"
+            >
+              <ArrowLeft className="h-5 w-5" />
               <span className="sr-only">Back to dashboard</span>
             </Link>
           </div>
@@ -201,178 +363,94 @@ export default function InstructorReferralsPage() {
           id={embedded ? 'referrals-first-card' : undefined}
           icon={Gift}
           title="Referrals"
-          subtitle={`Earn ${formatCents(stats.currentBonusCents)} for each instructor you refer who completes their first lesson.`}
+          subtitle="Share iNSTAiNSTRU with students and instructors, then track every reward in one place."
         />
 
-        <div className="space-y-6">
-          {foundingMessage}
-
-          <div className="p-6 insta-surface-card">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Your referral link</h2>
-                <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100 break-all">{stats.referralLink}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Code: {stats.referralCode}</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] insta-primary-btn"
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Copied' : 'Copy link'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-700 sm:hidden insta-secondary-btn"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Share
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
-            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-              <div className="flex items-start justify-between h-full">
-                <div>
-                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total referred</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.totalReferred}</p>
-                </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Users className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
-                </div>
-              </div>
+        {isLoading ? (
+          <LoadingState />
+        ) : isError || !dashboard ? (
+          <Card className="border-red-200 bg-red-50 shadow-none dark:border-red-900/60 dark:bg-red-950/30">
+            <CardContent className="p-6">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Failed to load referrals right now. Please try again in a moment.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <RewardOfferCard
+                title="Refer an instructor"
+                amount={formatCents(dashboard.instructorAmountCents)}
+              />
+              <RewardOfferCard
+                title="Refer a student"
+                amount={formatCents(dashboard.studentAmountCents)}
+              />
             </div>
 
-            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-              <div className="flex items-start justify-between h-full">
-                <div>
-                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Pending payouts</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingPayouts}</p>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{stats.completedPayouts} paid out</p>
-                </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
-                </div>
-              </div>
-            </div>
-
-            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-              <div className="flex items-start justify-between h-full">
-                <div>
-                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total earned</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{formatCents(stats.totalEarnedCents)}</p>
-                </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="insta-surface-card">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Referred instructors</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{referredCount} total referrals</p>
-            </div>
-
-            {referredLoading ? (
-              <div className="p-4 space-y-3">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="animate-pulse flex items-center gap-4">
-                    <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
+            <Card className="insta-surface-card border-gray-200/80 shadow-none">
+              <div className="space-y-6 px-6 py-6 sm:px-8">
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    Your referral link
+                  </h2>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Input
+                      aria-label="Your referral link"
+                      value={dashboard.referralLink}
+                      readOnly
+                      className="h-11 flex-1 border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Copy referral link"
+                        onClick={handleCopy}
+                      >
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Share referral link"
+                        onClick={handleShare}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : referredError ? (
-              <div className="p-4 text-sm text-red-600">Unable to load referrals. Please try again.</div>
-            ) : referredItems.length === 0 ? (
-              <div className="p-8 text-center">
-                <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600 dark:text-gray-400">No referrals yet</p>
-                <p className="text-sm text-gray-400 dark:text-gray-300 mt-1">Share your link to start earning.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {referredItems.map((instructor) => {
-                  const status = getPayoutStatusDisplay(instructor.payoutStatus);
-                  const timelineText = instructor.firstLessonCompletedAt
-                    ? `First lesson ${formatDate(instructor.firstLessonCompletedAt)}`
-                    : instructor.isLive
-                      ? `Live since ${formatDate(instructor.wentLiveAt)}`
-                      : 'Not live yet';
+                </div>
 
-                  return (
-                    <div key={instructor.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center">
-                          <span className="text-[#7E22CE] font-semibold">
-                            {instructor.firstName[0]}
-                            {instructor.lastInitial}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">
-                            {formatDisplayName(
-                              instructor.firstName,
-                              instructor.lastInitial,
-                              'Instructor'
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Referred {formatDate(instructor.referredAt)}</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-300">{timelineText}</p>
-                        </div>
-                      </div>
+                <InsetDivider />
 
-                      <div className="flex items-center gap-3 justify-between sm:justify-end">
-                        {instructor.payoutStatus === 'paid' && instructor.payoutAmountCents ? (
-                          <span className="text-green-600 font-semibold">
-                            +{formatCents(instructor.payoutAmountCents)}
-                          </span>
-                        ) : null}
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${badgeStyles[status.color]}`}>
-                          {status.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                <InviteByEmail
+                  shareUrl={dashboard.referralLink}
+                  label="Invite by email"
+                  helperText="Up to 10 at a time. Separate with commas or spaces."
+                  buttonText="Send Invites"
+                />
               </div>
-            )}
+            </Card>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatTile label="Total referred" value={String(dashboard.totalReferred)} icon={Users} />
+              <StatTile label="Pending payouts" value={String(dashboard.pendingPayouts)} icon={Wallet} />
+              <StatTile label="Total earned" value={formatCents(dashboard.totalEarnedCents)} icon={UserRoundPlus} />
+            </div>
+
+            <RewardsSection
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              rewards={activeRewards}
+            />
+
+            <HowItWorksSection />
           </div>
-
-          <div className="insta-surface-card rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">How it works</h2>
-            <ol className="space-y-3 text-gray-700 dark:text-gray-300">
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 h-6 w-6 bg-[#7E22CE] text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                  1
-                </span>
-                Share your unique referral link with other instructors.
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 h-6 w-6 bg-[#7E22CE] text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                  2
-                </span>
-                They sign up and go live on iNSTAiNSTRU.
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 h-6 w-6 bg-[#7E22CE] text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                  3
-                </span>
-                When they complete their first lesson, you earn {formatCents(stats.currentBonusCents)}.
-              </li>
-            </ol>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

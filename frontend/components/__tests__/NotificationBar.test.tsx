@@ -67,7 +67,7 @@ describe('NotificationBar', () => {
 
     jest.runOnlyPendingTimers();
     await waitFor(() => {
-      expect(screen.getByText(/welcome to instainstru/i)).toBeInTheDocument();
+      expect(screen.getByText(/welcome to iNSTAiNSTRU/i)).toBeInTheDocument();
     });
     jest.useRealTimers();
   });

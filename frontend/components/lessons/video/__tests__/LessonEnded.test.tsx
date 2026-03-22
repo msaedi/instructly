@@ -45,10 +45,10 @@ describe('LessonEnded', () => {
     expect(bookAgain).toHaveAttribute('href', '/instructors/inst_123');
   });
 
-  it('instructor role: links to /instructor/bookings, no Book Again', () => {
+  it('instructor role: links to dashboard past bookings, no Book Again', () => {
     render(<LessonEnded booking={baseBooking} userRole="instructor" />);
     const backLink = screen.getByRole('link', { name: 'Back to My Lessons' });
-    expect(backLink).toHaveAttribute('href', '/instructor/bookings');
+    expect(backLink).toHaveAttribute('href', '/instructor/dashboard?panel=bookings&tab=past');
     expect(screen.queryByRole('link', { name: 'Book Again' })).not.toBeInTheDocument();
   });
 

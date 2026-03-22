@@ -153,7 +153,7 @@ const mockGoLiveCheck = {
 
 const stableRawData = {
   profile: mockProfile,
-  user: { first_name: 'Test', last_name: 'User' },
+  user: { first_name: 'Test', last_name: 'User', phone: '+12125550101', phone_verified: false },
   serviceAreas: ['area-1'],
   connectStatus: mockConnectStatus,
   bgcStatus: null,
@@ -203,7 +203,8 @@ describe('Onboarding status page – BGC consent regression', () => {
     mockProfile.services = [];
     mockProfile.is_live = false;
     mockGoLiveCheck.canGoLive = false;
-    mockGoLiveCheck.missing = ['bgc', 'stripe'];
+    mockGoLiveCheck.missing = ['Phone verification', 'bgc', 'stripe'];
+    stableRawData.user.phone_verified = false;
   });
 
   it('renders the BGC step component', async () => {
@@ -311,5 +312,29 @@ describe('Onboarding status page – BGC consent regression', () => {
 
     // Modal should NOT be visible until ensureConsent triggers it
     expect(screen.queryByTestId('consent-modal')).not.toBeInTheDocument();
+  });
+
+  it('routes phone verification blockers back to account setup when the phone is not verified', async () => {
+    renderWithClient(<OnboardingStatusPage />);
+
+    expect(await screen.findByRole('link', { name: /^Verify$/i })).toHaveAttribute(
+      'href',
+      '/instructor/onboarding/account-setup'
+    );
+    expect(screen.getByRole('link', { name: /Verify phone/i })).toHaveAttribute(
+      'href',
+      '/instructor/onboarding/account-setup'
+    );
+    expect(screen.queryByRole('heading', { name: /Phone verification/i })).not.toBeInTheDocument();
+  });
+
+  it('enables go live once phone verification is no longer blocking readiness', async () => {
+    stableRawData.user.phone_verified = true;
+    mockGoLiveCheck.canGoLive = true;
+    mockGoLiveCheck.missing = [];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    expect(await screen.findByRole('button', { name: /Go live/i })).toBeEnabled();
   });
 });

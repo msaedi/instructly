@@ -42,7 +42,9 @@ test.describe('[instructor] bookings list', () => {
       const upcomingParam = url.searchParams.get('upcoming');
       const excludeFuture = url.searchParams.get('exclude_future_confirmed');
 
-      const isUpcomingCall = pathname.endsWith('/upcoming');
+      const isUpcomingCall =
+        pathname.endsWith('/upcoming') ||
+        (pathname.endsWith('/instructor-bookings') && upcomingParam === 'true');
       const isPastCall =
         pathname.endsWith('/completed') ||
         (pathname.endsWith('/instructor-bookings') && upcomingParam === 'false' && excludeFuture === 'true');
@@ -55,8 +57,11 @@ test.describe('[instructor] bookings list', () => {
               id: 'booking-upcoming-1',
               booking_date: '2025-01-10',
               start_time: '15:00:00',
+              end_time: '15:45:00',
               status: 'CONFIRMED',
               service_name: 'Jazz Piano',
+              duration_minutes: 45,
+              location_type: 'student_location',
               total_price: 95,
               student: { first_name: 'Emma', last_initial: 'J.' },
               instructor: { first_name: 'Sarah', last_initial: 'C.' },
@@ -79,8 +84,11 @@ test.describe('[instructor] bookings list', () => {
               id: 'booking-past-1',
               booking_date: '2024-12-15',
               start_time: '11:00:00',
+              end_time: '11:45:00',
               status: 'COMPLETED',
               service_name: 'Music Theory',
+              duration_minutes: 45,
+              location_type: 'instructor_location',
               total_price: 120,
               student: { first_name: 'Emma', last_initial: 'J.' },
               instructor: { first_name: 'Sarah', last_initial: 'C.' },

@@ -34,11 +34,13 @@ export const TRASH_LABEL = 'All messages trashed';
 /**
  * Filter options for conversation list
  */
-export const FILTER_OPTIONS: FilterOption[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Students', value: 'student' },
-  { label: 'Platform', value: 'platform' },
-];
+export function getFilterOptions(counterpartPluralLabel: string = 'Students'): FilterOption[] {
+  return [
+    { label: 'All', value: 'all' },
+    { label: counterpartPluralLabel, value: 'student' },
+    { label: 'Platform', value: 'platform' },
+  ];
+}
 
 /**
  * Default message templates

@@ -315,7 +315,7 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     create_conversation = client.post(
         "/api/v1/conversations",
         json={
-            "instructor_id": test_instructor.id,
+            "other_user_id": test_instructor.id,
             "initial_message": "Hello there",
         },
         headers=auth_headers_student,
@@ -404,7 +404,7 @@ def test_second_student_cannot_access_another_students_booking_or_conversation_p
     create_conversation = client.post(
         "/api/v1/conversations",
         json={
-            "instructor_id": test_instructor.id,
+            "other_user_id": test_instructor.id,
             "initial_message": "Private hello",
         },
         headers=auth_headers_student,

@@ -253,15 +253,15 @@ async def test_create_conversation_error_paths(monkeypatch, test_student):
         def create_conversation_with_message(self, *_args, **_kwargs):
             return DummyCreateConversationResult(
                 success=False,
-                error="Instructor not found",
+                error="Target user not found",
                 conversation_id=None,
                 created=False,
-                error_code="instructor_not_found",
+                error_code="target_user_not_found",
             )
 
     with pytest.raises(HTTPException) as excinfo:
         await conversations_routes.create_conversation(
-            request=CreateConversationRequest(instructor_id="01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+            request=CreateConversationRequest(other_user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV"),
             current_user=test_student,
             service=StubServiceNotFound(),
         )
@@ -278,7 +278,7 @@ async def test_create_conversation_error_paths(monkeypatch, test_student):
 
     with pytest.raises(HTTPException) as excinfo:
         await conversations_routes.create_conversation(
-            request=CreateConversationRequest(instructor_id="01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+            request=CreateConversationRequest(other_user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV"),
             current_user=test_student,
             service=StubServiceBadRequest(),
         )

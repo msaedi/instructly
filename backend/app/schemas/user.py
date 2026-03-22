@@ -51,9 +51,10 @@ class UserRegistrationMetadata(BaseModel):
 
 
 class UserCreate(StrictRequestModel, UserBase):
-    password: str
+    password: str = Field(..., min_length=8)
     role: Optional[str] = None  # Role assignment during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
+    email_verification_token: Optional[str] = None
     metadata: Optional[UserRegistrationMetadata] = None  # Client-provided registration metadata
 
 
@@ -101,6 +102,7 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
     last_name: str
     phone: Optional[str] = None
     phone_verified: Optional[bool] = False
+    email_verified: Optional[bool] = True
     zip_code: str
     is_active: Optional[bool] = True
     timezone: str = "America/New_York"

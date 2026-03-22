@@ -1,32 +1,60 @@
 "use client";
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign, CheckCircle, AlertTriangle } from 'lucide-react';
-import Link from 'next/link';
+import { AlertTriangle, Calendar } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getLocationTypeIcon, type LocationType } from '@/types/booking';
-import { at } from '@/lib/ts/safe';
-import { formatDisplayName } from '@/lib/format/displayName';
-import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
-import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
+import { useCompleteBooking, useBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
-import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
+import { formatStudentDisplayName } from '@/lib/studentName';
+import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
+import { InstructorDashboardShell } from '@/components/dashboard/InstructorDashboardShell';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+
+type InstructorBookingDetail = BookingResponse | InstructorBookingResponse;
+
+type BookingStudentWithLastInitial = InstructorBookingDetail['student'] & {
+  last_initial?: string | null;
+};
+
+function BookingsPageHeader() {
+  return (
+    <SectionHeroCard
+      id="bookings-first-card"
+      icon={Calendar}
+      title="Bookings"
+      subtitle="Track upcoming sessions and review completed lessons all in one place."
+    />
+  );
+}
+
+function getStudentLastInitial(student: InstructorBookingDetail['student']): string {
+  const studentWithLastInitial = student as BookingStudentWithLastInitial;
+  return studentWithLastInitial.last_initial ?? '';
+}
 
 export default function BookingDetailsPage() {
   const params = useParams();
   const bookingId = params['id'] as string;
   const queryClient = useQueryClient();
   const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const noShowModalRef = useRef<HTMLDivElement | null>(null);
+  const noShowTitleId = useId();
 
-  // Use React Query hook for booking details (prevents duplicate API calls)
-  const { data: booking, isLoading: loading, error: queryError } = useBooking(bookingId);
-  const error = queryError ? 'Failed to load booking details' : null;
-
-  // Mutations for complete and no-show actions
+  const { data: booking, isLoading, error: queryError } = useBooking(bookingId);
   const completeBooking = useCompleteBooking();
   const markNoShow = useMarkBookingNoShow();
+  const { createConversation, isCreating: isMessagePending } = useCreateConversation();
+
+  useFocusTrap({
+    isOpen: showNoShowModal,
+    containerRef: noShowModalRef,
+    onEscape: () => setShowNoShowModal(false),
+  });
 
   const handleMarkComplete = async () => {
     try {
@@ -54,259 +82,113 @@ export default function BookingDetailsPage() {
     }
   };
 
-  // Check if lesson is past and needs action
+  const handleMessageStudent = async () => {
+    if (!booking) {
+      return;
+    }
+
+    try {
+      await createConversation(booking.student.id, { navigateToMessages: true });
+    } catch {
+      toast.error('Failed to open messages', { duration: 4000 });
+    }
+  };
+
   const isPastLesson = (): boolean => {
-    if (!booking) return false;
+    if (!booking) {
+      return false;
+    }
+
     const lessonEnd = new Date(`${booking.booking_date}T${booking.end_time}`);
     return lessonEnd < new Date();
   };
 
-  const needsAction = booking?.status === 'CONFIRMED' && isPastLesson();
-  const studentLastInitial =
-    booking?.student && 'last_initial' in booking.student ? booking.student.last_initial : null;
-  const studentName = formatDisplayName(
-    booking?.student?.first_name,
-    studentLastInitial,
-    '',
-  );
-
-  const formatTime = (timeStr: string) => {
-    const parts = timeStr.split(':');
-    const hours = at(parts, 0);
-    const minutes = at(parts, 1);
-    if (!hours || !minutes) return timeStr;
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
-
-  if (error || !booking) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Booking not found'}</p>
-          <Link href="/instructor/dashboard?panel=bookings" className="inline-flex items-center text-blue-600 hover:text-blue-800 dark:hover:text-blue-200">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Bookings
-          </Link>
+      <InstructorDashboardShell activeNavKey="bookings">
+        <BookingsPageHeader />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-indigo-500" />
         </div>
-      </div>
+      </InstructorDashboardShell>
     );
   }
+
+  if (queryError || !booking) {
+    return (
+      <InstructorDashboardShell activeNavKey="bookings">
+        <BookingsPageHeader />
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <div className="text-center">
+            <p className="mb-4 text-red-600">
+              {queryError ? 'Failed to load booking details' : 'Booking not found'}
+            </p>
+          </div>
+        </div>
+      </InstructorDashboardShell>
+    );
+  }
+
+  const studentName = formatStudentDisplayName(
+    booking.student.first_name,
+    getStudentLastInitial(booking.student),
+  );
+  const needsAction = booking.status === 'CONFIRMED' && isPastLesson();
+  const isActionPending = completeBooking.isPending || markNoShow.isPending;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6">
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Bookings
-      </Link>
+    <>
+      <InstructorDashboardShell activeNavKey="bookings">
+        <BookingsPageHeader />
+        <InstructorBookingDetailView
+          booking={booking}
+          onMessageStudent={handleMessageStudent}
+          isMessagePending={isMessagePending}
+          needsAction={needsAction}
+          onMarkComplete={handleMarkComplete}
+          onReportNoShow={() => setShowNoShowModal(true)}
+          isActionPending={isActionPending}
+        />
+      </InstructorDashboardShell>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="border-b px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold">Booking #{booking.id}</h1>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Created on {new Date(booking.created_at).toLocaleDateString()}</p>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getBookingStatusBadgeClasses(booking.status)}`}>
-              {booking.status}
-            </span>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          <div className="bg-blue-50 dark:bg-blue-900 dark:text-indigo-200 rounded-lg p-4">
-            <h2 className="font-semibold text-lg text-blue-900 dark:text-indigo-200 mb-3">{booking.service_name}</h2>
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
-                <span className="text-blue-700 dark:text-indigo-300">Duration: {booking.duration_minutes} minutes</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
-                <span className="text-blue-700 dark:text-indigo-300">Rate: ${booking.hourly_rate}/hour</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
-                <span className="text-blue-700 dark:text-indigo-300 font-semibold">Total: ${booking.total_price}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">Date</h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400">{new Date(booking.booking_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">Time</h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</p>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-              <h3 className="font-medium text-gray-900 dark:text-gray-100">Location</h3>
-            </div>
-            <div className="text-gray-600 dark:text-gray-400">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{booking.location_type ? getLocationTypeIcon(booking.location_type as LocationType) : '📍'}</span>
-                <span className="font-medium">
-                  {booking.location_type === 'student_location'
-                    ? 'Student Location'
-                    : booking.location_type === 'instructor_location'
-                      ? "Instructor's Location"
-                      : booking.location_type === 'online'
-                        ? 'Online'
-                        : 'Neutral Location'}
-                </span>
-              </div>
-              {booking.meeting_location && <p className="ml-7 text-sm">{booking.meeting_location}</p>}
-              {booking.service_area && <p className="ml-7 text-sm text-gray-500 dark:text-gray-400">Service area: {booking.service_area}</p>}
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <User className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-              <h3 className="font-medium text-gray-900 dark:text-gray-100">Student Information</h3>
-            </div>
-            <div className="ml-6">
-              <p className="text-lg text-gray-800 dark:text-gray-200 font-medium">
-                {studentName || `Student #${booking.student_id}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Video Session Section */}
-          {booking.video_session_duration_seconds != null && (
-            <div className="border-t pt-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">Video Session</h3>
-              </div>
-              <div className="ml-6 space-y-2">
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Duration</span>
-                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionDuration(booking.video_session_duration_seconds)}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">You joined</span>
-                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionTime(booking.video_instructor_joined_at)}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Student joined</span>
-                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionTime(booking.video_student_joined_at)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {(booking.student_note || booking.instructor_note) && (
-            <div className="border-t pt-6 space-y-4">
-              {booking.student_note && (
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Note from student</h3>
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4"><p className="text-gray-700 dark:text-gray-300 italic">&quot;{booking.student_note}&quot;</p></div>
-                </div>
-              )}
-              {booking.instructor_note && (
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Instructor notes</h3>
-                  <div className="bg-yellow-50 rounded-lg p-4"><p className="text-gray-700 dark:text-gray-300">{booking.instructor_note}</p></div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {booking.status === 'CANCELLED' && booking.cancellation_reason && (
-            <div className="border-t pt-6">
-              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Cancellation Details</h3>
-              <div className="bg-red-50 rounded-lg p-4">
-                <p className="text-red-800"><span className="font-medium">Reason:</span> {booking.cancellation_reason}</p>
-                {booking.cancelled_at && (<p className="text-red-600 text-sm mt-1">Cancelled on {new Date(booking.cancelled_at).toLocaleDateString()}</p>)}
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons for past CONFIRMED lessons */}
-          {needsAction && (
-            <div className="border-t pt-6">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-2 text-amber-800">
-                  <AlertTriangle className="w-5 h-5" />
-                  <span className="font-medium">Action Required</span>
-                </div>
-                <p className="text-amber-700 text-sm mt-1">
-                  This lesson has ended. Please confirm the outcome.
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={handleMarkComplete}
-                  disabled={completeBooking.isPending || markNoShow.isPending}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  {completeBooking.isPending ? 'Marking...' : 'Mark Complete'}
-                </button>
-                <button
-                  onClick={() => setShowNoShowModal(true)}
-                  disabled={completeBooking.isPending || markNoShow.isPending}
-                  className="flex items-center gap-2 px-4 py-2 border border-amber-600 text-amber-700 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Report No-Show
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* No-Show Confirmation Modal */}
-      {showNoShowModal && (
+      {showNoShowModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
+          <div
+            ref={noShowModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={noShowTitleId}
+            tabIndex={-1}
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800"
+          >
             <div className="mb-4">
-              <div className="flex items-center gap-2 text-amber-600 mb-2">
-                <AlertTriangle className="w-6 h-6" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Report No-Show</h3>
+              <div className="mb-2 flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="h-6 w-6" />
+                <h3 id={noShowTitleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Report No-Show
+                </h3>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Are you sure you want to mark this lesson as a no-show? This indicates that
-                <span className="font-medium"> {studentName || 'the student'}</span> did not attend the scheduled lesson.
+                <span className="font-medium"> {studentName || 'the student'}</span> did not
+                attend the scheduled lesson.
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 The student will still be charged for the lesson.
               </p>
             </div>
             <div className="flex justify-end gap-3">
               <button
-                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                type="button"
+                className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
                 onClick={() => setShowNoShowModal(false)}
                 disabled={markNoShow.isPending}
               >
                 Cancel
               </button>
               <button
-                className="rounded-lg px-4 py-2 text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                type="button"
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleMarkNoShow}
                 disabled={markNoShow.isPending}
               >
@@ -315,7 +197,7 @@ export default function BookingDetailsPage() {
             </div>
           </div>
         </div>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }

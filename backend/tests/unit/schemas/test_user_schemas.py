@@ -450,6 +450,18 @@ class TestUserCreate:
         with pytest.raises(ValidationError, match="extra"):
             UserCreate(**data)
 
+    def test_password_too_short_fails(self) -> None:
+        """Registration passwords must be at least 8 characters."""
+        data = {
+            "email": "test@example.com",
+            "first_name": "John",
+            "last_name": "Doe",
+            "zip_code": "10001",
+            "password": "Short7",
+        }
+        with pytest.raises(ValidationError, match="at least 8 characters"):
+            UserCreate(**data)
+
 
 class TestUserUpdate:
     """Tests for UserUpdate schema."""

@@ -2852,6 +2852,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/send-email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Email Verification
+         * @description Send a pre-registration email verification code.
+         */
+        post: operations["send_email_verification_api_v1_auth_send_email_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email Code
+         * @description Verify a pre-registration email code and return a short-lived signed token.
+         */
+        post: operations["verify_email_code_api_v1_auth_verify_email_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/beta/invites/consume": {
         parameters: {
             query?: never;
@@ -3551,10 +3591,9 @@ export type paths = {
         put?: never;
         /**
          * Create Conversation
-         * @description Create a new conversation (for pre-booking messaging).
+         * @description Create a new conversation or return the existing one.
          *
-         *     If conversation already exists, returns the existing one.
-         *     Only students can initiate conversations with instructors.
+         *     Conversations are always between exactly one instructor and one non-instructor.
          */
         post: operations["create_conversation_api_v1_conversations_post"];
         delete?: never;
@@ -4072,6 +4111,26 @@ export type paths = {
          *         Updated booking information
          */
         post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referral Dashboard
+         * @description Get a page-ready dashboard payload for instructor referrals.
+         */
+        get: operations["get_referral_dashboard_api_v1_instructor_referrals_dashboard_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6373,7 +6432,7 @@ export type paths = {
         };
         /**
          * Resolve Referral Slug
-         * @description Resolve referral slug and redirect to landing page.
+         * @description Resolve referral slug and redirect to signup with the canonical code.
          */
         get: operations["resolve_referral_slug_api_v1_r__slug__get"];
         put?: never;
@@ -9387,6 +9446,11 @@ export type components = {
              * Format: email
              */
             email: string;
+            /**
+             * Email Verified
+             * @default true
+             */
+            email_verified: boolean | null;
             /** First Name */
             first_name: string;
             /**
@@ -12159,8 +12223,8 @@ export type components = {
         CreateConversationRequest: {
             /** Initial Message */
             initial_message?: string | null;
-            /** Instructor Id */
-            instructor_id: string;
+            /** Other User Id */
+            other_user_id: string;
         };
         /**
          * CreateConversationResponse
@@ -18478,6 +18542,67 @@ export type components = {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * ReferralDashboardResponse
+         * @description Page-ready instructor referrals dashboard payload.
+         */
+        ReferralDashboardResponse: {
+            /** Instructor Amount Cents */
+            instructor_amount_cents: number;
+            /** Pending Payouts */
+            pending_payouts: number;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+            rewards: components["schemas"]["ReferralDashboardRewardsResponse"];
+            /** Student Amount Cents */
+            student_amount_cents: number;
+            /** Total Earned Cents */
+            total_earned_cents: number;
+            /** Total Referred */
+            total_referred: number;
+        };
+        /**
+         * ReferralDashboardRewardItem
+         * @description Normalized reward row for the instructor referrals dashboard.
+         */
+        ReferralDashboardRewardItem: {
+            /** Amount Cents */
+            amount_cents: number;
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /** Id */
+            id: string;
+            /** Payout Status */
+            payout_status?: string | null;
+            /** Referee First Name */
+            referee_first_name: string;
+            /** Referee Last Initial */
+            referee_last_initial: string;
+            /**
+             * Referral Type
+             * @enum {string}
+             */
+            referral_type: "student" | "instructor";
+        };
+        /**
+         * ReferralDashboardRewardsResponse
+         * @description Reward groups for instructor referrals dashboard tabs.
+         */
+        ReferralDashboardRewardsResponse: {
+            /** Pending */
+            pending: components["schemas"]["ReferralDashboardRewardItem"][];
+            /** Redeemed */
+            redeemed: components["schemas"]["ReferralDashboardRewardItem"][];
+            /** Unlocked */
+            unlocked: components["schemas"]["ReferralDashboardRewardItem"][];
+        };
         /** ReferralErrorResponse */
         ReferralErrorResponse: {
             /** Reason */
@@ -18975,10 +19100,15 @@ export type components = {
             instructor_service_id: string;
             /** Rating */
             rating: number;
+            response?: components["schemas"]["ReviewResponseModel"] | null;
             /** Review Text */
             review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
+            /** Reviewer First Name */
+            reviewer_first_name?: string | null;
+            /** Reviewer Last Initial */
+            reviewer_last_initial?: string | null;
         };
         /** ReviewListPageResponse */
         ReviewListPageResponse: {
@@ -19035,10 +19165,15 @@ export type components = {
             instructor_service_id: string;
             /** Rating */
             rating: number;
+            response?: components["schemas"]["ReviewResponseModel"] | null;
             /** Review Text */
             review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
+            /** Reviewer First Name */
+            reviewer_first_name?: string | null;
+            /** Reviewer Last Initial */
+            reviewer_last_initial?: string | null;
             /** Tip Client Secret */
             tip_client_secret?: string | null;
             /** Tip Status */
@@ -19716,6 +19851,19 @@ export type components = {
              * @description Percentage of total searches
              */
             percentage: number;
+        };
+        /** SendEmailVerificationRequest */
+        SendEmailVerificationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** SendEmailVerificationResponse */
+        SendEmailVerificationResponse: {
+            /** Message */
+            message: string;
         };
         /**
          * SendMessageRequest
@@ -21231,6 +21379,8 @@ export type components = {
              * Format: email
              */
             email: string;
+            /** Email Verification Token */
+            email_verification_token?: string | null;
             /** First Name */
             first_name: string;
             /** Guest Session Id */
@@ -21509,6 +21659,23 @@ export type components = {
         VapidPublicKeyResponse: {
             /** Public Key */
             public_key: string;
+        };
+        /** VerifyEmailCodeRequest */
+        VerifyEmailCodeRequest: {
+            /** Code */
+            code: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** VerifyEmailCodeResponse */
+        VerifyEmailCodeResponse: {
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Verification Token */
+            verification_token: string;
         };
         /**
          * VideoJoinResponse
@@ -26251,6 +26418,72 @@ export interface operations {
             };
         };
     };
+    send_email_verification_api_v1_auth_send_email_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendEmailVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendEmailVerificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_code_api_v1_auth_verify_email_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyEmailCodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     consume_invite_api_v1_beta_invites_consume_post: {
         parameters: {
             query?: never;
@@ -28203,6 +28436,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_dashboard_api_v1_instructor_referrals_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralDashboardResponse"];
                 };
             };
         };

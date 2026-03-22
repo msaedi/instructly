@@ -8,19 +8,39 @@ Tests the API endpoints for:
 - Guest session conversion during auth
 """
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token
+from app.api.dependencies.services import get_cache_service_dep
+from app.auth import (
+    create_access_token,
+    create_email_verification_token,
+    decode_email_verification_token,
+)
 from app.models.search_history import SearchHistory
 from app.models.user import User
+from app.routes.v1 import auth as auth_routes
 from app.services.auth_service import AuthService
 
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
+
+
+def _issue_email_verification_token(email: str) -> str:
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
+    return token
 
 
 @pytest.fixture
@@ -219,6 +239,9 @@ class TestAuthWithGuestSession:
                 "zip_code": "10001",
                 "role": "student",
                 "guest_session_id": guest_session_id,
+                "email_verification_token": _issue_email_verification_token(
+                    "newuser@example.com"
+                ),
             },
         )
 

@@ -22,6 +22,7 @@ export type UseConversationsOptions = {
   isLoadingUser: boolean;
   stateFilter?: 'archived' | 'trashed' | null | undefined;
   typeFilter?: 'student' | 'platform' | null | undefined;
+  counterpartFallbackLabel?: string | undefined;
 };
 
 export type UseConversationsResult = {
@@ -103,6 +104,7 @@ export function useConversations({
   isLoadingUser,
   stateFilter,
   typeFilter,
+  counterpartFallbackLabel = 'Student',
 }: UseConversationsOptions): UseConversationsResult {
   const queryClient = useQueryClient();
   const { subscribe, isConnected } = useMessageStream();
@@ -169,7 +171,7 @@ export function useConversations({
         const displayName = formatDisplayName(
           conv.other_user.first_name,
           conv.other_user.last_initial,
-          'Student',
+          counterpartFallbackLabel,
         );
 
         // Get initials for avatar
@@ -213,7 +215,7 @@ export function useConversations({
           upcomingBookingCount: conv.upcoming_booking_count,
         };
       });
-  }, [data, currentUserId, typeFilter]);
+  }, [counterpartFallbackLabel, data, currentUserId, typeFilter]);
 
   const totalUnread = data?.total_unread ?? 0;
   const unreadConversationsCount = data?.unread_conversations ?? 0;

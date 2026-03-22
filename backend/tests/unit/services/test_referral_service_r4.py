@@ -196,6 +196,7 @@ def _setup_first_booking(referral_service, monkeypatch, *, self_referral: bool, 
         "signup_device": "device",
         "signup_ip": "ip",
     }
+    referral_service.instructor_profile_repo.get_by_user_id.return_value = None
     student_reward = SimpleNamespace(
         id="reward-1",
         status=RewardStatus.PENDING,
@@ -208,15 +209,17 @@ def _setup_first_booking(referral_service, monkeypatch, *, self_referral: bool, 
     referrer_reward = SimpleNamespace(
         id="reward-2",
         status=RewardStatus.PENDING,
-        side=RewardSide.INSTRUCTOR,
+        side=RewardSide.STUDENT,
         referrer_user_id="referrer",
         referred_user_id="student",
         amount_cents=2000,
         unlock_ts=None,
     )
-    referral_service.referral_reward_repo.create_student_pair.return_value = (
-        student_reward,
-        referrer_reward,
+    referral_service.referral_reward_repo.create_student_reward_for_referred_user.return_value = (
+        student_reward
+    )
+    referral_service.referral_reward_repo.create_student_reward_for_referrer.return_value = (
+        referrer_reward
     )
     monkeypatch.setattr(
         referral_service_module.referral_fraud,
@@ -238,7 +241,8 @@ def test_on_first_booking_completed_emits_pending(referral_service, monkeypatch)
         completed_at=datetime.now(timezone.utc),
     )
 
-    assert referral_service.referral_reward_repo.create_student_pair.called
+    referral_service.referral_reward_repo.create_student_reward_for_referred_user.assert_called_once()
+    referral_service.referral_reward_repo.create_student_reward_for_referrer.assert_called_once()
     assert referral_service_module.emit_reward_pending.call_count == 2
 
 
@@ -290,7 +294,8 @@ def test_on_first_booking_completed_no_attribution(referral_service):
         completed_at=datetime.now(timezone.utc),
     )
 
-    referral_service.referral_reward_repo.create_student_pair.assert_not_called()
+    referral_service.referral_reward_repo.create_student_reward_for_referred_user.assert_not_called()
+    referral_service.referral_reward_repo.create_student_reward_for_referrer.assert_not_called()
 
 
 def test_on_first_booking_completed_dangling_code(referral_service):
@@ -313,7 +318,8 @@ def test_on_first_booking_completed_dangling_code(referral_service):
         completed_at=datetime.now(timezone.utc),
     )
 
-    referral_service.referral_reward_repo.create_student_pair.assert_not_called()
+    referral_service.referral_reward_repo.create_student_reward_for_referred_user.assert_not_called()
+    referral_service.referral_reward_repo.create_student_reward_for_referrer.assert_not_called()
 
 
 def test_instructor_referral_disabled_config(referral_service):

@@ -1,263 +1,242 @@
 # InstaInstru Session Handoff v143
-*Generated: March 20, 2026*
+*Generated: March 21, 2026*
 *Previous: v142 | Current: v143 | Next: v144*
 
 ## 🎯 Session v143 Summary
 
-**Stripe PaymentElement Migration + A-Team Dashboard Beast (2 of 41 items) + Commission Tier Auto-Update System**
+**Stripe PaymentElement + Dashboard Beast (27/41 items) + Commission Tier Auto-Update + Booking Flow Hardening**
 
-This session delivered three major PRs: a full Stripe CardElement → PaymentElement migration unlocking Apple Pay/Google Pay/Link, the first two items from the A-Team's 41-item Dashboard Beast backlog (availability page redesign and commission tier display), and a complete tier auto-evaluation system with Celery beat scheduling. The A-Team Dashboard Beast document was received and triaged with effort estimates for all 41 items.
+Massive session delivering 5 PRs: Stripe CardElement → PaymentElement migration (Apple Pay/Google Pay), 25 A-Team Dashboard Beast items across two PRs, a commission tier auto-evaluation system, and a booking flow overhaul fixing three pre-launch bugs (stale slots, format leaking, no pre-flight check). Also completed a platform launch state audit and beta system investigation.
 
 | Objective | Status |
 |-----------|--------|
 | **Stripe CardElement → PaymentElement Migration** | ✅ PR #337 merged |
-| **Apple Pay / Google Pay / Link** | ✅ Enabled via PaymentElement — Apple Pay confirmed on Safari |
+| **Apple Pay / Google Pay / Link** | ✅ Enabled — Apple Pay confirmed on Safari |
 | **Availability Page Redesign (A-Team #33)** | ✅ PR #339 merged |
-| **Commission Tier Display (A-Team #39)** | ✅ PR #338 merged |
-| **Commission Tier Auto-Update on Booking Completion** | ✅ Included in PR #338 |
-| **Nightly Tier Evaluation Celery Task** | ✅ Included in PR #338 |
-| **A-Team Dashboard Beast Triage** | ✅ 41 items estimated and batched |
+| **Commission Tier Display + Auto-Update (A-Team #39)** | ✅ PR #338 merged |
+| **Dashboard Quick Wins (25 items)** | ✅ PR #340 merged |
+| **Booking Flow Hardening (B1/B2/B3)** | ✅ PR #341 merged |
+| **A-Team Dashboard Beast Triage** | ✅ 41 items estimated, 27 complete |
+| **Platform Launch State Audit** | ✅ Beta system + STG DB audited |
 
 ---
 
 ## 💳 Stripe CardElement → PaymentElement Migration (PR #337)
 
-### Problem Solved
+### What Changed
 
-CardElement only supports manual card entry. PaymentElement supports all Stripe payment methods via a single component — Apple Pay, Google Pay, Link (one-click checkout), and future methods. This was the last prerequisite for wallet-based payments.
+Full migration from CardElement to PaymentElement, unlocking Apple Pay, Google Pay, and Link (one-click checkout).
 
-### Backend Changes
+**Backend:**
+- New `POST /api/v1/payments/setup-intent` with student role validation
+- `automatic_payment_methods` + `allow_redirects: "never"` on ALL 4 PaymentIntent + 2 SetupIntent creation paths
+- `_advance_booking_on_capture` webhook handler: confirms booking on `requires_capture`, atomic `UPDATE WHERE status=PENDING`
+- `_check_stripe_configured()` guard + `except HTTPException: raise` on setup-intent route
 
-- New `POST /api/v1/payments/setup-intent` — creates SetupIntent for saving payment methods
-- `automatic_payment_methods: { enabled: True, allow_redirects: "never" }` on ALL 4 intent creation paths (PaymentIntent ×2, SetupIntent ×2)
-- `_advance_booking_on_capture` webhook handler — confirms booking on `requires_capture` status, atomic `UPDATE WHERE status=PENDING`
-- `setup_future_usage='off_session'` always set for PaymentElement flow
-- `_check_stripe_configured()` guard on `create_setup_intent_for_saving`
-- `except HTTPException: raise` added to setup-intent route
-- `_call_with_retry` on all Stripe API calls including SetupIntent
-
-### Frontend Changes
-
-- `PaymentMethods` + `PaymentMethodSelection`: SetupIntent + PaymentElement + `confirmSetup`
-- `CheckoutFlow`: saved cards unchanged, new cards use PaymentElement + `confirmPayment`
-- Tip + saved card 3DS: `confirmCardPayment` → `confirmPayment`
-- `saveCard` checkbox removed (always saves, users manage from billing)
-- PI cached across tab toggles (`hasFetchedIntentRef` + reset on error)
-- Null Stripe in 3DS throws error instead of silent failure
-- Consolidated 5 `loadStripe()` into shared `getStripe()` with lazy initialization
+**Frontend:**
+- PaymentMethods, PaymentMethodSelection, CheckoutFlow all use PaymentElement + `confirmSetup`/`confirmPayment`
 - Tip payment: don't navigate on tip failure (retry enabled)
+- PI cached across tab toggles (`hasFetchedIntentRef` + reset on error)
+- `saveCard` checkbox removed (always saves, users manage from billing)
 
-### Zero Legacy Patterns
+**Zero legacy patterns:** 0 CardElement, 0 `confirmCardPayment`, 0 `payment_method_types`
 
-- 0 CardElement references
-- 0 `confirmCardPayment` calls
-- 0 `confirmCardSetup` calls
-- 0 `payment_method_types` arrays (all use `automatic_payment_methods`)
+**Rate limit:** `/setup-intent` uses `"write"` not `"financial"` — SetupIntent is preparatory, React StrictMode double-mount would hit financial bucket's 0 burst.
 
-### Apple Pay / Google Pay
-
-- Apple Pay: shows automatically on Safari/iOS via PaymentElement
-- Google Pay: requires card saved in Google Wallet to appear
-- Domain registration: `instainstru.com`, `www.instainstru.com`, `beta.instainstru.com`, `preview.instainstru.com` — all registered
-- Samsung Pay: blocked by `allow_redirects: "never"` (correct for Connect + manual capture)
-
-### Rate Limit Decision
-
-`/setup-intent` uses `rate_limit("write")` not `"financial"` — SetupIntent is preparatory (no money moves), and React StrictMode double-mount would hit financial bucket's 0 burst.
+**Wallet payments:** Apple Pay confirmed on Safari. Google Pay requires card in Google Wallet. Domain registration complete for instainstru.com, www, beta, preview.
 
 ### Key Files
-
 ```
-# Backend
-backend/app/routes/v1/payments.py                    # setup-intent endpoint, webhook handler
-backend/app/services/stripe_service.py               # create_setup_intent_for_saving, _advance_booking_on_capture
-backend/app/schemas/payment_schemas.py               # SetupIntentResponse
-
-# Frontend
-frontend/components/booking/CheckoutFlow.tsx          # PaymentElement for new cards
-frontend/features/student/payment/components/PaymentMethods.tsx    # PaymentElement for card saving
-frontend/features/student/payment/components/PaymentMethodSelection.tsx  # PaymentElement in selection flow
-frontend/features/shared/payment/utils/stripe.ts      # Shared getStripe()
-frontend/app/(auth)/student/review/[id]/page.tsx      # Tip payment fix
+backend/app/routes/v1/payments.py
+backend/app/services/stripe_service.py
+frontend/components/booking/CheckoutFlow.tsx
+frontend/features/student/payment/components/PaymentMethods.tsx
+frontend/features/student/payment/components/PaymentMethodSelection.tsx
+frontend/features/shared/payment/utils/stripe.ts
 ```
 
 ---
 
 ## 📅 Availability Page Redesign — A-Team #33 (PR #339)
 
-### Changes
-
-Per A-Team reference sketch, reorganized the entire availability page layout:
-
-- **Controls moved above calendar**: Today/Repeat/Apply + Teaching window controls row sits directly below month navigation
-- **Compact format pills**: Replace verbose radio buttons with inline `All` (purple) · `Online` (blue) · `No Travel` (green) pills
-- **Removed**: Tip section, format tags legend, "Business Hours" subtitle, verbose settings explanation
-- **Side-by-side buffer cards**: "Staying put" and "Traveling to student" in horizontal grid instead of stacked
-- **New copy**: Detailed buffer explanations per A-Team spec with NYC-specific guidance
-- **Compact dropdown labels**: "15 minutes" → "15 min"
-- **Simplified overnight protection**: 2 concise lines
-- **Footer**: "About calendar protections" link + "Last updated" timestamp
-
-### Buffer Minimum Changes
-
-- Non-travel buffer minimum: 0 → **10 minutes** (FE + BE)
-- Travel buffer minimum: 15 → **30 minutes** (FE + BE)
-
-### Key Files
-
-```
-frontend/app/(auth)/instructor/availability/page.tsx           # Full page reorganization
-frontend/components/availability/CalendarSettingsSection.tsx    # Side-by-side buffers, new copy
-```
+Controls moved above calendar, compact inline format pills, side-by-side buffer cards with NYC-specific copy, simplified overnight protection. Buffer minimums changed: non-travel 0→10min, travel 15→30min.
 
 ---
 
-## 📊 Commission Tier Display — A-Team #39 (PR #338)
+## 📊 Commission Tier Display + Auto-Update — A-Team #39 (PR #338)
 
-### What Was Built
+### New Endpoint
 
-Complete commission tier visibility system: new API endpoint, auto-updating tier on booking completion, nightly Celery sweep, and a frontend card matching the A-Team sketch exactly.
+`GET /api/v1/instructors/me/commission-status` — returns tier name, rate, completed lessons in configurable window, tier ladder with progress.
 
-### Backend — New Endpoint
+### Tier Auto-Update (was never automatic before)
 
-`GET /api/v1/instructors/me/commission-status` — instructor-only, rate-limited.
-
-Returns: `tier_name`, `commission_rate_pct`, `completed_lessons_30d` (real DB count), `activity_window_days`, tier ladder with `is_current`/`is_unlocked` flags, next-tier progress.
-
-Tier rates and thresholds read from `platform_config` (admin-configurable) — not hardcoded. `activity_window_days` configurable via `tier_activity_window_days` in pricing config.
-
-### Backend — Tier Auto-Update
-
-**Problem found during implementation:** `current_tier_pct` on instructor profiles was NEVER updated automatically. It was set during seeding and only changed by manual admin actions. The tier calculation `_resolve_instructor_tier_pct()` computed correct rates at pricing time but never persisted the result.
+**Problem found:** `current_tier_pct` was NEVER updated automatically. Set at seed time, only changed by admin. The pricing calculation `_resolve_instructor_tier_pct()` dynamically computed correct rates at transaction time but never persisted.
 
 **Fix:**
-- `_maybe_refresh_instructor_tier()` called at end of both `complete_booking()` and `instructor_mark_complete()` — wrapped in try/except so failures don't break booking completion
-- Tier refresh also wired into `_auto_complete_booking()` in payment tasks
-- Daily Celery beat task at **3:15am** evaluates all active non-founding instructors
-- Founding instructors excluded from sweep query (`is_founding_instructor.is_(False)`)
-- Per-instructor error handling in batch (one failure doesn't stop sweep)
-- Respects `tier_stepdown_max` (max 1 tier drop per eval) and `tier_inactivity_reset_days` (90 days → Entry)
-
-### Backend — Bulk Query Optimization
-
-`evaluate_active_instructor_tiers` uses `get_instructor_completion_stats_in_window()` — single grouped query returning `{instructor_id: (count, last_completed_at)}` for all instructors. Eliminates 2N queries.
+- `_maybe_refresh_instructor_tier()` at end of both `complete_booking()` and `instructor_mark_complete()`
+- Also wired into `_auto_complete_booking()` in payment tasks
+- Daily Celery beat at **3:15am** evaluates all active non-founding instructors
+- Founding instructors excluded from sweep query
+- Bulk completion stats query (eliminates 2N individual queries)
+- Respects `tier_stepdown_max`, `tier_inactivity_reset_days`, founding immunity
+- `count_instructor_completed_in_window` (renamed from `_last_30d`) accepts configurable window
+- `activity_window_days` returned in API response
 
 ### Frontend — CommissionTierCard
 
-Two completely different views based on `is_founding`:
+Founding view: Star icon, "8% · locked" badge, availability commitment text.
+Standard view: tier ladder with progress bars. Entry never has a bar. Completed non-Entry tiers get full bars. Next tier gets partial bar with helper text.
 
-**Founding Instructor View:**
-- Star icon + "Founding Instructor" title
-- Purple "8% · locked" badge
-- "You have locked in our lowest rate—permanently. Whatever the floor is, you're on it."
-- Divider + availability commitment text
+### Seed Data Fix
 
-**Standard Instructor View:**
-- Title: "{Tier} tier · {rate}%"
-- Subtitle: "{X} of {Y} lessons completed · in the last {window} days"
-- Top-right rate badge (lavender for Entry/Growth, green for Pro)
-- Vertical three-tier ladder:
-  - Entry: NEVER shows a progress bar
-  - Current tier: checkmark + full bar (if not Entry)
-  - Next tier: partial bar with "X of Y · Z more to unlock"
-  - Higher tiers: dimmed, no bar
-
-### Seed Data Fixes
-
-**Critical bug found:** `seed_tier_maintenance_sessions()` was creating booking rows but not committing the transaction — rows were silently dropped when the session closed. Fixed by adding explicit `session.commit()`.
-
-- Sarah Chen: Pro (10%, 14 real completed bookings)
-- Jason Park: Growth (12%, 7 real completed bookings)
-- Emily Carter: Entry (15%, 3 real completed bookings)
-
-### Rename: `count_instructor_completed_last_30d` → `count_instructor_completed_in_window`
-
-Method now accepts `window_days` parameter and reads from `tier_activity_window_days` config. Old name was misleading.
-
-### Shared Helpers
-
-- `_founding_rate_pct()` — extracted from duplicated triple-nested `.get()` chains
-- `TierEvaluationResults` TypedDict moved to `pricing_service.py` (source of truth), imported by `payment_tasks.py`
+Critical bug: `seed_tier_maintenance_sessions()` created booking rows but didn't commit the transaction. Sarah Chen: Pro (14), Jason Park: Growth (7), Emily Carter: Entry (3).
 
 ### Key Files
-
 ```
-# Backend — Endpoint + Service
-backend/app/routes/v1/instructors.py                           # GET /me/commission-status
-backend/app/schemas/instructor.py                              # CommissionStatusResponse, TierInfo
-backend/app/services/pricing_service.py                        # get_commission_status, evaluate methods, _founding_rate_pct
-
-# Backend — Auto-Update
-backend/app/services/booking_service.py                        # _maybe_refresh_instructor_tier in both complete paths
-backend/app/tasks/payment_tasks.py                             # Tier refresh in auto-complete, nightly Celery task
-backend/app/tasks/beat_schedule.py                             # 3:15am tier evaluation
-
-# Backend — Repository
-backend/app/repositories/booking_repository.py                 # count_instructor_completed_in_window, bulk stats
-backend/app/repositories/instructor_profile_repository.py      # list_active_for_tier_evaluation (excludes founding)
-
-# Frontend
-frontend/components/earnings/CommissionTierCard.tsx             # Self-fetching component
-frontend/hooks/queries/useCommissionStatus.ts                   # React Query hook (delegates to service layer)
-frontend/app/(auth)/instructor/earnings/page.tsx                # Mounted above stat cards
-
-# Seed
-backend/scripts/seed_data/instructors.yaml                     # Tier targets
-backend/scripts/reset_and_seed_yaml.py                         # Commit fix, tier-maintenance bookings
+backend/app/routes/v1/instructors.py
+backend/app/services/pricing_service.py
+backend/app/tasks/beat_schedule.py
+backend/app/repositories/booking_repository.py
+frontend/components/earnings/CommissionTierCard.tsx
+frontend/hooks/queries/useCommissionStatus.ts
 ```
-
-### Review Rounds
-
-10+ review rounds across local audits, CI bots (Claude, Codex), and manual verification. All critical and high findings resolved. Key findings addressed:
-- ValueError → print seed regression reverted
-- Duplicate React Query hook deduplicated
-- Hardcoded 30-day window made configurable
-- Celery schedule collision offset to 3:15am
-- Founding instructors excluded from nightly sweep
-- N+1 queries eliminated with bulk stats query
-- Auto-complete path wired for tier refresh
 
 ---
 
-## 📋 A-Team Dashboard Beast — Triage Complete
+## 🎨 Dashboard Quick Wins — 25 Items (PR #340)
 
-Received 41-item backlog from A-Team. All items estimated and batched:
+### Part 1 — Icons, Settings, Profile (13 items)
 
-| Batch | Items | Effort | Description |
-|-------|-------|--------|-------------|
-| Quick wins | #1,3,5,6,7,10,12,14,15,17,19,20,21,22,23,27,28,29,36,37 | ~3 hr | Icon swaps, label fixes, badge colors, empty states |
-| Account settings | #8,9,13,16 | ~4 hr | Split name, ZIP auto-fill, 2FA toggle, merge security |
-| Referral cleanup | #2,3,4,11 | ~4 hr | Remove founding modal, fix broken link, relocate section |
-| Bookings redesign | #24,25,26,5 | ~5 hr | Card redesign, detail page, public profile gate |
-| Large redesigns | #32,34,35,38,40,41 | ~30 hr | Referrals, Reviews, Messages, Nav, Phone onboarding, Notifications |
-| **Done** | **#33, #39** | **—** | **Availability redesign, Commission tier** |
+| # | Item |
+|---|------|
+| 1 | Confetti emoji → Lucide Rocket on Go Live |
+| 6+7 | Phosphor Star, proportional fill, inline `4.5★ (3)` on Reviews card |
+| 10 | Phone formatted `(212) 555-1001`, shared `formatPhoneDisplay` helper |
+| 12 | 2FA state refreshes immediately after enable/disable |
+| 14 | Single-open accordion: 7 booleans → 1 `OpenSection` union type |
+| 15 | 2FA modal: "Connect your authenticator app", Step 1/Step 2, "Verify" |
+| 17 | Phone management block removed from Preferences |
+| 19 | Per-toggle `pendingPreferences` map, no column flash |
+| 20 | Remove Acknowledgments, Info icon, "Support" label |
+| 21 | Distinct icons: UserRoundPen, SlidersHorizontal, Info |
+| 22 | Personal Information removed from Instructor Profile |
+| 23 | Skills & Pricing → Phosphor Tag |
 
-### Business Decisions Needed
+### Part 2 — Bookings, Nav, Messages, Launch Gate (8 items)
 
-- **#32:** Student referral payout for instructor referrers → $20 cash via Stripe Transfer?
-- **#33 Row 7:** Advance notice configurable for instructors? (Currently platform-dictated: 60/180 min)
+| # | Item |
+|---|------|
+| 5 | Public Profile: environment-aware (beta=gated, preview=always enabled) |
+| 27 | Text-width tab indicators via shared `textWidthTabs` helper |
+| 28 | Completed badge blue everywhere (shared `bookingStatus` helper) |
+| 29 | Two-line empty states: bold heading + muted subtitle in dashed card |
+| 36 | Template timestamp: actual date or hidden |
+| 37 | Messages dropdown: sentence case, green badge, clickable cards |
+| 38 | Left nav reorder + Messages route link (text-only) |
+
+### Additional Fixes
+
+| Item | What changed |
+|------|-------------|
+| Account Details (#8,9) | Split Name → First + Last (locked/verified). ZIP editable. |
+| Phone verification | Inline 3-state: Verified (green) → Verify (purple) → Pending (amber + code) |
+| 2FA redirect | Disable: immediate `/login`. Enable: backup codes → acknowledge → `/login`. |
+| `student_launch_enabled` | Platform config flag, default `false`, read-only |
+| `@phosphor-icons/react` | New dependency |
+
+### Key Files
+```
+frontend/app/(auth)/instructor/settings/SettingsImpl.tsx
+frontend/app/(auth)/instructor/dashboard/page.tsx
+frontend/components/security/TfaModal.tsx
+frontend/features/instructor-profile/InstructorProfileForm.tsx
+frontend/lib/phone.ts
+frontend/lib/bookingStatus.ts
+frontend/lib/textWidthTabs.ts
+frontend/lib/publicProfileLaunch.ts
+frontend/lib/instructorDashboardNav.ts
+backend/app/services/config_service.py
+```
 
 ---
 
-## 🏛️ Architecture Decisions
+## 🔧 Booking Flow Hardening (PR #341)
 
-### New ADRs from this session:
+### Three Pre-Launch Bugs Fixed
 
-- **PaymentElement over CardElement** — `automatic_payment_methods` with `allow_redirects: "never"` replaces explicit `payment_method_types`. Unlocks Apple Pay, Google Pay, Link without code changes when enabled in Dashboard.
+**B1: Stale booked slots shown as available.**
+Public availability was Redis-cached. Booking creation didn't invalidate. Fixed: `_invalidate_booking_caches()` on BOTH `create_booking()` AND `create_booking_with_payment_setup()`. Search cache invalidation works in sync/thread contexts via `asyncio.run()` fallback.
 
-- **`allow_redirects: "never"` for Connect + manual capture** — Redirect-based payment methods (Samsung Pay, Bancontact, etc.) are incompatible with our destination charges + manual capture flow. Stripe silently falls back to non-redirect methods.
+**B2: Format tags not filtered on checkout edit.**
+`confirm/page.tsx` overwrote metadata with only `{ serviceId }`. Fixed: merge instead of replace. Format locked on checkout.
 
-- **SetupIntent rate limit as "write" not "financial"** — SetupIntent is preparatory (no money moves). React StrictMode double-mount in development would hit `financial` bucket's 0 burst, breaking the card-save flow.
+**B3: No pre-flight availability check.**
+Checkout only checked student-side conflicts. Backend had `check-availability` endpoint but nobody called it. Fixed: wired into post-time-edit and pre-submit paths.
 
-- **`_advance_booking_on_capture` webhook handler** — For PaymentElement, booking confirmation happens asynchronously after payment succeeds. Atomic `UPDATE WHERE status=PENDING` prevents race conditions on webhook replay.
+### Checkout UX Redesign
 
-- **Tier auto-update on booking completion** — `current_tier_pct` was never updated automatically. Now persisted at both manual completion paths and auto-complete. Nightly sweep at 3:15am as safety net for edge cases (inactivity reset, missed completions).
+Format toggle removed. Format decided in time modal, read-only on checkout. "Edit lesson" reopens modal with `lockLocationType=false`.
 
-- **Bulk completion stats query** — Nightly tier sweep uses single grouped query for all instructor completion counts, eliminating 2N individual queries.
+**Format badges:** Online (green), At instructor's (purple), At your location (amber), At a meeting point (amber).
 
-- **Configurable activity window** — `tier_activity_window_days` flows from `platform_config` through repository to display. Method renamed from `_last_30d` to `_in_window` to match.
+**Address handling:** No UI for online. No input for instructor_location. Picker for student/neutral_location. Placeholder strings sanitized.
 
-- **Entry tier never shows progress bar** — Entry is the starting tier, not an achievement. Progress bars only appear on tiers you've reached or are working toward.
+### Search Card
+
+"Next Available" opens `TimeSelectionModal` instead of bypassing format selection. Pre-selects date + respects duration from radio buttons.
+
+### check-availability Enhancement
+
+Added optional `exclude_booking_id` for reschedule self-exclusion.
+
+### Key Files
+```
+backend/app/services/booking_service.py
+backend/app/services/search/cache_invalidation.py
+backend/app/routes/v1/bookings.py
+frontend/app/(auth)/student/booking/confirm/page.tsx
+frontend/features/student/payment/components/PaymentConfirmation.tsx
+frontend/features/student/payment/components/PaymentSection.tsx
+frontend/features/student/payment/utils/locationUtils.ts
+frontend/features/student/payment/utils/buildAvailabilityCheckRequest.ts
+frontend/components/InstructorCard.tsx
+```
+
+---
+
+## 🔍 Platform Launch State Audit
+
+### STG Database State
+
+| Item | Value |
+|------|-------|
+| Beta phase | Defaults to `instructor_only` |
+| Total users | 75 (1 real, 74 seed) |
+| Instructor profiles | 68 total, 65 live, **0 founding** |
+| Beta invites generated | **0** |
+| `student_launch_enabled` | Defaults to `false` |
+| Founding cap | 100 (0 used, 100 remaining) |
+
+### Key Findings
+
+1. `student_launch_enabled` and `beta_phase` are independent — can conflict if not coordinated
+2. Backend registration not fully gated — `POST /api/v1/auth/register` works without invite
+3. Founding flow ready but unused — invite system works, 0 invites generated
+4. **Launch sequence:** Generate founding invites → distribute → instructors onboard → flip beta phase → flip `student_launch_enabled`
+
+---
+
+## 🏛️ Architecture Decisions (New in v143)
+
+- **PaymentElement over CardElement** — `automatic_payment_methods` + `allow_redirects: "never"`
+- **Tier auto-update on booking completion** — persisted at completion + daily sweep
+- **Configurable activity window** — `tier_activity_window_days` from config through repository to display
+- **Format locked on checkout** — decided in time modal, read-only on checkout
+- **Cache invalidation on booking creation** — both create paths invalidate availability + search cache
+- **Sync-context cache invalidation** — `asyncio.run()` fallback when no event loop
+- **`student_launch_enabled` as platform config** — environment-aware on frontend
+- **2FA redirect after state change** — disable: immediate. Enable: after backup codes acknowledgment.
 
 ---
 
@@ -265,48 +244,56 @@ Received 41-item backlog from A-Team. All items estimated and batched:
 
 | Metric | Value | Change from v142 |
 |--------|-------|-------------------|
-| **Backend Tests** | 13,200+ | +34 |
-| **Frontend Tests** | 8,260+ | +15 |
+| **Backend Tests** | 13,201+ | +35 |
+| **Frontend Tests** | 8,298+ | +36 |
 | **Backend Coverage** | 98%+ | Maintained |
 | **Frontend Coverage** | 97%+ | Maintained |
 | **Frontend Type Coverage** | 100% | Maintained |
 | **API Endpoints** | 374+ | +2 (setup-intent, commission-status) |
-| **PRs Merged** | 3 (#337, #338, #339) | — |
+| **PRs Merged** | 5 (#337, #338, #339, #340, #341) | — |
 | **Celery Beat Tasks** | 28+ | +1 (evaluate-instructor-tiers) |
 | **Payment Methods** | Card + Apple Pay + Google Pay + Link | Was: Card only |
-| **A-Team Items Done** | 2/41 | New backlog |
+| **A-Team Items Done** | 27/41 | Was: 0/41 |
 
 ---
 
 ## 📋 Remaining Work
 
-### Product/Feature — A-Team Dashboard Beast
+### A-Team Dashboard Beast (14 remaining)
 
-| Batch | Items | Priority | Notes |
-|-------|-------|----------|-------|
-| Quick wins | #1,3,5,6,7,10,12,14,15,17,19,20,21,22,23,27,28,29,36,37 | **Next** | ~3 hr, ship 20 items in one PR |
-| Account settings | #8,9,13,16 | High | ~4 hr, single page context |
-| Referral cleanup | #2,3,4,11 | High | ~4 hr, needs business decisions |
-| Bookings redesign | #24,25,26,5 | High | ~5 hr, most-used daily page |
-| Large redesigns | #32,34,35,38,40,41 | Medium | ~30 hr total, separate sessions |
+| # | Item | Priority | Effort |
+|---|------|----------|--------|
+| 2 | Remove founding instructor referral modal | High | 2 hr |
+| 4 | Referral link broken (/r/ route) | High | Investigate |
+| 11 | Move "Refer Instructors" to Referrals page | High | 2 hr |
+| 13 | 2FA toggle pattern | Medium | 2 hr |
+| 16 | Merge Security section | Medium | 2 hr |
+| 24+25 | Booking list card redesign | High | 3 hr |
+| 26 | Booking detail page redesign | High | 4 hr |
+| 30 | Earnings stat cards restructure | Medium | 2 hr |
+| 31 | Export transactions modal fixes | Medium | 1 hr |
+| 32 | Referrals page full redesign | Medium | 8 hr |
+| 34 | Reviews page redesign | Medium | 5 hr |
+| 35 | Messages standard layout | Medium | 5 hr |
+| 40 | Phone number in onboarding | High | 5 hr |
+| 41 | Clickable notification items | Medium | 3 hr |
 
-### Product/Feature — Other
+### Launch Critical
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Founding instructor activation sequence | **High** | ~102 recruited, codes not all distributed |
-| Student acquisition launch | **High** | Post founding instructor activation |
-| SEO programmatic pages | Medium | 7 categories × 77 subcategories × 224 services × neighborhoods |
-| LinkedIn authority sequence (Nina) | Medium | Forbes pipeline |
-| Instagram content runway | Medium | |
-| AWS Activate application | Low | Defer until full platform live |
+| **Founding instructor activation** | **CRITICAL** | 0 invites sent. System ready but unused. |
+| Beta gate hardening | High | Backend registration works without invite |
+| Student acquisition launch | High | Post founding activation |
 
 ---
 
 ## 🔑 Git History (main, post-v143)
 
 ```
-HEAD     fix(earnings): address PR review findings on commission tier
+HEAD     fix(booking): harden booking flow — format lock, cache invalidation, pre-flight checks (#341)
+         feat(dashboard): A-Team quick wins — 25 UI fixes + account details redesign (#340)
+         fix(earnings): address PR review findings on commission tier
          feat(earnings): commission tier display with auto-update (#338)
          feat(availability): reorganize availability page per A-Team design (#339)
          feat(payments): migrate CardElement → PaymentElement (#337)
@@ -315,6 +302,4 @@ HEAD     fix(earnings): address PR review findings on commission tier
 
 ---
 
-*Session v143 — PaymentElement Migration + Dashboard Beast #33 + #39: 3 PRs merged, Apple Pay unlocked, tier auto-update system, 41-item backlog triaged. 13,200+ backend + 8,260+ frontend tests passing.* 🎉
-
-**STATUS: PaymentElement live with Apple Pay confirmed. Commission tiers auto-update on booking completion + nightly sweep. A-Team Dashboard Beast 2/41 complete — quick wins batch (~20 items) recommended next.**
+**STATUS: 5 PRs merged. PaymentElement + Apple Pay live. 27/41 Dashboard Beast complete. Booking flow hardened. Commission tiers auto-update. Founding instructor activation is the critical path to launch. 13,201 backend + 8,298 frontend tests passing.**

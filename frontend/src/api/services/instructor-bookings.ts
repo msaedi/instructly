@@ -19,6 +19,25 @@ import type {
   ListInstructorBookingsApiV1InstructorBookingsGetParams,
 } from '@/src/api/generated/instructly.schemas';
 
+function buildInstructorBookingsQueryFilters(
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams
+) {
+  return {
+    ...(params?.status !== undefined && params.status !== null
+      ? { status: params.status.toString() }
+      : {}),
+    ...(params?.upcoming !== undefined ? { upcoming: params.upcoming } : {}),
+    ...(params?.exclude_future_confirmed !== undefined
+      ? { exclude_future_confirmed: params.exclude_future_confirmed }
+      : {}),
+    ...(params?.include_past_confirmed !== undefined
+      ? { include_past_confirmed: params.include_past_confirmed }
+      : {}),
+    ...(params?.page !== undefined ? { page: params.page } : {}),
+    ...(params?.per_page !== undefined ? { per_page: params.per_page } : {}),
+  };
+}
+
 /**
  * List instructor bookings with optional filters.
  *
@@ -41,15 +60,11 @@ export function useInstructorBookingsList(
   params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
   options?: { enabled?: boolean }
 ) {
-  // Build query params that satisfy exactOptionalPropertyTypes
-  const queryParams =
-    params?.status !== undefined && params.status !== null
-      ? { status: params.status.toString() }
-      : undefined;
+  const queryFilters = buildInstructorBookingsQueryFilters(params);
 
   return useListInstructorBookingsApiV1InstructorBookingsGet(params, {
     query: {
-      queryKey: queryKeys.bookings.instructor(queryParams),
+      queryKey: queryKeys.bookings.instructor(queryFilters),
       staleTime: 1000 * 60 * 5, // 5 minutes
       enabled: options?.enabled ?? true,
     },
@@ -77,7 +92,11 @@ export function usePendingCompletionBookings(page: number = 1, perPage: number =
     { page, per_page: perPage },
     {
       query: {
-        queryKey: queryKeys.bookings.instructor({ status: 'pending-completion' }),
+        queryKey: queryKeys.bookings.instructor({
+          status: 'pending-completion',
+          page,
+          per_page: perPage,
+        }),
         staleTime: 1000 * 60 * 1, // 1 minute (more fresh for pending items)
       },
     }
@@ -107,7 +126,11 @@ export function useInstructorUpcomingBookings(
     { page, per_page: perPage },
     {
       query: {
-        queryKey: queryKeys.bookings.instructor({ status: 'upcoming' }),
+        queryKey: queryKeys.bookings.instructor({
+          status: 'upcoming',
+          page,
+          per_page: perPage,
+        }),
         staleTime: 1000 * 60 * 5, // 5 minutes
         enabled: options?.enabled ?? true,
       },
@@ -138,7 +161,11 @@ export function useInstructorCompletedBookings(
     { page, per_page: perPage },
     {
       query: {
-        queryKey: queryKeys.bookings.instructor({ status: 'completed' }),
+        queryKey: queryKeys.bookings.instructor({
+          status: 'completed',
+          page,
+          per_page: perPage,
+        }),
         staleTime: 1000 * 60 * 15, // 15 minutes (completed bookings change rarely)
         enabled: options?.enabled ?? true,
       },

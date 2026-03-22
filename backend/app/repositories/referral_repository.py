@@ -34,6 +34,8 @@ from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
+REFERRER_DASHBOARD_MAX_ROWS = 500
+
 
 class ReferralCodeRepository(BaseRepository[ReferralCode]):
     """Data access for referral codes."""
@@ -367,25 +369,63 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         rule_version_student: str,
         rule_version_referrer: str,
     ) -> Tuple[ReferralReward, ReferralReward]:
-        student_reward = self._get_or_create_reward(
-            owner_id=student_user_id,
-            counterpart_id=inviter_user_id,
-            side=RewardSide.STUDENT,
+        student_reward = self.create_student_reward_for_referred_user(
+            student_user_id=student_user_id,
+            inviter_user_id=inviter_user_id,
             amount_cents=amount_cents,
             unlock_ts=unlock_ts,
             expire_ts=expire_ts,
             rule_version=rule_version_student,
         )
-        referrer_reward = self._get_or_create_reward(
-            owner_id=inviter_user_id,
-            counterpart_id=student_user_id,
-            side=RewardSide.STUDENT,
+        referrer_reward = self.create_student_reward_for_referrer(
+            referrer_user_id=inviter_user_id,
+            referred_user_id=student_user_id,
             amount_cents=amount_cents,
             unlock_ts=unlock_ts,
             expire_ts=expire_ts,
             rule_version=rule_version_referrer,
         )
         return student_reward, referrer_reward
+
+    def create_student_reward_for_referred_user(
+        self,
+        *,
+        student_user_id: str,
+        inviter_user_id: str,
+        amount_cents: int,
+        unlock_ts: datetime,
+        expire_ts: datetime,
+        rule_version: str,
+    ) -> ReferralReward:
+        return self._get_or_create_reward(
+            owner_id=student_user_id,
+            counterpart_id=inviter_user_id,
+            side=RewardSide.STUDENT,
+            amount_cents=amount_cents,
+            unlock_ts=unlock_ts,
+            expire_ts=expire_ts,
+            rule_version=rule_version,
+        )
+
+    def create_student_reward_for_referrer(
+        self,
+        *,
+        referrer_user_id: str,
+        referred_user_id: str,
+        amount_cents: int,
+        unlock_ts: datetime,
+        expire_ts: datetime,
+        rule_version: str,
+    ) -> ReferralReward:
+        return self._get_or_create_reward(
+            owner_id=referrer_user_id,
+            counterpart_id=referred_user_id,
+            side=RewardSide.STUDENT,
+            amount_cents=amount_cents,
+            unlock_ts=unlock_ts,
+            expire_ts=expire_ts,
+            rule_version=rule_version,
+        )
 
     def create_instructor_referrer_reward(
         self,
@@ -441,26 +481,49 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             return None
 
         try:
-            payout = InstructorReferralPayout(
-                referrer_user_id=referrer_user_id,
-                referred_instructor_id=referred_instructor_id,
-                triggering_booking_id=triggering_booking_id,
-                amount_cents=amount_cents,
-                was_founding_bonus=was_founding_bonus,
-                idempotency_key=idempotency_key,
-                stripe_transfer_status="pending",
+            with self.db.begin_nested():
+                payout = InstructorReferralPayout(
+                    referrer_user_id=referrer_user_id,
+                    referred_instructor_id=referred_instructor_id,
+                    triggering_booking_id=triggering_booking_id,
+                    amount_cents=amount_cents,
+                    was_founding_bonus=was_founding_bonus,
+                    idempotency_key=idempotency_key,
+                    stripe_transfer_status="pending",
+                )
+                self.db.add(payout)
+                self.db.flush()
+                return payout
+        except IntegrityError as exc:
+            existing = (
+                self.db.query(InstructorReferralPayout)
+                .filter(InstructorReferralPayout.idempotency_key == idempotency_key)
+                .first()
             )
-            self.db.add(payout)
-            self.db.flush()
-            return payout
-        except IntegrityError:
-            self.db.rollback()
-            logger.info(
-                "Payout already exists for referred instructor %s "
-                "(concurrent creation handled by DB constraint)",
-                referred_instructor_id,
+            if existing is not None:
+                logger.info(
+                    "Payout already exists for idempotency key %s "
+                    "(concurrent creation handled by DB constraint)",
+                    idempotency_key,
+                )
+                return None
+
+            existing_for_instructor = (
+                self.db.query(InstructorReferralPayout)
+                .filter(
+                    InstructorReferralPayout.referred_instructor_id == referred_instructor_id,
+                )
+                .first()
             )
-            return None
+            if existing_for_instructor is not None:
+                logger.info(
+                    "Payout already exists for referred instructor %s "
+                    "(concurrent creation handled by DB constraint)",
+                    referred_instructor_id,
+                )
+                return None
+
+            raise RepositoryException("Unable to create instructor referral payout") from exc
 
     def get_instructor_referral_payout_by_id(
         self, payout_id: str
@@ -584,6 +647,16 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         return int(result or 0)
 
+    def count_referred_users_by_referrer(self, referrer_user_id: str) -> int:
+        """Count all referred users for the given referrer."""
+        result = (
+            self.db.query(func.count(ReferralAttribution.id))
+            .join(ReferralCode, ReferralAttribution.code_id == ReferralCode.id)
+            .filter(ReferralCode.referrer_user_id == referrer_user_id)
+            .scalar()
+        )
+        return int(result or 0)
+
     def get_referred_instructors_with_payout_status(
         self,
         referrer_user_id: str,
@@ -657,6 +730,104 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
                     "first_lesson_completed_at": row.first_lesson_completed_at,
                     "stripe_transfer_status": row.stripe_transfer_status,
                     "payout_amount_cents": row.payout_amount_cents,
+                }
+            )
+
+        return results
+
+    def list_referrer_dashboard_rows(self, referrer_user_id: str) -> List[Dict[str, Any]]:
+        """Return normalized referral dashboard rows for an instructor referrer."""
+        from app.models.booking import Booking, BookingStatus
+        from app.models.instructor import InstructorProfile
+        from app.models.user import User
+
+        instructor_first_lesson_subq = (
+            self.db.query(
+                Booking.instructor_id.label("user_id"),
+                func.min(Booking.completed_at).label("first_lesson_completed_at"),
+            )
+            .filter(Booking.status == BookingStatus.COMPLETED)
+            .group_by(Booking.instructor_id)
+            .subquery()
+        )
+
+        student_first_lesson_subq = (
+            self.db.query(
+                Booking.student_id.label("user_id"),
+                func.min(Booking.completed_at).label("first_lesson_completed_at"),
+            )
+            .filter(Booking.status == BookingStatus.COMPLETED)
+            .group_by(Booking.student_id)
+            .subquery()
+        )
+
+        query = (
+            self.db.query(
+                ReferralAttribution.id.label("attribution_id"),
+                ReferralAttribution.referred_user_id.label("user_id"),
+                ReferralAttribution.ts.label("referred_at"),
+                User.first_name,
+                User.last_name,
+                InstructorProfile.user_id.label("instructor_user_id"),
+                instructor_first_lesson_subq.c.first_lesson_completed_at.label(
+                    "instructor_first_lesson_completed_at"
+                ),
+                student_first_lesson_subq.c.first_lesson_completed_at.label(
+                    "student_first_lesson_completed_at"
+                ),
+                InstructorReferralPayout.id.label("payout_id"),
+                InstructorReferralPayout.amount_cents.label("payout_amount_cents"),
+                InstructorReferralPayout.created_at.label("payout_created_at"),
+                InstructorReferralPayout.transferred_at,
+                InstructorReferralPayout.failed_at,
+                InstructorReferralPayout.failure_reason,
+                InstructorReferralPayout.stripe_transfer_status,
+            )
+            .select_from(ReferralAttribution)
+            .join(ReferralCode, ReferralAttribution.code_id == ReferralCode.id)
+            .join(User, ReferralAttribution.referred_user_id == User.id)
+            .outerjoin(InstructorProfile, User.id == InstructorProfile.user_id)
+            .outerjoin(
+                instructor_first_lesson_subq,
+                User.id == instructor_first_lesson_subq.c.user_id,
+            )
+            .outerjoin(
+                student_first_lesson_subq,
+                User.id == student_first_lesson_subq.c.user_id,
+            )
+            .outerjoin(
+                InstructorReferralPayout,
+                User.id == InstructorReferralPayout.referred_instructor_id,
+            )
+            .filter(ReferralCode.referrer_user_id == referrer_user_id)
+            .order_by(ReferralAttribution.ts.desc())
+            .limit(REFERRER_DASHBOARD_MAX_ROWS)
+        )
+
+        results: List[Dict[str, Any]] = []
+        for row in query.all():
+            is_instructor = row.instructor_user_id is not None
+            first_lesson_completed_at = (
+                row.instructor_first_lesson_completed_at
+                if is_instructor
+                else row.student_first_lesson_completed_at
+            )
+            results.append(
+                {
+                    "attribution_id": row.attribution_id,
+                    "user_id": row.user_id,
+                    "first_name": row.first_name,
+                    "last_name": row.last_name,
+                    "referred_at": row.referred_at,
+                    "referral_type": "instructor" if is_instructor else "student",
+                    "first_lesson_completed_at": first_lesson_completed_at,
+                    "payout_id": row.payout_id,
+                    "payout_amount_cents": row.payout_amount_cents,
+                    "payout_created_at": row.payout_created_at,
+                    "transferred_at": row.transferred_at,
+                    "failed_at": row.failed_at,
+                    "failure_reason": row.failure_reason,
+                    "stripe_transfer_status": row.stripe_transfer_status,
                 }
             )
 

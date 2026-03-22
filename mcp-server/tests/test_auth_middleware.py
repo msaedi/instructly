@@ -240,6 +240,23 @@ class TestCORSHeaders:
         assert response.status_code == 200
         assert response.headers.get("Access-Control-Allow-Origin") == "*"
 
+    def test_preflight_response_uses_wildcard_origin(self, jwt_keys: dict[str, str]):
+        settings = get_test_settings(jwt_keys=jwt_keys)
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setenv("ENABLE_CORS", "true")
+            app = create_app(settings)
+            client = TestClient(app, raise_server_exceptions=False)
+
+            response = client.options(
+                "/api/v1/health",
+                headers={
+                    "Origin": "https://example.com",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+        assert response.status_code == 200
+        assert response.headers.get("Access-Control-Allow-Origin") == "*"
+
 
 class TestChatGPTOAuthSupport:
     def test_post_returns_mcp_error_with_www_authenticate_meta(self):

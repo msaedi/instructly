@@ -218,14 +218,12 @@ function PaymentConfirmationInner({
     setSelectedSavedAddress(null);
   }, []);
 
-  /* istanbul ignore next */
   const buildSavedAddressLine1 = useCallback((address: SavedAddress): string => {
     const line1 = address.street_line1?.trim() ?? '';
     const line2 = address.street_line2?.trim() ?? '';
     return [line1, line2].filter((part) => part.length > 0).join(', ');
   }, []);
 
-  /* istanbul ignore next */
   const applySavedAddress = useCallback(
     (address: SavedAddress) => {
       setAddressFields({
@@ -247,7 +245,6 @@ function PaymentConfirmationInner({
     [buildSavedAddressLine1]
   );
 
-  /* istanbul ignore next */
   const handleSelectSavedAddress = useCallback(
     (address: SavedAddress | null) => {
       if (!address) {
@@ -261,14 +258,12 @@ function PaymentConfirmationInner({
     [applySavedAddress]
   );
 
-  /* istanbul ignore next */
   const handleEnterNewAddress = useCallback(() => {
     setSelectedSavedAddress(null);
     setLocationType((prev) => (prev === 'neutral_location' ? prev : 'student_location'));
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     requestAnimationFrame(() => {
-      /* istanbul ignore next */
       addressLine1Ref.current?.focus();
     });
   }, []);
@@ -1069,7 +1064,6 @@ function PaymentConfirmationInner({
 
     if (isTravelLocation && isEditingLocation) {
       const cacheKey = `${locationType}|editing`;
-      /* istanbul ignore next */
       if (lastLocationRef.current === cacheKey) {
         return;
       }
@@ -1397,6 +1391,8 @@ function PaymentConfirmationInner({
 
   // Fetch instructor profile to get the actual service duration options
   useEffect(() => {
+    let isActive = true;
+
     const loadInstructorProfile = async () => {
       if (!booking.instructorId) return;
 
@@ -1404,6 +1400,9 @@ function PaymentConfirmationInner({
       try {
         // Use v1 instructors service
         const data = await fetchInstructorProfile(booking.instructorId);
+        if (!isActive) {
+          return;
+        }
         const services = data.services || [];
         if (services.length) {
           setInstructorServices(services.map((service) => ({
@@ -1416,17 +1415,24 @@ function PaymentConfirmationInner({
           });
         }
       } catch (error) {
+        if (!isActive) {
+          return;
+        }
         logger.error('Failed to fetch instructor profile', error);
       } finally {
-        setLoadingInstructor(false);
+        if (isActive) {
+          setLoadingInstructor(false);
+        }
       }
     };
 
     void loadInstructorProfile();
+
+    return () => {
+      isActive = false;
+    };
   }, [booking.instructorId]);
 
-
-  /* istanbul ignore next */
   const handleTimeSelected = (selection: {
     date: string;
     time: string;

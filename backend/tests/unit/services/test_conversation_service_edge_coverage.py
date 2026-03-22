@@ -428,23 +428,27 @@ class TestSendMessageNotificationsEdge:
 
 
 # ---------------------------------------------------------------------------
-# validate_instructor — not an instructor
+# resolve_conversation_participants — invalid pairs
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-class TestValidateInstructorEdge:
-    """Test validate_instructor when user is not an instructor."""
+class TestResolveConversationParticipantsEdge:
+    """Test resolve_conversation_participants edge cases."""
 
-    def test_user_not_instructor(self, service):
-        """L574-575: user exists but is_instructor is False."""
-        mock_user = SimpleNamespace(id="u1", is_instructor=False)
+    def test_same_role_pair_is_rejected(self, service):
+        """Reject pairs that do not contain one instructor and one non-instructor."""
+        current_user = SimpleNamespace(id="u1", is_instructor=False)
+        other_user = SimpleNamespace(id="u2", is_instructor=False)
         with patch(
             "app.services.conversation_service.RepositoryFactory.create_user_repository"
         ) as factory:
-            factory.return_value.get_by_id.return_value = mock_user
-            ok, error = service.validate_instructor("u1")
+            factory.return_value.get_by_id.side_effect = [current_user, other_user]
+            participants, error, error_code = service.resolve_conversation_participants(
+                "u1", "u2"
+            )
 
-        assert ok is False
-        assert error == "Target user is not an instructor"
+        assert participants is None
+        assert error == "Exactly one instructor and one non-instructor are required"
+        assert error_code == "invalid_participant_pair"
 
 
 # ---------------------------------------------------------------------------
@@ -485,19 +489,28 @@ class TestSendMessageWithContextEdge:
 class TestCreateConversationWithMessageEdge:
     """Test create_conversation_with_message edge cases."""
 
-    def test_invalid_instructor_returns_error(self, service):
-        """L600-606: invalid instructor returns error result."""
-        with patch.object(service, "validate_instructor", return_value=(False, "Not found")):
+    def test_invalid_target_returns_error(self, service):
+        """Returns an error result when participants cannot be resolved."""
+        with patch.object(
+            service,
+            "resolve_conversation_participants",
+            return_value=(None, "Target user not found", "target_user_not_found"),
+        ):
             result = service.create_conversation_with_message("s1", "bad-id")
 
         assert result.success is False
-        assert result.error == "Not found"
+        assert result.error == "Target user not found"
         assert result.conversation_id == ""
+        assert result.error_code == "target_user_not_found"
 
     def test_no_initial_message(self, service):
-        """L615: no initial_message => conversation created without message."""
+        """No initial_message => conversation created without message."""
         conv = _Conversation("conv-1", "s1", "i1")
-        with patch.object(service, "validate_instructor", return_value=(True, None)):
+        with patch.object(
+            service,
+            "resolve_conversation_participants",
+            return_value=(("s1", "i1"), None, None),
+        ):
             service.conversation_repository.get_or_create.return_value = (conv, True)
 
             result = service.create_conversation_with_message("s1", "i1")

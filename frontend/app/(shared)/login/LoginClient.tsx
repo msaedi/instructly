@@ -11,10 +11,17 @@ import { ApiError, http, httpGet } from '@/lib/http';
 import type { AuthUserResponse, InstructorProfile } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { buildAuthHref } from '@/features/referrals/referralAuth';
 import { getGuestSessionId, transferGuestSearchesToAccount } from '@/lib/searchTracking';
 import { TURNSTILE_SITE_KEY } from '@/lib/publicEnv';
 
-function LoginForm({ redirect }: { redirect: string }) {
+function LoginForm({
+  redirect,
+  referralCode,
+}: {
+  redirect: string;
+  referralCode: string | null;
+}) {
   const router = useRouter();
   const { checkAuth } = useAuth();
   const [formData, setFormData] = useState({
@@ -454,7 +461,14 @@ function LoginForm({ redirect }: { redirect: string }) {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Don&apos;t have an account?{' '}
-              <Link href={`/signup${resolvedRedirect !== '/' ? `?redirect=${encodeURIComponent(resolvedRedirect)}` : ''}`} className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors" onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: resolvedRedirect })}>
+              <Link
+                href={buildAuthHref('/signup', {
+                  redirect: resolvedRedirect,
+                  ref: referralCode ?? null,
+                })}
+                className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors"
+                onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: resolvedRedirect })}
+              >
                 Sign up
               </Link>
             </p>
@@ -465,9 +479,15 @@ function LoginForm({ redirect }: { redirect: string }) {
   );
 }
 
-export function LoginClient({ redirect }: { redirect: string }) {
+export function LoginClient({
+  redirect,
+  referralCode,
+}: {
+  redirect: string;
+  referralCode: string | null;
+}) {
   logger.info('Login page loaded');
-  return <LoginForm redirect={redirect} />;
+  return <LoginForm redirect={redirect} referralCode={referralCode} />;
 }
 
 export default LoginClient;

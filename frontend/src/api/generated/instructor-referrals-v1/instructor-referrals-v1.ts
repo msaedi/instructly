@@ -23,6 +23,7 @@ import type {
   GetReferredInstructorsApiV1InstructorReferralsReferredGetParams,
   HTTPValidationError,
   PopupDataResponse,
+  ReferralDashboardResponse,
   ReferralStatsResponse,
   ReferredInstructorsResponse,
 } from '../instructly.schemas';
@@ -31,6 +32,159 @@ import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * Get a page-ready dashboard payload for instructor referrals.
+ * @summary Get Referral Dashboard
+ */
+export const getGetReferralDashboardApiV1InstructorReferralsDashboardGetUrl = () => {
+  return `/api/v1/instructor-referrals/dashboard`;
+};
+
+export const getReferralDashboardApiV1InstructorReferralsDashboardGet = async (
+  options?: RequestInit
+): Promise<ReferralDashboardResponse> => {
+  return customFetch<ReferralDashboardResponse>(
+    getGetReferralDashboardApiV1InstructorReferralsDashboardGetUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetReferralDashboardApiV1InstructorReferralsDashboardGetQueryKey = () => {
+  return [`/api/v1/instructor-referrals/dashboard`] as const;
+};
+
+export const getGetReferralDashboardApiV1InstructorReferralsDashboardGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetReferralDashboardApiV1InstructorReferralsDashboardGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>
+  > = ({ signal }) =>
+    getReferralDashboardApiV1InstructorReferralsDashboardGet({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetReferralDashboardApiV1InstructorReferralsDashboardGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>
+>;
+export type GetReferralDashboardApiV1InstructorReferralsDashboardGetQueryError = ErrorType<unknown>;
+
+export function useGetReferralDashboardApiV1InstructorReferralsDashboardGet<
+  TData = Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetReferralDashboardApiV1InstructorReferralsDashboardGet<
+  TData = Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetReferralDashboardApiV1InstructorReferralsDashboardGet<
+  TData = Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Referral Dashboard
+ */
+
+export function useGetReferralDashboardApiV1InstructorReferralsDashboardGet<
+  TData = Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReferralDashboardApiV1InstructorReferralsDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetReferralDashboardApiV1InstructorReferralsDashboardGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Public endpoint to check founding phase status.

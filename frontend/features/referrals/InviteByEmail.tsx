@@ -3,15 +3,26 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { sendReferralInvites } from '@/features/shared/referrals/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 interface InviteByEmailProps {
   shareUrl: string;
   fromName?: string;
+  label?: string;
+  helperText?: string;
+  buttonText?: string;
 }
 
-export default function InviteByEmail({ shareUrl, fromName }: InviteByEmailProps) {
+export default function InviteByEmail({
+  shareUrl,
+  fromName,
+  label = 'Invite friends by email',
+  helperText = 'Send up to 10 emails at a time. Separate addresses with commas or spaces.',
+  buttonText = 'Send invites',
+}: InviteByEmailProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -88,30 +99,30 @@ export default function InviteByEmail({ shareUrl, fromName }: InviteByEmailProps
   return (
     <form onSubmit={handleSubmit} className="space-y-2" aria-live="polite">
       <label htmlFor="invite-emails" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Invite friends by email
+        {label}
       </label>
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-        <input
+        <Input
           id="invite-emails"
           type="text"
           value={inputValue}
           onChange={(event) => setInputValue(event.target.value)}
           placeholder="name@example.com, other@example.com"
-          className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 disabled:cursor-not-allowed disabled:bg-gray-100"
+          className="h-10 flex-1"
           disabled={isSubmitting || !shareUrl}
           aria-describedby="invite-emails-hint"
           autoComplete="off"
         />
-        <button
+        <Button
           type="submit"
           disabled={isSubmitting || !shareUrl}
-          className="inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 whitespace-nowrap"
         >
-          {isSubmitting ? 'Sending…' : 'Send invites'}
-        </button>
+          {isSubmitting ? 'Sending…' : buttonText}
+        </Button>
       </div>
       <p id="invite-emails-hint" className="text-xs text-gray-500 dark:text-gray-400">
-        Send up to 10 emails at a time. Separate addresses with commas or spaces.
+        {helperText}
       </p>
       <p className="min-h-[1rem] text-xs text-gray-500 dark:text-gray-400" role="status">
         {statusMessage || (shareUrl ? '' : 'Referral link loading…')}

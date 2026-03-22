@@ -7,10 +7,11 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTimestamp } from '@/components/messaging/formatters';
 import type { NotificationItem as NotificationItemType } from '@/features/shared/api/notifications';
 import { NotificationIcon } from './NotificationIcon';
+import { resolveNotificationDestination } from './resolveNotificationDestination';
 
 interface NotificationItemProps {
   notification: NotificationItemType;
-  onRead: () => void;
+  onRead: () => Promise<void> | void;
   onDelete: () => void;
 }
 
@@ -19,16 +20,18 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
   const [isHovered, setIsHovered] = useState(false);
   const isUnread = !notification.read_at;
   const timestamp = formatRelativeTimestamp(notification.created_at);
-  const dataUrl = notification.data?.['url'];
-  const url = typeof dataUrl === 'string' ? dataUrl : null;
+  const destination = resolveNotificationDestination(notification);
 
-  const handleClick = () => {
-    if (isUnread) {
-      onRead();
+  const handleClick = async () => {
+    const markReadPromise = isUnread
+      ? Promise.resolve(onRead()).catch(() => undefined)
+      : Promise.resolve();
+
+    if (destination) {
+      router.push(destination);
     }
-    if (url) {
-      router.push(url);
-    }
+
+    await markReadPromise;
   };
 
   return (
@@ -37,11 +40,13 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
       tabIndex={0}
       data-notification-item="true"
       aria-label={`${notification.title}${isUnread ? ' (unread)' : ''}`}
-      onClick={handleClick}
+      onClick={() => {
+        void handleClick();
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          handleClick();
+          void handleClick();
         }
       }}
       onMouseEnter={() => setIsHovered(true)}

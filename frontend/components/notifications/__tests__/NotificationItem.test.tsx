@@ -43,7 +43,7 @@ const createNotification = (overrides: Partial<NotificationItemType> = {}): Noti
 });
 
 describe('NotificationItem', () => {
-  const mockOnRead = jest.fn();
+  const mockOnRead = jest.fn().mockResolvedValue(undefined);
   const mockOnDelete = jest.fn();
 
   beforeEach(() => {
@@ -216,6 +216,107 @@ describe('NotificationItem', () => {
       expect(mockPush).toHaveBeenCalledWith('/student/lessons/123');
     });
 
+    it('navigates booking reminders to booking detail when only booking_id is present', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'booking_reminder_1h',
+            data: { booking_id: 'booking-123' },
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith('/instructor/bookings/booking-123');
+    });
+
+    it('prefers the booking detail route over a generic bookings panel url when booking_id is present', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'booking_cancelled',
+            data: {
+              booking_id: 'booking-456',
+              url: '/instructor/dashboard?panel=bookings',
+            },
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith('/instructor/bookings/booking-456');
+    });
+
+    it('navigates new message notifications to the conversation fallback route', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'booking_new_message',
+            data: { conversation_id: 'conv-123' },
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith(
+        '/instructor/dashboard?panel=messages&conversation=conv-123'
+      );
+    });
+
+    it('falls back to the bookings dashboard panel when a booking notification has no booking id', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'booking_reminder_24h',
+            data: {},
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith('/instructor/dashboard?panel=bookings');
+    });
+
+    it('navigates review notifications to the reviews panel fallback route', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'new_review',
+            category: 'reviews',
+            data: { review_id: 'review-123' },
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith('/instructor/dashboard?panel=reviews');
+    });
+
     it('does not navigate when url is not a string', async () => {
       const user = userEvent.setup();
 
@@ -232,6 +333,27 @@ describe('NotificationItem', () => {
       await user.click(screen.getByRole('menuitem'));
 
       expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('still navigates when mark-as-read rejects', async () => {
+      const user = userEvent.setup();
+      mockOnRead.mockRejectedValueOnce(new Error('network'));
+
+      render(
+        <NotificationItem
+          notification={createNotification({
+            type: 'booking_confirmed',
+            data: { booking_id: 'booking-999' },
+          })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      await user.click(screen.getByRole('menuitem'));
+
+      expect(mockPush).toHaveBeenCalledWith('/instructor/bookings/booking-999');
+      expect(mockOnRead).toHaveBeenCalled();
     });
   });
 

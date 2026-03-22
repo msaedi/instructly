@@ -16,6 +16,7 @@ class AuthUserResponse(StrictModel):
     last_name: str
     phone: Optional[str] = None
     phone_verified: Optional[bool] = False
+    email_verified: Optional[bool] = True
     zip_code: Optional[str] = None
     is_active: bool = True
     timezone: Optional[str] = None

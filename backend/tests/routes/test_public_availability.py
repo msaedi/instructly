@@ -816,6 +816,208 @@ class TestPublicAvailability:
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
         assert slots == [{"start_time": "11:00", "end_time": "12:00"}]
 
+    @pytest.mark.parametrize(
+        ("location_type", "expected_start"),
+        [
+            ("online", "09:00"),
+            ("instructor_location", "09:00"),
+            ("student_location", "11:00"),
+        ],
+    )
+    def test_public_availability_hides_current_morning_slots_after_midnight(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+        location_type: str,
+        expected_start: str,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(0, 27))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": location_type,
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": expected_start, "end_time": "12:00"}]
+
+    @pytest.mark.parametrize("location_type", ["online", "instructor_location", "student_location"])
+    def test_public_availability_keeps_next_day_early_slots_after_midnight(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+        location_type: str,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(0, 27))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": location_type,
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "08:00", "end_time": "12:00"}]
+
+    @pytest.mark.parametrize("location_type", ["online", "instructor_location"])
+    def test_public_availability_keeps_day_after_tomorrow_early_non_travel_slots(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+        location_type: str,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today() + timedelta(days=2)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(22, 0))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": location_type,
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "08:00", "end_time": "12:00"}]
+
+    def test_public_availability_keeps_day_after_tomorrow_early_travel_slots(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today() + timedelta(days=2)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(22, 0))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "08:00", "end_time": "12:00"}]
+
     def test_public_availability_allows_overnight_slots_when_protection_disabled(
         self,
         public_client,

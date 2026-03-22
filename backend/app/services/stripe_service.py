@@ -1643,7 +1643,8 @@ class StripeService(BaseService):
         destination_account_id: str,
         amount_cents: int,
         referrer_user_id: str,
-        referred_instructor_id: str,
+        referred_user_id: str,
+        referral_type: str,
         was_founding_bonus: bool,
     ) -> Dict[str, Any]:
         """Create a Stripe Transfer for instructor referral bonuses."""
@@ -1651,17 +1652,21 @@ class StripeService(BaseService):
             return {"skipped": True, "transfer_id": None}
 
         idempotency_key = f"instructor_referral_bonus_{payout_id}"
-        description = (
-            "Instructor referral bonus - Founding $75"
-            if was_founding_bonus
-            else "Instructor referral bonus - Standard $50"
-        )
+        if referral_type == "student":
+            description = "Student referral bonus - $20"
+        else:
+            description = (
+                "Instructor referral bonus - Founding $75"
+                if was_founding_bonus
+                else "Instructor referral bonus - Standard $50"
+            )
 
         metadata = {
-            "type": "instructor_referral_bonus",
+            "type": f"{referral_type}_referral_bonus",
             "payout_id": payout_id,
             "referrer_user_id": referrer_user_id,
-            "referred_instructor_id": referred_instructor_id,
+            "referred_user_id": referred_user_id,
+            "referral_type": referral_type,
             "was_founding_bonus": str(was_founding_bonus).lower(),
             "amount_dollars": str(amount_cents / 100),
         }

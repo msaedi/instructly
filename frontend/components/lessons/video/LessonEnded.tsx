@@ -21,7 +21,9 @@ function computeLocalDuration(joinedAt: string | null | undefined, leftAt: strin
 }
 
 export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, localLeftAt, localDurationSeconds }: LessonEndedProps) {
-  const backHref = userRole === 'instructor' ? '/instructor/bookings' : '/student/lessons';
+  const backHref = userRole === 'instructor'
+    ? '/instructor/dashboard?panel=bookings&tab=past'
+    : '/student/lessons';
 
   // Duration: prefer backend, then pre-computed local, then compute from timestamps
   const duration = booking.video_session_duration_seconds

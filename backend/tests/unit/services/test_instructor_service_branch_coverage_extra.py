@@ -27,6 +27,8 @@ def _service() -> InstructorService:
     service.config_service = MagicMock()
     service.profile_repository = MagicMock()
     service.service_repository = MagicMock()
+    service.user_repository = MagicMock()
+    service.user_repository.get_by_id.return_value = SimpleNamespace(phone_verified=True)
     return service
 
 

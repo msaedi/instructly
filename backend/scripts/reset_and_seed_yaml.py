@@ -73,6 +73,7 @@ class DatabaseSeeder:
         "profile",
         "availability_pattern",
         "current_tier_pct",
+        "review_fixtures",
         "seed_completed_last_30d",
         "seed_randomize_categories",
         "first_name",
@@ -189,6 +190,31 @@ class DatabaseSeeder:
         if not left or not right:
             return 0.0
         return len(left & right) / len(left | right)
+
+    @staticmethod
+    def _resolve_review_fixture_created_at(
+        fixture: Dict[str, Any],
+        *,
+        now_utc: datetime,
+    ) -> datetime:
+        created_at_value = str(fixture.get("created_at") or "").strip()
+        if created_at_value:
+            parsed = datetime.fromisoformat(created_at_value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+
+        days_ago = int(fixture.get("days_ago") or 0)
+        hours_ago = int(fixture.get("hours_ago") or 0)
+        minutes_ago = int(fixture.get("minutes_ago") or 0)
+        return now_utc - timedelta(days=days_ago, hours=hours_ago, minutes=minutes_ago)
+
+    @staticmethod
+    def _normalize_optional_seed_text(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text_value = str(value).strip()
+        return text_value or None
 
     def _audit_instructors_yaml_shape(self, instructors: Sequence[Dict[str, Any]]) -> None:
         """Validate instructors.yaml shape against the current schema contract."""
@@ -657,6 +683,8 @@ class DatabaseSeeder:
                     first_name=student_data["first_name"],
                     last_name=student_data["last_name"],
                     phone=student_data.get("phone"),
+                    phone_verified=True,
+                    email_verified=True,
                     zip_code=student_data["zip_code"],
                     hashed_password=hashed_password,  # Use pre-hashed password
                     is_active=True,
@@ -735,6 +763,8 @@ class DatabaseSeeder:
                     first_name=instructor_data["first_name"],
                     last_name=instructor_data["last_name"],
                     phone=instructor_data.get("phone"),
+                    phone_verified=True,
+                    email_verified=True,
                     zip_code=instructor_data["zip_code"],
                     hashed_password=hashed_password,
                     is_active=True,
@@ -799,6 +829,7 @@ class DatabaseSeeder:
                 plan_entry = {
                     "user_id": user_id,
                     "profile_id": profile_id,
+                    "review_fixtures": instructor_data.get("review_fixtures") or [],
                     "seed_completed_last_30d": seed_completed_last_30d,
                     "seed_randomize_categories": seed_randomize_categories,
                     "service_ids": [],
@@ -2311,7 +2342,26 @@ class DatabaseSeeder:
                 seed_step_minutes = self._get_env_int("SEED_REVIEW_STEP_MINUTES", 15)
                 seed_durations = self._get_env_csv_ints("SEED_REVIEW_DURATIONS", [60, 45, 30])
                 preferred_student_email = os.getenv("SEED_REVIEW_STUDENT_EMAIL", "").strip() or None
+                now_utc = datetime.now(timezone.utc)
                 utc_today = datetime.now(timezone.utc).date()
+
+                fixture_lookback_days = 0
+                for plan in self.instructor_seed_plan.values():
+                    for fixture in plan.get("review_fixtures") or []:
+                        if not isinstance(fixture, dict):
+                            continue
+                        fixture_created_at = self._resolve_review_fixture_created_at(
+                            fixture,
+                            now_utc=now_utc,
+                        )
+                        days_old = max(
+                            0,
+                            int((now_utc - fixture_created_at).total_seconds() // 86400) + 2,
+                        )
+                        fixture_lookback_days = max(fixture_lookback_days, days_old)
+
+                if fixture_lookback_days > seed_lookback:
+                    seed_lookback = fixture_lookback_days
 
                 probe_snapshot: dict[str, Any] | None = None
                 probe_raw = os.getenv("BITMAP_PROBE_RESULT")
@@ -2408,6 +2458,9 @@ class DatabaseSeeder:
                     return 0
 
                 student_ids = [s.id for s in all_students]
+                students_by_email = {
+                    (student.email or "").strip().lower(): student for student in all_students
+                }
 
                 # Pre-load all instructor services
                 all_services_by_instructor: Dict[str, list] = {}
@@ -2468,6 +2521,153 @@ class DatabaseSeeder:
                 booking_id_map: Dict[str, dict] = {}
 
                 for instructor in active_instructors:
+                    plan = self.instructor_seed_plan.get(instructor.email, {})
+                    review_fixtures = plan.get("review_fixtures") or []
+
+                    if review_fixtures:
+                        services = all_services_by_instructor.get(instructor.id)
+                        if not services:
+                            print(
+                                f"  ⚠️  No services found for {instructor.email}; skipping review fixtures"
+                            )
+                            continue
+
+                        for fixture in review_fixtures:
+                            if not isinstance(fixture, dict):
+                                continue
+
+                            student_email = str(fixture.get("student_email") or "").strip().lower()
+                            student = students_by_email.get(student_email)
+                            if student is None:
+                                print(
+                                    f"  ⚠️  Review fixture student '{student_email}' not found for {instructor.email}"
+                                )
+                                continue
+
+                            service = random.choice(services)
+                            duration = random.choice(service.duration_options)
+                            review_created_at = self._resolve_review_fixture_created_at(
+                                fixture,
+                                now_utc=now_utc,
+                            )
+                            booking_completed_at = review_created_at - timedelta(hours=2)
+                            desired_booking_date = booking_completed_at.date()
+
+                            slot = find_free_slot_bulk(
+                                bulk_ctx,
+                                instructor_id=instructor.id,
+                                student_id=student.id,
+                                base_date=desired_booking_date,
+                                lookback_days=0,
+                                horizon_days=0,
+                                day_start_hour=seed_day_start,
+                                day_end_hour=seed_day_end,
+                                step_minutes=seed_step_minutes,
+                                durations_minutes=(duration,),
+                                randomize=False,
+                                past_only=False,
+                            )
+                            if not slot:
+                                slot = find_free_slot_bulk(
+                                    bulk_ctx,
+                                    instructor_id=instructor.id,
+                                    student_id=student.id,
+                                    base_date=desired_booking_date,
+                                    lookback_days=seed_lookback,
+                                    horizon_days=0,
+                                    day_start_hour=seed_day_start,
+                                    day_end_hour=seed_day_end,
+                                    step_minutes=seed_step_minutes,
+                                    durations_minutes=(duration,),
+                                    randomize=False,
+                                    past_only=False,
+                                )
+
+                            if not slot:
+                                print(
+                                    f"  ⚠️  Could not place review fixture slot for {instructor.email} on behalf of {student.email}"
+                                )
+                                continue
+
+                            booking_date_val, start_time_val, end_time_val = slot
+                            if booking_date_val > utc_today:
+                                print(
+                                    f"  ⚠️  Skipping future-dated fixture review booking for {instructor.email}"
+                                )
+                                continue
+
+                            booking_id = str(ulid.ULID())
+                            service_name = service.catalog_entry.name if service.catalog_entry else "Service"
+                            location_type, meeting_location, _ = self._choose_seed_booking_location(
+                                service,
+                                prefer_in_person=True,
+                            )
+                            hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                            total_price = self._seed_service_total_price(
+                                service, duration, location_type
+                            )
+                            tz_fields = self._build_booking_timezone_fields(
+                                booking_date_val,
+                                start_time_val,
+                                end_time_val,
+                                instructor_user=instructor,
+                                student_user=student,
+                                is_online=location_type == "online",
+                            )
+
+                            pending_bookings.append({
+                                "id": booking_id,
+                                "student_id": student.id,
+                                "instructor_id": instructor.id,
+                                "instructor_service_id": service.id,
+                                "booking_date": booking_date_val,
+                                "start_time": start_time_val,
+                                "end_time": end_time_val,
+                                "booking_start_utc": tz_fields["booking_start_utc"],
+                                "booking_end_utc": tz_fields["booking_end_utc"],
+                                "lesson_timezone": tz_fields["lesson_timezone"],
+                                "instructor_tz_at_booking": tz_fields["instructor_tz_at_booking"],
+                                "student_tz_at_booking": tz_fields["student_tz_at_booking"],
+                                "service_name": service_name,
+                                "hourly_rate": float(hourly_rate),
+                                "total_price": total_price,
+                                "duration_minutes": duration,
+                                "status": BookingStatus.COMPLETED.value,
+                                "location_type": location_type,
+                                "meeting_location": meeting_location,
+                                "student_note": "Seeded completed booking for deterministic review fixture",
+                                "completed_at": booking_completed_at,
+                            })
+
+                            register_pending_booking(
+                                bulk_ctx,
+                                instructor.id,
+                                student.id,
+                                booking_date_val,
+                                start_time_val,
+                                end_time_val,
+                            )
+
+                            pending_reviews.append({
+                                "id": str(ulid.ULID()),
+                                "booking_id": booking_id,
+                                "student_id": student.id,
+                                "instructor_id": instructor.id,
+                                "instructor_service_id": service.id,
+                                "rating": max(1, min(5, int(fixture.get("rating") or 5))),
+                                "review_text": self._normalize_optional_seed_text(
+                                    fixture.get("review_text")
+                                ),
+                                "status": ReviewStatus.PUBLISHED.value,
+                                "is_verified": True,
+                                "booking_completed_at": booking_completed_at,
+                                "created_at": review_created_at,
+                                "updated_at": review_created_at,
+                            })
+                            existing_review_booking_ids.add(booking_id)
+
+                        continue
+
                     # Get existing completed bookings (real ORM objects)
                     existing_for_instructor = existing_completed_bookings.get(instructor.id, [])[:]
                     # Track how many we need to create
@@ -2611,6 +2811,8 @@ class DatabaseSeeder:
                             "status": ReviewStatus.PUBLISHED.value,
                             "is_verified": True,
                             "booking_completed_at": completed_at,
+                            "created_at": completed_at,
+                            "updated_at": completed_at,
                         })
                         existing_review_booking_ids.add(booking.id)
 
@@ -2642,6 +2844,8 @@ class DatabaseSeeder:
                             "status": ReviewStatus.PUBLISHED.value,
                             "is_verified": True,
                             "booking_completed_at": bdata["completed_at"],
+                            "created_at": bdata["completed_at"],
+                            "updated_at": bdata["completed_at"],
                         })
                         existing_review_booking_ids.add(booking_id)
 
@@ -2684,7 +2888,7 @@ class DatabaseSeeder:
                         ) VALUES (
                             :id, :booking_id, :student_id, :instructor_id, :instructor_service_id,
                             :rating, :review_text, :status, :is_verified, :booking_completed_at,
-                            NOW(), NOW()
+                            :created_at, :updated_at
                         )
                     """)
                     session.execute(review_sql, pending_reviews)

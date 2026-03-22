@@ -29,10 +29,14 @@ import type {
   PasswordChangeRequest,
   PasswordChangeResponse,
   RegisterResponse,
+  SendEmailVerificationRequest,
+  SendEmailVerificationResponse,
   SessionRefreshResponse,
   UserCreate,
   UserLogin,
   UserUpdate,
+  VerifyEmailCodeRequest,
+  VerifyEmailCodeResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -777,4 +781,190 @@ export const useRegisterApiV1AuthRegisterPost = <
   TContext
 > => {
   return useMutation(getRegisterApiV1AuthRegisterPostMutationOptions(options), queryClient);
+};
+/**
+ * Send a pre-registration email verification code.
+ * @summary Send Email Verification
+ */
+export const getSendEmailVerificationApiV1AuthSendEmailVerificationPostUrl = () => {
+  return `/api/v1/auth/send-email-verification`;
+};
+
+export const sendEmailVerificationApiV1AuthSendEmailVerificationPost = async (
+  sendEmailVerificationRequest: SendEmailVerificationRequest,
+  options?: RequestInit
+): Promise<SendEmailVerificationResponse> => {
+  return customFetch<SendEmailVerificationResponse>(
+    getSendEmailVerificationApiV1AuthSendEmailVerificationPostUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(sendEmailVerificationRequest),
+    }
+  );
+};
+
+export const getSendEmailVerificationApiV1AuthSendEmailVerificationPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>,
+    TError,
+    { data: SendEmailVerificationRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>,
+  TError,
+  { data: SendEmailVerificationRequest },
+  TContext
+> => {
+  const mutationKey = ['sendEmailVerificationApiV1AuthSendEmailVerificationPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>,
+    { data: SendEmailVerificationRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEmailVerificationApiV1AuthSendEmailVerificationPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEmailVerificationApiV1AuthSendEmailVerificationPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>
+>;
+export type SendEmailVerificationApiV1AuthSendEmailVerificationPostMutationBody =
+  SendEmailVerificationRequest;
+export type SendEmailVerificationApiV1AuthSendEmailVerificationPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Send Email Verification
+ */
+export const useSendEmailVerificationApiV1AuthSendEmailVerificationPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>,
+      TError,
+      { data: SendEmailVerificationRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendEmailVerificationApiV1AuthSendEmailVerificationPost>>,
+  TError,
+  { data: SendEmailVerificationRequest },
+  TContext
+> => {
+  return useMutation(
+    getSendEmailVerificationApiV1AuthSendEmailVerificationPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Verify a pre-registration email code and return a short-lived signed token.
+ * @summary Verify Email Code
+ */
+export const getVerifyEmailCodeApiV1AuthVerifyEmailCodePostUrl = () => {
+  return `/api/v1/auth/verify-email-code`;
+};
+
+export const verifyEmailCodeApiV1AuthVerifyEmailCodePost = async (
+  verifyEmailCodeRequest: VerifyEmailCodeRequest,
+  options?: RequestInit
+): Promise<VerifyEmailCodeResponse> => {
+  return customFetch<VerifyEmailCodeResponse>(getVerifyEmailCodeApiV1AuthVerifyEmailCodePostUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifyEmailCodeRequest),
+  });
+};
+
+export const getVerifyEmailCodeApiV1AuthVerifyEmailCodePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>,
+    TError,
+    { data: VerifyEmailCodeRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>,
+  TError,
+  { data: VerifyEmailCodeRequest },
+  TContext
+> => {
+  const mutationKey = ['verifyEmailCodeApiV1AuthVerifyEmailCodePost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>,
+    { data: VerifyEmailCodeRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyEmailCodeApiV1AuthVerifyEmailCodePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyEmailCodeApiV1AuthVerifyEmailCodePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>
+>;
+export type VerifyEmailCodeApiV1AuthVerifyEmailCodePostMutationBody = VerifyEmailCodeRequest;
+export type VerifyEmailCodeApiV1AuthVerifyEmailCodePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Verify Email Code
+ */
+export const useVerifyEmailCodeApiV1AuthVerifyEmailCodePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>,
+      TError,
+      { data: VerifyEmailCodeRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof verifyEmailCodeApiV1AuthVerifyEmailCodePost>>,
+  TError,
+  { data: VerifyEmailCodeRequest },
+  TContext
+> => {
+  return useMutation(
+    getVerifyEmailCodeApiV1AuthVerifyEmailCodePostMutationOptions(options),
+    queryClient
+  );
 };

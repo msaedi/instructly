@@ -202,6 +202,11 @@ class Settings(BaseSettings):
         alias="TEMP_TOKEN_SECRET",
         description="Optional override secret for 2FA temp tokens (defaults to SECRET_KEY)",
     )
+    email_verification_token_secret: SecretStr | None = Field(
+        default=None,
+        alias="EMAIL_VERIFICATION_TOKEN_SECRET",
+        description="Optional override secret for email verification tokens (defaults to SECRET_KEY)",
+    )
     mcp_token_secret: SecretStr = Field(
         default=SecretStr(""),
         alias="MCP_TOKEN_SECRET",
@@ -241,6 +246,16 @@ class Settings(BaseSettings):
         default="instainstru-2fa",
         alias="TEMP_TOKEN_AUD",
         description="Audience claim for temporary 2FA tokens",
+    )
+    email_verification_token_iss: str = Field(
+        default="instainstru-auth-email",
+        alias="EMAIL_VERIFICATION_TOKEN_ISS",
+        description="Issuer claim for email verification tokens",
+    )
+    email_verification_token_aud: str = Field(
+        default="instainstru-email-verification",
+        alias="EMAIL_VERIFICATION_TOKEN_AUD",
+        description="Audience claim for email verification tokens",
     )
     session_cookie_name: str = Field(
         default_factory=_default_session_cookie_name,

@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Info, SlidersHorizontal } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift, UserRoundPen } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, Shield, Power, UserRoundPen } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 import type { AddressListResponse, ApiErrorResponse } from '@/features/shared/api/types';
@@ -20,10 +20,8 @@ import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/us
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
-import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
-import { formatPhoneDisplay } from '@/lib/phone';
-
-const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
+import { usePhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerificationFlow';
+import { PhoneVerificationField } from '@/components/account/PhoneVerificationField';
 
 const PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, push: true, sms: false },
@@ -36,7 +34,7 @@ const PREFERENCE_DEFAULTS = {
 
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
-type OpenSection = 'account' | 'refer' | 'security' | 'status' | 'password' | 'preferences' | 'about' | null;
+type OpenSection = 'account' | 'security' | 'status' | 'preferences' | 'about' | null;
 
 const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
   lesson_updates: 'Lesson Updates',
@@ -61,78 +59,6 @@ const PREFERENCE_ROWS: Array<{ category: PreferenceCategory; description: string
   { category: 'system_updates', description: 'Important platform notices and policy changes' },
   { category: 'promotional', description: 'Discounts, special offers, new features' },
 ];
-
-const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
-
-function formatPhoneNumberInput(value: string): string {
-  let cleaned = value.replace(/\D/g, '');
-
-  if (cleaned.length === 11 && cleaned[0] === '1') {
-    cleaned = cleaned.slice(1);
-  }
-
-  if (cleaned.length <= 3) return cleaned;
-  if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
-  return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
-}
-
-function formatPhoneForApi(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10) {
-    return `+1${cleaned}`;
-  }
-  if (cleaned.length === 11 && cleaned[0] === '1') {
-    return `+${cleaned}`;
-  }
-  return phone.trim();
-}
-
-function maskPhoneDisplay(phone: string): string {
-  const display = formatPhoneDisplay(phone);
-  const digits = display.replace(/\D/g, '');
-  if (digits.length !== 10) {
-    return display;
-  }
-  return `(XXX) XXX-${digits.slice(-4)}`;
-}
-
-type ToggleSwitchProps = {
-  checked: boolean;
-  onChange?: () => void;
-  disabled?: boolean;
-  title?: string;
-  ariaLabel?: string;
-};
-
-const ToggleSwitch = memo(function ToggleSwitch({
-  checked,
-  onChange,
-  disabled = false,
-  title,
-  ariaLabel,
-}: ToggleSwitchProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onChange}
-      disabled={disabled}
-      title={title}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-});
 
 type PreferenceToggleProps = {
   category: PreferenceCategory;
@@ -245,17 +171,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneInput, setPhoneInput] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [hasPhoneVerificationCodeSent, setHasPhoneVerificationCodeSent] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountFirstNameError, setAccountFirstNameError] = useState('');
   const [formInitialized, setFormInitialized] = useState(false);
 
   // React Query hooks for data fetching (replaces useEffect fetches)
-  const { data: tfaStatus } = useTfaStatus(embedded && openSection === 'security');
+  const shouldLoadTfaStatus = embedded ? openSection === 'security' : true;
+  const { data: tfaStatus, isLoading: tfaStatusLoading } = useTfaStatus(shouldLoadTfaStatus);
   const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
@@ -275,17 +198,23 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     isPreferenceUpdating,
     updatePreference,
   } = useNotificationPreferences();
-  const {
-    phoneNumber,
-    isVerified: phoneVerified,
-    isLoading: phoneLoading,
-    updatePhone,
-    sendVerification,
-    confirmVerification,
-  } = usePhoneVerification();
+  const phoneFlow = usePhoneVerificationFlow({
+    initialPhoneNumber: userData?.phone ?? '',
+  });
+  const phoneNumber = phoneFlow.phoneNumber;
+  const phoneVerified = phoneFlow.phoneVerified;
+  const phoneLoading = phoneFlow.phoneLoading;
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
+  const tfaToggleChecked = tfaEnabled === true;
+  const tfaToggleDisabled = tfaStatusLoading || showTfaModal;
+  const tfaStateLabel = tfaStatusLoading ? 'Loading…' : tfaToggleChecked ? 'Enabled' : 'Off';
+  const tfaStateSubtitle = tfaStatusLoading
+    ? 'Checking your current two-factor authentication status'
+    : tfaToggleChecked
+      ? 'Your account is protected with two-factor authentication'
+      : 'Add an extra layer of security with an authenticator app';
   const accountLoading = userLoading || addressLoading || phoneLoading;
   const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
   const preferencesDisabled = preferencesLoading;
@@ -309,18 +238,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     : !phoneVerified
       ? 'Verify your phone number to enable SMS notifications.'
       : undefined;
-  const inviterName = [firstName, lastName].filter(Boolean).join(' ').trim();
-  const normalizedExistingPhone = formatPhoneForApi(phoneNumber || '');
-  const normalizedPhoneInput = formatPhoneForApi(phoneInput);
-  const hasPhoneValue = normalizedPhoneInput.length > 0;
-  const isPhoneDirty = normalizedPhoneInput !== normalizedExistingPhone;
-  const showVerifiedPhoneState =
-    !hasPhoneVerificationCodeSent && Boolean(phoneNumber) && phoneVerified && !isPhoneDirty;
-  const showPendingPhoneState = hasPhoneVerificationCodeSent;
-  const showVerifyPhoneAction = !showPendingPhoneState && hasPhoneValue && (!phoneVerified || isPhoneDirty);
   const toggleSection = useCallback((section: Exclude<OpenSection, null>) => {
     setOpenSection((prev) => (prev === section ? null : section));
   }, []);
+  const openTfaModal = useCallback(() => {
+    if (tfaToggleDisabled) return;
+    setShowTfaModal(true);
+  }, [tfaToggleDisabled]);
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
@@ -412,6 +336,70 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     );
   };
 
+  const renderSecurityContent = () => (
+    <div className="mt-4">
+      <div className="flex items-start justify-between gap-4 py-1">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two-factor authentication</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {tfaStateSubtitle}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span
+            className={`text-sm font-medium ${
+              tfaToggleChecked ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            {tfaStateLabel}
+          </span>
+          <ToggleSwitch
+            checked={tfaToggleChecked}
+            onChange={openTfaModal}
+            disabled={tfaToggleDisabled}
+            ariaLabel="Two-factor authentication"
+            title={tfaStatusLoading ? 'Loading two-factor authentication status' : 'Two-factor authentication'}
+          />
+        </div>
+      </div>
+      <div className="my-4 border-t border-gray-100 dark:border-gray-700" />
+      <div className="flex items-start justify-between gap-4 py-1">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Password</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Update your password to keep your login secure.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowChangePassword(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
+        >
+          Change password
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAccountStatusContent = () => (
+    <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
+      <button
+        type="button"
+        onClick={() => setShowPauseModal(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
+      >
+        Pause account
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowDeleteModal(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
+      >
+        Delete account
+      </button>
+    </div>
+  );
+
   // Sync hook data to local editable state (once on initial load)
   useEffect(() => {
     if (!embedded || formInitialized) return;
@@ -421,8 +409,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setFirstName(fn);
       setLastName(ln);
       setEmail((userData.email || '').toString());
-      const currentPhone = (phoneNumber || userData.phone || '').toString();
-      setPhoneInput(currentPhone ? formatPhoneDisplay(currentPhone) : '');
     }
     if (userData && addressData) {
       const items = Array.isArray(addressData.items) ? addressData.items : [];
@@ -431,72 +417,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setZip(nextZip);
       setFormInitialized(true);
     }
-  }, [embedded, formInitialized, userData, addressData, phoneNumber]);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => {
-      setResendCooldown((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
-  const handlePhoneInputChange = (value: string) => {
-    setPhoneInput(formatPhoneNumberInput(value));
-    setPhoneCode('');
-    setHasPhoneVerificationCodeSent(false);
-    setResendCooldown(0);
-  };
-
-  const handleSendPhoneVerification = async () => {
-    const phoneForApi = normalizedPhoneInput;
-    if (!phoneForApi || !E164_PATTERN.test(phoneForApi)) {
-      toast.error('Enter a valid phone number.');
-      return;
-    }
-
-    try {
-      let activePhone = phoneForApi;
-      if (phoneForApi !== normalizedExistingPhone) {
-        const updated = await updatePhone.mutateAsync(phoneForApi);
-        activePhone = updated.phone_number || phoneForApi;
-        setPhoneInput(formatPhoneDisplay(activePhone));
-      }
-
-      await sendVerification.mutateAsync();
-      setPhoneCode('');
-      setHasPhoneVerificationCodeSent(true);
-      setResendCooldown(60);
-      toast.success(
-        phoneForApi !== normalizedExistingPhone
-          ? 'Phone number saved. Verification code sent.'
-          : 'Verification code sent.',
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to send verification code.',
-      );
-    }
-  };
-
-  const handleConfirmPhoneVerification = async () => {
-    const trimmedCode = phoneCode.trim();
-    if (trimmedCode.length !== 6) {
-      toast.error('Enter the 6-digit verification code.');
-      return;
-    }
-
-    try {
-      await confirmVerification.mutateAsync(trimmedCode);
-      setPhoneCode('');
-      setHasPhoneVerificationCodeSent(false);
-      setResendCooldown(0);
-      setPhoneInput(formatPhoneDisplay(normalizedPhoneInput));
-      toast.success('Phone number verified.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Verification failed.');
-    }
-  };
+  }, [embedded, formInitialized, userData, addressData]);
 
   const handleSaveAccount = async () => {
     try {
@@ -691,93 +612,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       />
                     </div>
                     <div className="space-y-3 sm:col-span-2">
-                      <label htmlFor="settings-phone" className="block text-xs text-gray-600 dark:text-gray-400">
-                        Phone number
-                      </label>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                        <input
-                          id="settings-phone"
-                          type="tel"
-                          inputMode="tel"
-                          value={phoneInput}
-                          onChange={(e) => handlePhoneInputChange(e.target.value)}
-                          disabled={showPendingPhoneState}
-                          placeholder="(212) 555-1001"
-                          className={`w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 ${
-                            showPendingPhoneState
-                              ? 'insta-form-input-readonly cursor-not-allowed pointer-events-none select-none'
-                              : ''
-                          }`}
-                        />
-                        {showVerifiedPhoneState ? (
-                          <span className="inline-flex h-10 shrink-0 items-center rounded-md bg-green-50 px-3 text-sm font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                            Verified
-                          </span>
-                        ) : null}
-                        {showPendingPhoneState ? (
-                          <span className="inline-flex h-10 shrink-0 items-center rounded-md bg-amber-50 px-3 text-sm font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                            Pending
-                          </span>
-                        ) : null}
-                        {!showVerifiedPhoneState && !showPendingPhoneState && showVerifyPhoneAction ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleSendPhoneVerification()}
-                            disabled={updatePhone.isPending || sendVerification.isPending || !hasPhoneValue}
-                            className="insta-primary-btn inline-flex h-10 shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {updatePhone.isPending || sendVerification.isPending ? 'Sending…' : 'Verify'}
-                          </button>
-                        ) : null}
-                      </div>
-                      {!showVerifiedPhoneState && !showPendingPhoneState && showVerifyPhoneAction ? (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          We&apos;ll send a 6-digit verification code to this number.
-                        </p>
-                      ) : null}
-                      {showPendingPhoneState ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            Code sent to {maskPhoneDisplay(normalizedPhoneInput || phoneNumber || '')}
-                          </p>
-                          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <input
-                              id="settings-phone-code"
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={6}
-                              value={phoneCode}
-                              onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))}
-                              placeholder="123456"
-                              className="w-full px-3 py-2 insta-form-input text-center tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 sm:max-w-[220px]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void handleConfirmPhoneVerification()}
-                              disabled={confirmVerification.isPending}
-                              className="insta-primary-btn inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {confirmVerification.isPending ? 'Submitting…' : 'Submit'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleSendPhoneVerification()}
-                              disabled={sendVerification.isPending || resendCooldown > 0}
-                              className={`inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-semibold transition-colors ${
-                                sendVerification.isPending || resendCooldown > 0
-                                  ? 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-gray-700 dark:text-gray-500'
-                                  : 'border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
-                              }`}
-                            >
-                              {resendCooldown > 0
-                                ? `Resend (${resendCooldown}s)`
-                                : sendVerification.isPending
-                                  ? 'Sending…'
-                                  : 'Resend'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
+                      <PhoneVerificationField
+                        flow={phoneFlow}
+                        inputId="settings-phone"
+                        codeInputId="settings-phone-code"
+                        label="Phone number"
+                      />
                     </div>
                     {accountLoading ? (
                       <div className="col-span-full text-xs text-gray-500 dark:text-gray-400">Loading…</div>
@@ -859,211 +699,67 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           )}
         </div>
-
-        {/* Referrals & rewards */}
         <div className="p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
                 type="button"
                 className="insta-dashboard-accordion-trigger"
-                onClick={() => toggleSection('refer')}
-                aria-expanded={openSection === 'refer'}
+                onClick={() => toggleSection('security')}
+                aria-expanded={openSection === 'security'}
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Gift className="w-6 h-6 text-[#7E22CE]" />
+                    <Shield className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="insta-dashboard-accordion-title">Refer instructors</span>
-                    <span className="insta-dashboard-accordion-subtitle">Share your link to invite peers and earn rewards.</span>
+                    <span className="insta-dashboard-accordion-title">Security</span>
+                    <span className="insta-dashboard-accordion-subtitle">Keep your account safe</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'refer' ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'security' ? 'rotate-180' : ''}`} />
               </button>
-              {openSection === 'refer' && (
-                <div className="mt-4">
-              <RewardsPanel
-                    inviterName={inviterName}
-                    hideHeader
-                    compactShare
-                    hideShareIcon
-                    minimalTabs
-                    compactInvite
-                    compactTabs
-                  />
-                </div>
-              )}
+              {openSection === 'security' && renderSecurityContent()}
             </>
           ) : (
             <>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Gift className="w-6 h-6 text-[#7E22CE]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Refer instructors</h2>
-              </div>
-            </div>
-            <div className="mt-4">
-              <RewardsPanel
-                inviterName={inviterName}
-                hideHeader
-                compactShare
-                hideShareIcon
-                  minimalTabs
-                  compactInvite
-                  compactTabs
-                />
-              </div>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-1">Security</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Keep your account safe</p>
+              {renderSecurityContent()}
             </>
           )}
         </div>
 
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('security')}
-              aria-expanded={openSection === 'security'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Account security</span>
-                  <span className="insta-dashboard-accordion-subtitle">Enable two-factor authentication for extra protection.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'security' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'security' && (
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two‑factor authentication</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Protect your account with a one‑time code from an authenticator app.
-                    </p>
+        <div className="p-6 insta-surface-card">
+          {embedded ? (
+            <>
+              <button
+                type="button"
+                className="insta-dashboard-accordion-trigger"
+                onClick={() => toggleSection('status')}
+                aria-expanded={openSection === 'status'}
+              >
+                <div className="insta-dashboard-accordion-leading">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Power className="w-6 h-6 text-[#7E22CE]" />
                   </div>
-                  <button
-                    type="button"
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                      tfaEnabled
-                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
-                    } `}
-                    onClick={() => setShowTfaModal(true)}
-                  >
-                    {tfaEnabled ? 'Turn off' : 'Set up'}
-                  </button>
+                  <div>
+                    <span className="insta-dashboard-accordion-title">Account status</span>
+                    <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
+                  </div>
                 </div>
-                {showTfaModal && (
-                  <TfaModal
-                    onClose={() => setShowTfaModal(false)}
-                    onChanged={() => {
-                      // Invalidate cache to refetch 2FA status
-                      void invalidateTfaStatus();
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('status')}
-              aria-expanded={openSection === 'status'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Power className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Account status</span>
-                  <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'status' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'status' && (
-              <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowPauseModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
-                >
-                  Pause account
-                </button>
-                {showPauseModal && (
-                  <PauseAccountModal
-                    onClose={() => setShowPauseModal(false)}
-                    onPaused={() => {
-                      setShowPauseModal(false);
-                    }}
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
-                >
-                  Delete account
-                </button>
-                {showDeleteModal && (
-                  <DeleteAccountModal
-                    email={email}
-                    onClose={() => setShowDeleteModal(false)}
-                    onDeleted={() => {
-                      setShowDeleteModal(false);
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {embedded && (
-          <div className="p-6 insta-surface-card">
-            <button
-              type="button"
-              className="insta-dashboard-accordion-trigger"
-              onClick={() => toggleSection('password')}
-              aria-expanded={openSection === 'password'}
-            >
-              <div className="insta-dashboard-accordion-leading">
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <KeyRound className="w-6 h-6 text-[#7E22CE]" />
-                </div>
-                <div>
-                  <span className="insta-dashboard-accordion-title">Password</span>
-                  <span className="insta-dashboard-accordion-subtitle">Keep your login secure with a strong password.</span>
-                </div>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'password' ? 'rotate-180' : ''}`} />
-            </button>
-            {openSection === 'password' && (
-              <div className="mt-4 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowChangePassword(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
-                >
-                  Change password
-                </button>
-                {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
-              </div>
-            )}
-          </div>
-        )}
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'status' ? 'rotate-180' : ''}`} />
+              </button>
+              {openSection === 'status' && renderAccountStatusContent()}
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-1">Account Status</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Pause or close your instructor account if needed.</p>
+              {renderAccountStatusContent()}
+            </>
+          )}
+        </div>
 
         <div className="p-6 insta-surface-card">
           {embedded ? (
@@ -1145,6 +841,32 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
         )}
+        {showTfaModal && (
+          <TfaModal
+            onClose={() => setShowTfaModal(false)}
+            onChanged={() => {
+              void invalidateTfaStatus();
+            }}
+          />
+        )}
+        {showPauseModal && (
+          <PauseAccountModal
+            onClose={() => setShowPauseModal(false)}
+            onPaused={() => {
+              setShowPauseModal(false);
+            }}
+          />
+        )}
+        {showDeleteModal && (
+          <DeleteAccountModal
+            email={email}
+            onClose={() => setShowDeleteModal(false)}
+            onDeleted={() => {
+              setShowDeleteModal(false);
+            }}
+          />
+        )}
+        {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
         </div>
       </div>
     </div>

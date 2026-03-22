@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, EmailStr, Field
 
 from ._strict_base import StrictModel, StrictRequestModel
 
@@ -77,3 +77,23 @@ class SessionInvalidationResponse(StrictModel):
 class SessionRefreshResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     message: str
+
+
+class SendEmailVerificationRequest(StrictRequestModel):
+    email: EmailStr
+
+
+class SendEmailVerificationResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    message: str
+
+
+class VerifyEmailCodeRequest(StrictRequestModel):
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class VerifyEmailCodeResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    verification_token: str
+    expires_in_seconds: int

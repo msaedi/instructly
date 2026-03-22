@@ -563,64 +563,80 @@ class ConversationService(BaseService):
         """Get participant IDs from a conversation."""
         return [conversation.student_id, conversation.instructor_id]
 
-    @BaseService.measure_operation("validate_instructor")
-    def validate_instructor(self, instructor_id: str) -> Tuple[bool, Optional[str]]:
+    @BaseService.measure_operation("resolve_conversation_participants")
+    def resolve_conversation_participants(
+        self,
+        current_user_id: str,
+        other_user_id: str,
+    ) -> Tuple[Optional[Tuple[str, str]], Optional[str], Optional[str]]:
         """
-        Validate that a user exists and is an instructor.
+        Resolve the canonical (student_id, instructor_id) pair for a conversation.
 
         Args:
-            instructor_id: The user ID to validate
+            current_user_id: Authenticated caller user ID
+            other_user_id: The other participant's user ID
 
         Returns:
-            Tuple of (is_valid, error_message)
+            Tuple of ((student_id, instructor_id), error_message, error_code)
         """
         user_repo = RepositoryFactory.create_user_repository(self.db)
-        instructor = user_repo.get_by_id(instructor_id)
-        if not instructor:
-            return False, "Instructor not found"
-        if not instructor.is_instructor:
-            return False, "Target user is not an instructor"
-        return True, None
+        current_user = user_repo.get_by_id(current_user_id)
+        if not current_user:
+            return None, "Current user not found", "current_user_not_found"
 
-    @staticmethod
-    def _conversation_error_code(error: Optional[str]) -> Optional[str]:
-        """Map service-layer conversation validation errors to stable result codes."""
-        if error == "Instructor not found":
-            return "instructor_not_found"
-        if error == "Target user is not an instructor":
-            return "target_not_instructor"
-        return None
+        other_user = user_repo.get_by_id(other_user_id)
+        if not other_user:
+            return None, "Target user not found", "target_user_not_found"
+
+        if current_user.id == other_user.id:
+            return None, "Cannot message yourself", "cannot_message_self"
+
+        if current_user.is_instructor == other_user.is_instructor:
+            return (
+                None,
+                "Exactly one instructor and one non-instructor are required",
+                "invalid_participant_pair",
+            )
+
+        if current_user.is_instructor:
+            return (other_user.id, current_user.id), None, None
+
+        return (current_user.id, other_user.id), None, None
 
     @BaseService.measure_operation("create_conversation_with_message")
     def create_conversation_with_message(
         self,
-        student_id: str,
-        instructor_id: str,
+        current_user_id: str,
+        other_user_id: str,
         initial_message: Optional[str] = None,
     ) -> CreateConversationResult:
         """
-        Validate instructor, create/get conversation, and optionally send initial message.
+        Resolve participants, create/get conversation, and optionally send an initial message.
 
         All operations are wrapped in a transaction and committed.
 
         Args:
-            student_id: The student's user ID
-            instructor_id: The instructor's user ID
+            current_user_id: The authenticated caller's user ID
+            other_user_id: The other participant's user ID
             initial_message: Optional initial message content
 
         Returns:
             CreateConversationResult with conversation_id and created flag
         """
-        # Validate instructor
-        is_valid, error = self.validate_instructor(instructor_id)
-        if not is_valid:
+        participant_ids, error, error_code = self.resolve_conversation_participants(
+            current_user_id=current_user_id,
+            other_user_id=other_user_id,
+        )
+        if participant_ids is None:
             return CreateConversationResult(
                 conversation_id="",
                 created=False,
                 success=False,
                 error=error,
-                error_code=self._conversation_error_code(error),
+                error_code=error_code,
             )
+
+        student_id, instructor_id = participant_ids
 
         with self.transaction():
             conversation, created = self.conversation_repository.get_or_create(
@@ -632,7 +648,7 @@ class ConversationService(BaseService):
             if initial_message and created:
                 self.message_repository.create_conversation_message(
                     conversation_id=conversation.id,
-                    sender_id=student_id,
+                    sender_id=current_user_id,
                     content=initial_message,
                     message_type=MESSAGE_TYPE_USER,
                 )

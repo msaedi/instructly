@@ -283,6 +283,7 @@ async function setupStudentListMocks(page: Page, opts: ListMockOptions) {
 
 async function setupInstructorListMocks(page: Page, opts: ListMockOptions) {
   const userId = (opts.user as { id: string }).id;
+  const [primaryBooking] = opts.upcomingBookings;
 
   await mockAuthenticatedPageBackgroundApis(page, { userId });
 
@@ -299,21 +300,66 @@ async function setupInstructorListMocks(page: Page, opts: ListMockOptions) {
     });
   });
 
-  // Override instructor-bookings/upcoming with our bookings (LIFO wins over background mock)
-  await page.route(
-    '**/api/v1/instructor-bookings/upcoming**',
-    async (route) => {
-      if (route.request().method() !== 'GET') {
-        await route.fallback();
-        return;
-      }
+  // Override instructor bookings list queries used by the redesigned page.
+  await page.route('**/api/v1/instructor-bookings**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+
+    const url = new URL(route.request().url());
+    const pathname = url.pathname;
+    const upcomingParam = url.searchParams.get('upcoming');
+    const excludeFuture = url.searchParams.get('exclude_future_confirmed');
+
+    const isUpcomingCall =
+      pathname.endsWith('/upcoming') ||
+      (pathname.endsWith('/instructor-bookings') && upcomingParam === 'true');
+    const isPastCall =
+      pathname.endsWith('/completed') ||
+      (pathname.endsWith('/instructor-bookings') &&
+        upcomingParam === 'false' &&
+        excludeFuture === 'true');
+
+    if (isUpcomingCall) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(paginatedResponse(opts.upcomingBookings)),
       });
-    },
-  );
+      return;
+    }
+
+    if (isPastCall) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(paginatedResponse([])),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await page.route('**/api/v1/bookings/*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+
+    const url = new URL(route.request().url());
+    if (url.search) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(primaryBooking ?? {}),
+    });
+  });
 }
 
 // =============================================================================
@@ -386,11 +432,13 @@ test.describe('Join button visibility (student)', () => {
 });
 
 // =============================================================================
-// GROUP 2: Join button visibility (instructor) — /instructor/bookings
+// GROUP 2: Instructor bookings list entry points — /instructor/bookings
 // =============================================================================
 
-test.describe('Join button visibility (instructor)', () => {
-  test('shows Join Lesson button when window is open', async ({ page }) => {
+test.describe('Instructor bookings list entry points', () => {
+  test('shows booking card and detail entry point when lesson is upcoming', async ({
+    page,
+  }) => {
     const booking = bookingJoinable({ instructor_id: INSTRUCTOR_USER.id });
     await setupInstructorListMocks(page, {
       user: INSTRUCTOR_USER,
@@ -398,12 +446,14 @@ test.describe('Join button visibility (instructor)', () => {
     });
 
     await page.goto('/instructor/bookings');
-    await expect(page.getByTestId('join-lesson-button')).toBeVisible({
-      timeout: 10_000,
-    });
+    const bookingCard = page.getByTestId('booking-card').first();
+    await expect(bookingCard).toContainText('Alex');
+    await expect(bookingCard).toContainText('Piano Lesson');
+    await expect(bookingCard).toContainText('View lesson');
+    await expect(page.getByTestId('join-lesson-button')).toHaveCount(0);
   });
 
-  test('hides button when window not open', async ({ page }) => {
+  test('opens the booking detail page from the lesson card', async ({ page }) => {
     const booking = bookingNotYetJoinable({
       instructor_id: INSTRUCTOR_USER.id,
     });
@@ -413,11 +463,33 @@ test.describe('Join button visibility (instructor)', () => {
     });
 
     await page.goto('/instructor/bookings');
-    // Wait for page content
-    await expect(page.getByText('Piano Lesson')).toBeVisible({
-      timeout: 10_000,
+    const bookingCard = page.getByTestId('booking-card').first();
+    await expect(bookingCard).toContainText('Piano Lesson', { timeout: 10_000 });
+    await bookingCard.click();
+
+    await expect(page).toHaveURL(new RegExp(`/instructor/bookings/${booking.id}$`));
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible();
+  });
+
+  test('shows Join Lesson on the booking detail page when the join window is open', async ({
+    page,
+  }) => {
+    const booking = bookingJoinable({ instructor_id: INSTRUCTOR_USER.id });
+    await setupInstructorListMocks(page, {
+      user: INSTRUCTOR_USER,
+      upcomingBookings: [booking],
     });
-    await expect(page.getByTestId('join-lesson-button')).not.toBeVisible();
+
+    await page.goto('/instructor/bookings');
+    const bookingCard = page.getByTestId('booking-card').first();
+    await expect(bookingCard).toContainText('View lesson', { timeout: 10_000 });
+    await expect(page.getByTestId('join-lesson-button')).toHaveCount(0);
+
+    await bookingCard.click();
+
+    await expect(page).toHaveURL(new RegExp(`/instructor/bookings/${booking.id}$`));
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible();
+    await expect(page.getByTestId('join-lesson-button')).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -660,9 +732,9 @@ test.describe('Lesson ended summary (instructor)', () => {
     await expect(lessonPage.bookAgainLink).not.toBeVisible();
   });
 
-  test('Back to My Lessons links to /instructor/bookings', async ({
-    page,
-  }) => {
+test('Back to My Lessons links to the instructor dashboard past bookings tab', async ({
+  page,
+}) => {
     const booking = bookingEndedWithStats({
       instructor_id: INSTRUCTOR_USER.id,
     });
@@ -678,11 +750,11 @@ test.describe('Lesson ended summary (instructor)', () => {
     await expect(lessonPage.backToLessonsLink).toBeVisible({
       timeout: 10_000,
     });
-    await expect(lessonPage.backToLessonsLink).toHaveAttribute(
-      'href',
-      '/instructor/bookings',
-    );
-  });
+  await expect(lessonPage.backToLessonsLink).toHaveAttribute(
+    'href',
+    '/instructor/dashboard?panel=bookings&tab=past',
+  );
+});
 });
 
 // =============================================================================
@@ -770,15 +842,25 @@ test.describe('Video session stats on instructor detail', () => {
     await page.goto(`/instructor/bookings/${booking.id}`);
 
     // Instructor detail uses h3 for "Video Session"
-    await expect(page.getByText('Video Session')).toBeVisible({
+    const videoSection = page
+      .locator('div')
+      .filter({
+        has: page.getByText('Video Session', { exact: true }),
+      })
+      .filter({
+        has: page.getByText('You joined', { exact: true }),
+      })
+      .first();
+
+    await expect(videoSection.getByText('Video Session', { exact: true })).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText('Duration', { exact: true })).toBeVisible();
-    await expect(page.getByText('45m 12s')).toBeVisible();
+    await expect(videoSection).toContainText('Duration');
+    await expect(videoSection.getByText('45m 12s')).toBeVisible();
 
     // Role labels: "You joined" = instructor time, "Student joined" = student time
-    await expect(page.getByText('You joined')).toBeVisible();
-    await expect(page.getByText('Student joined')).toBeVisible();
+    await expect(videoSection).toContainText('You joined');
+    await expect(videoSection).toContainText('Student joined');
   });
 
   test('hides section when no stats', async ({ page }) => {
@@ -793,12 +875,11 @@ test.describe('Video session stats on instructor detail', () => {
 
     await page.goto(`/instructor/bookings/${booking.id}`);
 
-    // Wait for page to load (look for booking content)
-    await expect(page.getByText('Piano Lesson')).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible({
       timeout: 10_000,
     });
     // The "Video Session" heading should not appear
-    await expect(page.getByText('Video Session')).not.toBeVisible();
+    await expect(page.getByText('Video Session', { exact: true })).toHaveCount(0);
   });
 });
 

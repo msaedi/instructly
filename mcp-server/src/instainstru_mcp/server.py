@@ -628,7 +628,9 @@ def create_app(settings: Settings | None = None):
         app_with_auth = CORSMiddleware(
             app_with_auth,
             allow_origins=["*"],
-            allow_credentials=True,
+            # MCP clients authenticate with Bearer tokens, not cross-origin cookies.
+            # Keep CORS responses deterministic as '*' instead of reflecting Origin.
+            allow_credentials=False,
             allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "Accept"],
             expose_headers=["*"],

@@ -8,6 +8,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageInstructorButton } from '../MessageInstructorButton';
 import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 
 // Mock the hooks
 const mockCreateConversation = jest.fn();
@@ -29,12 +30,17 @@ jest.mock('@/features/shared/hooks/useAuth', () => ({
   })),
 }));
 
+jest.mock('next/navigation', () => ({
+  usePathname: jest.fn(),
+}));
+
 // Import after mocking
 import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 const mockUseCreateConversation = useCreateConversation as jest.Mock;
 const mockUseAuth = useAuth as jest.Mock;
+const mockUsePathname = usePathname as jest.Mock;
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -60,6 +66,7 @@ describe('MessageInstructorButton', () => {
       isAuthenticated: true,
       redirectToLogin: mockRedirectToLogin,
     });
+    mockUsePathname.mockReturnValue('/search');
   });
 
   it('renders message button', () => {
@@ -98,6 +105,87 @@ describe('MessageInstructorButton', () => {
     await waitFor(() => {
       expect(mockCreateConversation).toHaveBeenCalledWith('instructor_456', {
         navigateToMessages: true,
+        viewerContext: 'student',
+      });
+    });
+  });
+
+  it('uses instructor viewer context on instructor routes', async () => {
+    mockUsePathname.mockReturnValue('/instructor/dashboard');
+
+    render(
+      <MessageInstructorButton instructorId="instructor_456" instructorName="Sarah" />,
+      { wrapper: createWrapper() }
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).toHaveBeenCalledWith('instructor_456', {
+        navigateToMessages: true,
+        viewerContext: 'instructor',
+      });
+    });
+  });
+
+  it('uses student viewer context on student routes', async () => {
+    mockUsePathname.mockReturnValue('/student/lessons');
+
+    render(
+      <MessageInstructorButton instructorId="instructor_456" instructorName="Sarah" />,
+      { wrapper: createWrapper() }
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).toHaveBeenCalledWith('instructor_456', {
+        navigateToMessages: true,
+        viewerContext: 'student',
+      });
+    });
+  });
+
+  it('falls back to instructor viewer context for instructor-only users on public routes', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'instructor_123', roles: ['instructor'] },
+      isAuthenticated: true,
+      redirectToLogin: mockRedirectToLogin,
+    });
+
+    render(
+      <MessageInstructorButton instructorId="instructor_456" instructorName="Sarah" />,
+      { wrapper: createWrapper() }
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).toHaveBeenCalledWith('instructor_456', {
+        navigateToMessages: true,
+        viewerContext: 'instructor',
+      });
+    });
+  });
+
+  it('falls back to student viewer context for student-only users on public routes', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'student_123', roles: ['student'] },
+      isAuthenticated: true,
+      redirectToLogin: mockRedirectToLogin,
+    });
+
+    render(
+      <MessageInstructorButton instructorId="instructor_456" instructorName="Sarah" />,
+      { wrapper: createWrapper() }
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).toHaveBeenCalledWith('instructor_456', {
+        navigateToMessages: true,
+        viewerContext: 'student',
       });
     });
   });
@@ -161,6 +249,20 @@ describe('MessageInstructorButton', () => {
     );
 
     expect(screen.getByRole('button')).toBeInTheDocument();
+  });
+
+  it('uses the large icon sizing branch for lg buttons', () => {
+    render(
+      <MessageInstructorButton
+        instructorId="instructor_456"
+        instructorName="Sarah"
+        size="lg"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const icon = screen.getByRole('button').querySelector('svg');
+    expect(icon).toHaveClass('h-5', 'w-5');
   });
 
   it('renders icon-only mode', () => {

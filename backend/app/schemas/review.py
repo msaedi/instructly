@@ -53,6 +53,14 @@ class ReviewSubmitRequest(StrictRequestModel):
         return v2
 
 
+class ReviewResponseModel(StrictModel):
+    id: str
+    review_id: str
+    instructor_id: str
+    response_text: str
+    created_at: datetime
+
+
 class ReviewItem(StrictModel):
     id: str
     rating: int
@@ -60,19 +68,14 @@ class ReviewItem(StrictModel):
     created_at: datetime
     instructor_service_id: str
     reviewer_display_name: Optional[str] = None
+    reviewer_first_name: Optional[str] = None
+    reviewer_last_initial: Optional[str] = None
+    response: Optional[ReviewResponseModel] = None
 
 
 class ReviewSubmitResponse(ReviewItem):
     tip_status: Optional[str] = None
     tip_client_secret: Optional[str] = None
-
-
-class ReviewResponseModel(StrictModel):
-    id: str
-    review_id: str
-    instructor_id: str
-    response_text: str
-    created_at: datetime
 
 
 class InstructorRatingsResponse(StrictModel):

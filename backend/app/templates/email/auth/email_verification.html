@@ -1,0 +1,22 @@
+<!-- backend/app/templates/email/auth/email_verification.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Your {{ brand_name }} verification code{% endblock %}
+{% block preheader %}Your {{ brand_name }} verification code is {{ code }}.{% endblock %}
+{% block header %}
+<div style="background: #F9F5FF; padding: 22px 30px 18px; text-align: center; border-radius: 12px 12px 0 0;">
+  <h1 style="color: #7E22CE; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">{{ brand_name }}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+  <h2 style="color:#111827; margin:0 0 16px; font-size:20px;">Verify your email</h2>
+  <p style="margin:0 0 16px;">Use this 6-digit code to continue creating your {{ brand_name }} account:</p>
+  <div style="background-color:#FFFFFF; border:1px solid #E5E7EB; border-radius:8px; padding:16px; margin:16px 0; text-align:center;">
+    <p style="margin:0 0 10px; font-weight:600; color:#111827;">Your verification code</p>
+    <div style="font-size:34px; line-height:1; font-weight:700; letter-spacing:10px; color:#111827;">{{ code }}</div>
+  </div>
+  <p style="margin:0 0 16px; color:#374151;">This code expires in 5 minutes.</p>
+  <p style="margin:0 0 16px; color:#374151;">If you did not request this code, you can safely ignore this email.</p>
+  <p style="margin:16px 0 0; color:#6B7280; font-size:14px;">See you soon,<br>The {{ brand_name }} Team</p>
+{% endblock %}

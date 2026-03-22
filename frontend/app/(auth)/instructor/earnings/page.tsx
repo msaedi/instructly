@@ -1,106 +1,163 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
 import CommissionTierCard from '@/components/earnings/CommissionTierCard';
-import { Download, DollarSign, Info, ArrowLeft, Calendar, Briefcase, Clock } from 'lucide-react';
+import { Download, DollarSign, Info, ArrowLeft, Wallet, BadgeDollarSign, BookOpen } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { formatPrice } from '@/lib/price';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
 import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
+const PLATFORM_LAUNCH_YEAR = 2026;
+
+type SimpleDropdownOption = {
+  value: string;
+  label: string;
+};
+
+const extractYear = (value?: string | null): number | null => {
+  if (!value) return null;
+  const prefixMatch = value.match(/^(\d{4})/);
+  const matchedYear = prefixMatch?.[1];
+  if (matchedYear) {
+    const parsedPrefix = Number.parseInt(matchedYear, 10);
+    return Number.isNaN(parsedPrefix) ? null : parsedPrefix;
+  }
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.valueOf()) ? null : parsedDate.getFullYear();
+};
+
+function SimpleDropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: SimpleDropdownOption[];
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const selected = options.find((option) => option.value === value)?.label || placeholder;
+
+  return (
+    <div
+      className="relative"
+      tabIndex={-1}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((previous) => !previous)}
+        className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
+      >
+        <span>{selected}</span>
+        <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open ? (
+        <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {options.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                role="option"
+                aria-selected={value === option.value}
+                onMouseEnter={() => setHovered(option.value)}
+                onMouseLeave={() => setHovered((current) => (current === option.value ? null : current))}
+                className={`block w-full text-left px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                  hovered === option.value && option.value !== ''
+                    ? 'bg-purple-50 text-[#7E22CE]'
+                    : ''
+                } ${
+                  value === option.value && option.value !== ''
+                    ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
+                    : 'text-gray-800 dark:text-gray-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function EarningsPageImpl() {
   const embedded = useEmbedded();
-  function SimpleDropdown({
-    value,
-    onChange,
-    options,
-    placeholder,
-  }: {
-    value: string;
-    onChange: (v: string) => void;
-    options: Array<{ value: string; label: string }>;
-    placeholder: string;
-  }) {
-    const [open, setOpen] = useState(false);
-    const [hovered, setHovered] = useState<string | null>(null);
-    const selected = options.find((o) => o.value === value)?.label || placeholder;
-    return (
-      <div
-        className="relative"
-        tabIndex={-1}
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setOpen((p) => !p)}
-          className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
-        >
-          <span>{selected}</span>
-          <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z" clipRule="evenodd" />
-          </svg>
-        </button>
-        {open ? (
-          <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {options.map((opt) => (
-              <li key={opt.value}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
-                  role="option"
-                  aria-selected={value === opt.value}
-                  onMouseEnter={() => setHovered(opt.value)}
-                  onMouseLeave={() => setHovered((h) => (h === opt.value ? null : h))}
-                  className={`block w-full text-left px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                    hovered === opt.value && opt.value !== ''
-                      ? 'bg-purple-50 text-[#7E22CE]'
-                      : ''
-                  } ${
-                    value === opt.value && opt.value !== ''
-                      ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
-                      : 'text-gray-800 dark:text-gray-200'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    );
-  }
   const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
   const { data: payoutsData, isLoading: isLoadingPayouts } = useInstructorPayouts(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportYear, setExportYear] = useState<string>('');
+  const currentYear = useMemo(() => String(new Date().getFullYear()), []);
+  const [exportYear, setExportYear] = useState<string>(currentYear);
   const [exportType, setExportType] = useState<'csv' | 'pdf' | ''>('');
   const [sendingExport, setSendingExport] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
   const years = useMemo(() => {
-    const now = new Date().getFullYear();
-    const start = 2025; // Earliest selectable export year
-    const list: string[] = [];
-    for (let y = now; y >= start; y -= 1) list.push(String(y));
-    return list;
-  }, []);
+    const detectedYears = new Set<number>();
 
-  const formatAmount = (value?: number) => `$${((value ?? 0) / 100).toFixed(2)}`;
-  const formatCents = (value?: number | null) => `$${(((value ?? 0)) / 100).toFixed(2)}`;
+    for (const invoice of earnings?.invoices ?? []) {
+      const lessonYear = extractYear(invoice.lesson_date);
+      if (lessonYear && lessonYear >= PLATFORM_LAUNCH_YEAR) {
+        detectedYears.add(lessonYear);
+      }
+      const createdYear = extractYear(invoice.created_at);
+      if (createdYear && createdYear >= PLATFORM_LAUNCH_YEAR) {
+        detectedYears.add(createdYear);
+      }
+    }
+
+    for (const payout of payoutsData?.payouts ?? []) {
+      const createdYear = extractYear(payout.created_at);
+      if (createdYear && createdYear >= PLATFORM_LAUNCH_YEAR) {
+        detectedYears.add(createdYear);
+      }
+      const arrivalYear = extractYear(payout.arrival_date);
+      if (arrivalYear && arrivalYear >= PLATFORM_LAUNCH_YEAR) {
+        detectedYears.add(arrivalYear);
+      }
+    }
+
+    if (detectedYears.size === 0) {
+      return [currentYear];
+    }
+
+    return Array.from(detectedYears)
+      .sort((left, right) => right - left)
+      .map(String);
+  }, [currentYear, earnings?.invoices, payoutsData?.payouts]);
+
+  useEffect(() => {
+    if (!years.includes(exportYear)) {
+      setExportYear(years.includes(currentYear) ? currentYear : years[0] ?? currentYear);
+    }
+  }, [currentYear, exportYear, years]);
+
+  const formatCents = (value?: number | null) => formatPrice((value ?? 0) / 100);
   const formatInvoiceDate = (lessonDate?: string, start?: string | null) => {
     if (!lessonDate) return '—';
     const baseIso = `${lessonDate}T${start ?? '00:00:00'}`;
@@ -124,6 +181,7 @@ function EarningsPageImpl() {
     if (!Number.isFinite(value)) return '0';
     return Number.isInteger(value) ? value.toString() : value.toFixed(1);
   };
+  const hoursSummary = `${formatHours(resolvedHoursInvoiced)} ${resolvedHoursInvoiced === 1 ? 'hr' : 'hrs'}`;
   const invoices = Array.isArray(earnings?.invoices) ? earnings!.invoices : [];
   const formatDuration = (mins?: number | null) => {
     if (!mins) return '—';
@@ -168,9 +226,11 @@ function EarningsPageImpl() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      toast.success('Export downloaded');
       setExportOpen(false);
     } catch (error) {
       logger.error('Export failed', error);
+      toast.error('Export failed. Please try again.');
     } finally {
       setSendingExport(false);
     }
@@ -230,54 +290,52 @@ function EarningsPageImpl() {
         <CommissionTierCard />
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-            <div className="flex items-start justify-between h-full">
-              <div>
-                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
-              </div>
-            </div>
-          </div>
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-            <div className="flex items-start justify-between h-full">
-              <div>
-                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
-                  Net
-                  <br />
-                  Earnings
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="flex flex-col justify-between h-full">
+                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+                  Gross Earnings
                 </h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
-              </div>
-            </div>
-          </div>
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-            <div className="flex items-start justify-between h-full">
-              <div>
-                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
-              </div>
-            </div>
-          </div>
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
-            <div className="flex items-start justify-between h-full">
-              <div>
-                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                  {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
+                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                  {isLoadingEarnings ? '—' : formatCents(totalLessonValue)}
                 </p>
               </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
+          </div>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="flex flex-col justify-between h-full">
+                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+                  Net Earnings
+                </h3>
+                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                  {isLoadingEarnings ? '—' : formatCents(netEarnings)}
+                </p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                <BadgeDollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
+          </div>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+            <div className="flex items-start justify-between gap-4 h-full">
+              <div className="flex flex-col justify-between h-full">
+                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+                  Lessons
+                </h3>
+                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                  {isLoadingEarnings ? '—' : resolvedServiceCount}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {isLoadingEarnings ? '—' : hoursSummary}
+                </p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </div>
@@ -325,7 +383,7 @@ function EarningsPageImpl() {
           <div className="p-4 sm:p-6">
             {activeTab === 'invoices' ? (
               invoices.length === 0 ? (
-                <div className="text-sm text-gray-600 dark:text-gray-400">You haven&apos;t submitted any invoices yet</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">No invoices yet — your completed lessons will appear here.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -559,8 +617,8 @@ function EarningsPageImpl() {
               <SimpleDropdown
                 value={exportYear}
                 onChange={setExportYear}
-                options={[{ value: '', label: 'Choose a year…' }, ...years.map((y) => ({ value: y, label: y }))]}
-                placeholder="Choose a year…"
+                options={years.map((year) => ({ value: year, label: year }))}
+                placeholder={currentYear}
               />
             </div>
             <div>

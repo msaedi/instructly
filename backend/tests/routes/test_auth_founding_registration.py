@@ -1,12 +1,18 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.services import get_cache_service_dep
+from app.auth import create_email_verification_token, decode_email_verification_token
+from app.middleware.beta_phase_header import invalidate_beta_settings_cache
 from app.models.beta import BetaInvite
 from app.models.instructor import InstructorProfile
 from app.models.user import User
+from app.repositories.beta_repository import BetaSettingsRepository
+from app.routes.v1 import auth as auth_routes
 from app.services.config_service import ConfigService
 
 
@@ -22,9 +28,26 @@ def _create_invite(db: Session, *, code: str, email: str, grant_founding_status:
     db.commit()
 
 
+def _set_beta_phase(db: Session, phase: str) -> None:
+    settings_record = BetaSettingsRepository(db).get_singleton()
+    settings_record.beta_phase = phase
+    settings_record.allow_signup_without_invite = False
+    db.commit()
+    invalidate_beta_settings_cache()
+
+
 def _register_instructor(
     client: TestClient, *, email: str, invite_code: str
 ) -> dict:
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
     response = client.post(
         "/api/v1/auth/register",
         json={
@@ -35,6 +58,7 @@ def _register_instructor(
             "phone": "+12125550000",
             "zip_code": "10001",
             "role": "instructor",
+            "email_verification_token": token,
             "metadata": {"invite_code": invite_code},
         },
     )
@@ -47,6 +71,7 @@ def _register_instructor(
 def test_founding_status_set_on_signup_with_founding_invite(
     client: TestClient, db: Session
 ) -> None:
+    _set_beta_phase(db, "instructor_only")
     email = f"founder-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"FOUND{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
@@ -64,6 +89,7 @@ def test_founding_status_set_on_signup_with_founding_invite(
 def test_founding_status_not_set_when_invite_has_false(
     client: TestClient, db: Session
 ) -> None:
+    _set_beta_phase(db, "instructor_only")
     email = f"regular-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"REG{uuid.uuid4().hex[:5].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=False)
@@ -80,6 +106,7 @@ def test_founding_status_not_set_when_invite_has_false(
 def test_founding_cap_enforced(
     client: TestClient, db: Session, test_instructor
 ) -> None:
+    _set_beta_phase(db, "instructor_only")
     profile = test_instructor.instructor_profile
     profile.is_founding_instructor = True
     profile.founding_granted_at = datetime.now(timezone.utc)
@@ -108,6 +135,7 @@ def test_founding_status_verified_in_db_when_granted(
     client: TestClient, db: Session
 ) -> None:
     """Founding status should be persisted in DB when granted via invite."""
+    _set_beta_phase(db, "instructor_only")
     email = f"response-founder-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"RESP{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
@@ -125,6 +153,7 @@ def test_founding_status_not_granted_when_not_requested(
     client: TestClient, db: Session
 ) -> None:
     """Founding status should not be granted when invite has grant_founding_status=False."""
+    _set_beta_phase(db, "instructor_only")
     email = f"response-regular-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"NOFND{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=False)
@@ -142,6 +171,7 @@ def test_founding_status_false_when_cap_reached(
     client: TestClient, db: Session, test_instructor
 ) -> None:
     """When cap is reached, founding status should not be granted."""
+    _set_beta_phase(db, "instructor_only")
     profile = test_instructor.instructor_profile
     profile.is_founding_instructor = True
     profile.founding_granted_at = datetime.now(timezone.utc)
@@ -171,6 +201,15 @@ def test_student_registration_returns_generic_response(
 ) -> None:
     """Student registration returns generic response (no user data exposed)."""
     email = f"student-{uuid.uuid4().hex[:8]}@example.com"
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
 
     response = client.post(
         "/api/v1/auth/register",
@@ -182,6 +221,7 @@ def test_student_registration_returns_generic_response(
             "phone": "+12125550001",
             "zip_code": "10001",
             "role": "student",
+            "email_verification_token": token,
         },
     )
 

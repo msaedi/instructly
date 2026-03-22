@@ -3,28 +3,43 @@ import userEvent from '@testing-library/user-event';
 
 import InstructorBookingsPage from '../page';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
-import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 
-const pushMock = jest.fn();
 const replaceMock = jest.fn();
-const invalidateQueriesMock = jest.fn();
+let currentTabParam: string | null = null;
+let embedded = false;
+
 const searchParamsMock = {
-  get: jest.fn(() => null),
-  toString: jest.fn(() => ''),
+  get: jest.fn((key: string) => {
+    if (key === 'tab') {
+      return currentTabParam;
+    }
+
+    if (key === 'panel' && embedded) {
+      return 'bookings';
+    }
+
+    return null;
+  }),
+  toString: jest.fn(() => {
+    const params = new URLSearchParams();
+
+    if (embedded) {
+      params.set('panel', 'bookings');
+    }
+
+    if (currentTabParam) {
+      params.set('tab', currentTabParam);
+    }
+
+    return params.toString();
+  }),
 };
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: pushMock,
     replace: replaceMock,
   }),
   useSearchParams: () => searchParamsMock,
-}));
-
-jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({
-    invalidateQueries: invalidateQueriesMock,
-  }),
 }));
 
 jest.mock('@/components/UserProfileDropdown', () => {
@@ -37,15 +52,14 @@ jest.mock('@/components/UserProfileDropdown', () => {
 });
 
 jest.mock('../../_embedded/EmbeddedContext', () => ({
-  useEmbedded: () => false,
+  useEmbedded: () => embedded,
 }));
 
 jest.mock('@/hooks/queries/useInstructorBookings');
-jest.mock('@/src/api/services/bookings');
 
-const mockUseInstructorBookings = useInstructorBookings as jest.MockedFunction<typeof useInstructorBookings>;
-const mockUseCompleteBooking = useCompleteBooking as jest.MockedFunction<typeof useCompleteBooking>;
-const mockUseMarkBookingNoShow = useMarkBookingNoShow as jest.MockedFunction<typeof useMarkBookingNoShow>;
+const mockUseInstructorBookings = useInstructorBookings as jest.MockedFunction<
+  typeof useInstructorBookings
+>;
 
 const emptyBookingsResponse = {
   items: [],
@@ -56,39 +70,121 @@ const emptyBookingsResponse = {
   has_prev: false,
 };
 
-describe('Instructor bookings page empty states', () => {
+const createBooking = (id: string, firstName: string, lastInitial: string, status: string) => ({
+  id,
+  booking_date: '2026-03-16',
+  start_time: '16:30:00',
+  end_time: '17:15:00',
+  status,
+  service_name: 'Piano',
+  duration_minutes: 45,
+  location_type: 'student_location',
+  student: {
+    id: `${id}-student`,
+    first_name: firstName,
+    last_initial: lastInitial,
+  },
+});
+
+const createBookingsQueryResult = (items: ReturnType<typeof createBooking>[]) =>
+  ({
+    data: {
+      ...emptyBookingsResponse,
+      items,
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: jest.fn(),
+  }) as unknown as ReturnType<typeof useInstructorBookings>;
+
+describe('InstructorBookingsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    searchParamsMock.get.mockReturnValue(null);
-    searchParamsMock.toString.mockReturnValue('');
+    currentTabParam = null;
+    embedded = false;
 
-    mockUseInstructorBookings.mockImplementation(() => ({
-      data: emptyBookingsResponse,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refetch: jest.fn(),
-    }));
-
-    const mutationMock = {
-      mutateAsync: jest.fn(),
-      isPending: false,
-    };
-    mockUseCompleteBooking.mockReturnValue(mutationMock as unknown as ReturnType<typeof useCompleteBooking>);
-    mockUseMarkBookingNoShow.mockReturnValue(mutationMock as unknown as ReturnType<typeof useMarkBookingNoShow>);
+    mockUseInstructorBookings.mockImplementation(({ upcoming }) =>
+      upcoming
+        ? createBookingsQueryResult([createBooking('upcoming-booking', 'Ava', 'M', 'CONFIRMED')])
+        : createBookingsQueryResult([createBooking('past-booking', 'Riley', 'T', 'COMPLETED')])
+    );
   });
 
   it('renders separate empty-state headings and subtitles for upcoming and past tabs', async () => {
     const user = userEvent.setup();
 
-    render(<InstructorBookingsPage />);
+    mockUseInstructorBookings.mockImplementation(
+      () => createBookingsQueryResult([])
+    );
+
+    const { rerender } = render(<InstructorBookingsPage />);
 
     expect(screen.getByText('No upcoming bookings')).toBeInTheDocument();
     expect(screen.getByText('New bookings will appear here.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: 'Past' }));
+    currentTabParam = 'past';
+    rerender(<InstructorBookingsPage />);
 
     expect(screen.getByText('No completed lessons yet')).toBeInTheDocument();
     expect(screen.getByText('Your completed sessions will appear here.')).toBeInTheDocument();
+  });
+
+  it('respects a direct past tab URL on first render', () => {
+    currentTabParam = 'past';
+
+    render(<InstructorBookingsPage />);
+
+    expect(screen.getByText('Riley T.')).toBeInTheDocument();
+    expect(screen.queryByText('Ava M.')).not.toBeInTheDocument();
+  });
+
+  it('syncs the rendered tab when the URL changes without remounting', () => {
+    const { rerender } = render(<InstructorBookingsPage />);
+
+    expect(screen.getByText('Ava M.')).toBeInTheDocument();
+    expect(screen.queryByText('Riley T.')).not.toBeInTheDocument();
+
+    currentTabParam = 'past';
+    rerender(<InstructorBookingsPage />);
+
+    expect(screen.getByText('Riley T.')).toBeInTheDocument();
+    expect(screen.queryByText('Ava M.')).not.toBeInTheDocument();
+  });
+
+  it('updates the URL when switching tabs', async () => {
+    const user = userEvent.setup();
+
+    render(<InstructorBookingsPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Past' }));
+
+    expect(replaceMock).toHaveBeenCalledWith('/instructor/bookings?tab=past', {
+      scroll: false,
+    });
+  });
+
+  it('renders the past tab correctly when embedded in the dashboard panel', () => {
+    embedded = true;
+    currentTabParam = 'past';
+
+    render(<InstructorBookingsPage />);
+
+    expect(screen.getByText('Riley T.')).toBeInTheDocument();
+    expect(screen.queryByText('Ava M.')).not.toBeInTheDocument();
+  });
+
+  it('updates the dashboard route when switching tabs in embedded mode', async () => {
+    const user = userEvent.setup();
+    embedded = true;
+
+    render(<InstructorBookingsPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Past' }));
+
+    expect(replaceMock).toHaveBeenCalledWith('/instructor/dashboard?panel=bookings&tab=past', {
+      scroll: false,
+    });
   });
 });
