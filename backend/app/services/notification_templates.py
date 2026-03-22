@@ -13,6 +13,7 @@ class NotificationTemplate:
     title: str
     body_template: str
     url_template: Optional[str] = None
+    fallback_url_template: Optional[str] = None
     email_template: TemplateRegistry | None = None
     email_subject_template: Optional[str] = None
 
@@ -23,7 +24,8 @@ INSTRUCTOR_BOOKING_CONFIRMED = NotificationTemplate(
     type="booking_confirmed",
     title="New Booking!",
     body_template="{student_name} booked {service_name} for {date} at {time}",
-    url_template="/instructor/dashboard?panel=bookings",
+    url_template="/instructor/bookings/{booking_id}",
+    fallback_url_template="/instructor/dashboard?panel=bookings",
     email_template=TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR,
     email_subject_template="New booking: {service_name} with {student_name}",
 )
@@ -33,7 +35,8 @@ INSTRUCTOR_BOOKING_CANCELLED = NotificationTemplate(
     type="booking_cancelled",
     title="Booking Cancelled",
     body_template="{student_name} cancelled their {service_name} for {date}",
-    url_template="/instructor/dashboard?panel=bookings",
+    url_template="/instructor/bookings/{booking_id}",
+    fallback_url_template="/instructor/dashboard?panel=bookings",
     email_template=TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR,
     email_subject_template="Booking cancelled: {service_name}",
 )
@@ -43,7 +46,8 @@ INSTRUCTOR_REMINDER_24H = NotificationTemplate(
     type="booking_reminder_24h",
     title="Lesson Tomorrow",
     body_template="Reminder: {service_name} with {student_name} tomorrow at {time}",
-    url_template="/instructor/dashboard?panel=bookings",
+    url_template="/instructor/bookings/{booking_id}",
+    fallback_url_template="/instructor/dashboard?panel=bookings",
     email_template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,
     email_subject_template="Reminder: {service_name} tomorrow",
 )
@@ -53,7 +57,8 @@ INSTRUCTOR_REMINDER_1H = NotificationTemplate(
     type="booking_reminder_1h",
     title="Lesson in 1 Hour",
     body_template="Reminder: {service_name} with {student_name} in 1 hour",
-    url_template="/instructor/dashboard?panel=bookings",
+    url_template="/instructor/bookings/{booking_id}",
+    fallback_url_template="/instructor/dashboard?panel=bookings",
     email_template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,
     email_subject_template="Reminder: {service_name} in 1 hour",
 )
@@ -131,7 +136,16 @@ STUDENT_REVIEW_RESPONSE = NotificationTemplate(
 def render_notification(template: NotificationTemplate, **kwargs: Any) -> dict[str, Any]:
     """Render a notification template with provided values."""
     body = template.body_template.format(**kwargs)
-    url = template.url_template.format(**kwargs) if template.url_template else None
+    url = None
+    if template.url_template:
+        try:
+            url = template.url_template.format(**kwargs)
+        except KeyError:
+            url = (
+                template.fallback_url_template.format(**kwargs)
+                if template.fallback_url_template
+                else None
+            )
 
     data: dict[str, Any] = dict(kwargs)
     if url:

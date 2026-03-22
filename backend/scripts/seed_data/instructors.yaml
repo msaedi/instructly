@@ -32,6 +32,32 @@ instructors:
         - advanced
   availability_pattern: flexible_academic
   current_tier_pct: 10.0
+  review_fixtures:
+  - student_email: sophia.brown@example.com
+    rating: 5
+    review_text: Professional and friendly instructor.
+    days_ago: 0
+    hours_ago: 4
+  - student_email: alex.williams@example.com
+    rating: 4
+    review_text:
+    days_ago: 2
+    hours_ago: 3
+  - student_email: david.miller@example.com
+    rating: 4
+    review_text: Clear explanations and good pace.
+    days_ago: 5
+    hours_ago: 2
+  - student_email: emma.johnson@example.com
+    rating: 4
+    review_text: Enjoyable session; learned a lot.
+    days_ago: 11
+    hours_ago: 5
+  - student_email: john.smith@example.com
+    rating: 3
+    review_text:
+    days_ago: 24
+    hours_ago: 1
   seed_completed_last_30d: 14
   first_name: Sarah
   last_name: Chen

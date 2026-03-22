@@ -1,5 +1,6 @@
 """Additional coverage tests for NotificationService."""
 
+import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.notification_service import NotificationService
+from app.services.notification_templates import INSTRUCTOR_BOOKING_CONFIRMED, render_notification
 
 
 @pytest.fixture
@@ -18,6 +20,7 @@ def notification_service() -> NotificationService:
     service.template_service = MagicMock()
     service.email_service = MagicMock()
     service.user_repository = MagicMock()
+    service.conversation_repository = MagicMock()
     service.notification_repository = MagicMock()
     service.preference_service = MagicMock()
     service.push_notification_service = MagicMock()
@@ -64,6 +67,7 @@ def test_send_message_notification_handles_email_failure_and_sms_render_error(
     sender = SimpleNamespace(id="u2", first_name="B", email="b@example.com")
     booking = SimpleNamespace(
         id="b1",
+        student_id="student-1",
         instructor_id="u2",
         service_name="Piano",
         booking_start_utc=datetime.now(timezone.utc),
@@ -95,6 +99,76 @@ def test_send_message_notification_handles_email_failure_and_sms_render_error(
             )
 
     assert result is False
+
+
+def test_send_message_notification_includes_conversation_navigation(notification_service) -> None:
+    recipient = SimpleNamespace(id="inst-1", first_name="Ivy", email="ivy@example.com")
+    sender = SimpleNamespace(id="student-1", first_name="Emma", email="emma@example.com")
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="student-1",
+        instructor_id="inst-1",
+        service_name="Piano",
+        booking_start_utc=datetime.now(timezone.utc),
+    )
+
+    notification_service.preference_service.is_enabled.return_value = True
+    notification_service.template_service.render_template.return_value = "<html />"
+    notification_service.email_service.send_email.return_value = object()
+    notification_service.user_repository.get_by_id.side_effect = [recipient, sender]
+    notification_service.conversation_repository.find_by_pair.return_value = SimpleNamespace(
+        id="conv-1"
+    )
+    notification_service.create_notification = AsyncMock()
+    notification_service._run_async_task = MagicMock()
+
+    result = notification_service.send_message_notification(
+        recipient_id=recipient.id,
+        booking=booking,
+        sender_id=sender.id,
+        message_content="Looking forward to the lesson",
+    )
+
+    assert result is True
+    task_factory = notification_service._run_async_task.call_args[0][0]
+    asyncio.run(task_factory())
+    notification_service.create_notification.assert_awaited_once_with(
+        user_id="inst-1",
+        category="messages",
+        notification_type="booking_new_message",
+        title="New message from Emma",
+        body="Looking forward to the lesson",
+        data={
+            "booking_id": "b1",
+            "sender_id": "student-1",
+            "conversation_id": "conv-1",
+            "url": "/instructor/messages?conversation=conv-1",
+        },
+        send_push=True,
+    )
+
+
+def test_render_notification_prefers_booking_detail_url_and_falls_back() -> None:
+    rendered = render_notification(
+        INSTRUCTOR_BOOKING_CONFIRMED,
+        booking_id="booking-1",
+        student_name="Emma",
+        service_name="Piano",
+        date="March 22",
+        time="4:00 PM",
+    )
+
+    assert rendered["data"]["url"] == "/instructor/bookings/booking-1"
+
+    fallback = render_notification(
+        INSTRUCTOR_BOOKING_CONFIRMED,
+        student_name="Emma",
+        service_name="Piano",
+        date="March 22",
+        time="4:00 PM",
+    )
+
+    assert fallback["data"]["url"] == "/instructor/dashboard?panel=bookings"
 
 
 def test_send_booking_cancelled_payment_failed_sends_both(notification_service) -> None:

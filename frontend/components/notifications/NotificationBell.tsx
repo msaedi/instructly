@@ -119,7 +119,7 @@ export function NotificationBell({
       <NotificationItem
         key={notification.id}
         notification={notification}
-        onRead={() => markAsRead.mutate(notification.id)}
+        onRead={() => markAsRead.mutateAsync(notification.id)}
         onDelete={() => deleteNotification.mutate(notification.id)}
       />
     ));

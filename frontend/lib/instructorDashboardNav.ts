@@ -1,33 +1,27 @@
 import type { LucideIcon } from 'lucide-react';
 
-export type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'referrals' | 'reviews' | 'availability' | 'account';
+export type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'messages' | 'earnings' | 'referrals' | 'reviews' | 'availability' | 'account';
+export type DashboardNavKey = DashboardPanel;
 
 type MobileGroup = 'primary' | 'secondary';
 
 type DashboardNavBase = {
-  key: string;
+  key: DashboardNavKey;
   label: string;
   mobileGroup: MobileGroup;
   icon?: LucideIcon;
 };
 
-export type DashboardPanelNavItem = DashboardNavBase & {
+export type DashboardNavItem = DashboardNavBase & {
   key: DashboardPanel;
   kind: 'panel';
 };
-
-export type DashboardRouteNavItem = DashboardNavBase & {
-  key: 'messages';
-  kind: 'route';
-  href: '/instructor/messages';
-};
-
-export type DashboardNavItem = DashboardPanelNavItem | DashboardRouteNavItem;
 
 export const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
   'dashboard',
   'profile',
   'bookings',
+  'messages',
   'earnings',
   'referrals',
   'reviews',
@@ -38,13 +32,7 @@ export const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
 export const INSTRUCTOR_DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   { key: 'dashboard', label: 'Dashboard', kind: 'panel', mobileGroup: 'primary' },
   { key: 'bookings', label: 'Bookings', kind: 'panel', mobileGroup: 'primary' },
-  {
-    key: 'messages',
-    label: 'Messages',
-    kind: 'route',
-    href: '/instructor/messages',
-    mobileGroup: 'primary',
-  },
+  { key: 'messages', label: 'Messages', kind: 'panel', mobileGroup: 'primary' },
   { key: 'availability', label: 'Availability', kind: 'panel', mobileGroup: 'primary' },
   { key: 'earnings', label: 'Earnings', kind: 'panel', mobileGroup: 'secondary' },
   { key: 'referrals', label: 'Referrals', kind: 'panel', mobileGroup: 'secondary' },

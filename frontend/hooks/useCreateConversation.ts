@@ -59,8 +59,12 @@ export function useCreateConversation(): CreateConversationResult {
       });
 
       if (navigateToMessages) {
-        // Navigate to instructor messages with conversation selected
-        router.push(`/instructor/messages?conversation=${result.id}`);
+        // Navigate to the dashboard messages panel with the conversation selected
+        const nextParams = new URLSearchParams({
+          panel: 'messages',
+          conversation: result.id,
+        });
+        router.push(`/instructor/dashboard?${nextParams.toString()}`);
       }
 
       logger.debug('Conversation created/retrieved', {

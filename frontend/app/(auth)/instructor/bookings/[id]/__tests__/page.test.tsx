@@ -8,8 +8,11 @@ import {
   useMarkBookingNoShow,
 } from '@/src/api/services/bookings';
 
+const mockPush = jest.fn();
+
 jest.mock('next/navigation', () => ({
   useParams: () => ({ id: '01KKQKWD9V9QF0J2T0AB3124' }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
 jest.mock('@/components/UserProfileDropdown', () => {
@@ -20,6 +23,17 @@ jest.mock('@/components/UserProfileDropdown', () => {
     default: MockUserProfileDropdown,
   };
 });
+
+jest.mock('@/components/notifications/NotificationBell', () => ({
+  NotificationBell: () => <div data-testid="notification-bell" />,
+}));
+
+jest.mock('@/lib/auth/sessionRefresh', () => ({
+  fetchWithSessionRefresh: jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ conversations: [] }),
+  }),
+}));
 
 const mockInvalidateQueries = jest.fn();
 jest.mock('@tanstack/react-query', () => ({
@@ -154,6 +168,9 @@ describe('Instructor Booking Details Page', () => {
 
     expect(screen.getByTestId('instructor-dashboard-shell')).toBeInTheDocument();
     expect(screen.getByTestId('instructor-dashboard-sidebar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Messages' })).toBeInTheDocument();
+    expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
+    expect(screen.getByTestId('user-dropdown')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Bookings' })).toBeInTheDocument();
     expect(
       screen.getByText('Track upcoming sessions and review completed lessons all in one place.')

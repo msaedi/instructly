@@ -399,6 +399,32 @@ const formatMock = dateFns.format as jest.MockedFunction<typeof dateFns.format>;
 const addMinutesHHMMMock = timeLib.addMinutesHHMM as jest.MockedFunction<typeof timeLib.addMinutesHHMM>;
 const actualDateFns = jest.requireActual('date-fns') as typeof import('date-fns');
 const actualTimeLib = jest.requireActual('@/lib/time') as typeof import('@/lib/time');
+type InstructorProfileResponse = Awaited<ReturnType<typeof fetchInstructorProfile>>;
+
+const originalFetchInstructorProfileMockResolvedValue = fetchInstructorProfileMock.mockResolvedValue;
+const originalFetchInstructorProfileMockRejectedValue = fetchInstructorProfileMock.mockRejectedValue;
+
+const queueInstructorProfileResolution = (value: InstructorProfileResponse) => {
+  fetchInstructorProfileMock.mockImplementation(
+    () =>
+      new Promise<InstructorProfileResponse>((resolve) => {
+        setTimeout(() => resolve(value), 0);
+      }),
+  );
+
+  return fetchInstructorProfileMock;
+};
+
+const queueInstructorProfileRejection = (error: unknown) => {
+  fetchInstructorProfileMock.mockImplementation(
+    () =>
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(error), 0);
+      }),
+  );
+
+  return fetchInstructorProfileMock;
+};
 
 const mockBooking: BookingPayment = {
   bookingId: 'booking-123',
@@ -444,6 +470,13 @@ describe('PaymentConfirmation', () => {
     onConfirm: jest.fn(),
     onBack: jest.fn(),
   };
+
+  beforeAll(() => {
+    fetchInstructorProfileMock.mockResolvedValue = ((value: InstructorProfileResponse) =>
+      queueInstructorProfileResolution(value)) as typeof fetchInstructorProfileMock.mockResolvedValue;
+    fetchInstructorProfileMock.mockRejectedValue = ((error: unknown) =>
+      queueInstructorProfileRejection(error)) as typeof fetchInstructorProfileMock.mockRejectedValue;
+  });
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -503,6 +536,11 @@ describe('PaymentConfirmation', () => {
     jest.useRealTimers();
     window.sessionStorage.clear();
     window.localStorage.clear();
+  });
+
+  afterAll(() => {
+    fetchInstructorProfileMock.mockResolvedValue = originalFetchInstructorProfileMockResolvedValue;
+    fetchInstructorProfileMock.mockRejectedValue = originalFetchInstructorProfileMockRejectedValue;
   });
 
   describe('rendering', () => {

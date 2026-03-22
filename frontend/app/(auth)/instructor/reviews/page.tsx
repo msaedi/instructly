@@ -1,43 +1,95 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
-import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { useQueryClient } from '@tanstack/react-query';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Star as PhosphorStar } from '@phosphor-icons/react';
 import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
-import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
+import { getReviewFillPercent } from '@/lib/dashboardReviews';
+import { formatStudentDisplayName } from '@/lib/studentName';
+import { useRespondToReview } from '@/src/api/services/reviews';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
-function StarRating({ rating }: { rating: number }) {
+type RatingFilter = 'all' | 5 | 4 | 3 | 2 | 1;
+
+function SummaryRatingStar({ rating }: { rating?: number | null }) {
+  const fillPercent = getReviewFillPercent(rating);
+
   return (
-    <div className="flex gap-0.5" aria-label={`${rating} star rating`}>
-      {[1, 2, 3, 4, 5].map((s) => (
-        <Star
-          key={s}
-          className={`h-4 w-4 ${s <= rating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+    <div className="relative h-10 w-10 shrink-0" aria-hidden="true">
+      <PhosphorStar
+        weight="regular"
+        className="absolute inset-0 h-full w-full text-amber-300"
+      />
+      <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
+        <PhosphorStar weight="fill" className="h-full w-full text-amber-500" />
+      </div>
+    </div>
+  );
+}
+
+function ReviewStars({ rating }: { rating: number }) {
+  return (
+    <div className="flex items-center gap-0.5" aria-label={`${rating} star rating`}>
+      {[1, 2, 3, 4, 5].map((value) => (
+        <PhosphorStar
+          key={value}
+          weight={value <= rating ? 'fill' : 'regular'}
+          className={value <= rating ? 'h-4 w-4 text-amber-500' : 'h-4 w-4 text-gray-300'}
         />
       ))}
     </div>
   );
 }
 
+function formatReviewTimestamp(createdAt: string): string {
+  const createdDate = new Date(createdAt);
+  const ageMs = Date.now() - createdDate.getTime();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+  if (ageMs < sevenDaysMs) {
+    return formatDistanceToNow(createdDate, { addSuffix: true });
+  }
+
+  return format(createdDate, 'MMM d, yyyy');
+}
+
+function getReviewerDisplayName(
+  reviewerFirstName?: string | null,
+  reviewerLastInitial?: string | null,
+  reviewerDisplayName?: string | null
+): string {
+  if (reviewerFirstName && reviewerLastInitial) {
+    return formatStudentDisplayName(reviewerFirstName, reviewerLastInitial);
+  }
+
+  const fallbackName = reviewerDisplayName?.trim();
+  return fallbackName || 'Student';
+}
+
 function ReviewsPageImpl() {
   const embedded = useEmbedded();
-  const [filter, setFilter] = useState<'all' | 5 | 4 | 3 | 2 | 1>('all');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement | null>(null);
-  const [hoveredOpt, setHoveredOpt] = useState<'all' | 5 | 4 | 3 | 2 | 1 | null>(null);
-  const { user, isLoading: authLoading } = useAuth();
-  const instructorId = user?.id ?? '';
+  const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<RatingFilter>('all');
   const [withCommentsOnly, setWithCommentsOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyErrorByReviewId, setReplyErrorByReviewId] = useState<Record<string, string>>({});
+  const { user, isLoading: authLoading } = useAuth();
+  const instructorId = user?.id ?? '';
+  const respondToReview = useRespondToReview();
   const perPage = 6;
   const selectedRating = filter === 'all' ? undefined : filter;
   const { data: ratingsData, isLoading: ratingsLoading } = useInstructorRatingsQuery(instructorId);
+
   const reviewFilters: { rating?: number; withText?: boolean } = {};
   if (selectedRating !== undefined) {
     reviewFilters.rating = selectedRating;
@@ -52,166 +104,159 @@ function ReviewsPageImpl() {
     error: reviewsError,
     isFetching: reviewsFetching,
   } = useInstructorReviews(instructorId, page, perPage, reviewFilters);
+
   const reviews = reviewsData?.reviews ?? [];
   const totalReviews = ratingsData?.overall?.total_reviews ?? reviewsData?.total ?? 0;
   const averageRating = ratingsData?.overall?.rating ?? null;
-  // Remove the star symbol from display_rating since we show a separate yellow star icon
-  const rawDisplayRating = ratingsData?.overall?.display_rating ?? (averageRating != null ? `${averageRating.toFixed(1)}` : null);
-  const averageRatingDisplay = rawDisplayRating?.replace(/★/g, '') ?? null;
-  const confidenceLabel = ratingsData?.confidence_level ?? null;
-  const confidenceDisplay = confidenceLabel
-    ? confidenceLabel.charAt(0).toUpperCase() + confidenceLabel.slice(1)
-    : null;
+  const hasVisibleRating = ratingsData?.overall?.display_rating != null;
+  const ratingDisplay =
+    hasVisibleRating && averageRating != null ? averageRating.toFixed(1) : '—';
   const loading = authLoading || ratingsLoading || reviewsLoading;
-  const isRefetching = reviewsFetching && !reviewsLoading;
-  const effectiveLoading = loading || isRefetching;
+  const effectiveLoading = loading || (reviewsFetching && !reviewsLoading);
   const showEmptyState = !effectiveLoading && totalReviews === 0;
   const noFilteredResults = !effectiveLoading && reviews.length === 0 && totalReviews > 0;
+  const countLabel = `${totalReviews} review${totalReviews === 1 ? '' : 's'}`;
+  const isSubmittingReply = respondToReview.isPending
+    && respondToReview.variables?.reviewId === activeReplyId;
 
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (!filterRef.current) return;
-      if (!filterRef.current.contains(e.target as Node)) setIsFilterOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
+  const handleReplySubmit = async (reviewId: string) => {
+    const responseText = replyDrafts[reviewId]?.trim() ?? '';
+    if (!responseText) {
+      setReplyErrorByReviewId((prev) => ({
+        ...prev,
+        [reviewId]: 'Reply text is required.',
+      }));
+      return;
+    }
 
-  const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
+    setReplyErrorByReviewId((prev) => {
+      const next = { ...prev };
+      delete next[reviewId];
+      return next;
+    });
+
+    try {
+      await respondToReview.mutateAsync({
+        reviewId,
+        data: { response_text: responseText },
+      });
+      setActiveReplyId(null);
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        delete next[reviewId];
+        return next;
+      });
+      await queryClient.invalidateQueries({ queryKey: ['instructors', instructorId, 'reviews'] });
+    } catch (error) {
+      setReplyErrorByReviewId((prev) => ({
+        ...prev,
+        [reviewId]: error instanceof Error ? error.message : 'Failed to send reply.',
+      }));
+    }
+  };
+
   return (
     <div className="min-h-screen insta-dashboard-page">
-      {/* Header hidden when embedded */}
-      {!embedded && (
-        <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
-          <div className="flex items-center justify-between max-w-full">
+      {!embedded ? (
+        <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
+          <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
+                iNSTAiNSTRU
+              </h1>
             </Link>
             <div className="pr-0 sm:pr-4">
               <UserProfileDropdown />
             </div>
           </div>
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden sm:block">
-            <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
-              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE] pointer-events-auto">
-                <ArrowLeft className="w-4 h-4" />
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 sm:block">
+            <div className="pointer-events-auto container mx-auto max-w-6xl px-8 lg:px-32">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+                <ArrowLeft className="h-4 w-4" />
                 <span>Back to dashboard</span>
               </Link>
             </div>
           </div>
         </header>
-      )}
+      ) : null}
 
-      <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
-        {!embedded && (
-          <div className="sm:hidden mb-2">
+      <div className={embedded ? 'max-w-none px-0 py-0' : 'container mx-auto max-w-6xl px-8 py-8 lg:px-32'}>
+        {!embedded ? (
+          <div className="mb-2 sm:hidden">
             <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="h-5 w-5" />
               <span className="sr-only">Back to dashboard</span>
             </Link>
           </div>
-        )}
+        ) : null}
+
         <SectionHeroCard
           id={embedded ? 'reviews-first-card' : undefined}
           icon={Star}
           title="Reviews"
           subtitle="See what students are saying and keep an eye on your ratings."
-          actions={!embedded ? (
-            <Link href="/instructor/dashboard" className="text-[#7E22CE] sm:hidden">
-              Dashboard
-            </Link>
-          ) : undefined}
         />
 
-        {/* Ratings summary */}
-        <div className="p-6 insta-surface-card">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Reviews</h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">{loading ? 'Loading…' : `${totalReviews} total`}</p>
-              {confidenceDisplay && (
-                <span className="mt-2 inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-[#7E22CE]">
-                  {confidenceDisplay}
+        <div className="insta-surface-card p-6">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <SummaryRatingStar rating={hasVisibleRating ? averageRating : null} />
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-6xl">
+                  {effectiveLoading ? '—' : ratingDisplay}
                 </span>
-              )}
+                <span className="text-lg font-medium text-gray-500 dark:text-gray-400">
+                  ({countLabel})
+                </span>
+              </div>
             </div>
-            <div className="flex items-baseline gap-2 text-gray-900 dark:text-gray-100">
-              <Star className={`h-6 w-6 ${averageRating != null ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-              <span className="text-3xl font-bold">
-                {loading ? '—' : averageRatingDisplay ?? '—'}
-              </span>
-              {averageRating != null && (
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">({averageRating.toFixed(2)})</span>
-              )}
-            </div>
-          </div>
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative" ref={filterRef}>
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((v) => !v)}
-                className="inline-flex items-center gap-1 text-[#7E22CE] font-semibold hover:text-[#5f1aa4]"
-                aria-haspopup="listbox"
-                aria-expanded={isFilterOpen}
-              >
-                <span>{filterLabel}</span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {isFilterOpen && (
-                <ul
-                  role="listbox"
-                  className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-md p-1"
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+              <label className="relative inline-flex min-w-[220px] items-center sm:min-w-[240px]">
+                <span className="sr-only">Filter reviews by rating</span>
+                <select
+                  aria-label="All reviews filter"
+                  value={String(filter)}
+                  onChange={(event) => {
+                    const nextValue = event.target.value === 'all'
+                      ? 'all'
+                      : Number(event.target.value);
+                    setFilter(nextValue as RatingFilter);
+                    setPage(1);
+                  }}
+                  className="h-12 w-full appearance-none rounded-2xl border border-gray-300 bg-white px-4 pr-12 text-sm font-medium text-gray-700 shadow-sm transition-colors focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
-                  {(['all', 5, 4, 3, 2, 1] as const).map((opt) => (
-                    <li key={String(opt)}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={filter === opt}
-                        onClick={() => {
-                          setFilter(opt);
-                          setPage(1);
-                          setIsFilterOpen(false);
-                        }}
-                        onMouseEnter={() => setHoveredOpt(opt)}
-                        onMouseLeave={() => setHoveredOpt((h) => (h === opt ? null : h))}
-                        className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
-                          hoveredOpt === opt ? 'bg-purple-50 text-[#7E22CE]' : ''
-                        } ${
-                          filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800 dark:text-gray-200'
-                        }`}
-                      >
-                        {opt === 'all' ? 'All reviews' : `${opt} stars`}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                  <option value="all">All reviews</option>
+                  <option value="5">5 stars</option>
+                  <option value="4">4 stars</option>
+                  <option value="3">3 stars</option>
+                  <option value="2">2 stars</option>
+                  <option value="1">1 star</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 h-5 w-5 text-gray-500" />
+              </label>
 
-            <button
-              type="button"
-              aria-pressed={withCommentsOnly}
-              onClick={() => {
-                setWithCommentsOnly((v) => !v);
-                setPage(1);
-              }}
-              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300 dark:border-gray-700" />}
-              With comments only
-            </button>
+              <label className="flex min-h-12 cursor-pointer items-center gap-4 rounded-2xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors focus-within:border-[#7E22CE] focus-within:ring-2 focus-within:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={withCommentsOnly}
+                  onChange={(event) => {
+                    setWithCommentsOnly(event.target.checked);
+                    setPage(1);
+                  }}
+                  className="h-5 w-5 rounded border-gray-300 text-[#7E22CE] focus:ring-[#7E22CE]"
+                />
+                <span>With comments only</span>
+              </label>
+            </div>
           </div>
 
-          {showEmptyState && (
+          {showEmptyState ? (
             <div className="mt-6 space-y-3 text-gray-500 dark:text-gray-400">
-              <p>You don’t have any reviews yet — but you’re just getting started!</p>
-              <p>Happy students leave great feedback. After each lesson, kindly remind them to rate their experience.</p>
+              <p>You don’t have any reviews yet, but you’re just getting started.</p>
+              <p>After each lesson, invite students to share feedback so your rating can take shape.</p>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="mt-6 space-y-4">
@@ -225,45 +270,132 @@ function ReviewsPageImpl() {
             <p className="text-gray-500 dark:text-gray-400">Loading reviews…</p>
           ) : (
             <>
-              {noFilteredResults && (
+              {noFilteredResults ? (
                 <p className="text-gray-500 dark:text-gray-400">No reviews match your filters.</p>
-              )}
+              ) : null}
 
-              {reviews.length > 0 && (
-                <div className="grid grid-cols-1 gap-4">
-                  {reviews.map((review) => (
-                    <article key={review.id} className="p-4 insta-surface-card">
-                      <div className="flex items-start gap-3">
-                        <StarRating rating={review.rating} />
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-baseline gap-2">
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{review.reviewer_display_name || 'Student'}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
-                            </span>
-                          </div>
-                          {review.review_text ? (
-                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{review.review_text}</p>
-                          ) : (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">No written feedback</p>
-                          )}
+              {reviews.map((review) => {
+                const reviewerName = getReviewerDisplayName(
+                  review.reviewer_first_name,
+                  review.reviewer_last_initial,
+                  review.reviewer_display_name
+                );
+                const replyError = replyErrorByReviewId[review.id];
+                const hasResponse = review.response != null;
+                const isReplyOpen = activeReplyId === review.id;
+
+                return (
+                  <article key={review.id} className="insta-surface-card p-5">
+                    <div className="flex items-center gap-3">
+                      <ReviewStars rating={review.rating} />
+                      <span className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {reviewerName}
+                      </span>
+                      <span className="ml-auto shrink-0 text-sm text-gray-500 dark:text-gray-400">
+                        {formatReviewTimestamp(review.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                        {review.review_text || 'No written feedback'}
+                      </p>
+
+                      {hasResponse ? (
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/70">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                            Instructor reply
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+                            {review.response?.response_text}
+                          </p>
                         </div>
+                      ) : null}
+
+                      <div className="flex items-center gap-3">
+                        {hasResponse ? (
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Replied
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveReplyId((current) => (current === review.id ? null : review.id));
+                              setReplyErrorByReviewId((prev) => {
+                                const next = { ...prev };
+                                delete next[review.id];
+                                return next;
+                              });
+                            }}
+                            className="text-sm font-semibold text-[#7E22CE] transition-colors hover:text-[#5f1aa4]"
+                          >
+                            Reply
+                          </button>
+                        )}
                       </div>
-                    </article>
-                  ))}
-                </div>
-              )}
+
+                      {!hasResponse && isReplyOpen ? (
+                        <form
+                          className="space-y-3"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void handleReplySubmit(review.id);
+                          }}
+                        >
+                          <label className="sr-only" htmlFor={`reply-${review.id}`}>
+                            Reply to {reviewerName}
+                          </label>
+                          <textarea
+                            id={`reply-${review.id}`}
+                            value={replyDrafts[review.id] ?? ''}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setReplyDrafts((prev) => ({
+                                ...prev,
+                                [review.id]: nextValue,
+                              }));
+                            }}
+                            rows={3}
+                            className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                            placeholder="Write a thoughtful reply..."
+                          />
+                          {replyError ? (
+                            <p className="text-sm text-red-600">{replyError}</p>
+                          ) : null}
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="submit"
+                              disabled={isSubmittingReply}
+                              className="rounded-full bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b21a8] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isSubmittingReply ? 'Sending…' : 'Send reply'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveReplyId(null)}
+                              className="text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </>
           )}
         </div>
 
-        {(reviewsData?.has_prev || reviewsData?.has_next) && !showEmptyState && (
+        {(reviewsData?.has_prev || reviewsData?.has_next) && !showEmptyState ? (
           <div className="mt-6 flex items-center justify-between">
             <button
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page === 1 || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
+              className="insta-secondary-btn inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
             >
               <span>Previous</span>
             </button>
@@ -272,12 +404,12 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => prev + 1)}
               disabled={!reviewsData?.has_next || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
+              className="insta-secondary-btn inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
             >
               <span>Next</span>
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

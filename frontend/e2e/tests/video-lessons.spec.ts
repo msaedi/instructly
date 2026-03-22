@@ -468,7 +468,7 @@ test.describe('Instructor bookings list entry points', () => {
     await bookingCard.click();
 
     await expect(page).toHaveURL(new RegExp(`/instructor/bookings/${booking.id}$`));
-    await expect(page.getByRole('button', { name: 'Message' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible();
   });
 
   test('shows Join Lesson on the booking detail page when the join window is open', async ({
@@ -488,7 +488,7 @@ test.describe('Instructor bookings list entry points', () => {
     await bookingCard.click();
 
     await expect(page).toHaveURL(new RegExp(`/instructor/bookings/${booking.id}$`));
-    await expect(page.getByRole('button', { name: 'Message' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible();
     await expect(page.getByTestId('join-lesson-button')).toBeVisible({ timeout: 10_000 });
   });
 });
@@ -732,9 +732,9 @@ test.describe('Lesson ended summary (instructor)', () => {
     await expect(lessonPage.bookAgainLink).not.toBeVisible();
   });
 
-  test('Back to My Lessons links to /instructor/bookings', async ({
-    page,
-  }) => {
+test('Back to My Lessons links to the instructor dashboard past bookings tab', async ({
+  page,
+}) => {
     const booking = bookingEndedWithStats({
       instructor_id: INSTRUCTOR_USER.id,
     });
@@ -750,11 +750,11 @@ test.describe('Lesson ended summary (instructor)', () => {
     await expect(lessonPage.backToLessonsLink).toBeVisible({
       timeout: 10_000,
     });
-    await expect(lessonPage.backToLessonsLink).toHaveAttribute(
-      'href',
-      '/instructor/bookings',
-    );
-  });
+  await expect(lessonPage.backToLessonsLink).toHaveAttribute(
+    'href',
+    '/instructor/dashboard?panel=bookings&tab=past',
+  );
+});
 });
 
 // =============================================================================
@@ -875,7 +875,7 @@ test.describe('Video session stats on instructor detail', () => {
 
     await page.goto(`/instructor/bookings/${booking.id}`);
 
-    await expect(page.getByRole('button', { name: 'Message' })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible({
       timeout: 10_000,
     });
     // The "Video Session" heading should not appear

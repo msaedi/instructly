@@ -11,7 +11,7 @@ from typing import Any, List, Mapping, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.engine import Row
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query, Session, joinedload
 
 from ..core.exceptions import RepositoryException
 from ..models.review import Review, ReviewResponse, ReviewStatus, ReviewTip
@@ -70,7 +70,10 @@ class ReviewRepository(BaseRepository[Review]):
         try:
             return cast(
                 Optional[Review],
-                self.db.query(Review).filter(Review.booking_id == booking_id).first(),
+                self.db.query(Review)
+                .options(joinedload(Review.response))
+                .filter(Review.booking_id == booking_id)
+                .first(),
             )
         except Exception as e:
             self.logger.error("Error fetching review by booking: %s", e)
@@ -208,7 +211,7 @@ class ReviewRepository(BaseRepository[Review]):
         with_text: Optional[bool] = None,
     ) -> List[Review]:
         try:
-            q = self.db.query(Review)
+            q = self.db.query(Review).options(joinedload(Review.response))
             q = self._apply_recent_filters(
                 q,
                 instructor_id=instructor_id,

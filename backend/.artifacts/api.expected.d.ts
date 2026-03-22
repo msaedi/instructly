@@ -9880,8 +9880,11 @@ export type components = {
  id: string;
  instructor_service_id: string;
  rating: number;
+ response?: components["schemas"]["ReviewResponseModel"] | null;
  review_text: string | null;
  reviewer_display_name?: string | null;
+ reviewer_first_name?: string | null;
+ reviewer_last_initial?: string | null;
  };
  ReviewListPageResponse: {
  has_next: boolean;
@@ -9909,8 +9912,11 @@ export type components = {
  id: string;
  instructor_service_id: string;
  rating: number;
+ response?: components["schemas"]["ReviewResponseModel"] | null;
  review_text: string | null;
  reviewer_display_name?: string | null;
+ reviewer_first_name?: string | null;
+ reviewer_last_initial?: string | null;
  tip_client_secret?: string | null;
  tip_status?: string | null;
  };

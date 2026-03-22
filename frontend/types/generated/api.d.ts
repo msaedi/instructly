@@ -19055,10 +19055,15 @@ export type components = {
             instructor_service_id: string;
             /** Rating */
             rating: number;
+            response?: components["schemas"]["ReviewResponseModel"] | null;
             /** Review Text */
             review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
+            /** Reviewer First Name */
+            reviewer_first_name?: string | null;
+            /** Reviewer Last Initial */
+            reviewer_last_initial?: string | null;
         };
         /** ReviewListPageResponse */
         ReviewListPageResponse: {
@@ -19115,10 +19120,15 @@ export type components = {
             instructor_service_id: string;
             /** Rating */
             rating: number;
+            response?: components["schemas"]["ReviewResponseModel"] | null;
             /** Review Text */
             review_text: string | null;
             /** Reviewer Display Name */
             reviewer_display_name?: string | null;
+            /** Reviewer First Name */
+            reviewer_first_name?: string | null;
+            /** Reviewer Last Initial */
+            reviewer_last_initial?: string | null;
             /** Tip Client Secret */
             tip_client_secret?: string | null;
             /** Tip Status */

@@ -58,7 +58,7 @@ describe('useCreateConversation', () => {
       expect(response).toEqual({ id: 'conv-1', created: true });
     });
 
-    expect(push).toHaveBeenCalledWith('/instructor/messages?conversation=conv-1');
+    expect(push).toHaveBeenCalledWith('/instructor/dashboard?panel=messages&conversation=conv-1');
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: conversationQueryKeys.all });
   });
 

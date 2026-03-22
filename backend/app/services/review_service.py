@@ -690,21 +690,35 @@ class ReviewService(BaseService):
         Returns:
             Display name string or None if not found
         """
+        first_name, last_initial = self.get_reviewer_name_parts(user_id)
+        if first_name and last_initial:
+            return f"{first_name} {last_initial}."
+        if first_name:
+            return first_name
+        return None
+
+    @BaseService.measure_operation("get_reviewer_name_parts")
+    def get_reviewer_name_parts(self, user_id: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Get privacy-safe reviewer name parts for instructor-facing review displays.
+
+        Args:
+            user_id: The ID of the user/reviewer
+
+        Returns:
+            Tuple of (first_name, last_initial) or (None, None) if not found
+        """
         from ..repositories.user_repository import UserRepository
 
         user_repo = UserRepository(self.db)
         user = user_repo.get_by_id(user_id)
         if not user:
-            return None
+            return None, None
 
-        # Format as "FirstName L." for privacy
-        first_name = getattr(user, "first_name", None) or ""
-        last_name = getattr(user, "last_name", None) or ""
-        if first_name and last_name:
-            return f"{first_name} {last_name[0]}."
-        elif first_name:
-            return first_name
-        return None
+        first_name = (getattr(user, "first_name", None) or "").strip() or None
+        last_name = (getattr(user, "last_name", None) or "").strip()
+        last_initial = last_name[:1] or None
+        return first_name, last_initial
 
     def _invalidate_instructor_caches(self, instructor_id: str) -> None:
         if not self.cache:

@@ -96,7 +96,7 @@ export default function BookingDetailsPage() {
 
   if (isLoading) {
     return (
-      <InstructorDashboardShell activePanel="bookings">
+      <InstructorDashboardShell activeNavKey="bookings">
         <BookingsPageHeader />
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-indigo-500" />
@@ -107,7 +107,7 @@ export default function BookingDetailsPage() {
 
   if (queryError || !booking) {
     return (
-      <InstructorDashboardShell activePanel="bookings">
+      <InstructorDashboardShell activeNavKey="bookings">
         <BookingsPageHeader />
         <div className="mx-auto max-w-4xl px-4 py-8">
           <div className="text-center">
@@ -129,7 +129,7 @@ export default function BookingDetailsPage() {
 
   return (
     <>
-      <InstructorDashboardShell activePanel="bookings">
+      <InstructorDashboardShell activeNavKey="bookings">
         <BookingsPageHeader />
         <InstructorBookingDetailView
           booking={booking}

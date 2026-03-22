@@ -19,12 +19,11 @@ describe('instructorDashboardNav', () => {
     ]);
   });
 
-  it('treats Messages as a route item in mobile primary nav', () => {
+  it('treats Messages as a panel item in mobile primary nav', () => {
     const messagesItem = MOBILE_NAV_PRIMARY_ITEMS.find((item) => item.key === 'messages');
 
     expect(messagesItem).toMatchObject({
-      kind: 'route',
-      href: '/instructor/messages',
+      kind: 'panel',
       label: 'Messages',
     });
     expect(MOBILE_NAV_SECONDARY_ITEMS.map((item) => item.key)).not.toContain('messages');

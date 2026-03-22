@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import type { NotificationItem } from '@/features/shared/api/notifications';
 
 // Mock useNotifications hook
-const mockMarkAsRead = { mutate: jest.fn(), isPending: false };
+const mockMarkAsRead = { mutate: jest.fn(), mutateAsync: jest.fn().mockResolvedValue(undefined), isPending: false };
 const mockMarkAllAsRead = { mutate: jest.fn(), isPending: false };
 const mockDeleteNotification = { mutate: jest.fn(), isPending: false };
 const mockClearAll = { mutate: jest.fn(), isPending: false };
@@ -36,7 +36,7 @@ jest.mock('@/lib/utils', () => ({
 jest.mock('../NotificationItem', () => ({
   NotificationItem: ({ notification, onRead, onDelete }: {
     notification: NotificationItem;
-    onRead: () => void;
+    onRead: () => Promise<void> | void;
     onDelete: () => void;
   }) => (
     <div
@@ -322,7 +322,7 @@ describe('NotificationBell', () => {
       // Click the "Mark Read" button in the mocked NotificationItem
       await user.click(screen.getByText('Mark Read'));
 
-      expect(mockMarkAsRead.mutate).toHaveBeenCalledWith('test-id-123');
+      expect(mockMarkAsRead.mutateAsync).toHaveBeenCalledWith('test-id-123');
     });
 
     it('calls deleteNotification when notification onDelete is triggered', async () => {

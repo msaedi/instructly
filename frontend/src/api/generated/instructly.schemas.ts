@@ -7809,13 +7809,24 @@ export const RevenuePeriod = {
   this_quarter: 'this_quarter',
 } as const;
 
+export interface ReviewResponseModel {
+  created_at: string;
+  id: string;
+  instructor_id: string;
+  response_text: string;
+  review_id: string;
+}
+
 export interface ReviewItem {
   created_at: string;
   id: string;
   instructor_service_id: string;
   rating: number;
+  response?: ReviewResponseModel | null;
   review_text: string | null;
   reviewer_display_name?: string | null;
+  reviewer_first_name?: string | null;
+  reviewer_last_initial?: string | null;
 }
 
 export interface ReviewListPageResponse {
@@ -7825,14 +7836,6 @@ export interface ReviewListPageResponse {
   per_page: number;
   reviews: ReviewItem[];
   total: number;
-}
-
-export interface ReviewResponseModel {
-  created_at: string;
-  id: string;
-  instructor_id: string;
-  response_text: string;
-  review_id: string;
 }
 
 export interface ReviewSubmitRequest {
@@ -7851,8 +7854,11 @@ export interface ReviewSubmitResponse {
   id: string;
   instructor_service_id: string;
   rating: number;
+  response?: ReviewResponseModel | null;
   review_text: string | null;
   reviewer_display_name?: string | null;
+  reviewer_first_name?: string | null;
+  reviewer_last_initial?: string | null;
   tip_client_secret?: string | null;
   tip_status?: string | null;
 }

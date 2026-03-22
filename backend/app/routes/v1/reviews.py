@@ -70,6 +70,25 @@ def _display_name(user: Optional[User]) -> Optional[str]:
     return f"{first} {last_init}.".strip() if first else None
 
 
+def _last_initial(user: Optional[User]) -> Optional[str]:
+    if not user:
+        return None
+    return (user.last_name or "").strip()[:1] or None
+
+
+def _review_response_model(review: Any) -> Optional[ReviewResponseModel]:
+    response = getattr(review, "response", None)
+    if not response:
+        return None
+    return ReviewResponseModel(
+        id=response.id,
+        review_id=response.review_id,
+        instructor_id=response.instructor_id,
+        response_text=response.response_text,
+        created_at=response.created_at,
+    )
+
+
 def handle_domain_exception(exc: DomainException) -> NoReturn:
     """Convert domain exceptions to HTTP exceptions."""
     if hasattr(exc, "to_http_exception"):
@@ -171,6 +190,8 @@ async def submit_review(
             created_at=review.created_at,
             instructor_service_id=review.instructor_service_id,
             reviewer_display_name=_display_name(current_user),
+            reviewer_first_name=(current_user.first_name or "").strip() or None,
+            reviewer_last_initial=_last_initial(current_user),
             tip_status=result.get("tip_status"),
             tip_client_secret=result.get("tip_client_secret"),
         )
@@ -287,13 +308,20 @@ def get_recent_reviews(
     items: List[ReviewItem] = []
     for r in reviews:
         reviewer_name = None
+        reviewer_first_name = None
+        reviewer_last_initial = None
         try:
+            reviewer_first_name, reviewer_last_initial = service.get_reviewer_name_parts(
+                r.student_id
+            )
             reviewer_name = service.get_reviewer_display_name(r.student_id)
         except Exception as e:
             logger.warning(
                 "[REVIEWS] Failed to get reviewer display name for %s: %s", r.student_id, e
             )
             reviewer_name = None
+            reviewer_first_name = None
+            reviewer_last_initial = None
         items.append(
             ReviewItem(
                 id=r.id,
@@ -302,6 +330,9 @@ def get_recent_reviews(
                 created_at=r.created_at,
                 instructor_service_id=r.instructor_service_id,
                 reviewer_display_name=reviewer_name,
+                reviewer_first_name=reviewer_first_name,
+                reviewer_last_initial=reviewer_last_initial,
+                response=_review_response_model(r),
             )
         )
     has_next = page * limit < total
@@ -349,6 +380,9 @@ def get_review_for_booking(
         created_at=review.created_at,
         instructor_service_id=review.instructor_service_id,
         reviewer_display_name=_display_name(current_user),
+        reviewer_first_name=(current_user.first_name or "").strip() or None,
+        reviewer_last_initial=_last_initial(current_user),
+        response=_review_response_model(review),
     )
 
 

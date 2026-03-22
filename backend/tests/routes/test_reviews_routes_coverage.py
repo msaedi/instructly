@@ -111,6 +111,8 @@ async def test_submit_review_success():
     response = await reviews_routes.submit_review(payload=payload, current_user=user, service=_Service())
     assert response.id == "r1"
     assert response.tip_status == "succeeded"
+    assert response.reviewer_first_name == "S"
+    assert response.reviewer_last_initial == "O"
 
 
 @pytest.mark.asyncio
@@ -205,6 +207,9 @@ def test_get_recent_reviews_handles_reviewer_errors():
         def count_recent_reviews(self, *_args, **_kwargs):
             return 1
 
+        def get_reviewer_name_parts(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
         def get_reviewer_display_name(self, *_args, **_kwargs):
             raise RuntimeError("boom")
 
@@ -220,10 +225,19 @@ def test_get_recent_reviews_handles_reviewer_errors():
     )
     assert response.total == 1
     assert response.reviews[0].reviewer_display_name is None
+    assert response.reviews[0].reviewer_first_name is None
+    assert response.reviews[0].response is None
 
 
 def test_get_recent_reviews_rating_overrides_min():
     now = datetime.now(timezone.utc)
+    review_response = SimpleNamespace(
+        id="resp-1",
+        review_id="r1",
+        instructor_id="instr-1",
+        response_text="Thanks for the feedback",
+        created_at=now,
+    )
 
     class _Service:
         def __init__(self):
@@ -239,11 +253,15 @@ def test_get_recent_reviews_rating_overrides_min():
                     created_at=now,
                     instructor_service_id="svc1",
                     student_id="student-1",
+                    response=review_response,
                 )
             ]
 
         def count_recent_reviews(self, *_args, **_kwargs):
             return 1
+
+        def get_reviewer_name_parts(self, *_args, **_kwargs):
+            return ("Student", "S")
 
         def get_reviewer_display_name(self, *_args, **_kwargs):
             return "Student S."
@@ -261,6 +279,10 @@ def test_get_recent_reviews_rating_overrides_min():
     )
     assert response.has_prev is True
     assert service.last_min is None
+    assert response.reviews[0].reviewer_first_name == "Student"
+    assert response.reviews[0].reviewer_last_initial == "S"
+    assert response.reviews[0].response is not None
+    assert response.reviews[0].response.response_text == "Thanks for the feedback"
 
 
 def test_get_review_for_booking_forbidden():
@@ -297,6 +319,42 @@ def test_get_review_for_booking_none():
         service=_Service(),
     )
     assert response is None
+
+
+def test_get_review_for_booking_returns_name_parts_and_response():
+    now = datetime.now(timezone.utc)
+    response_obj = SimpleNamespace(
+        id="resp-1",
+        review_id="r1",
+        instructor_id="instr-1",
+        response_text="Appreciate it",
+        created_at=now,
+    )
+
+    class _Service:
+        def get_review_for_booking(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                id="r1",
+                rating=5,
+                review_text="Great",
+                created_at=now,
+                instructor_service_id="svc1",
+                student_id="student-1",
+                response=response_obj,
+            )
+
+    user = SimpleNamespace(id="student-1", first_name="S", last_name="One")
+    response = reviews_routes.get_review_for_booking(
+        booking_id="01HF4G12ABCDEF3456789XYZAB",
+        current_user=user,
+        service=_Service(),
+    )
+
+    assert response is not None
+    assert response.reviewer_first_name == "S"
+    assert response.reviewer_last_initial == "O"
+    assert response.response is not None
+    assert response.response.response_text == "Appreciate it"
 
 
 def test_respond_to_review_error_returns_400():
