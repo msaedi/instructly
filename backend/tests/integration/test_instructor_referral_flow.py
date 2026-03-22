@@ -213,7 +213,7 @@ class TestInstructorReferralFullFlow:
             amount_cents=7500,
             was_founding_bonus=True,
             stripe_transfer_status="completed",
-            idempotency_key=f"instructor_referral_{referred.id}",
+            idempotency_key=f"instructor_referral_instructor_{first_booking_id}",
         )
         db.add(existing_payout)
         db.flush()
@@ -406,7 +406,7 @@ class TestReferralAPIIntegration:
                 amount_cents=2000,
                 was_founding_bonus=False,
                 stripe_transfer_status="pending",
-                idempotency_key=f"instructor_referral_{unlocked_student.id}",
+                idempotency_key=f"instructor_referral_instructor_{unlocked_booking_id}",
             )
         )
         db.add(
@@ -418,7 +418,7 @@ class TestReferralAPIIntegration:
                 was_founding_bonus=False,
                 stripe_transfer_status="completed",
                 transferred_at=redeemed_completed_at,
-                idempotency_key=f"instructor_referral_{redeemed_instructor.id}",
+                idempotency_key=f"instructor_referral_instructor_{redeemed_booking_id}",
             )
         )
         db.commit()

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { reviewsApi, ReviewListPageResponse } from '@/services/api/reviews';
+import { queryKeys } from '@/src/api/queryKeys';
 
 // ReviewItem and ReviewsResponse removed - use generated types from @/services/api/reviews
 // which re-exports from @/features/shared/api/types (OpenAPI shim)
@@ -11,8 +12,36 @@ export function useInstructorReviews(
   limit: number = 12,
   opts?: { minRating?: number; rating?: number; withText?: boolean; instructorServiceId?: string }
 ) {
+  const queryKeyFilters: {
+    page: number;
+    limit: number;
+    minRating?: number;
+    rating?: number;
+    withText?: boolean;
+    instructorServiceId?: string;
+  } = {
+    page,
+    limit,
+  };
+
+  if (opts?.minRating !== undefined) {
+    queryKeyFilters.minRating = opts.minRating;
+  }
+
+  if (opts?.rating !== undefined) {
+    queryKeyFilters.rating = opts.rating;
+  }
+
+  if (opts?.withText !== undefined) {
+    queryKeyFilters.withText = opts.withText;
+  }
+
+  if (opts?.instructorServiceId !== undefined) {
+    queryKeyFilters.instructorServiceId = opts.instructorServiceId;
+  }
+
   return useQuery<ReviewListPageResponse>({
-    queryKey: ['instructors', instructorId, 'reviews', { page, limit, opts }],
+    queryKey: queryKeys.instructors.reviewsList(instructorId, queryKeyFilters),
     queryFn: async (): Promise<ReviewListPageResponse> => {
       const queryOpts: { minRating?: number; rating?: number; withText?: boolean } = {};
 

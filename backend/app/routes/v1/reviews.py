@@ -197,10 +197,11 @@ async def submit_review(
         )
     except DomainException as exc:
         handle_domain_exception(exc)
+    except RepositoryException as exc:
+        raise_503_if_pool_exhaustion(exc)
+        raise
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # =============================================================================
@@ -314,7 +315,10 @@ def get_recent_reviews(
             reviewer_first_name, reviewer_last_initial = service.get_reviewer_name_parts(
                 r.student_id
             )
-            reviewer_name = service.get_reviewer_display_name(r.student_id)
+            if reviewer_first_name and reviewer_last_initial:
+                reviewer_name = f"{reviewer_first_name} {reviewer_last_initial}."
+            else:
+                reviewer_name = reviewer_first_name
         except Exception as e:
             logger.warning(
                 "[REVIEWS] Failed to get reviewer display name for %s: %s", r.student_id, e
@@ -418,5 +422,8 @@ def respond_to_review(
             response_text=response.response_text,
             created_at=response.created_at,
         )
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except DomainException as exc:
+        handle_domain_exception(exc)
+    except RepositoryException as exc:
+        raise_503_if_pool_exhaustion(exc)
+        raise

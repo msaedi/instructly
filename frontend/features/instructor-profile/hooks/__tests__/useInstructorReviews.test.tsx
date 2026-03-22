@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useInstructorReviews } from '../useInstructorReviews';
 import { reviewsApi } from '@/services/api/reviews';
 import type { ReactNode } from 'react';
+import { queryKeys } from '@/src/api/queryKeys';
 
 // Mock the reviews API
 jest.mock('@/services/api/reviews', () => ({
@@ -26,7 +27,7 @@ const createWrapper = () => {
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   }
-  return Wrapper;
+  return { Wrapper, queryClient };
 };
 
 describe('useInstructorReviews', () => {
@@ -62,10 +63,11 @@ describe('useInstructorReviews', () => {
 
   it('fetches reviews with default parameters', async () => {
     reviewsApiMock.getRecent.mockResolvedValue(mockReviewsResponse);
+    const { Wrapper, queryClient } = createWrapper();
 
     const { result } = renderHook(
       () => useInstructorReviews('instructor-123'),
-      { wrapper: createWrapper() }
+      { wrapper: Wrapper }
     );
 
     await waitFor(() => {
@@ -80,6 +82,11 @@ describe('useInstructorReviews', () => {
       undefined
     );
     expect(result.current.data).toEqual(mockReviewsResponse);
+    expect(
+      queryClient.getQueryData(
+        queryKeys.instructors.reviewsList('instructor-123', { page: 1, limit: 12 })
+      )
+    ).toEqual(mockReviewsResponse);
   });
 
   it('fetches reviews with custom page and limit', async () => {
@@ -87,7 +94,7 @@ describe('useInstructorReviews', () => {
 
     renderHook(
       () => useInstructorReviews('instructor-123', 2, 20),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -106,7 +113,7 @@ describe('useInstructorReviews', () => {
 
     renderHook(
       () => useInstructorReviews('instructor-123', 1, 12, { minRating: 4 }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -125,7 +132,7 @@ describe('useInstructorReviews', () => {
 
     renderHook(
       () => useInstructorReviews('instructor-123', 1, 12, { rating: 5 }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -144,7 +151,7 @@ describe('useInstructorReviews', () => {
 
     renderHook(
       () => useInstructorReviews('instructor-123', 1, 12, { withText: true }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -163,7 +170,7 @@ describe('useInstructorReviews', () => {
 
     renderHook(
       () => useInstructorReviews('instructor-123', 1, 12, { instructorServiceId: 'svc-1' }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -180,7 +187,7 @@ describe('useInstructorReviews', () => {
   it('does not fetch when instructorId is empty', async () => {
     const { result } = renderHook(
       () => useInstructorReviews(''),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     expect(result.current.isLoading).toBe(false);
@@ -193,7 +200,7 @@ describe('useInstructorReviews', () => {
 
     const { result } = renderHook(
       () => useInstructorReviews('instructor-error'),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -213,7 +220,7 @@ describe('useInstructorReviews', () => {
         withText: true,
         instructorServiceId: 'svc-1',
       }),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     await waitFor(() => {
@@ -232,7 +239,7 @@ describe('useInstructorReviews', () => {
 
     const { result } = renderHook(
       () => useInstructorReviews('instructor-loading'),
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper().Wrapper }
     );
 
     expect(result.current.isLoading).toBe(true);

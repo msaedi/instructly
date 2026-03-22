@@ -110,6 +110,8 @@ KNOWN_DEVICE_MAX = 10
 EMAIL_VERIFICATION_CODE_TTL_SECONDS = 5 * 60
 EMAIL_VERIFICATION_SEND_WINDOW_SECONDS = 10 * 60
 EMAIL_VERIFICATION_SEND_MAX = 3
+EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS = 60 * 60
+EMAIL_VERIFICATION_SEND_IP_MAX = 20
 EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS = 10 * 60
 EMAIL_VERIFICATION_ATTEMPT_MAX = 5
 EMAIL_VERIFICATION_LOCK_TTL_SECONDS = 10 * 60
@@ -277,6 +279,10 @@ def _email_verification_send_key(email: str) -> str:
     return f"email_verify_send_count:{_normalize_email(email)}"
 
 
+def _email_verification_send_ip_key(client_ip: str) -> str:
+    return f"email_verify_send_ip_count:{client_ip.strip() or 'unknown'}"
+
+
 def _email_verification_attempts_key(email: str) -> str:
     return f"email_verify_attempts:{_normalize_email(email)}"
 
@@ -285,8 +291,25 @@ def _email_verification_lock_key(email: str) -> str:
     return f"email_verify_lock:{_normalize_email(email)}"
 
 
+def _email_verification_token_jti_key(jti: str) -> str:
+    return f"email_verify_token_jti:{jti.strip()}"
+
+
 async def _get_cache_count(cache_service: CacheService, key: str) -> int:
-    cached_value = await cache_service.get(key)
+    cached_value = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Redis unavailable while reading auth cache counter: %s", exc)
+        redis_client = None
+
+    if redis_client is not None:
+        cached_value = await redis_client.get(key)
+    if cached_value is None:
+        cached_value = await cache_service.get(key)
+
+    if isinstance(cached_value, bytes):
+        cached_value = cached_value.decode("utf-8", errors="ignore")
     try:
         return int(cached_value) if cached_value is not None else 0
     except (TypeError, ValueError):
@@ -298,7 +321,7 @@ async def _increment_cache_counter(cache_service: CacheService, key: str, ttl: i
     try:
         redis_client = await cache_service.get_redis_client()
     except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.warning("Redis unavailable for cache counter %s: %s", key, exc)
+        logger.warning("Redis unavailable for auth cache counter: %s", exc)
 
     if redis_client is not None:
         value = await redis_client.incr(key)
@@ -366,7 +389,7 @@ def _extract_invite_code(payload: UserCreate) -> str | None:
     return invite_code_str or None
 
 
-def _require_valid_email_verification_token(payload: UserCreate) -> None:
+def _require_valid_email_verification_token(payload: UserCreate) -> dict[str, Any]:
     token = (payload.email_verification_token or "").strip()
     if not token:
         raise ValidationException(
@@ -389,6 +412,26 @@ def _require_valid_email_verification_token(payload: UserCreate) -> None:
         raise ValidationException(
             "Email verification token does not match the registration email.",
             code="EMAIL_VERIFICATION_EMAIL_MISMATCH",
+        )
+    return token_payload
+
+
+async def _consume_email_verification_token_jti(
+    cache_service: CacheService,
+    token_payload: dict[str, Any],
+) -> None:
+    jti = str(token_payload.get("jti") or "").strip()
+    if not jti:
+        raise ValidationException(
+            "Email verification token is invalid or expired.",
+            code="EMAIL_VERIFICATION_INVALID",
+        )
+
+    consumed = await cache_service.delete(_email_verification_token_jti_key(jti))
+    if not consumed:
+        raise ValidationException(
+            "Email verification token is invalid or expired.",
+            code="EMAIL_VERIFICATION_INVALID",
         )
 
 
@@ -416,32 +459,45 @@ def _validate_registration_invite(
 
     beta_service = BetaService(db)
     valid, reason, invite = beta_service.validate_invite(invite_code)
+    normalized_email = _normalize_email(email)
+    invite_local_part, _, invite_domain = normalized_email.partition("@")
+    masked_email = (
+        f"{invite_local_part[:2]}***@{invite_domain}"
+        if invite_domain
+        else (f"{normalized_email[:2]}***" if normalized_email else "***")
+    )
     if not valid or invite is None:
-        code_map = {
-            "not_found": "INVITE_INVALID",
-            "expired": "INVITE_EXPIRED",
-            "used": "INVITE_USED",
-        }
-        message_map = {
-            "not_found": "Invite code is invalid.",
-            "expired": "Invite code has expired.",
-            "used": "Invite code has already been used.",
-        }
+        logger.info(
+            "Registration invite rejected: reason=%s email=%s code=%s",
+            reason or "unknown",
+            masked_email,
+            invite_code,
+        )
         raise ValidationException(
-            message_map.get(reason or "", "Invite code is invalid."),
-            code=code_map.get(reason or "", "INVITE_INVALID"),
+            "Invite code is invalid.",
+            code="INVITE_INVALID",
         )
 
     invite_email = (getattr(invite, "email", None) or "").strip().lower()
     if not invite_email:
+        logger.info(
+            "Registration invite rejected: reason=missing_invite_email email=%s code=%s",
+            masked_email,
+            invite_code,
+        )
         raise ValidationException(
-            "Invite code is not linked to an email address.",
-            code="INVITE_EMAIL_REQUIRED",
+            "Invite code is invalid.",
+            code="INVITE_INVALID",
         )
     if invite_email != _normalize_email(email):
+        logger.info(
+            "Registration invite rejected: reason=email_mismatch email=%s code=%s",
+            masked_email,
+            invite_code,
+        )
         raise ValidationException(
-            "Invite code email does not match the registration email.",
-            code="INVITE_EMAIL_MISMATCH",
+            "Invite code is invalid.",
+            code="INVITE_INVALID",
         )
 
     return invite
@@ -462,13 +518,15 @@ async def send_email_verification(
 ) -> SendEmailVerificationResponse:
     """Send a pre-registration email verification code."""
     email = str(payload.email)
-    send_key = _email_verification_send_key(email)
-    send_count = await _increment_cache_counter(
-        cache_service,
-        send_key,
-        EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
+    normalized_email = _normalize_email(email)
+    local_part, _, domain = normalized_email.partition("@")
+    masked_email = (
+        f"{local_part[:2]}***@{domain}"
+        if domain
+        else (f"{normalized_email[:2]}***" if normalized_email else "***")
     )
-    if send_count > EMAIL_VERIFICATION_SEND_MAX:
+    send_key = _email_verification_send_key(email)
+    if await _get_cache_count(cache_service, send_key) >= EMAIL_VERIFICATION_SEND_MAX:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
@@ -477,10 +535,22 @@ async def send_email_verification(
                 "details": {"retry_after_seconds": EMAIL_VERIFICATION_SEND_WINDOW_SECONDS},
             },
         )
+    client_ip = request.client.host if request.client and request.client.host else "unknown"
+    ip_send_key = _email_verification_send_ip_key(client_ip)
+    if await _get_cache_count(cache_service, ip_send_key) >= EMAIL_VERIFICATION_SEND_IP_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": "Too many verification requests. Please try again later.",
+                "code": "EMAIL_VERIFICATION_IP_RATE_LIMITED",
+                "details": {"retry_after_seconds": EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS},
+            },
+        )
 
     code = f"{secrets.randbelow(900000) + 100000:06d}"
+    code_key = _email_verification_code_key(email)
     await cache_service.set(
-        _email_verification_code_key(email),
+        code_key,
         code,
         ttl=EMAIL_VERIFICATION_CODE_TTL_SECONDS,
     )
@@ -489,7 +559,6 @@ async def send_email_verification(
         _email_verification_attempts_key(email),
         _email_verification_lock_key(email),
     )
-
     try:
         await asyncio.to_thread(
             _send_email_verification_email_sync,
@@ -499,7 +568,25 @@ async def send_email_verification(
             code=code,
         )
     except Exception:
-        logger.warning("Email verification delivery failed for %s", email, exc_info=True)
+        logger.warning("Email verification delivery failed for %s", masked_email, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Unable to send verification email. Please try again.",
+                "code": "EMAIL_VERIFICATION_DELIVERY_FAILED",
+            },
+        )
+
+    await _increment_cache_counter(
+        cache_service,
+        send_key,
+        EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
+    )
+    await _increment_cache_counter(
+        cache_service,
+        ip_send_key,
+        EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS,
+    )
 
     return SendEmailVerificationResponse(message="Verification code sent")
 
@@ -596,6 +683,21 @@ async def verify_email_code(
         _normalize_email(email),
         expires_delta=timedelta(seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS),
     )
+    token_payload = decode_email_verification_token(verification_token)
+    jti = str(token_payload.get("jti") or "").strip()
+    stored = await cache_service.set(
+        _email_verification_token_jti_key(jti),
+        True,
+        ttl=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+    )
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Unable to verify email. Please try again.",
+                "code": "EMAIL_VERIFICATION_UNAVAILABLE",
+            },
+        )
     return VerifyEmailCodeResponse(
         verification_token=verification_token,
         expires_in_seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
@@ -620,7 +722,7 @@ async def register(
     generic_response = RegisterResponse(message="Please check your email to verify your account.")
 
     try:
-        _require_valid_email_verification_token(payload)
+        token_payload = _require_valid_email_verification_token(payload)
         beta_phase = _get_registration_beta_phase(db)
         invite_code = _extract_invite_code(payload)
         validated_invite = _validate_registration_invite(
@@ -630,6 +732,7 @@ async def register(
             email=str(payload.email),
             invite_code=invite_code,
         )
+        await _consume_email_verification_token_jti(cache_service, token_payload)
 
         db_user = await asyncio.to_thread(
             auth_service.register_user,

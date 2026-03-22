@@ -14,6 +14,7 @@ import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { getReviewFillPercent } from '@/lib/dashboardReviews';
 import { formatStudentDisplayName } from '@/lib/studentName';
 import { useRespondToReview } from '@/src/api/services/reviews';
+import { queryKeys } from '@/src/api/queryKeys';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -146,7 +147,7 @@ function ReviewsPageImpl() {
         delete next[reviewId];
         return next;
       });
-      await queryClient.invalidateQueries({ queryKey: ['instructors', instructorId, 'reviews'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.instructors.reviews(instructorId) });
     } catch (error) {
       setReplyErrorByReviewId((prev) => ({
         ...prev,

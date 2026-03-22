@@ -11,8 +11,10 @@ import pytest
 import app.auth as auth_module
 from app.auth import (
     create_access_token,
+    create_email_verification_token,
     create_refresh_token,
     decode_access_token,
+    decode_email_verification_token,
     get_current_user,
     get_current_user_optional,
     get_password_hash_async,
@@ -286,6 +288,34 @@ def test_create_temp_token_uses_temp_secret(monkeypatch):
         audience=settings.temp_token_aud,
     )
     assert decoded["iss"] == settings.temp_token_iss
+
+
+def test_create_email_verification_token_includes_uuid_jti():
+    token = create_email_verification_token("verify@example.com")
+    decoded = decode_email_verification_token(token)
+    assert decoded["sub"] == "verify@example.com"
+    assert decoded["typ"] == "email_verification"
+    assert isinstance(decoded.get("iat"), int)
+    assert re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        decoded.get("jti", ""),
+    )
+
+
+def test_decode_email_verification_token_rejects_missing_jti():
+    token = jwt.encode(
+        {
+            "sub": "verify@example.com",
+            "typ": "email_verification",
+            "iss": settings.email_verification_token_iss,
+            "aud": settings.email_verification_token_aud,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        secret_or_plain(settings.email_verification_token_secret or settings.secret_key),
+        algorithm=settings.algorithm,
+    )
+    with pytest.raises(jwt.PyJWTError, match="invalid_jti"):
+        decode_email_verification_token(token)
 
 
 @pytest.mark.asyncio

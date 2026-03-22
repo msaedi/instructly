@@ -90,7 +90,14 @@ class AuthService(BaseService):
         to prevent email enumeration. The caller must return a generic
         response regardless of the return value.
         """
-        self.log_operation("register_user", email=email, role=role)
+        normalized_email = (email or "").strip().lower()
+        local_part, _, domain = normalized_email.partition("@")
+        masked_email = (
+            f"{local_part[:2]}***@{domain}"
+            if domain
+            else (f"{normalized_email[:2]}***" if normalized_email else "***")
+        )
+        self.log_operation("register_user", email=masked_email, role=role)
         role_name = role or RoleName.STUDENT
         role_name_value = (
             role_name.value
@@ -226,36 +233,66 @@ class AuthService(BaseService):
                     normalized_email = (email or "").strip().lower()
 
                     if not invite:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=not_found email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
                             "Invite code is invalid.",
                             code="INVITE_INVALID",
                         )
                     if invite.used_at is not None:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=used email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
-                            "Invite code has already been used.",
-                            code="INVITE_USED",
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
                         )
                     if invite.expires_at and invite.expires_at.astimezone(timezone.utc) < now:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=expired email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
-                            "Invite code has expired.",
-                            code="INVITE_EXPIRED",
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
                         )
                     invite_email = (getattr(invite, "email", None) or "").strip().lower()
                     if not invite_email:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=missing_invite_email email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
-                            "Invite code is not linked to an email address.",
-                            code="INVITE_EMAIL_REQUIRED",
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
                         )
                     if invite_email != normalized_email:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=email_mismatch email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
-                            "Invite code email does not match the registration email.",
-                            code="INVITE_EMAIL_MISMATCH",
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
                         )
                     marked = invite_repo.mark_used(invite_code, user.id, used_at=now)
                     if not marked:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=no_longer_available email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
                         raise ValidationException(
-                            "Invite code is no longer available.",
-                            code="INVITE_USED",
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
                         )
                     access_repo.grant_access(
                         user_id=user.id,
@@ -287,7 +324,9 @@ class AuthService(BaseService):
                         is_founding=is_founding_instructor,
                     )
 
-                self.logger.info("Successfully registered user: %s with role: %s", email, role)
+                self.logger.info(
+                    "Successfully registered user: %s with role: %s", masked_email, role
+                )
                 return user
 
         except IntegrityError as e:
@@ -297,9 +336,11 @@ class AuthService(BaseService):
                 "dummy_timing_normalization_padding"
             )  # Timing normalization — do not remove
             return None
+        except ValidationException:
+            raise
         except Exception as e:
-            self.logger.error("Error registering user %s: %s", email, str(e))
-            raise ValidationException(f"Error creating user: {str(e)}")
+            self.logger.error("Error registering user %s: %s", masked_email, str(e))
+            raise ValidationException("Unable to create account. Please try again.")
 
     @BaseService.measure_operation("fetch_user_for_auth")
     def fetch_user_for_auth(self, email: str) -> Optional[Dict[str, Any]]:
@@ -321,9 +362,16 @@ class AuthService(BaseService):
             Dict contains: id, email, hashed_password, account_status, totp_enabled,
                           first_name, last_name, and any other fields needed for login.
         """
+        normalized_email = (email or "").strip().lower()
+        local_part, _, domain = normalized_email.partition("@")
+        masked_email = (
+            f"{local_part[:2]}***@{domain}"
+            if domain
+            else (f"{normalized_email[:2]}***" if normalized_email else "***")
+        )
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.debug("User not found for auth: %s", email)
+            self.logger.debug("User not found for auth: %s", masked_email)
             return None
 
         # Extract all needed fields to memory so ORM object can be detached
@@ -375,23 +423,30 @@ class AuthService(BaseService):
         Returns:
             User object if authentication successful, None otherwise
         """
-        self.logger.info("Authentication attempt for user: %s", email)
+        normalized_email = (email or "").strip().lower()
+        local_part, _, domain = normalized_email.partition("@")
+        masked_email = (
+            f"{local_part[:2]}***@{domain}"
+            if domain
+            else (f"{normalized_email[:2]}***" if normalized_email else "***")
+        )
+        self.logger.info("Authentication attempt for user: %s", masked_email)
 
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.warning("Authentication failed - user not found: %s", email)
+            self.logger.warning("Authentication failed - user not found: %s", masked_email)
             return None
 
         if not verify_password(password, user.hashed_password):
-            self.logger.warning("Authentication failed - incorrect password: %s", email)
+            self.logger.warning("Authentication failed - incorrect password: %s", masked_email)
             return None
 
         # Check account status - deactivated users cannot login
         if hasattr(user, "account_status") and user.account_status == "deactivated":
-            self.logger.warning("Authentication failed - account deactivated: %s", email)
+            self.logger.warning("Authentication failed - account deactivated: %s", masked_email)
             return None
 
-        self.logger.info("Successful authentication for user: %s", email)
+        self.logger.info("Successful authentication for user: %s", masked_email)
         return user
 
     @BaseService.measure_operation("authenticate_user_async")
@@ -411,25 +466,32 @@ class AuthService(BaseService):
         """
         from ..auth import verify_password_async
 
-        self.logger.info("Authentication attempt (async) for user: %s", email)
+        normalized_email = (email or "").strip().lower()
+        local_part, _, domain = normalized_email.partition("@")
+        masked_email = (
+            f"{local_part[:2]}***@{domain}"
+            if domain
+            else (f"{normalized_email[:2]}***" if normalized_email else "***")
+        )
+        self.logger.info("Authentication attempt (async) for user: %s", masked_email)
 
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.warning("Authentication failed - user not found: %s", email)
+            self.logger.warning("Authentication failed - user not found: %s", masked_email)
             # Prevent timing attacks - still do a fake verification with proper Argon2id hash
             await verify_password_async(password, DUMMY_HASH_FOR_TIMING_ATTACK)
             return None
 
         if not await verify_password_async(password, user.hashed_password):
-            self.logger.warning("Authentication failed - incorrect password: %s", email)
+            self.logger.warning("Authentication failed - incorrect password: %s", masked_email)
             return None
 
         # Check account status - deactivated users cannot login
         if hasattr(user, "account_status") and user.account_status == "deactivated":
-            self.logger.warning("Authentication failed - account deactivated: %s", email)
+            self.logger.warning("Authentication failed - account deactivated: %s", masked_email)
             return None
 
-        self.logger.info("Successful authentication (async) for user: %s", email)
+        self.logger.info("Successful authentication (async) for user: %s", masked_email)
         return user
 
     @BaseService.measure_operation("get_user_by_email")
@@ -445,6 +507,13 @@ class AuthService(BaseService):
         """
         try:
             identifier = (email or "").strip()
+            normalized_identifier = identifier.lower()
+            local_part, _, domain = normalized_identifier.partition("@")
+            masked_identifier = (
+                f"{local_part[:2]}***@{domain}"
+                if domain
+                else (f"{identifier[:2]}***" if identifier else "***")
+            )
             if not identifier:
                 return None
 
@@ -456,7 +525,7 @@ class AuthService(BaseService):
                 return self.get_user_by_id(identifier)
             return None
         except Exception as e:
-            self.logger.error("Error getting user by email %s: %s", email, str(e))
+            self.logger.error("Error getting user by email %s: %s", masked_identifier, str(e))
             return None
 
     @BaseService.measure_operation("get_user_by_id")
@@ -492,7 +561,14 @@ class AuthService(BaseService):
         """
         user = self.get_user_by_email(identifier)
         if not user:
-            self.logger.error("Current user not found: %s", identifier)
+            normalized_identifier = (identifier or "").strip().lower()
+            local_part, _, domain = normalized_identifier.partition("@")
+            masked_identifier = (
+                f"{local_part[:2]}***@{domain}"
+                if domain
+                else (f"{identifier[:2]}***" if identifier else "***")
+            )
+            self.logger.error("Current user not found: %s", masked_identifier)
             raise NotFoundException("User not found")
 
         return user

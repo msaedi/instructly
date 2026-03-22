@@ -330,7 +330,7 @@ class ReferralService(BaseService):
                     triggering_booking_id=booking_id_str,
                     amount_cents=int(config["student_amount_cents"]),
                     was_founding_bonus=False,
-                    idempotency_key=f"instructor_referral_{student_id}",
+                    idempotency_key=f"instructor_referral_student_{booking_id_str}",
                 )
                 if payout is not None:
                     payout_id = cast(str, payout.id)
@@ -414,7 +414,7 @@ class ReferralService(BaseService):
             amount_cents = self._get_standard_instructor_bonus_cents(config)
             was_founding_bonus = False
 
-            idempotency_key = f"instructor_referral_{instructor_id}"
+            idempotency_key = f"instructor_referral_instructor_{booking_id_str}"
 
             payout = self.referral_reward_repo.create_instructor_referral_payout(
                 referrer_user_id=referrer_user_id,

@@ -17,6 +17,8 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
+    SEND_EMAIL_VERIFICATION: '/api/v1/auth/send-email-verification',
+    VERIFY_EMAIL_CODE: '/api/v1/auth/verify-email-code',
     REGISTER: '/api/v1/auth/register',
     LOGIN: '/api/v1/auth/login',
   },

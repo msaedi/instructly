@@ -3,6 +3,7 @@
 Test authentication functionality using proper test client fixture.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import re
 from typing import Any
@@ -11,9 +12,11 @@ from fastapi.testclient import TestClient
 import jwt
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.services import get_cache_service_dep
 from app.auth import (
     create_access_token,
     create_email_verification_token,
+    decode_email_verification_token,
     get_password_hash,
     verify_password,
 )
@@ -22,6 +25,7 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
+from app.routes.v1 import auth as auth_routes
 
 
 def _create_backdated_token(user: User, backdate_seconds: int = 2) -> str:
@@ -41,6 +45,19 @@ def _extract_session_token(response: Any) -> str:
     match = re.search(rf"{re.escape(settings.session_cookie_name)}=([^;]+)", set_cookie)
     assert match, f"Expected {settings.session_cookie_name} in set-cookie header"
     return match.group(1)
+
+
+def _issue_email_verification_token(email: str) -> str:
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
+    return token
 
 
 class TestAuth:
@@ -82,7 +99,9 @@ class TestAuth:
                 "phone": "+12125550000",
                 "zip_code": "10001",
                 "role": "student",
-                "email_verification_token": create_email_verification_token("newuser@example.com"),
+                "email_verification_token": _issue_email_verification_token(
+                    "newuser@example.com"
+                ),
             },
         )
 
@@ -134,7 +153,7 @@ class TestAuth:
                 "phone": "+12125550001",
                 "zip_code": "10001",
                 "role": "student",
-                "email_verification_token": create_email_verification_token(FIXED_DUP_EMAIL),
+                "email_verification_token": _issue_email_verification_token(FIXED_DUP_EMAIL),
             },
         )
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
 import CommissionTierCard from '@/components/earnings/CommissionTierCard';
@@ -16,73 +17,96 @@ import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
 import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
+const PLATFORM_LAUNCH_YEAR = 2026;
+
+type SimpleDropdownOption = {
+  value: string;
+  label: string;
+};
+
+const extractYear = (value?: string | null): number | null => {
+  if (!value) return null;
+  const prefixMatch = value.match(/^(\d{4})/);
+  const matchedYear = prefixMatch?.[1];
+  if (matchedYear) {
+    const parsedPrefix = Number.parseInt(matchedYear, 10);
+    return Number.isNaN(parsedPrefix) ? null : parsedPrefix;
+  }
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.valueOf()) ? null : parsedDate.getFullYear();
+};
+
+function SimpleDropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: SimpleDropdownOption[];
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const selected = options.find((option) => option.value === value)?.label || placeholder;
+
+  return (
+    <div
+      className="relative"
+      tabIndex={-1}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((previous) => !previous)}
+        className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
+      >
+        <span>{selected}</span>
+        <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open ? (
+        <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {options.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                role="option"
+                aria-selected={value === option.value}
+                onMouseEnter={() => setHovered(option.value)}
+                onMouseLeave={() => setHovered((current) => (current === option.value ? null : current))}
+                className={`block w-full text-left px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                  hovered === option.value && option.value !== ''
+                    ? 'bg-purple-50 text-[#7E22CE]'
+                    : ''
+                } ${
+                  value === option.value && option.value !== ''
+                    ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
+                    : 'text-gray-800 dark:text-gray-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function EarningsPageImpl() {
   const embedded = useEmbedded();
-  function SimpleDropdown({
-    value,
-    onChange,
-    options,
-    placeholder,
-  }: {
-    value: string;
-    onChange: (v: string) => void;
-    options: Array<{ value: string; label: string }>;
-    placeholder: string;
-  }) {
-    const [open, setOpen] = useState(false);
-    const [hovered, setHovered] = useState<string | null>(null);
-    const selected = options.find((o) => o.value === value)?.label || placeholder;
-    return (
-      <div
-        className="relative"
-        tabIndex={-1}
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setOpen((p) => !p)}
-          className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
-        >
-          <span>{selected}</span>
-          <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z" clipRule="evenodd" />
-          </svg>
-        </button>
-        {open ? (
-          <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {options.map((opt) => (
-              <li key={opt.value}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
-                  role="option"
-                  aria-selected={value === opt.value}
-                  onMouseEnter={() => setHovered(opt.value)}
-                  onMouseLeave={() => setHovered((h) => (h === opt.value ? null : h))}
-                  className={`block w-full text-left px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                    hovered === opt.value && opt.value !== ''
-                      ? 'bg-purple-50 text-[#7E22CE]'
-                      : ''
-                  } ${
-                    value === opt.value && opt.value !== ''
-                      ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
-                      : 'text-gray-800 dark:text-gray-200'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    );
-  }
   const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
   const { data: payoutsData, isLoading: isLoadingPayouts } = useInstructorPayouts(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
@@ -93,39 +117,27 @@ function EarningsPageImpl() {
   const [sendingExport, setSendingExport] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
-  const extractYear = (value?: string | null): number | null => {
-    if (!value) return null;
-    const prefixMatch = value.match(/^(\d{4})/);
-    const matchedYear = prefixMatch?.[1];
-    if (matchedYear) {
-      const parsedPrefix = Number.parseInt(matchedYear, 10);
-      return Number.isNaN(parsedPrefix) ? null : parsedPrefix;
-    }
-    const parsedDate = new Date(value);
-    return Number.isNaN(parsedDate.valueOf()) ? null : parsedDate.getFullYear();
-  };
-
   const years = useMemo(() => {
     const detectedYears = new Set<number>();
 
     for (const invoice of earnings?.invoices ?? []) {
       const lessonYear = extractYear(invoice.lesson_date);
-      if (lessonYear && lessonYear >= 2026) {
+      if (lessonYear && lessonYear >= PLATFORM_LAUNCH_YEAR) {
         detectedYears.add(lessonYear);
       }
       const createdYear = extractYear(invoice.created_at);
-      if (createdYear && createdYear >= 2026) {
+      if (createdYear && createdYear >= PLATFORM_LAUNCH_YEAR) {
         detectedYears.add(createdYear);
       }
     }
 
     for (const payout of payoutsData?.payouts ?? []) {
       const createdYear = extractYear(payout.created_at);
-      if (createdYear && createdYear >= 2026) {
+      if (createdYear && createdYear >= PLATFORM_LAUNCH_YEAR) {
         detectedYears.add(createdYear);
       }
       const arrivalYear = extractYear(payout.arrival_date);
-      if (arrivalYear && arrivalYear >= 2026) {
+      if (arrivalYear && arrivalYear >= PLATFORM_LAUNCH_YEAR) {
         detectedYears.add(arrivalYear);
       }
     }
@@ -214,9 +226,11 @@ function EarningsPageImpl() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      toast.success('Export downloaded');
       setExportOpen(false);
     } catch (error) {
       logger.error('Export failed', error);
+      toast.error('Export failed. Please try again.');
     } finally {
       setSendingExport(false);
     }

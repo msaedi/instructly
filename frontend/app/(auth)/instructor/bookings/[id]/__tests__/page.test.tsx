@@ -310,6 +310,13 @@ describe('Instructor Booking Details Page', () => {
     render(<BookingDetailsPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Report No-Show' }));
+    const dialog = screen.getByRole('dialog');
+    const heading = screen.getByRole('heading', { name: 'Report No-Show' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    });
     expect(
       screen.getByText(/Are you sure you want to mark this lesson as a no-show/i)
     ).toBeInTheDocument();

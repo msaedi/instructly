@@ -8826,6 +8826,7 @@ export interface UserCreate {
    */
   last_name: string;
   metadata?: UserRegistrationMetadata | null;
+  /** @minLength 8 */
   password: string;
   phone?: string | null;
   role?: string | null;

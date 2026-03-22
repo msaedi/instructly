@@ -1,15 +1,18 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.auth import create_email_verification_token
+from app.api.dependencies.services import get_cache_service_dep
+from app.auth import create_email_verification_token, decode_email_verification_token
 from app.middleware.beta_phase_header import invalidate_beta_settings_cache
 from app.models.beta import BetaInvite
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.beta_repository import BetaSettingsRepository
+from app.routes.v1 import auth as auth_routes
 from app.services.config_service import ConfigService
 
 
@@ -36,6 +39,15 @@ def _set_beta_phase(db: Session, phase: str) -> None:
 def _register_instructor(
     client: TestClient, *, email: str, invite_code: str
 ) -> dict:
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
     response = client.post(
         "/api/v1/auth/register",
         json={
@@ -46,7 +58,7 @@ def _register_instructor(
             "phone": "+12125550000",
             "zip_code": "10001",
             "role": "instructor",
-            "email_verification_token": create_email_verification_token(email),
+            "email_verification_token": token,
             "metadata": {"invite_code": invite_code},
         },
     )
@@ -189,6 +201,15 @@ def test_student_registration_returns_generic_response(
 ) -> None:
     """Student registration returns generic response (no user data exposed)."""
     email = f"student-{uuid.uuid4().hex[:8]}@example.com"
+    token = create_email_verification_token(email)
+    payload = decode_email_verification_token(token)
+    asyncio.run(
+        get_cache_service_dep().set(
+            auth_routes._email_verification_token_jti_key(str(payload["jti"])),
+            True,
+            ttl=auth_routes.EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        )
+    )
 
     response = client.post(
         "/api/v1/auth/register",
@@ -200,7 +221,7 @@ def test_student_registration_returns_generic_response(
             "phone": "+12125550001",
             "zip_code": "10001",
             "role": "student",
-            "email_verification_token": create_email_verification_token(email),
+            "email_verification_token": token,
         },
     )
 

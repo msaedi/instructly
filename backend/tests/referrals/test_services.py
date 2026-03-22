@@ -514,6 +514,7 @@ def test_instructor_referrer_student_completion_creates_cash_payout_and_student_
     assert payout.referrer_user_id == referrer.id
     assert payout.amount_cents == settings.referrals_student_amount_cents
     assert payout.was_founding_bonus is False
+    assert payout.idempotency_key == f"instructor_referral_student_{booking.id}"
     assert queued == [
         ("app.tasks.referral_tasks.process_instructor_referral_payout", (payout.id,))
     ]

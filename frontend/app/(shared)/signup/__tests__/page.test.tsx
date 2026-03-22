@@ -17,6 +17,9 @@ jest.mock('next/navigation', () => ({
 }));
 
 jest.mock('@/lib/api', () => ({
+  API_ENDPOINTS: {
+    SEND_EMAIL_VERIFICATION: '/api/v1/auth/send-email-verification',
+  },
   checkIsNYCZip: jest.fn(async () => ({ is_nyc: true })),
 }));
 

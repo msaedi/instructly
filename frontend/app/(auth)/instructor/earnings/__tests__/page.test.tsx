@@ -1,10 +1,12 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import InstructorEarningsPage from '../page';
 import { useCommissionStatus } from '@/hooks/queries/useCommissionStatus';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
+import { fetchWithAuth } from '@/lib/api';
+import { toast } from 'sonner';
 
 jest.mock('@/components/UserProfileDropdown', () => {
   const MockUserProfileDropdown = () => <div data-testid="user-dropdown" />;
@@ -17,6 +19,15 @@ jest.mock('@/components/UserProfileDropdown', () => {
 jest.mock('../../_embedded/EmbeddedContext', () => ({
   useEmbedded: () => false,
 }));
+jest.mock('@/lib/api', () => ({
+  fetchWithAuth: jest.fn(),
+}));
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 jest.mock('@/hooks/queries/useCommissionStatus');
 jest.mock('@/hooks/queries/useInstructorEarnings');
 jest.mock('@/hooks/queries/useInstructorPayouts');
@@ -24,9 +35,13 @@ jest.mock('@/hooks/queries/useInstructorPayouts');
 const mockUseCommissionStatus = useCommissionStatus as jest.MockedFunction<typeof useCommissionStatus>;
 const mockUseInstructorEarnings = useInstructorEarnings as jest.MockedFunction<typeof useInstructorEarnings>;
 const mockUseInstructorPayouts = useInstructorPayouts as jest.MockedFunction<typeof useInstructorPayouts>;
+const mockFetchWithAuth = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
+const mockToastSuccess = toast.success as jest.MockedFunction<typeof toast.success>;
+const mockToastError = toast.error as jest.MockedFunction<typeof toast.error>;
 
 describe('Instructor earnings page', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     mockUseCommissionStatus.mockReturnValue({
       data: {
         is_founding: false,
@@ -121,10 +136,35 @@ describe('Instructor earnings page', () => {
       },
       isLoading: false,
     } as unknown as ReturnType<typeof useInstructorPayouts>);
+
+    mockFetchWithAuth.mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(['csv-content'], { type: 'text/csv' }),
+      headers: new Headers({
+        'content-type': 'text/csv',
+        'content-disposition': 'attachment; filename="earnings.csv"',
+      }),
+    } as unknown as Response);
+
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: jest.fn(() => 'blob:earnings'),
+    });
+    Object.defineProperty(window.URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: jest.fn(),
+    });
+    Object.defineProperty(HTMLAnchorElement.prototype, 'click', {
+      configurable: true,
+      writable: true,
+      value: jest.fn(),
+    });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('renders three earnings stat cards and invoice rows with totals', () => {
@@ -184,5 +224,48 @@ describe('Instructor earnings page', () => {
     expect(
       screen.getByText('No invoices yet — your completed lessons will appear here.')
     ).toBeInTheDocument();
+  });
+
+  it('shows a success toast after exporting a report', async () => {
+    const user = userEvent.setup();
+
+    render(<InstructorEarningsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Export transactions' }));
+
+    const fileTypeField = screen.getByText('File Type').parentElement;
+    expect(fileTypeField).not.toBeNull();
+    const fileTypeButton = within(fileTypeField as HTMLElement).getByRole('button');
+    await user.click(fileTypeButton);
+    await user.click(screen.getByRole('option', { name: 'CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Download Report' }));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith('Export downloaded');
+    });
+  });
+
+  it('shows an error toast when export fails', async () => {
+    const user = userEvent.setup();
+    mockFetchWithAuth.mockResolvedValueOnce({
+      ok: false,
+      blob: async () => new Blob(),
+      headers: new Headers(),
+    } as unknown as Response);
+
+    render(<InstructorEarningsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Export transactions' }));
+
+    const fileTypeField = screen.getByText('File Type').parentElement;
+    expect(fileTypeField).not.toBeNull();
+    const fileTypeButton = within(fileTypeField as HTMLElement).getByRole('button');
+    await user.click(fileTypeButton);
+    await user.click(screen.getByRole('option', { name: 'CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Download Report' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith('Export failed. Please try again.');
+    });
   });
 });

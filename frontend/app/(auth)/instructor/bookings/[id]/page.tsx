@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AlertTriangle, Calendar } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useCompleteBooking, useBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
 import { formatStudentDisplayName } from '@/lib/studentName';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
@@ -41,11 +42,19 @@ export default function BookingDetailsPage() {
   const bookingId = params['id'] as string;
   const queryClient = useQueryClient();
   const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const noShowModalRef = useRef<HTMLDivElement | null>(null);
+  const noShowTitleId = useId();
 
   const { data: booking, isLoading, error: queryError } = useBooking(bookingId);
   const completeBooking = useCompleteBooking();
   const markNoShow = useMarkBookingNoShow();
   const { createConversation, isCreating: isMessagePending } = useCreateConversation();
+
+  useFocusTrap({
+    isOpen: showNoShowModal,
+    containerRef: noShowModalRef,
+    onEscape: () => setShowNoShowModal(false),
+  });
 
   const handleMarkComplete = async () => {
     try {
@@ -144,11 +153,18 @@ export default function BookingDetailsPage() {
 
       {showNoShowModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800">
+          <div
+            ref={noShowModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={noShowTitleId}
+            tabIndex={-1}
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800"
+          >
             <div className="mb-4">
               <div className="mb-2 flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-6 w-6" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h3 id={noShowTitleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Report No-Show
                 </h3>
               </div>

@@ -34,6 +34,8 @@ from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
+REFERRER_DASHBOARD_MAX_ROWS = 500
+
 
 class ReferralCodeRepository(BaseRepository[ReferralCode]):
     """Data access for referral codes."""
@@ -799,6 +801,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             )
             .filter(ReferralCode.referrer_user_id == referrer_user_id)
             .order_by(ReferralAttribution.ts.desc())
+            .limit(REFERRER_DASHBOARD_MAX_ROWS)
         )
 
         results: List[Dict[str, Any]] = []

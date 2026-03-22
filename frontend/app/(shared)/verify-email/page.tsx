@@ -128,7 +128,7 @@ export function VerifyEmailPageContent() {
     setStatusMessage(null);
 
     try {
-      await httpPost<{ message: string }>('/api/v1/auth/send-email-verification', {
+      await httpPost<{ message: string }>(API_ENDPOINTS.SEND_EMAIL_VERIFICATION, {
         email: pendingSignup.email,
       });
       setResendCooldown(30);
@@ -174,7 +174,7 @@ export function VerifyEmailPageContent() {
       const verificationResponse = await httpPost<{
         verification_token: string;
         expires_in_seconds: number;
-      }>('/api/v1/auth/verify-email-code', {
+      }>(API_ENDPOINTS.VERIFY_EMAIL_CODE, {
         email: pendingSignup.email,
         code: code.trim(),
       });

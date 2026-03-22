@@ -116,7 +116,7 @@ async def test_submit_review_success():
 
 
 @pytest.mark.asyncio
-async def test_submit_review_unexpected_error_returns_400():
+async def test_submit_review_unexpected_error_propagates():
     class _Service:
         def __init__(self):
             self.db = SimpleNamespace()
@@ -126,9 +126,8 @@ async def test_submit_review_unexpected_error_returns_400():
 
     payload = ReviewSubmitRequest(booking_id="b1", rating=5)
     user = SimpleNamespace(id="student-1", first_name="S", last_name="One")
-    with pytest.raises(reviews_routes.HTTPException) as exc:
+    with pytest.raises(RuntimeError, match="boom"):
         await reviews_routes.submit_review(payload=payload, current_user=user, service=_Service())
-    assert exc.value.status_code == 400
 
 
 def test_get_instructor_ratings_repository_exception():
@@ -357,10 +356,10 @@ def test_get_review_for_booking_returns_name_parts_and_response():
     assert response.response.response_text == "Appreciate it"
 
 
-def test_respond_to_review_error_returns_400():
+def test_respond_to_review_domain_exception_returns_400():
     class _Service:
         def add_instructor_response(self, *_args, **_kwargs):
-            raise RuntimeError("boom")
+            raise ValidationException("Nope")
 
     user = SimpleNamespace(id="inst-1")
     with pytest.raises(reviews_routes.HTTPException) as exc:
@@ -371,6 +370,21 @@ def test_respond_to_review_error_returns_400():
             service=_Service(),
         )
     assert exc.value.status_code == 400
+
+
+def test_respond_to_review_unexpected_error_propagates():
+    class _Service:
+        def add_instructor_response(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+    user = SimpleNamespace(id="inst-1")
+    with pytest.raises(RuntimeError, match="boom"):
+        reviews_routes.respond_to_review(
+            review_id="01HF4G12ABCDEF3456789XYZAB",
+            response_text="Thanks",
+            current_user=user,
+            service=_Service(),
+        )
 
 
 def test_respond_to_review_success():

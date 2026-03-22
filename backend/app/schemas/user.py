@@ -51,7 +51,7 @@ class UserRegistrationMetadata(BaseModel):
 
 
 class UserCreate(StrictRequestModel, UserBase):
-    password: str
+    password: str = Field(..., min_length=8)
     role: Optional[str] = None  # Role assignment during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
     email_verification_token: Optional[str] = None

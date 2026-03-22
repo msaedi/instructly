@@ -15,7 +15,7 @@ import { useState, Suspense, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { checkIsNYCZip } from '@/lib/api';
+import { API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { ApiError, httpPost } from '@/lib/http';
@@ -354,7 +354,7 @@ function SignUpForm() {
         email: formData.email.trim().toLowerCase(),
         role,
       });
-      await httpPost<{ message: string }>('/api/v1/auth/send-email-verification', {
+      await httpPost<{ message: string }>(API_ENDPOINTS.SEND_EMAIL_VERIFICATION, {
         email: formData.email.trim().toLowerCase(),
       });
 

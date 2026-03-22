@@ -23,6 +23,15 @@ type InstructorBookingsFilters = {
   per_page?: number;
 };
 
+type InstructorReviewFilters = {
+  page?: number;
+  limit?: number;
+  minRating?: number;
+  rating?: number;
+  withText?: boolean;
+  instructorServiceId?: string;
+};
+
 function normalizeInstructorBookingsFilters(
   filters?: InstructorBookingsFilters
 ): InstructorBookingsFilters {
@@ -55,6 +64,38 @@ function normalizeInstructorBookingsFilters(
   return normalized;
 }
 
+function normalizeInstructorReviewFilters(
+  filters?: InstructorReviewFilters
+): InstructorReviewFilters {
+  const normalized: InstructorReviewFilters = {};
+
+  if (filters?.page !== undefined) {
+    normalized.page = filters.page;
+  }
+
+  if (filters?.limit !== undefined) {
+    normalized.limit = filters.limit;
+  }
+
+  if (filters?.minRating !== undefined) {
+    normalized.minRating = filters.minRating;
+  }
+
+  if (filters?.rating !== undefined) {
+    normalized.rating = filters.rating;
+  }
+
+  if (filters?.withText !== undefined) {
+    normalized.withText = filters.withText;
+  }
+
+  if (filters?.instructorServiceId !== undefined) {
+    normalized.instructorServiceId = filters.instructorServiceId;
+  }
+
+  return normalized;
+}
+
 export const queryKeys = {
   /**
    * Authentication domain
@@ -74,6 +115,13 @@ export const queryKeys = {
 
     /** Get instructor by ID */
     detail: (id: string) => ['instructors', 'detail', id] as const,
+
+    /** All review queries for a specific instructor */
+    reviews: (id: string) => ['instructors', id, 'reviews'] as const,
+
+    /** Paginated reviews for a specific instructor */
+    reviewsList: (id: string, filters?: InstructorReviewFilters) =>
+      ['instructors', id, 'reviews', normalizeInstructorReviewFilters(filters)] as const,
 
     /** Current instructor profile - /instructors/me */
     me: ['instructors', 'me'] as const,

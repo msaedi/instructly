@@ -44,6 +44,13 @@ class _StubCache:
         return self._store.pop(key, None) is not None
 
 
+def _issue_email_verification_token(cache: _StubCache, email: str) -> str:
+    token = create_email_verification_token(email)
+    payload = auth_routes.decode_email_verification_token(token)
+    cache._store[auth_routes._email_verification_token_jti_key(str(payload["jti"]))] = True
+    return token
+
+
 class _StubAuthService:
     def __init__(self, user_data=None, user_obj=None):
         self._user_data = user_data
@@ -578,12 +585,14 @@ async def test_register_guest_conversion_error_and_invite_warning(monkeypatch, d
         zip_code="10001",
         role="student",
         guest_session_id="guest",
-        email_verification_token=create_email_verification_token("user@example.com"),
+        email_verification_token="placeholder",
         metadata={"invite_code": "INVITE"},
     )
     response = Response()
+    cache = _StubCache()
+    payload.email_verification_token = _issue_email_verification_token(cache, "user@example.com")
     result = await auth_routes.register(
-        _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
+        _DummyRequest(), response, payload, auth_service, db, cache_service=cache
     )
 
     assert "check your email" in result.message.lower()
@@ -618,13 +627,15 @@ async def test_register_invite_exception_is_logged(monkeypatch, db):
         last_name="Last",
         zip_code="10001",
         role="student",
-        email_verification_token=create_email_verification_token("user@example.com"),
+        email_verification_token="placeholder",
         metadata={"invite_code": "INVITE"},
     )
     response = Response()
+    cache = _StubCache()
+    payload.email_verification_token = _issue_email_verification_token(cache, "user@example.com")
 
     result = await auth_routes.register(
-        _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
+        _DummyRequest(), response, payload, auth_service, db, cache_service=cache
     )
     assert "check your email" in result.message.lower()
 
@@ -639,14 +650,16 @@ async def test_register_existing_email_returns_generic_response(db):
         last_name="Last",
         zip_code="10001",
         role="student",
-        email_verification_token=create_email_verification_token("user@example.com"),
+        email_verification_token="placeholder",
     )
     response = Response()
+    cache = _StubCache()
+    payload.email_verification_token = _issue_email_verification_token(cache, "user@example.com")
 
     # Service returns None for existing email — route must return generic 200
     none_service = _StubRegisterService(user=None)
     result = await auth_routes.register(
-        _DummyRequest(), response, payload, none_service, db, cache_service=_StubCache()
+        _DummyRequest(), response, payload, none_service, db, cache_service=cache
     )
     assert "check your email" in result.message.lower()
     assert "already" not in result.message.lower()
@@ -661,14 +674,16 @@ async def test_register_unexpected_error(db):
         last_name="Last",
         zip_code="10001",
         role="student",
-        email_verification_token=create_email_verification_token("user@example.com"),
+        email_verification_token="placeholder",
     )
     response = Response()
+    cache = _StubCache()
+    payload.email_verification_token = _issue_email_verification_token(cache, "user@example.com")
 
     error_service = _StubRegisterService(exc=RuntimeError("boom"))
     with pytest.raises(HTTPException) as exc:
         await auth_routes.register(
-            _DummyRequest(), response, payload, error_service, db, cache_service=_StubCache()
+            _DummyRequest(), response, payload, error_service, db, cache_service=cache
         )
     assert exc.value.status_code == 500
 
@@ -1492,9 +1507,10 @@ async def test_register_sends_welcome_email_and_sets_cache_flag(monkeypatch, db)
         last_name="User",
         zip_code="10001",
         role="instructor",
-        email_verification_token=create_email_verification_token("new@example.com"),
+        email_verification_token="placeholder",
     )
     response = Response()
+    payload.email_verification_token = _issue_email_verification_token(cache, "new@example.com")
     result = await auth_routes.register(
         _DummyRequest(), response, payload, auth_service, db, cache_service=cache
     )
@@ -1540,9 +1556,10 @@ async def test_register_welcome_email_failure_does_not_block(monkeypatch, db):
         last_name="User",
         zip_code="10001",
         role="student",
-        email_verification_token=create_email_verification_token("fail@example.com"),
+        email_verification_token="placeholder",
     )
     response = Response()
+    payload.email_verification_token = _issue_email_verification_token(cache, "fail@example.com")
     result = await auth_routes.register(
         _DummyRequest(), response, payload, auth_service, db, cache_service=cache
     )

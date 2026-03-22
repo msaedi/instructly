@@ -73,6 +73,7 @@ class TestOnInstructorLessonCompleted:
         call_kwargs = service.referral_reward_repo.create_instructor_referral_payout.call_args.kwargs
         assert call_kwargs["amount_cents"] == 5000
         assert call_kwargs["was_founding_bonus"] is False
+        assert call_kwargs["idempotency_key"] == "instructor_referral_instructor_booking_789"
 
     def test_second_lesson_does_not_trigger_payout(self, referral_service):
         service = referral_service
@@ -164,6 +165,7 @@ class TestOnInstructorLessonCompleted:
         call_kwargs = service.referral_reward_repo.create_instructor_referral_payout.call_args.kwargs
         assert call_kwargs["amount_cents"] == 5000
         assert call_kwargs["was_founding_bonus"] is False
+        assert call_kwargs["idempotency_key"] == "instructor_referral_instructor_booking_789"
 
     def test_idempotency_prevents_duplicate_payout(self, referral_service):
         service = referral_service
