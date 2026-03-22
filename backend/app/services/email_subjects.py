@@ -29,5 +29,9 @@ class EmailSubject:
         return f"Welcome to {BRAND_NAME}!"
 
     @staticmethod
+    def email_verification() -> str:
+        return f"Your {BRAND_NAME} verification code"
+
+    @staticmethod
     def beta_invite() -> str:
         return f"You're invited to {BRAND_NAME} (Founding Instructor)"

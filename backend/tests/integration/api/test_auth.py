@@ -11,7 +11,12 @@ from fastapi.testclient import TestClient
 import jwt
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_password_hash, verify_password
+from app.auth import (
+    create_access_token,
+    create_email_verification_token,
+    get_password_hash,
+    verify_password,
+)
 from app.core.auth_cache import invalidate_cached_user_by_id_sync
 from app.core.config import settings
 from app.core.enums import RoleName
@@ -77,6 +82,7 @@ class TestAuth:
                 "phone": "+12125550000",
                 "zip_code": "10001",
                 "role": "student",
+                "email_verification_token": create_email_verification_token("newuser@example.com"),
             },
         )
 
@@ -128,6 +134,7 @@ class TestAuth:
                 "phone": "+12125550001",
                 "zip_code": "10001",
                 "role": "student",
+                "email_verification_token": create_email_verification_token(FIXED_DUP_EMAIL),
             },
         )
 

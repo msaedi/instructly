@@ -1228,6 +1228,7 @@ export interface AuthUserWithPermissionsResponse {
   beta_phase?: string | null;
   beta_role?: string | null;
   email: string;
+  email_verified?: boolean | null;
   first_name: string;
   /** True if founding instructor status was granted during registration */
   founding_instructor_granted?: boolean | null;
@@ -8268,6 +8269,14 @@ export type SearchReferrersResponse = SearchReferrer[];
  */
 export type SearchTrendsResponse = DailySearchTrend[];
 
+export interface SendEmailVerificationRequest {
+  email: string;
+}
+
+export interface SendEmailVerificationResponse {
+  message: string;
+}
+
 /**
  * Request to send a message.
  */
@@ -8803,6 +8812,7 @@ export interface UserRegistrationMetadata {
 
 export interface UserCreate {
   email: string;
+  email_verification_token?: string | null;
   /**
    * @minLength 1
    * @maxLength 50
@@ -8960,6 +8970,21 @@ export interface ValidationSummary {
  */
 export interface VapidPublicKeyResponse {
   public_key: string;
+}
+
+export interface VerifyEmailCodeRequest {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   * @pattern ^\d{6}$
+   */
+  code: string;
+  email: string;
+}
+
+export interface VerifyEmailCodeResponse {
+  expires_in_seconds: number;
+  verification_token: string;
 }
 
 /**

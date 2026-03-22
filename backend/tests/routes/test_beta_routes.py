@@ -21,6 +21,12 @@ def _make_token_for_user(user_email: str):
     return create_access_token(data={"sub": user_email})
 
 
+def _make_email_verification_token(email: str) -> str:
+    from app.auth import create_email_verification_token
+
+    return create_email_verification_token(email)
+
+
 class TestBetaRoutes:
     def test_validate_invite_not_found(self, client: TestClient):
         res = client.get("/api/v1/beta/invites/validate", params={"code": "NOPE0001"})
@@ -171,6 +177,7 @@ class TestBetaRoutes:
                 "last_name": "Cleaner",
                 "zip_code": "10001",
                 "role": "student",
+                "email_verification_token": _make_email_verification_token(email),
                 "metadata": {"invite_code": code},
             },
         )

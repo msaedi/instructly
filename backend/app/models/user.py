@@ -77,6 +77,7 @@ class User(Base):
     last_name = Column(String(50), nullable=False)
     phone = Column(String(20), nullable=True)
     phone_verified = Column(Boolean, nullable=False, default=False)
+    email_verified = Column(Boolean, nullable=False, default=True)
     zip_code = Column(String(10), nullable=False)
     is_active = Column(Boolean, nullable=True, default=True)
     # Role removed - now using RBAC system with user_roles table

@@ -2852,6 +2852,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/send-email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Email Verification
+         * @description Send a pre-registration email verification code.
+         */
+        post: operations["send_email_verification_api_v1_auth_send_email_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email Code
+         * @description Verify a pre-registration email code and return a short-lived signed token.
+         */
+        post: operations["verify_email_code_api_v1_auth_verify_email_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/beta/invites/consume": {
         parameters: {
             query?: never;
@@ -9406,6 +9446,11 @@ export type components = {
              * Format: email
              */
             email: string;
+            /**
+             * Email Verified
+             * @default true
+             */
+            email_verified: boolean | null;
             /** First Name */
             first_name: string;
             /**
@@ -19807,6 +19852,19 @@ export type components = {
              */
             percentage: number;
         };
+        /** SendEmailVerificationRequest */
+        SendEmailVerificationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** SendEmailVerificationResponse */
+        SendEmailVerificationResponse: {
+            /** Message */
+            message: string;
+        };
         /**
          * SendMessageRequest
          * @description Request to send a message.
@@ -21321,6 +21379,8 @@ export type components = {
              * Format: email
              */
             email: string;
+            /** Email Verification Token */
+            email_verification_token?: string | null;
             /** First Name */
             first_name: string;
             /** Guest Session Id */
@@ -21599,6 +21659,23 @@ export type components = {
         VapidPublicKeyResponse: {
             /** Public Key */
             public_key: string;
+        };
+        /** VerifyEmailCodeRequest */
+        VerifyEmailCodeRequest: {
+            /** Code */
+            code: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /** VerifyEmailCodeResponse */
+        VerifyEmailCodeResponse: {
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Verification Token */
+            verification_token: string;
         };
         /**
          * VideoJoinResponse
@@ -26328,6 +26405,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegisterResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_email_verification_api_v1_auth_send_email_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendEmailVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendEmailVerificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_code_api_v1_auth_verify_email_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyEmailCodeResponse"];
                 };
             };
             /** @description Validation Error */

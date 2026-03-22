@@ -1,12 +1,15 @@
 'use client';
 
 import { ChevronDown, User as UserIcon } from 'lucide-react';
+import { PhoneVerificationField } from '@/components/account/PhoneVerificationField';
+import type { PhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerificationFlow';
 import type { ProfileFormState } from '@/features/instructor-profile/types';
 
 type PersonalInfoCardProps = {
   context?: 'dashboard' | 'onboarding';
   profile: ProfileFormState;
   lastNameError?: string | null;
+  phoneVerificationFlow?: PhoneVerificationFlow | null;
   onProfileChange: (updates: Partial<ProfileFormState>) => void;
   isOpen?: boolean;
   onToggle?: () => void;
@@ -16,11 +19,13 @@ export function PersonalInfoCard({
   context = 'dashboard',
   profile,
   lastNameError = null,
+  phoneVerificationFlow = null,
   onProfileChange,
   isOpen = true,
   onToggle,
 }: PersonalInfoCardProps) {
   const isOnboarding = context === 'onboarding';
+  const shouldRenderPhoneVerification = isOnboarding && phoneVerificationFlow !== null;
   const collapsible = !isOnboarding && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
   const cardClassName = isOnboarding
@@ -117,6 +122,16 @@ export function PersonalInfoCard({
               }}
             />
           </div>
+          {shouldRenderPhoneVerification ? (
+            <div className="py-2 md:col-span-3">
+              <PhoneVerificationField
+                flow={phoneVerificationFlow}
+                inputId="onboarding-personal-phone"
+                codeInputId="onboarding-personal-phone-code"
+                label="Phone number"
+              />
+            </div>
+          ) : null}
         </div>
       )}
     </section>

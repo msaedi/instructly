@@ -12,6 +12,7 @@ class TemplateRegistry(str, Enum):
     # Auth / Account
     AUTH_PW_RESET = "email/auth/password_reset.html"
     AUTH_PW_RESET_CONFIRMATION = "email/auth/password_reset_confirmation.html"
+    AUTH_EMAIL_VERIFICATION = "email/auth/email_verification.html"
     AUTH_WELCOME = "email/auth/welcome.html"
     SECURITY_NEW_DEVICE_LOGIN = "email/security/new_device_login.html"
     SECURITY_PW_CHANGED = "email/security/password_changed.html"
@@ -54,6 +55,7 @@ class TemplateRegistry(str, Enum):
 _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.AUTH_PW_RESET: "account",
     TemplateRegistry.AUTH_PW_RESET_CONFIRMATION: "account",
+    TemplateRegistry.AUTH_EMAIL_VERIFICATION: "account",
     TemplateRegistry.AUTH_WELCOME: "account",
     TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN: "account",
     TemplateRegistry.SECURITY_PW_CHANGED: "account",

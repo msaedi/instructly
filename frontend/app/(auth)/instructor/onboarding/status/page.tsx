@@ -151,6 +151,8 @@ export default function OnboardingStatusPage() {
   });
   const canGoLive = goLiveCheck.canGoLive;
   const pendingRequired = goLiveCheck.missing;
+  const phoneVerified = Boolean(rawData.user?.phone_verified);
+  const needsPhoneVerification = !phoneVerified;
 
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
   const identityVerified = Boolean(profile?.['identity_verified_at']);
@@ -165,6 +167,7 @@ export default function OnboardingStatusPage() {
   // User-facing labels for the fun/actionable card in the desired order
   const pendingLabels: string[] = [];
   if (needsServiceAreas) pendingLabels.push('Add service areas');
+  if (needsPhoneVerification) pendingLabels.push('Verify phone');
   if (needsSkills) pendingLabels.push('Add skills');
   if (needsIdentity) pendingLabels.push('Verify Identity');
   if (identityNameMismatch) pendingLabels.push('Update account name');
@@ -287,6 +290,14 @@ export default function OnboardingStatusPage() {
                   Add skills
                 </Link>
               )}
+              {needsPhoneVerification && (
+                <Link
+                  href="/instructor/onboarding/account-setup"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                >
+                  Verify phone
+                </Link>
+              )}
               {needsIdentity && (
                 <button
                   onClick={startIdentity}
@@ -338,6 +349,22 @@ export default function OnboardingStatusPage() {
         <div className="mt-6 space-y-4">
           {/* 1) Service areas */}
           <Row label="Service areas" ok={!needsServiceAreas} action={<Link href="/instructor/onboarding/account-setup" className="text-[#7E22CE] hover:underline">{needsServiceAreas ? 'Add' : 'Edit'}</Link>} />
+          <Row
+            label="Phone verification"
+            ok={!needsPhoneVerification}
+            action={
+              needsPhoneVerification
+                ? (
+                  <Link
+                    href="/instructor/onboarding/account-setup"
+                    className="text-[#7E22CE] hover:underline"
+                  >
+                    Verify
+                  </Link>
+                )
+                : <span className="text-[#7E22CE] opacity-60">Completed</span>
+            }
+          />
           {/* 2) Skills & pricing */}
           <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#7E22CE] hover:underline">Edit</Link>} />
           {/* 3) ID verification */}

@@ -18,6 +18,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
+import secrets
 from typing import Any, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
@@ -25,19 +26,26 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
-from ...api.dependencies.services import get_auth_service, get_cache_service_dep
+from ...api.dependencies.services import (
+    get_auth_service,
+    get_cache_service_dep,
+    get_email_service,
+)
 from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
+    create_email_verification_token,
     create_refresh_token,
     create_temp_token,
     decode_access_token,
+    decode_email_verification_token,
     get_current_user,
     is_refresh_token_payload,
     verify_password_async,
 )
 from ...core.auth_cache import invalidate_cached_user_by_id_sync
 from ...core.config import settings
+from ...core.constants import BRAND_NAME
 from ...core.enums import RoleName
 from ...core.exceptions import NotFoundException, ValidationException
 from ...core.login_protection import (
@@ -52,6 +60,7 @@ from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as bucket_rate_limit
+from ...repositories.beta_repository import BetaSettingsRepository
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...schemas.auth_responses import (
     AuthUserWithPermissionsResponse,
@@ -61,7 +70,11 @@ from ...schemas.security import (
     LoginResponse,
     PasswordChangeRequest,
     PasswordChangeResponse,
+    SendEmailVerificationRequest,
+    SendEmailVerificationResponse,
     SessionRefreshResponse,
+    VerifyEmailCodeRequest,
+    VerifyEmailCodeResponse,
 )
 from ...schemas.user import (
     UserCreate,
@@ -69,11 +82,15 @@ from ...schemas.user import (
     UserUpdate,
 )
 from ...services.audit_service import AuditService
-from ...services.auth_service import AuthService
+from ...services.auth_service import AuthService, invite_required_for_registration
 from ...services.beta_service import BetaService
 from ...services.cache_service import CacheService
+from ...services.email import EmailService
+from ...services.email_subjects import EmailSubject
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
+from ...services.template_registry import TemplateRegistry
+from ...services.template_service import TemplateService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
     refresh_cookie_base_name,
@@ -90,6 +107,13 @@ logger = logging.getLogger(__name__)
 # New device tracking config
 KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
 KNOWN_DEVICE_MAX = 10
+EMAIL_VERIFICATION_CODE_TTL_SECONDS = 5 * 60
+EMAIL_VERIFICATION_SEND_WINDOW_SECONDS = 10 * 60
+EMAIL_VERIFICATION_SEND_MAX = 3
+EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS = 10 * 60
+EMAIL_VERIFICATION_ATTEMPT_MAX = 5
+EMAIL_VERIFICATION_LOCK_TTL_SECONDS = 10 * 60
+EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = 15 * 60
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
@@ -241,6 +265,343 @@ def _issue_two_factor_challenge_if_needed(
     return LoginResponse(requires_2fa=True, temp_token=temp_token)
 
 
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _email_verification_code_key(email: str) -> str:
+    return f"email_verify:{_normalize_email(email)}"
+
+
+def _email_verification_send_key(email: str) -> str:
+    return f"email_verify_send_count:{_normalize_email(email)}"
+
+
+def _email_verification_attempts_key(email: str) -> str:
+    return f"email_verify_attempts:{_normalize_email(email)}"
+
+
+def _email_verification_lock_key(email: str) -> str:
+    return f"email_verify_lock:{_normalize_email(email)}"
+
+
+async def _get_cache_count(cache_service: CacheService, key: str) -> int:
+    cached_value = await cache_service.get(key)
+    try:
+        return int(cached_value) if cached_value is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+async def _increment_cache_counter(cache_service: CacheService, key: str, ttl: int) -> int:
+    redis_client = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Redis unavailable for cache counter %s: %s", key, exc)
+
+    if redis_client is not None:
+        value = await redis_client.incr(key)
+        if value == 1:
+            await redis_client.expire(key, ttl)
+        return int(value)
+
+    current_value = await _get_cache_count(cache_service, key)
+    next_value = current_value + 1
+    await cache_service.set(key, next_value, ttl=ttl)
+    return next_value
+
+
+async def _delete_cache_keys(cache_service: CacheService, *keys: str) -> None:
+    redis_client = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Redis unavailable while deleting cache keys: %s", exc)
+
+    if redis_client is not None:
+        await redis_client.delete(*keys)
+
+    for key in keys:
+        await cache_service.delete(key)
+
+
+def _send_email_verification_email_sync(
+    *,
+    db: Session,
+    email_service: EmailService,
+    to_email: str,
+    code: str,
+) -> None:
+    template_service = TemplateService(db, None)
+    html_content = template_service.render_template(
+        TemplateRegistry.AUTH_EMAIL_VERIFICATION,
+        context={
+            "brand_name": BRAND_NAME,
+            "code": code,
+        },
+    )
+    email_service.send_email(
+        to_email=to_email,
+        subject=EmailSubject.email_verification(),
+        html_content=html_content,
+        text_content=(
+            f"Your {BRAND_NAME} verification code is {code}. " "This code expires in 5 minutes."
+        ),
+        template=TemplateRegistry.AUTH_EMAIL_VERIFICATION,
+    )
+
+
+def _extract_invite_code(payload: UserCreate) -> str | None:
+    metadata_obj = getattr(payload, "metadata", None)
+    if metadata_obj is None:
+        return None
+    if isinstance(metadata_obj, dict):
+        invite_code = metadata_obj.get("invite_code")
+    else:
+        invite_code = getattr(metadata_obj, "invite_code", None)
+    if invite_code is None:
+        return None
+    invite_code_str = str(invite_code).strip()
+    return invite_code_str or None
+
+
+def _require_valid_email_verification_token(payload: UserCreate) -> None:
+    token = (payload.email_verification_token or "").strip()
+    if not token:
+        raise ValidationException(
+            "Email verification token is required.",
+            code="EMAIL_VERIFICATION_REQUIRED",
+        )
+
+    try:
+        token_payload = decode_email_verification_token(token)
+    except Exception as exc:
+        logger.info("Email verification token rejected: %s", exc)
+        raise ValidationException(
+            "Email verification token is invalid or expired.",
+            code="EMAIL_VERIFICATION_INVALID",
+        ) from exc
+
+    token_email = _normalize_email(str(token_payload.get("sub") or ""))
+    request_email = _normalize_email(str(payload.email))
+    if not token_email or token_email != request_email:
+        raise ValidationException(
+            "Email verification token does not match the registration email.",
+            code="EMAIL_VERIFICATION_EMAIL_MISMATCH",
+        )
+
+
+def _get_registration_beta_phase(db: Session) -> str:
+    settings_record = BetaSettingsRepository(db).get_singleton()
+    return str(getattr(settings_record, "beta_phase", "instructor_only") or "instructor_only")
+
+
+def _validate_registration_invite(
+    *,
+    db: Session,
+    role: str | None,
+    phase: str,
+    email: str,
+    invite_code: str | None,
+) -> Any | None:
+    if not invite_required_for_registration(role, phase):
+        return None
+
+    if not invite_code:
+        raise ValidationException(
+            "Invite code is required for registration in the current beta phase.",
+            code="INVITE_REQUIRED",
+        )
+
+    beta_service = BetaService(db)
+    valid, reason, invite = beta_service.validate_invite(invite_code)
+    if not valid or invite is None:
+        code_map = {
+            "not_found": "INVITE_INVALID",
+            "expired": "INVITE_EXPIRED",
+            "used": "INVITE_USED",
+        }
+        message_map = {
+            "not_found": "Invite code is invalid.",
+            "expired": "Invite code has expired.",
+            "used": "Invite code has already been used.",
+        }
+        raise ValidationException(
+            message_map.get(reason or "", "Invite code is invalid."),
+            code=code_map.get(reason or "", "INVITE_INVALID"),
+        )
+
+    invite_email = (getattr(invite, "email", None) or "").strip().lower()
+    if not invite_email:
+        raise ValidationException(
+            "Invite code is not linked to an email address.",
+            code="INVITE_EMAIL_REQUIRED",
+        )
+    if invite_email != _normalize_email(email):
+        raise ValidationException(
+            "Invite code email does not match the registration email.",
+            code="INVITE_EMAIL_MISMATCH",
+        )
+
+    return invite
+
+
+@router.post("/send-email-verification", response_model=SendEmailVerificationResponse)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many verification requests. Please try again later.",
+)
+async def send_email_verification(
+    request: Request,
+    payload: SendEmailVerificationRequest = Body(...),
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+    email_service: EmailService = Depends(get_email_service),
+) -> SendEmailVerificationResponse:
+    """Send a pre-registration email verification code."""
+    email = str(payload.email)
+    send_key = _email_verification_send_key(email)
+    send_count = await _increment_cache_counter(
+        cache_service,
+        send_key,
+        EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
+    )
+    if send_count > EMAIL_VERIFICATION_SEND_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": "Too many verification requests. Please try again later.",
+                "code": "EMAIL_VERIFICATION_RATE_LIMITED",
+                "details": {"retry_after_seconds": EMAIL_VERIFICATION_SEND_WINDOW_SECONDS},
+            },
+        )
+
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    await cache_service.set(
+        _email_verification_code_key(email),
+        code,
+        ttl=EMAIL_VERIFICATION_CODE_TTL_SECONDS,
+    )
+    await _delete_cache_keys(
+        cache_service,
+        _email_verification_attempts_key(email),
+        _email_verification_lock_key(email),
+    )
+
+    try:
+        await asyncio.to_thread(
+            _send_email_verification_email_sync,
+            db=db,
+            email_service=email_service,
+            to_email=email,
+            code=code,
+        )
+    except Exception:
+        logger.warning("Email verification delivery failed for %s", email, exc_info=True)
+
+    return SendEmailVerificationResponse(message="Verification code sent")
+
+
+@router.post("/verify-email-code", response_model=VerifyEmailCodeResponse)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many verification attempts. Please try again later.",
+)
+async def verify_email_code(
+    request: Request,
+    payload: VerifyEmailCodeRequest = Body(...),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> VerifyEmailCodeResponse:
+    """Verify a pre-registration email code and return a short-lived signed token."""
+    email = str(payload.email)
+    submitted_code = payload.code.strip()
+    code_key = _email_verification_code_key(email)
+    attempts_key = _email_verification_attempts_key(email)
+    lock_key = _email_verification_lock_key(email)
+
+    redis_client = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Redis unavailable for email verification confirm: %s", exc)
+
+    locked = False
+    if redis_client is not None:
+        locked = bool(await redis_client.get(lock_key))
+        if not locked:
+            locked = bool(await cache_service.get(lock_key))
+    else:
+        locked = bool(await cache_service.get(lock_key))
+
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Too many attempts. Please wait 10 minutes and try again.",
+                "code": "EMAIL_VERIFICATION_LOCKED",
+                "details": {"retry_after_seconds": EMAIL_VERIFICATION_LOCK_TTL_SECONDS},
+            },
+        )
+
+    cached_code_raw = await cache_service.get(code_key)
+    cached_code = (
+        cached_code_raw.decode("utf-8", errors="ignore")
+        if isinstance(cached_code_raw, bytes)
+        else (str(cached_code_raw) if cached_code_raw is not None else "")
+    )
+    if not cached_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Verification code is invalid or expired.",
+                "code": "EMAIL_VERIFICATION_CODE_INVALID",
+                "details": {"expired": True},
+            },
+        )
+
+    if not secrets.compare_digest(cached_code, submitted_code):
+        attempts = await _increment_cache_counter(
+            cache_service,
+            attempts_key,
+            EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS,
+        )
+        remaining_attempts = max(EMAIL_VERIFICATION_ATTEMPT_MAX - attempts, 0)
+        if attempts >= EMAIL_VERIFICATION_ATTEMPT_MAX:
+            await cache_service.set(lock_key, True, ttl=EMAIL_VERIFICATION_LOCK_TTL_SECONDS)
+            await cache_service.delete(code_key)
+            await _delete_cache_keys(cache_service, attempts_key)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Too many attempts. Please wait 10 minutes and try again.",
+                    "code": "EMAIL_VERIFICATION_LOCKED",
+                    "details": {"retry_after_seconds": EMAIL_VERIFICATION_LOCK_TTL_SECONDS},
+                },
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Invalid verification code.",
+                "code": "EMAIL_VERIFICATION_CODE_INVALID",
+                "details": {"remaining_attempts": remaining_attempts},
+            },
+        )
+
+    await _delete_cache_keys(cache_service, code_key, attempts_key, lock_key)
+    verification_token = create_email_verification_token(
+        _normalize_email(email),
+        expires_delta=timedelta(seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS),
+    )
+    return VerifyEmailCodeResponse(
+        verification_token=verification_token,
+        expires_in_seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+    )
+
+
 @router.post("/register", response_model=RegisterResponse)
 @rate_limit(
     f"{settings.rate_limit_register_per_hour}/hour",
@@ -259,6 +620,17 @@ async def register(
     generic_response = RegisterResponse(message="Please check your email to verify your account.")
 
     try:
+        _require_valid_email_verification_token(payload)
+        beta_phase = _get_registration_beta_phase(db)
+        invite_code = _extract_invite_code(payload)
+        validated_invite = _validate_registration_invite(
+            db=db,
+            role=payload.role,
+            phase=beta_phase,
+            email=str(payload.email),
+            invite_code=invite_code,
+        )
+
         db_user = await asyncio.to_thread(
             auth_service.register_user,
             email=payload.email,
@@ -268,6 +640,9 @@ async def register(
             phone=payload.phone,
             zip_code=payload.zip_code,
             role=payload.role,
+            email_verified=True,
+            invite_code=invite_code if validated_invite is not None else None,
+            beta_phase=beta_phase if validated_invite is not None else None,
         )
 
         if db_user is None:
@@ -290,54 +665,6 @@ async def register(
                 )
             except Exception as e:
                 logger.error("Failed to convert guest searches during registration: %s", str(e))
-
-        # Beta invite consumption (server-side guarantee)
-        try:
-            invite_code = None
-            metadata_obj = getattr(payload, "metadata", None)
-            if metadata_obj is not None:
-                if isinstance(metadata_obj, dict):
-                    invite_code = metadata_obj.get("invite_code")
-                else:
-                    invite_code = getattr(metadata_obj, "invite_code", None)
-            if invite_code:
-                svc = BetaService(db)
-                grant, reason, invite = await asyncio.to_thread(
-                    svc.consume_and_grant,
-                    code=str(invite_code),
-                    user_id=db_user.id,
-                    role=payload.role or "student",
-                    phase="instructor_only",
-                )
-                if grant:
-                    logger.info("Consumed beta invite for user %s via register", db_user.id)
-                else:
-                    logger.warning(
-                        "Invite not consumed on register for user %s: %s", db_user.id, reason
-                    )
-                if grant and invite and getattr(invite, "grant_founding_status", False):
-                    role_name = (payload.role or RoleName.STUDENT).lower()
-                    if role_name == RoleName.INSTRUCTOR.value:
-                        repo = InstructorProfileRepository(db)
-                        profile = await asyncio.to_thread(repo.get_by_user_id, db_user.id)
-                        if profile:
-                            granted, message = await asyncio.to_thread(
-                                svc.try_grant_founding_status, profile.id
-                            )
-                            if granted:
-                                logger.info(
-                                    "Granted founding status for user %s: %s",
-                                    db_user.id,
-                                    message,
-                                )
-                            else:
-                                logger.info(
-                                    "Founding status not granted for user %s: %s",
-                                    db_user.id,
-                                    message,
-                                )
-        except Exception as e:
-            logger.error("Error consuming invite on register for %s: %s", db_user.id, e)
 
         try:
             AuditService(db).log(
@@ -1048,6 +1375,7 @@ async def read_users_me(
         "last_name": current_user.last_name,
         "phone": getattr(current_user, "phone", None),
         "phone_verified": getattr(current_user, "phone_verified", False),
+        "email_verified": getattr(current_user, "email_verified", True),
         "zip_code": getattr(current_user, "zip_code", None),
         "is_active": getattr(current_user, "is_active", True),
         "timezone": getattr(current_user, "timezone", None),
@@ -1202,6 +1530,7 @@ async def update_current_user(
             "last_name": updated_user.last_name,
             "phone": getattr(updated_user, "phone", None),
             "phone_verified": getattr(updated_user, "phone_verified", False),
+            "email_verified": getattr(updated_user, "email_verified", True),
             "zip_code": getattr(updated_user, "zip_code", None),
             "is_active": getattr(updated_user, "is_active", True),
             "timezone": getattr(updated_user, "timezone", None),

@@ -11,26 +11,25 @@
  * @module signup/page
  */
 
-import { useEffect, useState, Suspense } from 'react';
+import { useState, Suspense, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
+import { checkIsNYCZip } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
-import { ApiError, http, httpGet, httpPost } from '@/lib/http';
-import { getGuestSessionId } from '@/lib/searchTracking';
+import { ApiError, httpPost } from '@/lib/http';
 import { useBetaConfig } from '@/lib/beta-config';
-import { isRecord, isUnknownArray } from '@/lib/typesafe';
-import { buildAuthHref, claimReferralCode } from '@/features/referrals/referralAuth';
+import { buildAuthHref } from '@/features/referrals/referralAuth';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
 import { RequestStatus } from '@/types/api';
-import { useAuth } from '@/features/shared/hooks/useAuth';
-import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
-import type { AuthUserResponse, components } from '@/features/shared/api/types';
+import {
+  readPendingSignup,
+  savePendingSignup,
+} from '@/features/shared/auth/pendingSignup';
 
 /**
  * Form validation errors interface
@@ -63,20 +62,6 @@ function formatPhoneNumber(value: string): string {
 }
 
 /**
- * Format phone number for API (E.164 format)
- */
-function formatPhoneForAPI(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10) {
-    return `+1${cleaned}`;
-  }
-  if (cleaned.length === 11 && cleaned[0] === '1') {
-    return `+${cleaned}`;
-  }
-  return phone; // Return as-is if not a valid US phone
-}
-
-/**
  * Signup form component with validation and auto-login
  *
  * @component
@@ -85,35 +70,53 @@ function formatPhoneForAPI(phone: string): string {
 function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { checkAuth, user } = useAuth();
   const betaConfig = useBetaConfig();
   const referralCode = searchParams.get('ref');
+  const redirectParam = searchParams.get('redirect');
+  const searchEmail = (searchParams.get('email') || '').toLowerCase();
+  const isInstructorFlow = (searchParams.get('role') || '').toLowerCase() === 'instructor';
+  const isFoundingFlow = searchParams.get('founding') === 'true';
+  const inviteCodeFromSearch = searchParams.get('invite_code') || '';
 
   // Get the redirect parameter, but if it's the login page, use home instead
-  let redirect = searchParams.get('redirect') || '/';
+  let redirect = redirectParam || '/';
   if (redirect === '/login' || redirect.startsWith('/login?')) {
     redirect = '/';
   }
 
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: (searchParams.get('email') || '').toLowerCase(),
-    phone: '',
-    zipCode: '',
-    password: '',
-    confirmPassword: '',
+  const hasMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const [formData, setFormData] = useState(() => {
+    const pendingSignup = readPendingSignup();
+    const expectedRole = isInstructorFlow ? RoleName.INSTRUCTOR : RoleName.STUDENT;
+    if (pendingSignup && pendingSignup.role === expectedRole) {
+      return {
+        firstName: pendingSignup.firstName,
+        lastName: pendingSignup.lastName,
+        email: (searchEmail || pendingSignup.email || '').toLowerCase(),
+        phone: pendingSignup.phone,
+        zipCode: pendingSignup.zipCode,
+        password: pendingSignup.password,
+        confirmPassword: pendingSignup.confirmPassword,
+      };
+    }
+
+    return {
+      firstName: '',
+      lastName: '',
+      email: searchEmail,
+      phone: '',
+      zipCode: '',
+      password: '',
+      confirmPassword: '',
+    };
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [showPassword, setShowPassword] = useState(false);
-  const [postSignupRedirect, setPostSignupRedirect] = useState<{ target: string; expectedUserId: string } | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  // Avoid hydration mismatch by only applying beta config after mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const clearFieldError = (field: keyof FormErrors) => {
     setErrors((prev) => {
@@ -124,29 +127,10 @@ function SignUpForm() {
     });
   };
 
-  useEffect(() => {
-    if (!postSignupRedirect) return;
-    if (typeof window === 'undefined') return;
-    const fallback = window.setTimeout(() => {
-      router.push(postSignupRedirect.target);
-      setPostSignupRedirect(null);
-    }, 2000);
-    if (user?.id === postSignupRedirect.expectedUserId) {
-      router.push(postSignupRedirect.target);
-      setPostSignupRedirect(null);
-      window.clearTimeout(fallback);
-    }
-    return () => {
-      window.clearTimeout(fallback);
-    };
-  }, [postSignupRedirect, user, router]);
-
   logger.debug('SignUpForm initialized', {
     redirectTo: redirect,
     hasRedirect: redirect !== '/',
   });
-
-  const isInstructorFlow = (searchParams.get('role') || '').toLowerCase() === 'instructor';
 
   /**
    * Handle form input changes
@@ -345,190 +329,57 @@ function SignUpForm() {
     setErrors({});
 
     try {
-      // Get guest session ID if available
-      const guestSessionId = getGuestSessionId();
+      const inviteCode =
+        inviteCodeFromSearch ||
+        (typeof window !== 'undefined' ? window.sessionStorage.getItem('invite_code') || '' : '');
+      const role = isInstructorFlow ? RoleName.INSTRUCTOR : RoleName.STUDENT;
 
-      // Prepare registration data with new fields
-      const registrationData: components['schemas']['UserCreate'] = {
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
+      savePendingSignup({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formatPhoneForAPI(formData.phone),
-        zip_code: formData.zipCode.trim(),
+        phone: formData.phone,
+        zipCode: formData.zipCode.trim(),
         password: formData.password,
-        role: searchParams.get('role') === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
-        is_active: true,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-        ...(guestSessionId && { guest_session_id: guestSessionId }),
-        metadata: {
-          invite_code: searchParams.get('invite_code') ?? null,
-        },
-      };
-
-      logger.info('Attempting user registration', {
-        email: registrationData.email,
-        role: registrationData.role,
+        confirmPassword: formData.confirmPassword,
+        role,
+        redirect,
+        referralCode,
+        founding: isFoundingFlow,
+        inviteCode: inviteCode || null,
+        emailVerificationToken: null,
       });
-      logger.time('registration');
-      try {
-        await httpPost<{ message: string }>(API_ENDPOINTS.REGISTER, registrationData);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          const status = err.status;
-          const errorData = (err.data ?? {}) as { detail?: unknown };
-          logger.warn('Registration failed', { status, error: errorData });
 
-          let errorMessage = 'Registration failed';
-
-          if (status === 429 && errorData.detail) {
-            const detail = errorData.detail as { retry_after?: number; message?: string };
-            if (detail?.retry_after) {
-              const minutes = Math.ceil(detail.retry_after / 60);
-              errorMessage = `${
-                detail.message || 'Too many registration attempts. Please try again later.'
-              } Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`;
-            } else if (detail?.message) {
-              errorMessage = detail.message;
-            } else {
-              errorMessage = 'Too many attempts. Please try again later.';
-            }
-          } else if (isUnknownArray(errorData.detail)) {
-            errorMessage = errorData.detail
-              .map((e) => (isRecord(e) && typeof e['msg'] === 'string' ? e['msg'] : ''))
-              .filter(Boolean)
-              .join(', ');
-          } else if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
-          } else {
-            errorMessage = `Registration failed (${status})`;
-          }
-
-          setErrors({ general: errorMessage });
-          setRequestStatus(RequestStatus.ERROR);
-          return;
-        }
-
-        throw err;
-      } finally {
-        logger.timeEnd('registration');
-      }
-
-      logger.info('Registration successful, attempting auto-login');
-
-      // Auto-login after successful registration
-      // Use new endpoint if we have a guest session (already converted during registration)
-      logger.time('auto-login');
-      const loginPath = guestSessionId ? '/api/v1/auth/login-with-session' : API_ENDPOINTS.LOGIN;
-      const loginHeaders = guestSessionId
-        ? { 'Content-Type': 'application/json' }
-        : { 'Content-Type': 'application/x-www-form-urlencoded' };
-      const loginPayload = guestSessionId
-        ? {
-            email: formData.email,
-            password: formData.password,
-            guest_session_id: guestSessionId,
-          }
-        : new URLSearchParams({
-            username: formData.email,
-            password: formData.password,
-          }).toString();
-
-      try {
-        await http<components['schemas']['LoginResponse']>('POST', loginPath, {
-          headers: loginHeaders,
-          body: loginPayload,
-        });
-      } catch (err) {
-        if (err instanceof ApiError) {
-          logger.error('Auto-login failed after registration', err, { status: err.status });
-          const originalRedirect = searchParams.get('redirect') || '/';
-          router.push(
-            buildAuthHref('/login', {
-              redirect: originalRedirect,
-              ref: referralCode,
-              registered: true,
-            })
-          );
-          return;
-        }
-        throw err;
-      } finally {
-        logger.timeEnd('auto-login');
-      }
-
-      logger.info('Auto-login successful, fetching user data and updating auth context');
-
-      // Session is cookie-based; fetch user data without storing tokens client-side
-      let userData: AuthUserResponse | null = null;
-      try {
-        userData = await httpGet<AuthUserResponse>(API_ENDPOINTS.ME);
-      } catch (fetchError) {
-        logger.warn('Failed to fetch user data after login, using default redirect', fetchError instanceof Error ? fetchError : undefined);
-        await checkAuth();
-        router.push(redirect);
-        setRequestStatus(RequestStatus.SUCCESS);
-        return;
-      }
-
-      if (userData) {
-        try {
-          const inviteCode = searchParams.get('invite_code') || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
-          if (inviteCode) {
-            logger.info('Consuming beta invite for new user', { inviteCode, userId: userData.id });
-            await http('POST', '/api/v1/beta/invites/consume', {
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: {
-                code: inviteCode,
-                user_id: userData.id,
-                role: 'instructor',
-                phase: 'instructor_only',
-              },
-            });
-          }
-        } catch (e) {
-          logger.warn('Failed to consume beta invite after signup', e instanceof Error ? e : new Error(String(e)));
-        }
-        if (referralCode) {
-          await claimReferralCode(referralCode);
-        }
-        const {
-          phone,
-          zip_code,
-          timezone,
-          profile_picture_version,
-          has_profile_picture,
-          permissions,
-          ...restUser
-        } = userData;
-        const normalizedUser = {
-          ...restUser,
-          permissions: permissions ?? [],
-          ...(phone != null ? { phone } : {}),
-          ...(zip_code != null ? { zip_code } : {}),
-          ...(timezone != null ? { timezone } : {}),
-          ...(profile_picture_version != null ? { profile_picture_version } : {}),
-          ...(has_profile_picture != null ? { has_profile_picture } : {}),
-        };
-        logger.info('User data fetched, redirecting based on role', {
-          userId: userData.id,
-          roles: userData.roles,
-          redirectTo: hasRole(normalizedUser, RoleName.INSTRUCTOR) ? '/instructor/dashboard' : redirect,
-        });
-        // Ensure AuthProvider state is up-to-date before hitting gated routes
-        await checkAuth();
-        const nextDestination = redirect || (hasRole(normalizedUser, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/');
-        setPostSignupRedirect({ target: nextDestination, expectedUserId: userData.id });
-      }
+      logger.info('Sending signup email verification code', {
+        email: formData.email.trim().toLowerCase(),
+        role,
+      });
+      await httpPost<{ message: string }>('/api/v1/auth/send-email-verification', {
+        email: formData.email.trim().toLowerCase(),
+      });
 
       setRequestStatus(RequestStatus.SUCCESS);
-    } catch (error) {
-      let errorMessage = 'An unexpected error occurred';
-
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      const verifyEmailParams = new URLSearchParams();
+      verifyEmailParams.set('redirect', redirect);
+      verifyEmailParams.set('email', formData.email.trim().toLowerCase());
+      if (isInstructorFlow) {
+        verifyEmailParams.set('role', 'instructor');
       }
+      if (referralCode) {
+        verifyEmailParams.set('ref', referralCode);
+      }
+      if (isFoundingFlow) {
+        verifyEmailParams.set('founding', 'true');
+      }
+      if (inviteCode) {
+        verifyEmailParams.set('invite_code', inviteCode);
+      }
+      router.push(`/verify-email?${verifyEmailParams.toString()}`);
+    } catch (error) {
+      const errorMessage =
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred';
 
       logger.error('Signup process failed', error, {
         email: formData.email,
@@ -544,7 +395,8 @@ function SignUpForm() {
 
   // Hide student signup CTA on beta instructor-only phase
   // Only apply after mount to avoid hydration mismatch
-  const showStudentSignupCta = !mounted || !(betaConfig.site === 'beta' && betaConfig.phase === 'instructor_only');
+  const showStudentSignupCta =
+    !hasMounted || !(betaConfig.site === 'beta' && betaConfig.phase === 'instructor_only');
 
   return (
     <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
@@ -684,7 +536,7 @@ function SignUpForm() {
                 Privacy Policy
               </Link>
             </p>
-            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
+            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Sending code…' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
 
             {/* Instructor CTAs placed tight under the button */}
             {isInstructorFlow && (

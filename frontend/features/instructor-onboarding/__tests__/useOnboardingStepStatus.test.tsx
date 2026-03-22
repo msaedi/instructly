@@ -402,7 +402,12 @@ describe('canInstructorGoLive', () => {
   it('returns missing requirements when incomplete', () => {
     const result = canInstructorGoLive({
       profile: { bio: 'short', services: [] } as never,
-      user: { first_name: '', last_name: '', has_profile_picture: false } as never,
+      user: {
+        first_name: '',
+        last_name: '',
+        has_profile_picture: false,
+        phone_verified: false,
+      } as never,
       serviceAreas: [],
       connectStatus: { onboarding_completed: false } as never,
       bgcStatus: 'pending',
@@ -410,7 +415,7 @@ describe('canInstructorGoLive', () => {
 
     expect(result.canGoLive).toBe(false);
     expect(result.missing).toEqual(
-      expect.arrayContaining(['Profile picture', 'First name', 'Last name', 'Bio (400+ characters)', 'Service areas', 'Skills & pricing', 'ID verification', 'Background check', 'Stripe Connect'])
+      expect.arrayContaining(['Profile picture', 'First name', 'Last name', 'Phone verification', 'Bio (400+ characters)', 'Service areas', 'Skills & pricing', 'ID verification', 'Background check', 'Stripe Connect'])
     );
   });
 
@@ -425,6 +430,7 @@ describe('canInstructorGoLive', () => {
         first_name: 'Jane',
         last_name: 'Doe',
         has_profile_picture: true,
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
@@ -447,6 +453,7 @@ describe('canInstructorGoLive', () => {
         last_name: 'Doe',
         has_profile_picture: false,
         profile_picture_version: 3, // Version present but has_profile_picture is false
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
@@ -468,6 +475,7 @@ describe('canInstructorGoLive', () => {
         first_name: 'Jane',
         last_name: 'Doe',
         has_profile_picture: true,
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
@@ -491,6 +499,7 @@ describe('canInstructorGoLive', () => {
         first_name: 'Jane',
         last_name: 'Doe',
         has_profile_picture: true,
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
@@ -513,6 +522,7 @@ describe('canInstructorGoLive', () => {
         first_name: 'Jane',
         last_name: 'Doe',
         has_profile_picture: true,
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
@@ -534,6 +544,7 @@ describe('canInstructorGoLive', () => {
 
     expect(result.canGoLive).toBe(false);
     expect(result.missing).toContain('Profile picture');
+    expect(result.missing).toContain('Phone verification');
     expect(result.missing).toContain('Bio (400+ characters)');
     expect(result.missing).toContain('Service areas');
   });
@@ -549,6 +560,7 @@ describe('canInstructorGoLive', () => {
         first_name: 'Jane',
         last_name: 'Doe',
         has_profile_picture: true,
+        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,

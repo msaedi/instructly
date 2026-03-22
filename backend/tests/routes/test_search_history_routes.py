@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token
+from app.auth import create_access_token, create_email_verification_token
 from app.models.search_history import SearchHistory
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -219,6 +219,9 @@ class TestAuthWithGuestSession:
                 "zip_code": "10001",
                 "role": "student",
                 "guest_session_id": guest_session_id,
+                "email_verification_token": create_email_verification_token(
+                    "newuser@example.com"
+                ),
             },
         )
 

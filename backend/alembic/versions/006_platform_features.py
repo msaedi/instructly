@@ -1077,6 +1077,15 @@ def upgrade() -> None:
             server_default=sa.text("false"),
         ),
     )
+    op.add_column(
+        "users",
+        sa.Column(
+            "email_verified",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
+    )
 
     # Performance indexes (from 005_performance_indexes)
     op.create_index(
@@ -1452,6 +1461,7 @@ def downgrade() -> None:
 
     op.drop_column("bookings", "reminder_1h_sent")
     op.drop_column("bookings", "reminder_24h_sent")
+    op.drop_column("users", "email_verified")
     op.drop_column("users", "phone_verified")
     op.drop_column("instructor_profiles", "payout_hold_released_at")
     op.drop_column("instructor_profiles", "payout_hold_at")

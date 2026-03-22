@@ -224,6 +224,7 @@ def _user_to_dict(user: User, beta_access: Optional[Any] = None) -> Dict[str, An
         # Additional fields for /auth/me endpoint (avoids re-querying)
         "phone": getattr(user, "phone", None),
         "phone_verified": getattr(user, "phone_verified", False),
+        "email_verified": getattr(user, "email_verified", True),
         "zip_code": getattr(user, "zip_code", None),
         "timezone": getattr(user, "timezone", None),
         "profile_picture_key": getattr(user, "profile_picture_key", None),
@@ -339,6 +340,7 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     # Additional fields for /auth/me endpoint (no re-querying needed)
     user.phone = user_data.get("phone")
     user.phone_verified = user_data.get("phone_verified", False)
+    user.email_verified = user_data.get("email_verified", True)
     user.zip_code = user_data.get("zip_code")
     user.timezone = user_data.get("timezone")
     user.profile_picture_key = user_data.get("profile_picture_key")

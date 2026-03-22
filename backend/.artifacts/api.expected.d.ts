@@ -2255,6 +2255,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/auth/send-email-verification": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_email_verification_api_v1_auth_send_email_verification_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/auth/verify-email-code": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["verify_email_code_api_v1_auth_verify_email_code_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/beta/invites/consume": {
  parameters: {
  query?: never;
@@ -6402,6 +6434,7 @@ export type components = {
  beta_phase?: string | null;
  beta_role?: string | null;
  email: string;
+ email_verified: boolean | null;
  first_name: string;
  founding_instructor_granted?: boolean | null;
  has_profile_picture: boolean | null;
@@ -10099,6 +10132,12 @@ export type components = {
  count: number;
  percentage: number;
  };
+ SendEmailVerificationRequest: {
+ email: string;
+ };
+ SendEmailVerificationResponse: {
+ message: string;
+ };
  SendMessageRequest: {
  booking_id?: string | null;
  content: string;
@@ -10595,6 +10634,7 @@ export type components = {
  };
  UserCreate: {
  email: string;
+ email_verification_token?: string | null;
  first_name: string;
  guest_session_id?: string | null;
  is_active: boolean | null;
@@ -10714,6 +10754,14 @@ export type components = {
  };
  VapidPublicKeyResponse: {
  public_key: string;
+ };
+ VerifyEmailCodeRequest: {
+ code: string;
+ email: string;
+ };
+ VerifyEmailCodeResponse: {
+ expires_in_seconds: number;
+ verification_token: string;
  };
  VideoJoinResponse: {
  auth_token: string;
@@ -14998,6 +15046,68 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["RegisterResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_email_verification_api_v1_auth_send_email_verification_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SendEmailVerificationRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SendEmailVerificationResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ verify_email_code_api_v1_auth_verify_email_code_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["VerifyEmailCodeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["VerifyEmailCodeResponse"];
  };
  };
  422: {

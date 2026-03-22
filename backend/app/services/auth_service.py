@@ -8,6 +8,7 @@ Follows the service layer pattern to keep business logic out of routes.
 FIXED: Added @measure_operation decorators to all public methods
 """
 
+from datetime import datetime, timezone
 import logging
 import re
 from typing import Any, Dict, Optional, cast
@@ -16,16 +17,31 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import DUMMY_HASH_FOR_TIMING_ATTACK, get_password_hash, verify_password
+from ..core.auth_cache import invalidate_cached_user_by_id_sync
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
+from ..repositories.beta_repository import BetaAccessRepository, BetaInviteRepository
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService, CacheInvalidationProtocol
 from .permission_service import PermissionService
 
 logger = logging.getLogger(__name__)
 _ULID_PATTERN = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+_INVITE_OPEN_PHASES = frozenset({"public", "open", "ga", "general_availability"})
+_INVITE_REQUIRED_PHASES = frozenset({"instructor_only", "open_beta", "openbeta"})
+
+
+def invite_required_for_registration(role: str | None, phase: str | None) -> bool:
+    """Return whether registration for a role/phase combination requires an invite."""
+    normalized_role = (role or RoleName.STUDENT.value).strip().lower()
+    normalized_phase = (phase or "").strip().lower()
+    if normalized_phase in _INVITE_OPEN_PHASES:
+        return False
+    if normalized_role == RoleName.INSTRUCTOR.value and normalized_phase in _INVITE_REQUIRED_PHASES:
+        return True
+    return False
 
 
 class AuthService(BaseService):
@@ -62,6 +78,10 @@ class AuthService(BaseService):
         zip_code: str,
         phone: Optional[str] = None,
         role: Optional[str] = None,
+        *,
+        email_verified: bool = True,
+        invite_code: Optional[str] = None,
+        beta_phase: Optional[str] = None,
     ) -> Optional[User]:
         """
         Register a new user.
@@ -71,6 +91,12 @@ class AuthService(BaseService):
         response regardless of the return value.
         """
         self.log_operation("register_user", email=email, role=role)
+        role_name = role or RoleName.STUDENT
+        role_name_value = (
+            role_name.value
+            if isinstance(role_name, RoleName)
+            else str(role_name or RoleName.STUDENT)
+        )
 
         # Check if email already exists — return None instead of raising
         existing_user = self.get_user_by_email(email)
@@ -88,11 +114,14 @@ class AuthService(BaseService):
         # Get timezone from zip code
         from app.core.timezone_service import get_timezone_from_zip
 
-        timezone = get_timezone_from_zip(zip_code) if zip_code else "America/New_York"
-        self.logger.info("Setting timezone %s for zip code %s", timezone, zip_code)
+        resolved_timezone = get_timezone_from_zip(zip_code) if zip_code else "America/New_York"
+        self.logger.info("Setting timezone %s for zip code %s", resolved_timezone, zip_code)
 
         try:
             with self.transaction():
+                instructor_profile: InstructorProfile | None = None
+                is_founding_instructor = False
+
                 # Create user without role (will be assigned via RBAC)
                 user: User = self.user_repository.create(
                     email=email,
@@ -100,13 +129,13 @@ class AuthService(BaseService):
                     first_name=first_name,
                     last_name=last_name,
                     phone=phone,
+                    email_verified=email_verified,
                     zip_code=zip_code,
-                    timezone=timezone,
+                    timezone=resolved_timezone,
                 )
 
                 # Assign role using PermissionService
                 permission_service = PermissionService(self.db)
-                role_name = role or RoleName.STUDENT  # Default to student if not specified
                 permission_service.assign_role(user.id, role_name)
 
                 # Refresh user to get roles
@@ -171,7 +200,7 @@ class AuthService(BaseService):
                     first_name = getattr(user, "first_name", "") or ""
                     default_bio = f"{first_name} is a {city_guess}-based instructor."
 
-                    _instructor_profile = self.instructor_repository.create(
+                    instructor_profile = self.instructor_repository.create(
                         user_id=user.id,
                         # Provide defaults that satisfy response schema validation
                         bio=default_bio,
@@ -189,10 +218,74 @@ class AuthService(BaseService):
                             is_active=True,
                         )
 
+                if invite_code and beta_phase:
+                    invite_repo = BetaInviteRepository(self.db)
+                    access_repo = BetaAccessRepository(self.db)
+                    invite = invite_repo.get_by_code(invite_code)
+                    now = datetime.now(timezone.utc)
+                    normalized_email = (email or "").strip().lower()
+
+                    if not invite:
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
+                    if invite.used_at is not None:
+                        raise ValidationException(
+                            "Invite code has already been used.",
+                            code="INVITE_USED",
+                        )
+                    if invite.expires_at and invite.expires_at.astimezone(timezone.utc) < now:
+                        raise ValidationException(
+                            "Invite code has expired.",
+                            code="INVITE_EXPIRED",
+                        )
+                    invite_email = (getattr(invite, "email", None) or "").strip().lower()
+                    if not invite_email:
+                        raise ValidationException(
+                            "Invite code is not linked to an email address.",
+                            code="INVITE_EMAIL_REQUIRED",
+                        )
+                    if invite_email != normalized_email:
+                        raise ValidationException(
+                            "Invite code email does not match the registration email.",
+                            code="INVITE_EMAIL_MISMATCH",
+                        )
+                    marked = invite_repo.mark_used(invite_code, user.id, used_at=now)
+                    if not marked:
+                        raise ValidationException(
+                            "Invite code is no longer available.",
+                            code="INVITE_USED",
+                        )
+                    access_repo.grant_access(
+                        user_id=user.id,
+                        role=role_name_value.lower(),
+                        phase=beta_phase,
+                        invited_by_code=invite_code,
+                    )
+                    invalidate_cached_user_by_id_sync(user.id, self.db)
+
+                    if (
+                        role_name_value.lower() == RoleName.INSTRUCTOR.value
+                        and instructor_profile is not None
+                        and getattr(invite, "grant_founding_status", False)
+                    ):
+                        from .beta_service import BetaService
+
+                        beta_service = BetaService(self.db)
+                        granted, _message = beta_service.try_grant_founding_status(
+                            instructor_profile.id
+                        )
+                        is_founding_instructor = granted
+
+                if role_name_value.lower() == RoleName.INSTRUCTOR.value:
                     from .instructor_lifecycle_service import InstructorLifecycleService
 
                     lifecycle_service = InstructorLifecycleService(self.db)
-                    lifecycle_service.record_registration(user.id, is_founding=False)
+                    lifecycle_service.record_registration(
+                        user.id,
+                        is_founding=is_founding_instructor,
+                    )
 
                 self.logger.info("Successfully registered user: %s with role: %s", email, role)
                 return user

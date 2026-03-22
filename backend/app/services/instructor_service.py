@@ -938,11 +938,13 @@ class InstructorService(BaseService):
             if profile.id
             else {"has_account": False, "onboarding_completed": False}
         )
+        user = self.user_repository.get_by_id(user_id)
 
         skills_ok = bool(getattr(profile, "skills_configured", False))
         identity_ok = bool(profile.identity_verified_at)
         connect_ok = bool(connect_status.get("onboarding_completed"))
         bgc_ok = (profile.bgc_status or "").lower() == "passed"
+        phone_ok = bool(getattr(user, "phone_verified", False))
 
         missing: list[str] = []
         if not skills_ok:
@@ -953,10 +955,15 @@ class InstructorService(BaseService):
             missing.append("stripe_connect")
         if not bgc_ok:
             missing.append("background_check")
+        if not phone_ok:
+            missing.append("phone_verification")
 
         if missing:
+            message = "Prerequisites not met"
+            if "phone_verification" in missing:
+                message = "Phone number must be verified before going live"
             raise BusinessRuleException(
-                "Prerequisites not met",
+                message,
                 code="GO_LIVE_PREREQUISITES",
                 details={"missing": missing},
             )

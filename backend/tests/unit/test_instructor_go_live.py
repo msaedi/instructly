@@ -43,6 +43,7 @@ def _create_instructor(
     db,
     *,
     bgc_status: str,
+    phone_verified: bool = True,
     identity_name_mismatch: bool = False,
     bgc_name_mismatch: bool = False,
     verified_first_name: str | None = None,
@@ -60,6 +61,7 @@ def _create_instructor(
         last_name="Live",
         zip_code="10001",
         is_active=True,
+        phone_verified=phone_verified,
     )
     db.add(user)
     db.flush()
@@ -116,6 +118,28 @@ def test_go_live_blocked_when_bgc_not_passed(client, db):
             if not missing:
                 missing = payload.get("errors", {}).get("missing", [])
         assert "background_check" in missing
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_active_user, None)
+
+
+def test_go_live_blocked_when_phone_not_verified(client, db):
+    user, _ = _create_instructor(db, bgc_status="passed", phone_verified=False)
+    app = client.app
+    try:
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_current_active_user] = lambda: user
+
+        headers = _csrf_headers(client)
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
+        assert response.status_code == 400
+        payload = response.json()
+        missing = []
+        if isinstance(payload, dict):
+            missing = payload.get("missing", [])
+            if not missing:
+                missing = payload.get("errors", {}).get("missing", [])
+        assert "phone_verification" in missing
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_active_user, None)

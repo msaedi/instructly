@@ -6,7 +6,7 @@ from fastapi import HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 import pytest
 
-from app.auth import get_password_hash
+from app.auth import create_email_verification_token, get_password_hash
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.routes.v1 import auth as auth_routes
 from app.schemas.security import PasswordChangeRequest
@@ -578,6 +578,7 @@ async def test_register_guest_conversion_error_and_invite_warning(monkeypatch, d
         zip_code="10001",
         role="student",
         guest_session_id="guest",
+        email_verification_token=create_email_verification_token("user@example.com"),
         metadata={"invite_code": "INVITE"},
     )
     response = Response()
@@ -617,6 +618,7 @@ async def test_register_invite_exception_is_logged(monkeypatch, db):
         last_name="Last",
         zip_code="10001",
         role="student",
+        email_verification_token=create_email_verification_token("user@example.com"),
         metadata={"invite_code": "INVITE"},
     )
     response = Response()
@@ -637,6 +639,7 @@ async def test_register_existing_email_returns_generic_response(db):
         last_name="Last",
         zip_code="10001",
         role="student",
+        email_verification_token=create_email_verification_token("user@example.com"),
     )
     response = Response()
 
@@ -658,6 +661,7 @@ async def test_register_unexpected_error(db):
         last_name="Last",
         zip_code="10001",
         role="student",
+        email_verification_token=create_email_verification_token("user@example.com"),
     )
     response = Response()
 
@@ -1479,6 +1483,7 @@ async def test_register_sends_welcome_email_and_sets_cache_flag(monkeypatch, db)
         "app.services.notification_service.NotificationService.send_welcome_email",
         _stub_welcome,
     )
+    monkeypatch.setattr(auth_routes, "_get_registration_beta_phase", lambda _db: "public")
 
     payload = auth_routes.UserCreate(
         email="new@example.com",
@@ -1487,6 +1492,7 @@ async def test_register_sends_welcome_email_and_sets_cache_flag(monkeypatch, db)
         last_name="User",
         zip_code="10001",
         role="instructor",
+        email_verification_token=create_email_verification_token("new@example.com"),
     )
     response = Response()
     result = await auth_routes.register(
@@ -1534,6 +1540,7 @@ async def test_register_welcome_email_failure_does_not_block(monkeypatch, db):
         last_name="User",
         zip_code="10001",
         role="student",
+        email_verification_token=create_email_verification_token("fail@example.com"),
     )
     response = Response()
     result = await auth_routes.register(

@@ -338,6 +338,42 @@ def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] =
     return encoded_jwt
 
 
+def create_email_verification_token(email: str, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a short-lived token proving a pre-registration email verification step passed."""
+    to_encode: Dict[str, Any] = {
+        "sub": email,
+        "typ": "email_verification",
+        "exp": datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15)),
+        "iss": settings.email_verification_token_iss,
+        "aud": settings.email_verification_token_aud,
+    }
+    secret_source = settings.email_verification_token_secret or settings.secret_key
+    return cast(
+        str,
+        jwt.encode(
+            to_encode,
+            secret_or_plain(secret_source),
+            algorithm=settings.algorithm,
+        ),
+    )
+
+
+def decode_email_verification_token(token: str) -> Dict[str, Any]:
+    """Decode and validate an email verification token."""
+    secret_source = settings.email_verification_token_secret or settings.secret_key
+    payload_raw = jwt.decode(
+        token,
+        secret_or_plain(secret_source),
+        algorithms=[settings.algorithm],
+        audience=settings.email_verification_token_aud,
+        issuer=settings.email_verification_token_iss,
+    )
+    payload = cast(Dict[str, Any], payload_raw)
+    if payload.get("typ") != "email_verification":
+        raise PyJWTError("invalid_token_type")
+    return payload
+
+
 # Revocation detail strings — used by _enforce_revocation_and_user_invalidation
 # and checked in get_current_user_optional to distinguish revocation from other 401s.
 REVOCATION_DETAIL_FORMAT_OUTDATED = "Token format outdated, please re-login"

@@ -683,6 +683,8 @@ class DatabaseSeeder:
                     first_name=student_data["first_name"],
                     last_name=student_data["last_name"],
                     phone=student_data.get("phone"),
+                    phone_verified=True,
+                    email_verified=True,
                     zip_code=student_data["zip_code"],
                     hashed_password=hashed_password,  # Use pre-hashed password
                     is_active=True,
@@ -761,6 +763,8 @@ class DatabaseSeeder:
                     first_name=instructor_data["first_name"],
                     last_name=instructor_data["last_name"],
                     phone=instructor_data.get("phone"),
+                    phone_verified=True,
+                    email_verified=True,
                     zip_code=instructor_data["zip_code"],
                     hashed_password=hashed_password,
                     is_active=True,

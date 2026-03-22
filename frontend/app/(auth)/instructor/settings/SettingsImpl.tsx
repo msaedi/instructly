@@ -20,8 +20,8 @@ import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/us
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
-import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
-import { formatPhoneDisplay } from '@/lib/phone';
+import { usePhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerificationFlow';
+import { PhoneVerificationField } from '@/components/account/PhoneVerificationField';
 
 const PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, push: true, sms: false },
@@ -59,40 +59,6 @@ const PREFERENCE_ROWS: Array<{ category: PreferenceCategory; description: string
   { category: 'system_updates', description: 'Important platform notices and policy changes' },
   { category: 'promotional', description: 'Discounts, special offers, new features' },
 ];
-
-const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
-
-function formatPhoneNumberInput(value: string): string {
-  let cleaned = value.replace(/\D/g, '');
-
-  if (cleaned.length === 11 && cleaned[0] === '1') {
-    cleaned = cleaned.slice(1);
-  }
-
-  if (cleaned.length <= 3) return cleaned;
-  if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
-  return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
-}
-
-function formatPhoneForApi(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10) {
-    return `+1${cleaned}`;
-  }
-  if (cleaned.length === 11 && cleaned[0] === '1') {
-    return `+${cleaned}`;
-  }
-  return phone.trim();
-}
-
-function maskPhoneDisplay(phone: string): string {
-  const display = formatPhoneDisplay(phone);
-  const digits = display.replace(/\D/g, '');
-  if (digits.length !== 10) {
-    return display;
-  }
-  return `(XXX) XXX-${digits.slice(-4)}`;
-}
 
 type PreferenceToggleProps = {
   category: PreferenceCategory;
@@ -205,10 +171,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneInput, setPhoneInput] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [hasPhoneVerificationCodeSent, setHasPhoneVerificationCodeSent] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountFirstNameError, setAccountFirstNameError] = useState('');
@@ -236,14 +198,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     isPreferenceUpdating,
     updatePreference,
   } = useNotificationPreferences();
-  const {
-    phoneNumber,
-    isVerified: phoneVerified,
-    isLoading: phoneLoading,
-    updatePhone,
-    sendVerification,
-    confirmVerification,
-  } = usePhoneVerification();
+  const phoneFlow = usePhoneVerificationFlow({
+    initialPhoneNumber: userData?.phone ?? '',
+  });
+  const phoneNumber = phoneFlow.phoneNumber;
+  const phoneVerified = phoneFlow.phoneVerified;
+  const phoneLoading = phoneFlow.phoneLoading;
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
@@ -278,14 +238,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     : !phoneVerified
       ? 'Verify your phone number to enable SMS notifications.'
       : undefined;
-  const normalizedExistingPhone = formatPhoneForApi(phoneNumber || '');
-  const normalizedPhoneInput = formatPhoneForApi(phoneInput);
-  const hasPhoneValue = normalizedPhoneInput.length > 0;
-  const isPhoneDirty = normalizedPhoneInput !== normalizedExistingPhone;
-  const showVerifiedPhoneState =
-    !hasPhoneVerificationCodeSent && Boolean(phoneNumber) && phoneVerified && !isPhoneDirty;
-  const showPendingPhoneState = hasPhoneVerificationCodeSent;
-  const showVerifyPhoneAction = !showPendingPhoneState && hasPhoneValue && (!phoneVerified || isPhoneDirty);
   const toggleSection = useCallback((section: Exclude<OpenSection, null>) => {
     setOpenSection((prev) => (prev === section ? null : section));
   }, []);
@@ -457,8 +409,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setFirstName(fn);
       setLastName(ln);
       setEmail((userData.email || '').toString());
-      const currentPhone = (phoneNumber || userData.phone || '').toString();
-      setPhoneInput(currentPhone ? formatPhoneDisplay(currentPhone) : '');
     }
     if (userData && addressData) {
       const items = Array.isArray(addressData.items) ? addressData.items : [];
@@ -467,72 +417,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setZip(nextZip);
       setFormInitialized(true);
     }
-  }, [embedded, formInitialized, userData, addressData, phoneNumber]);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => {
-      setResendCooldown((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
-  const handlePhoneInputChange = (value: string) => {
-    setPhoneInput(formatPhoneNumberInput(value));
-    setPhoneCode('');
-    setHasPhoneVerificationCodeSent(false);
-    setResendCooldown(0);
-  };
-
-  const handleSendPhoneVerification = async () => {
-    const phoneForApi = normalizedPhoneInput;
-    if (!phoneForApi || !E164_PATTERN.test(phoneForApi)) {
-      toast.error('Enter a valid phone number.');
-      return;
-    }
-
-    try {
-      let activePhone = phoneForApi;
-      if (phoneForApi !== normalizedExistingPhone) {
-        const updated = await updatePhone.mutateAsync(phoneForApi);
-        activePhone = updated.phone_number || phoneForApi;
-        setPhoneInput(formatPhoneDisplay(activePhone));
-      }
-
-      await sendVerification.mutateAsync();
-      setPhoneCode('');
-      setHasPhoneVerificationCodeSent(true);
-      setResendCooldown(60);
-      toast.success(
-        phoneForApi !== normalizedExistingPhone
-          ? 'Phone number saved. Verification code sent.'
-          : 'Verification code sent.',
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to send verification code.',
-      );
-    }
-  };
-
-  const handleConfirmPhoneVerification = async () => {
-    const trimmedCode = phoneCode.trim();
-    if (trimmedCode.length !== 6) {
-      toast.error('Enter the 6-digit verification code.');
-      return;
-    }
-
-    try {
-      await confirmVerification.mutateAsync(trimmedCode);
-      setPhoneCode('');
-      setHasPhoneVerificationCodeSent(false);
-      setResendCooldown(0);
-      setPhoneInput(formatPhoneDisplay(normalizedPhoneInput));
-      toast.success('Phone number verified.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Verification failed.');
-    }
-  };
+  }, [embedded, formInitialized, userData, addressData]);
 
   const handleSaveAccount = async () => {
     try {
@@ -727,93 +612,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       />
                     </div>
                     <div className="space-y-3 sm:col-span-2">
-                      <label htmlFor="settings-phone" className="block text-xs text-gray-600 dark:text-gray-400">
-                        Phone number
-                      </label>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                        <input
-                          id="settings-phone"
-                          type="tel"
-                          inputMode="tel"
-                          value={phoneInput}
-                          onChange={(e) => handlePhoneInputChange(e.target.value)}
-                          disabled={showPendingPhoneState}
-                          placeholder="(212) 555-1001"
-                          className={`w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 ${
-                            showPendingPhoneState
-                              ? 'insta-form-input-readonly cursor-not-allowed pointer-events-none select-none'
-                              : ''
-                          }`}
-                        />
-                        {showVerifiedPhoneState ? (
-                          <span className="inline-flex h-10 shrink-0 items-center rounded-md bg-green-50 px-3 text-sm font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                            Verified
-                          </span>
-                        ) : null}
-                        {showPendingPhoneState ? (
-                          <span className="inline-flex h-10 shrink-0 items-center rounded-md bg-amber-50 px-3 text-sm font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                            Pending
-                          </span>
-                        ) : null}
-                        {!showVerifiedPhoneState && !showPendingPhoneState && showVerifyPhoneAction ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleSendPhoneVerification()}
-                            disabled={updatePhone.isPending || sendVerification.isPending || !hasPhoneValue}
-                            className="insta-primary-btn inline-flex h-10 shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {updatePhone.isPending || sendVerification.isPending ? 'Sending…' : 'Verify'}
-                          </button>
-                        ) : null}
-                      </div>
-                      {!showVerifiedPhoneState && !showPendingPhoneState && showVerifyPhoneAction ? (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          We&apos;ll send a 6-digit verification code to this number.
-                        </p>
-                      ) : null}
-                      {showPendingPhoneState ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            Code sent to {maskPhoneDisplay(normalizedPhoneInput || phoneNumber || '')}
-                          </p>
-                          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <input
-                              id="settings-phone-code"
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={6}
-                              value={phoneCode}
-                              onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))}
-                              placeholder="123456"
-                              className="w-full px-3 py-2 insta-form-input text-center tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 sm:max-w-[220px]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void handleConfirmPhoneVerification()}
-                              disabled={confirmVerification.isPending}
-                              className="insta-primary-btn inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {confirmVerification.isPending ? 'Submitting…' : 'Submit'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleSendPhoneVerification()}
-                              disabled={sendVerification.isPending || resendCooldown > 0}
-                              className={`inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-semibold transition-colors ${
-                                sendVerification.isPending || resendCooldown > 0
-                                  ? 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-gray-700 dark:text-gray-500'
-                                  : 'border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
-                              }`}
-                            >
-                              {resendCooldown > 0
-                                ? `Resend (${resendCooldown}s)`
-                                : sendVerification.isPending
-                                  ? 'Sending…'
-                                  : 'Resend'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
+                      <PhoneVerificationField
+                        flow={phoneFlow}
+                        inputId="settings-phone"
+                        codeInputId="settings-phone-code"
+                        label="Phone number"
+                      />
                     </div>
                     {accountLoading ? (
                       <div className="col-span-full text-xs text-gray-500 dark:text-gray-400">Loading…</div>

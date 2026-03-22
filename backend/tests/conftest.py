@@ -792,6 +792,14 @@ def _prepare_database() -> None:
                 text(
                     """
                     ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE users
                     ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ
                     """
                 )
