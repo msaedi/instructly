@@ -559,7 +559,7 @@ export default function InteractiveGrid({
               const booked = isSlotBooked(bookedSlots, date, row, startHour);
               const behaviourPast = isPastSlot(date, row);
               const visualPast = isPastForStyle(date, row);
-              const locked = behaviourPast || booked;
+              const locked = behaviourPast;
               const selected = isCellSelected(dayBits, slotIndex);
               const cellTag = selected ? getRangeTag(dayTags, slotIndex, BITS_PER_CELL) : TAG_NONE;
               const isLastColumn = columnIndex === displayDates.length - 1;

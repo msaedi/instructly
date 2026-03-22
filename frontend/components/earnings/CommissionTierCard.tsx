@@ -47,7 +47,7 @@ function LadderCircle({
 }) {
   if (isCurrent) {
     return (
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#8B7CF6] text-white shadow-[0_8px_18px_rgba(139,124,246,0.2)]">
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-[0_8px_18px_rgba(126,34,206,0.2)]">
         <Check className="h-4 w-4" aria-hidden="true" />
       </div>
     );
@@ -192,16 +192,16 @@ export default function CommissionTierCard() {
                           aria-valuemax={showFullProgress ? 100 : data.next_tier_threshold ?? 100}
                           aria-valuemin={0}
                           aria-valuenow={showFullProgress ? 100 : progressValue}
-                          className="h-1.5 rounded-full bg-[#E6E1F8] dark:bg-[#312650]"
+                          className="h-1.5 rounded-full bg-[var(--color-primary-light)]"
                           role="progressbar"
                         >
                           <div
-                            className="h-full rounded-full bg-[#8B7CF6]"
+                            className="h-full rounded-full bg-[var(--color-primary)]"
                             style={{ width: `${barValue}%` }}
                           />
                         </div>
                         {showPartialProgress ? (
-                          <p className="mt-1.5 text-sm font-medium text-[#7563D1] dark:text-[#B9AFFF]">
+                          <p className="mt-1.5 text-sm font-medium text-[var(--color-primary)]">
                             {data.completed_lessons_30d} of {data.next_tier_threshold} ·{' '}
                             {data.lessons_to_next_tier} more to unlock
                           </p>

@@ -202,7 +202,7 @@ function ReviewsPageImpl() {
             <div className="flex items-center gap-4">
               <SummaryRatingStar rating={hasVisibleRating ? averageRating : null} />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span className="text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-6xl">
+                <span className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
                   {effectiveLoading ? '—' : ratingDisplay}
                 </span>
                 <span className="text-lg font-medium text-gray-500 dark:text-gray-400">

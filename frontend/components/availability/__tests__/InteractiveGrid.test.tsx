@@ -434,7 +434,7 @@ describe('InteractiveGrid', () => {
       expect(firstCell).toHaveAttribute('data-tag-state', 'no_travel');
     });
 
-    it('does not paint booked cells', () => {
+    it('allows clicking booked cells to toggle availability while preserving the booked overlay', () => {
       const bookedSlots: BookedSlotPreview[] = [
         {
           booking_id: 'booking-123',
@@ -454,16 +454,19 @@ describe('InteractiveGrid', () => {
         <PaintWrapper
           initialBits={{ '2030-01-07': new Uint8Array(BYTES_PER_DAY) }}
           bookedSlots={bookedSlots}
-          paintMode={TAG_NO_TRAVEL}
+          paintMode={TAG_NONE}
         />
       );
 
       const firstCell = screen.getByRole('gridcell', { name: /Monday 09:00/ });
+      expect(firstCell.querySelector('span[class*="repeating-linear-gradient"]')).toBeInTheDocument();
+
       fireEvent.mouseDown(firstCell, { button: 0, buttons: 1 });
       fireEvent.mouseUp(firstCell, { button: 0 });
 
-      expect(firstCell).toHaveAttribute('aria-selected', 'false');
-      expect(firstCell).toHaveAttribute('data-tag-state', 'inactive');
+      expect(firstCell).toHaveAttribute('aria-selected', 'true');
+      expect(firstCell).toHaveAttribute('data-tag-state', 'none');
+      expect(firstCell.querySelector('span[class*="repeating-linear-gradient"]')).toBeInTheDocument();
     });
 
     it('keeps right click as a no-op for tag editing', () => {

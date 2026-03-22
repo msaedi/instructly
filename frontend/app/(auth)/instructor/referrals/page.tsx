@@ -91,7 +91,7 @@ function StatTile({
     <Card className="insta-surface-card border-gray-200/80 shadow-none">
       <CardContent className="flex items-start justify-between gap-4 p-6">
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+          <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">
             {label}
           </p>
           <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
