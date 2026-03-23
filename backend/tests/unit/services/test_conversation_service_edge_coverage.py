@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -278,7 +278,7 @@ class TestGetMessagesWithDetailsEdge:
             reaction_list=None,
         )
         service.message_repository.find_by_conversation.return_value = [msg]
-        service.booking_repository.get_by_id.return_value = None  # booking not found
+        service.booking_repository.get_by_ids.return_value = []  # booking not found
 
         result = service.get_messages_with_details("conv-1", "s1")
         assert result.conversation_found is True
@@ -476,9 +476,12 @@ class TestSendMessageWithContextEdge:
 
         result = service.send_message_with_context("conv-1", "i1", "hello")
         assert result.message == message
-        # restore_to_active should be called with student_id
-        service.conversation_state_repository.restore_to_active.assert_called_once_with(
-            user_id="s1", conversation_id="conv-1"
+        service.conversation_state_repository.restore_to_active.assert_has_calls(
+            [
+                call(user_id="i1", conversation_id="conv-1"),
+                call(user_id="s1", conversation_id="conv-1"),
+            ],
+            any_order=True,
         )
 
 

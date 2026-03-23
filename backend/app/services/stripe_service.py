@@ -27,7 +27,18 @@ import math
 import os
 import time as _time
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    TypedDict,
+    TypeVar,
+    cast,
+)
 from urllib.parse import ParseResult, urljoin, urlparse
 import uuid
 
@@ -95,6 +106,24 @@ class ChargeContext:
     application_fee_cents: int
     top_up_transfer_cents: int
     instructor_tier_pct: Decimal
+
+
+class ReferralBonusTransferSuccessResult(TypedDict):
+    status: Literal["success"]
+    transfer_id: str
+    amount_cents: int
+
+
+class ReferralBonusTransferSkippedResult(TypedDict):
+    status: Literal["skipped"]
+    reason: Literal["zero_amount"]
+    transfer_id: None
+    amount_cents: int
+
+
+ReferralBonusTransferResult = (
+    ReferralBonusTransferSuccessResult | ReferralBonusTransferSkippedResult
+)
 
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -1646,10 +1675,15 @@ class StripeService(BaseService):
         referred_user_id: str,
         referral_type: str,
         was_founding_bonus: bool,
-    ) -> Dict[str, Any]:
+    ) -> ReferralBonusTransferResult:
         """Create a Stripe Transfer for instructor referral bonuses."""
         if amount_cents <= 0:
-            return {"skipped": True, "transfer_id": None}
+            return {
+                "status": "skipped",
+                "reason": "zero_amount",
+                "transfer_id": None,
+                "amount_cents": 0,
+            }
 
         idempotency_key = f"instructor_referral_bonus_{payout_id}"
         if referral_type == "student":
@@ -1683,6 +1717,8 @@ class StripeService(BaseService):
             transfer_id = (
                 transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
             )
+            if not transfer_id:
+                raise ServiceException("Failed to create referral bonus transfer")
             self.logger.info(
                 "Created referral bonus transfer",
                 extra={
@@ -1693,8 +1729,8 @@ class StripeService(BaseService):
                 },
             )
             return {
-                "transfer": transfer,
-                "transfer_id": transfer_id,
+                "status": "success",
+                "transfer_id": str(transfer_id),
                 "amount_cents": amount_cents,
             }
         except stripe.StripeError as exc:  # pragma: no cover - network path

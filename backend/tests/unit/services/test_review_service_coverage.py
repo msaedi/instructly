@@ -247,6 +247,18 @@ class TestGetInstructorRatingsCachePaths:
         assert "overall" in result
         review_service.cache.set.assert_called()
 
+    def test_invalidate_instructor_caches_clears_main_keys_before_breakdown_lookup(
+        self, review_service
+    ):
+        """Main cache keys should still be invalidated if the breakdown query fails."""
+        review_service.repository.get_service_breakdown.side_effect = RuntimeError("db failed")
+
+        review_service._invalidate_instructor_caches("instructor-1")
+
+        review_service.cache.delete.assert_any_call("ratings:v2:instructor:instructor-1")
+        review_service.cache.delete.assert_any_call("ratings:search:v2:instructor-1:all")
+        assert review_service.cache.delete.call_count == 2
+
 
 class TestGetRatingForSearchContext:
     """Tests for get_rating_for_search_context."""

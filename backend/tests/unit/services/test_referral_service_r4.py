@@ -491,13 +491,25 @@ def test_instructor_referral_task_queue_success(referral_service, monkeypatch):
 
 
 def test_get_rewards_by_status_returns_mapping(referral_service):
-    referral_service.referral_reward_repo.list_by_user_and_status.return_value = []
+    referral_service.referral_reward_repo.list_active_rewards_for_user.return_value = [
+        SimpleNamespace(id="pending-1", status=RewardStatus.PENDING),
+        SimpleNamespace(id="pending-2", status=RewardStatus.PENDING),
+        SimpleNamespace(id="unlocked-1", status=RewardStatus.UNLOCKED),
+        SimpleNamespace(id="redeemed-1", status=RewardStatus.REDEEMED),
+    ]
 
-    result = referral_service.get_rewards_by_status(user_id="user_1", limit=5)
+    result = referral_service.get_rewards_by_status(user_id="user_1", limit=1)
 
     assert RewardStatus.PENDING in result
     assert RewardStatus.UNLOCKED in result
     assert RewardStatus.REDEEMED in result
+    assert [reward.id for reward in result[RewardStatus.PENDING]] == ["pending-1"]
+    assert [reward.id for reward in result[RewardStatus.UNLOCKED]] == ["unlocked-1"]
+    assert [reward.id for reward in result[RewardStatus.REDEEMED]] == ["redeemed-1"]
+    referral_service.referral_reward_repo.list_active_rewards_for_user.assert_called_once_with(
+        user_id="user_1",
+        limit=1,
+    )
 
 
 def test_get_admin_config_uses_effective_config(referral_service):

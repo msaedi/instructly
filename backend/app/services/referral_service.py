@@ -450,17 +450,20 @@ class ReferralService(BaseService):
     def get_rewards_by_status(
         self, *, user_id: str, limit: int = 50
     ) -> Dict[RewardStatus, List[ReferralReward]]:
-        return {
-            RewardStatus.PENDING: self.referral_reward_repo.list_by_user_and_status(
-                user_id=user_id, status=RewardStatus.PENDING, limit=limit
-            ),
-            RewardStatus.UNLOCKED: self.referral_reward_repo.list_by_user_and_status(
-                user_id=user_id, status=RewardStatus.UNLOCKED, limit=limit
-            ),
-            RewardStatus.REDEEMED: self.referral_reward_repo.list_by_user_and_status(
-                user_id=user_id, status=RewardStatus.REDEEMED, limit=limit
-            ),
+        grouped: Dict[RewardStatus, List[ReferralReward]] = {
+            RewardStatus.PENDING: [],
+            RewardStatus.UNLOCKED: [],
+            RewardStatus.REDEEMED: [],
         }
+        rewards = self.referral_reward_repo.list_active_rewards_for_user(
+            user_id=user_id,
+            limit=limit,
+        )
+        for reward in rewards:
+            status = reward.status
+            if status in grouped and len(grouped[status]) < limit:
+                grouped[status].append(reward)
+        return grouped
 
     def _get_standard_instructor_bonus_cents(self, config: ReferralsEffectiveConfig) -> int:
         return int(

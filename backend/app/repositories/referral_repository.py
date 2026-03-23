@@ -972,6 +972,31 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             ),
         )
 
+    def list_active_rewards_for_user(self, *, user_id: str, limit: int) -> List[ReferralReward]:
+        """Return non-void rewards for a user ordered newest-first."""
+        return cast(
+            List[ReferralReward],
+            (
+                self.db.query(ReferralReward)
+                .filter(
+                    ReferralReward.referrer_user_id == user_id,
+                    ReferralReward.status.in_(
+                        [
+                            RewardStatus.PENDING,
+                            RewardStatus.UNLOCKED,
+                            RewardStatus.REDEEMED,
+                        ]
+                    ),
+                )
+                .order_by(
+                    ReferralReward.created_at.desc(),
+                    ReferralReward.id.desc(),
+                )
+                .limit(limit * 3)
+                .all()
+            ),
+        )
+
     def counts_by_status(self) -> Dict[str, int]:
         """Return reward counts grouped by status."""
 

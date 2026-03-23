@@ -759,7 +759,12 @@ class TestTransfersAndPaymentIntents:
             was_founding_bonus=False,
         )
 
-        assert result["skipped"] is True
+        assert result == {
+            "status": "skipped",
+            "reason": "zero_amount",
+            "transfer_id": None,
+            "amount_cents": 0,
+        }
 
     def test_create_referral_bonus_transfer_success(self):
         service = _make_service()
@@ -779,7 +784,11 @@ class TestTransfersAndPaymentIntents:
                 was_founding_bonus=True,
             )
 
-        assert result["transfer_id"] == "tr_bonus"
+        assert result == {
+            "status": "success",
+            "transfer_id": "tr_bonus",
+            "amount_cents": 7500,
+        }
         assert "Founding" in create_mock.call_args.kwargs["description"]
 
     def test_create_referral_bonus_transfer_unexpected_error(self):

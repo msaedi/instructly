@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
@@ -22,6 +23,15 @@ const PLATFORM_LAUNCH_YEAR = 2026;
 type SimpleDropdownOption = {
   value: string;
   label: string;
+};
+
+type ExportEarningsMutationResult = {
+  blob: Blob;
+  contentDisposition: string;
+  contentType: string;
+  startDate: string;
+  endDate: string;
+  format: 'csv' | 'pdf';
 };
 
 const extractYear = (value?: string | null): number | null => {
@@ -107,6 +117,7 @@ function SimpleDropdown({
 
 function EarningsPageImpl() {
   const embedded = useEmbedded();
+  const queryClient = useQueryClient();
   const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
   const { data: payoutsData, isLoading: isLoadingPayouts } = useInstructorPayouts(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
@@ -114,7 +125,6 @@ function EarningsPageImpl() {
   const currentYear = useMemo(() => String(new Date().getFullYear()), []);
   const [exportYear, setExportYear] = useState<string>(currentYear);
   const [exportType, setExportType] = useState<'csv' | 'pdf' | ''>('');
-  const [sendingExport, setSendingExport] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
   const years = useMemo(() => {
@@ -150,12 +160,9 @@ function EarningsPageImpl() {
       .sort((left, right) => right - left)
       .map(String);
   }, [currentYear, earnings?.invoices, payoutsData?.payouts]);
-
-  useEffect(() => {
-    if (!years.includes(exportYear)) {
-      setExportYear(years.includes(currentYear) ? currentYear : years[0] ?? currentYear);
-    }
-  }, [currentYear, exportYear, years]);
+  const resolvedExportYear = years.includes(exportYear)
+    ? exportYear
+    : (years.includes(currentYear) ? currentYear : years[0] ?? currentYear);
 
   const formatCents = (value?: number | null) => formatPrice((value ?? 0) / 100);
   const formatInvoiceDate = (lessonDate?: string, start?: string | null) => {
@@ -191,34 +198,49 @@ function EarningsPageImpl() {
     if (!value) return '—';
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const handleExport = async () => {
-    if (!exportYear || sendingExport) return;
-    if (!exportType) return;
-    setSendingExport(true);
-    const startDate = `${exportYear}-01-01`;
-    const endDate = `${exportYear}-12-31`;
-    try {
-          const response = await fetchWithAuth('/api/v1/payments/earnings/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              start_date: startDate,
-              end_date: endDate,
-              format: exportType,
-            }),
-          });
+  const exportMutation = useMutation<
+    ExportEarningsMutationResult,
+    Error,
+    { year: string; format: 'csv' | 'pdf' }
+  >({
+    mutationFn: async ({ year, format }) => {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      const response = await fetchWithAuth('/api/v1/payments/earnings/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: startDate,
+          end_date: endDate,
+          format,
+        }),
+      });
       if (!response.ok) {
         throw new Error('Export failed');
       }
-      const blob = await response.blob();
+      return {
+        blob: await response.blob(),
+        contentDisposition: response.headers.get('content-disposition') || '',
+        contentType: response.headers.get('content-type') || '',
+        startDate,
+        endDate,
+        format,
+      };
+    },
+    onSuccess: async ({
+      blob,
+      contentDisposition,
+      contentType,
+      startDate,
+      endDate,
+      format,
+    }) => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      const contentDisposition = response.headers.get('content-disposition') || '';
-      const match = contentDisposition.match(/filename="?([^";]+)"?/i);
-      const contentType = response.headers.get('content-type') || '';
+      const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
       const resolvedExt = contentType.includes('application/pdf')
         ? 'pdf'
-        : (exportType === 'pdf' ? 'pdf' : 'csv');
+        : (format === 'pdf' ? 'pdf' : 'csv');
       const filename = match?.[1] ?? `earnings_${startDate}_${endDate}.${resolvedExt}`;
       link.href = url;
       link.download = filename;
@@ -226,13 +248,26 @@ function EarningsPageImpl() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      await Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ['instructor', 'earnings'] }),
+        queryClient.invalidateQueries({ queryKey: ['instructor', 'payouts'] }),
+      ]);
       toast.success('Export downloaded');
       setExportOpen(false);
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('Export failed', error);
       toast.error('Export failed. Please try again.');
-    } finally {
-      setSendingExport(false);
+    },
+  });
+
+  const handleExport = async () => {
+    if (!resolvedExportYear || exportMutation.isPending) return;
+    if (!exportType) return;
+    try {
+      await exportMutation.mutateAsync({ year: resolvedExportYear, format: exportType });
+    } catch {
+      // Toasts are handled by the mutation callbacks.
     }
   };
 
@@ -615,7 +650,7 @@ function EarningsPageImpl() {
             <div>
               <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Year</label>
               <SimpleDropdown
-                value={exportYear}
+                value={resolvedExportYear}
                 onChange={setExportYear}
                 options={years.map((year) => ({ value: year, label: year }))}
                 placeholder={currentYear}
@@ -637,11 +672,11 @@ function EarningsPageImpl() {
           </div>
           <div className="mt-4 flex justify-end">
             <button
-              disabled={!exportYear || !exportType || sendingExport}
+              disabled={!resolvedExportYear || !exportType || exportMutation.isPending}
               onClick={handleExport}
               className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white font-semibold disabled:opacity-50 insta-primary-btn"
             >
-              {sendingExport ? 'Exporting…' : 'Download Report'}
+              {exportMutation.isPending ? 'Exporting…' : 'Download Report'}
             </button>
           </div>
         </div>

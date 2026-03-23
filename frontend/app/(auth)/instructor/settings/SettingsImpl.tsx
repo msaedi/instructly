@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Info, SlidersHorizontal } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { ArrowLeft, Settings, ChevronDown, Shield, Power, UserRoundPen } from 'lucide-react';
@@ -16,6 +17,7 @@ import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { useSession } from '@/src/api/hooks/useSession';
+import { queryKeys } from '@/src/api/queryKeys';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import {
@@ -120,6 +122,17 @@ type NotificationPreferenceRowProps = {
   onToggle: (category: PreferenceCategory, channel: PreferenceChannel, checked: boolean) => void;
 };
 
+type SaveAccountMutationVariables = {
+  firstName: string;
+  zip: string;
+};
+
+type SaveAccountMutationResult = {
+  firstName: string;
+  zip: string;
+  addressSyncFailed: boolean;
+};
+
 const NotificationPreferenceRow = memo(function NotificationPreferenceRow({
   category,
   description,
@@ -188,13 +201,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [zip, setZip] = useState('');
-  const [savingAccount, setSavingAccount] = useState(false);
+  const [firstNameDraft, setFirstNameDraft] = useState<string | null>(null);
+  const [zipDraft, setZipDraft] = useState<string | null>(null);
   const [accountFirstNameError, setAccountFirstNameError] = useState('');
-  const [formInitialized, setFormInitialized] = useState(false);
 
   // React Query hooks for data fetching (replaces useEffect fetches)
   const shouldLoadTfaStatus = embedded ? openSection === 'security' : true;
@@ -204,6 +213,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     useTrustedDevices(shouldLoadTrustedDevices);
   const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
+  const queryClient = useQueryClient();
   const invalidateTfaStatus = useInvalidateTfaStatus();
   const invalidateTrustedDevices = useInvalidateTrustedDevices();
   const invalidateAddresses = useInvalidateUserAddresses();
@@ -244,6 +254,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       ? 'Your account is protected with two-factor authentication'
       : 'Add an extra layer of security with an authenticator app';
   const accountLoading = userLoading || addressLoading || phoneLoading;
+  const accountDefaults = {
+    firstName: (userData?.first_name || '').toString().trim(),
+    lastName: (userData?.last_name || '').toString().trim(),
+    email: (userData?.email || '').toString(),
+    zip: (
+      (Array.isArray(addressData?.items)
+        ? (addressData.items.find((address) => address.is_default) || addressData.items[0] || null)?.postal_code
+        : null) || userData?.zip_code || ''
+    ).toString(),
+  };
+  const firstName = firstNameDraft ?? accountDefaults.firstName;
+  const lastName = accountDefaults.lastName;
+  const email = accountDefaults.email;
+  const zip = zipDraft ?? accountDefaults.zip;
   const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
   const preferencesDisabled = preferencesLoading;
   const pushPreferenceDisabled =
@@ -510,48 +534,21 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     </div>
   );
 
-  // Sync hook data to local editable state (once on initial load)
-  useEffect(() => {
-    if (!embedded || formInitialized) return;
-    if (userData) {
-      const fn = (userData.first_name || '').toString().trim();
-      const ln = (userData.last_name || '').toString().trim();
-      setFirstName(fn);
-      setLastName(ln);
-      setEmail((userData.email || '').toString());
-    }
-    if (userData && addressData) {
-      const items = Array.isArray(addressData.items) ? addressData.items : [];
-      const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
-      const nextZip = (def?.postal_code || userData.zip_code || '').toString();
-      setZip(nextZip);
-      setFormInitialized(true);
-    }
-  }, [embedded, formInitialized, userData, addressData]);
-
-  const handleSaveAccount = async () => {
-    try {
-      const trimmedFirstName = firstName.trim();
-      const newZip = zip.trim();
-      if (!trimmedFirstName) {
-        setAccountFirstNameError('First name is required.');
-        toast.error('First name is required.');
-        return;
-      }
-      if (!newZip) {
-        toast.error('ZIP code is required.');
-        return;
-      }
-
-      setSavingAccount(true);
-      setAccountFirstNameError('');
-
+  const saveAccountMutation = useMutation<
+    SaveAccountMutationResult,
+    Error,
+    SaveAccountMutationVariables
+  >({
+    mutationFn: async ({
+      firstName: mutationFirstName,
+      zip: mutationZip,
+    }): Promise<SaveAccountMutationResult> => {
       const userResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          first_name: trimmedFirstName,
-          zip_code: newZip,
+          first_name: mutationFirstName,
+          zip_code: mutationZip,
         }),
       });
       if (!userResponse.ok) {
@@ -560,42 +557,89 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         throw new Error(message);
       }
 
+      let addressSyncFailed = false;
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
-        if (addrRes.ok) {
+        if (!addrRes.ok) {
+          addressSyncFailed = true;
+        } else {
           const list = (await addrRes.json()) as AddressListResponse;
           const items = Array.isArray(list?.items) ? list.items : [];
-          const def =
-            items.find((a: { is_default?: boolean }) => a?.is_default) || (items.length > 0 ? items[0] : null);
-          if (def && def.id) {
-            if (newZip !== (def.postal_code || '')) {
-              await fetchWithAuth(`/api/v1/addresses/me/${def.id}`, {
+          const defaultAddress =
+            items.find((item) => item.is_default) || (items.length > 0 ? items[0] : null);
+
+          if (defaultAddress?.id) {
+            if (mutationZip !== (defaultAddress.postal_code || '')) {
+              const patchResponse = await fetchWithAuth(`/api/v1/addresses/me/${defaultAddress.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postal_code: newZip }),
+                body: JSON.stringify({ postal_code: mutationZip }),
               });
+              if (!patchResponse.ok) {
+                addressSyncFailed = true;
+              }
             }
           } else {
-            await fetchWithAuth('/api/v1/addresses/me', {
+            const createResponse = await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ postal_code: newZip, is_default: true }),
+              body: JSON.stringify({ postal_code: mutationZip, is_default: true }),
             });
+            if (!createResponse.ok) {
+              addressSyncFailed = true;
+            }
           }
         }
       } catch {
-        // ignore address update failures; toast covers failure below
+        addressSyncFailed = true;
       }
 
-      // Invalidate caches to reflect the changes
-      void invalidateAddresses();
-      setFirstName(trimmedFirstName);
-      setZip(newZip);
-      toast.success('Account details updated');
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update account details');
-    } finally {
-      setSavingAccount(false);
+      return {
+        firstName: mutationFirstName,
+        zip: mutationZip,
+        addressSyncFailed,
+      };
+    },
+    onSuccess: async ({ firstName: savedFirstName, zip: savedZip, addressSyncFailed }) => {
+      await Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth.me }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
+        Promise.resolve(invalidateAddresses()),
+      ]);
+      setFirstNameDraft(savedFirstName);
+      setZipDraft(savedZip);
+      toast.success(
+        addressSyncFailed
+          ? 'Profile updated, but address failed to save. Please try again.'
+          : 'Account details updated'
+      );
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleSaveAccount = async () => {
+    const trimmedFirstName = firstName.trim();
+    const newZip = zip.trim();
+    if (!trimmedFirstName) {
+      setAccountFirstNameError('First name is required.');
+      toast.error('First name is required.');
+      return;
+    }
+    if (!newZip) {
+      toast.error('ZIP code is required.');
+      return;
+    }
+
+    setAccountFirstNameError('');
+    try {
+      await saveAccountMutation.mutateAsync({
+        firstName: trimmedFirstName,
+        zip: newZip,
+      });
+    } catch {
+      // Toasts are handled by the mutation callbacks.
     }
   };
 
@@ -668,7 +712,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                         type="text"
                         value={firstName}
                         onChange={(e) => {
-                          setFirstName(e.target.value);
+                          setFirstNameDraft(e.target.value);
                           setAccountFirstNameError('');
                         }}
                         className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
@@ -717,7 +761,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                         id="settings-zip"
                         type="text"
                         value={zip}
-                        onChange={(e) => setZip(e.target.value)}
+                        onChange={(e) => setZipDraft(e.target.value)}
                         className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                       />
                     </div>
@@ -737,10 +781,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <button
                       type="button"
                       onClick={handleSaveAccount}
-                      disabled={savingAccount}
+                      disabled={saveAccountMutation.isPending}
                       className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
                     >
-                      {savingAccount ? 'Saving…' : 'Save changes'}
+                      {saveAccountMutation.isPending ? 'Saving…' : 'Save changes'}
                     </button>
                   </div>
                 </div>

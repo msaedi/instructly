@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -140,7 +140,7 @@ class TestConversationService:
 
         assert service.send_message("conv-1", "user-1", "hello") is None
 
-    def test_send_message_auto_restores_recipient(self, service):
+    def test_send_message_auto_restores_both_participants(self, service):
         conversation = _Conversation("conv-1", "student-1", "instructor-1")
         service.conversation_repository.get_by_id.return_value = conversation
         message = SimpleNamespace(id="m1", created_at=datetime.now(timezone.utc))
@@ -150,9 +150,12 @@ class TestConversationService:
         result = service.send_message("conv-1", "student-1", "hello")
 
         assert result == message
-        service.conversation_state_repository.restore_to_active.assert_called_once_with(
-            user_id="instructor-1",
-            conversation_id="conv-1",
+        service.conversation_state_repository.restore_to_active.assert_has_calls(
+            [
+                call(user_id="student-1", conversation_id="conv-1"),
+                call(user_id="instructor-1", conversation_id="conv-1"),
+            ],
+            any_order=True,
         )
 
     def test_determine_booking_id_explicit_valid(self, service):
@@ -234,9 +237,7 @@ class TestConversationService:
             start_time=time(10, 0),
             instructor_service=None,
         )
-        service.booking_repository.get_by_id.side_effect = (
-            lambda booking_id: {"b1": booking1, "b2": booking2}.get(booking_id)
-        )
+        service.booking_repository.get_by_ids.return_value = [booking1, booking2]
 
         result = service.get_messages_with_details("conv-1", "student-1", limit=5)
 
@@ -251,6 +252,7 @@ class TestConversationService:
         assert result.messages[1].booking_details["start_time"] == "10:00"
         assert result.messages[0].reactions == [{"user_id": "u1", "emoji": "thumbs_up"}]
         assert result.messages[0].read_by == [{"user_id": "reader-1", "read_at": "2024-01-01"}]
+        service.booking_repository.get_by_ids.assert_called_once_with(["b1", "b2"])
 
     def test_send_message_notifications_booking_not_found(self, service):
         conversation = _Conversation("conv-1", "student-1", "instructor-1")

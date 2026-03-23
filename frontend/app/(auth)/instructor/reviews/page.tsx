@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -91,13 +91,16 @@ function ReviewsPageImpl() {
   const selectedRating = filter === 'all' ? undefined : filter;
   const { data: ratingsData, isLoading: ratingsLoading } = useInstructorRatingsQuery(instructorId);
 
-  const reviewFilters: { rating?: number; withText?: boolean } = {};
-  if (selectedRating !== undefined) {
-    reviewFilters.rating = selectedRating;
-  }
-  if (withCommentsOnly) {
-    reviewFilters.withText = true;
-  }
+  const reviewFilters = useMemo(() => {
+    const filters: { rating?: number; withText?: boolean } = {};
+    if (selectedRating !== undefined) {
+      filters.rating = selectedRating;
+    }
+    if (withCommentsOnly) {
+      filters.withText = true;
+    }
+    return filters;
+  }, [selectedRating, withCommentsOnly]);
 
   const {
     data: reviewsData,

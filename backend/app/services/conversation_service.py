@@ -242,6 +242,17 @@ class ConversationService(BaseService):
         """Count unread messages for a user in a conversation."""
         return self.conversation_repository.get_unread_count(conversation_id, user_id)
 
+    def _restore_participants_to_active(
+        self, conversation: Conversation, conversation_id: str
+    ) -> None:
+        """Restore both conversation participants to active state."""
+        participant_ids = {conversation.student_id, conversation.instructor_id}
+        for participant_id in participant_ids:
+            self.conversation_state_repository.restore_to_active(
+                user_id=participant_id,
+                conversation_id=conversation_id,
+            )
+
     @BaseService.measure_operation("get_conversation_by_id")
     def get_conversation_by_id(
         self,
@@ -346,34 +357,27 @@ class ConversationService(BaseService):
         if not conversation:
             return None
 
-        # Determine booking_id to attach
-        booking_id = self._determine_booking_id(
-            conversation=conversation,
-            explicit_booking_id=explicit_booking_id,
-        )
+        with self.transaction():
+            # Determine booking_id to attach
+            booking_id = self._determine_booking_id(
+                conversation=conversation,
+                explicit_booking_id=explicit_booking_id,
+            )
 
-        # Create message using repository's method
-        message = self.message_repository.create_conversation_message(
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-            content=content,
-            message_type=MESSAGE_TYPE_USER,
-            booking_id=booking_id,
-        )
+            # Create message using repository's method
+            message = self.message_repository.create_conversation_message(
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+                content=content,
+                message_type=MESSAGE_TYPE_USER,
+                booking_id=booking_id,
+            )
 
-        # Update conversation's last_message_at
-        self.conversation_repository.update_last_message_at(conversation_id, message.created_at)
+            # Update conversation's last_message_at
+            self.conversation_repository.update_last_message_at(conversation_id, message.created_at)
 
-        # Auto-restore archived/trashed state for the other participant
-        recipient_id = (
-            conversation.instructor_id
-            if sender_id == conversation.student_id
-            else conversation.student_id
-        )
-        self.conversation_state_repository.restore_to_active(
-            user_id=recipient_id,
-            conversation_id=conversation_id,
-        )
+            # Auto-restore archived/trashed state for both participants.
+            self._restore_participants_to_active(conversation, conversation_id)
 
         self.logger.info(
             "Message sent in conversation %s",
@@ -742,10 +746,9 @@ class ConversationService(BaseService):
         booking_ids = [m.booking_id for m in messages if m.booking_id and m.message_type != "user"]
         bookings_by_id: Dict[str, Booking] = {}
         if booking_ids:
-            for booking_id in set(booking_ids):
-                booking = self.booking_repository.get_by_id(booking_id)
-                if booking:
-                    bookings_by_id[booking_id] = booking
+            unique_booking_ids = list(dict.fromkeys(booking_ids))
+            for booking in self.booking_repository.get_by_ids(unique_booking_ids):
+                bookings_by_id[booking.id] = booking
 
         # Build message data with booking details
         message_data_list: List[MessageData] = []
@@ -860,16 +863,8 @@ class ConversationService(BaseService):
             # Update conversation's last_message_at
             self.conversation_repository.update_last_message_at(conversation_id, message.created_at)
 
-            # Auto-restore archived/trashed state for the other participant
-            recipient_id = (
-                conversation.instructor_id
-                if sender_id == conversation.student_id
-                else conversation.student_id
-            )
-            self.conversation_state_repository.restore_to_active(
-                user_id=recipient_id,
-                conversation_id=conversation_id,
-            )
+            # Auto-restore archived/trashed state for both participants.
+            self._restore_participants_to_active(conversation, conversation_id)
 
         self._send_message_notifications(
             conversation=conversation,

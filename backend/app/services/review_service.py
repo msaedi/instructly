@@ -724,8 +724,16 @@ class ReviewService(BaseService):
         if not self.cache:
             return
         try:
-            # Specific keys only; caller may manage a set to expand if needed
             self.cache.delete(f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}")
             self.cache.delete(f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:all")
+            service_ids = {
+                breakdown["instructor_service_id"]
+                for breakdown in self.repository.get_service_breakdown(instructor_id)
+                if breakdown["instructor_service_id"]
+            }
+            for service_id in service_ids:
+                self.cache.delete(
+                    f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{service_id}"
+                )
         except Exception:
             logger.debug("Non-fatal error ignored", exc_info=True)
