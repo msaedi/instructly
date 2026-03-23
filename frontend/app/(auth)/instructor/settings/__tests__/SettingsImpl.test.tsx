@@ -5,6 +5,7 @@ import { SettingsImpl } from '../SettingsImpl';
 import { fetchWithAuth } from '@/lib/api';
 import { notificationPreferencesApi } from '@/features/shared/api/notificationPreferences';
 import { useSession } from '@/src/api/hooks/useSession';
+import { queryKeys } from '@/src/api/queryKeys';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
@@ -133,6 +134,7 @@ describe('SettingsImpl', () => {
   }>;
   let revokeTrustedDeviceMutationMock: jest.Mock;
   let revokeAllTrustedDevicesMutationMock: jest.Mock;
+  let invalidateAddressesMock: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -180,7 +182,8 @@ describe('SettingsImpl', () => {
       isLoading: false,
     });
 
-    useInvalidateUserAddressesMock.mockReturnValue(jest.fn());
+    invalidateAddressesMock = jest.fn().mockResolvedValue(undefined);
+    useInvalidateUserAddressesMock.mockReturnValue(invalidateAddressesMock);
     trustedDevicesState = [];
     revokeTrustedDeviceMutationMock = jest.fn().mockResolvedValue({
       message: 'Trusted device revoked',
@@ -324,7 +327,10 @@ describe('SettingsImpl', () => {
   it('saves only first name and ZIP code while syncing the default address ZIP', async () => {
     const user = userEvent.setup();
 
-    renderSettings();
+    const { queryClient } = renderSettings();
+    const invalidateSpy = jest
+      .spyOn(queryClient, 'invalidateQueries')
+      .mockResolvedValue(undefined);
 
     await user.click(screen.getByRole('button', { name: /Account details/i }));
     await user.clear(screen.getByLabelText(/First name/i));
@@ -356,7 +362,53 @@ describe('SettingsImpl', () => {
         body: JSON.stringify({ postal_code: '11211' }),
       })
     );
-    expect(toast.success).toHaveBeenCalledWith('Account details updated');
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Account details updated');
+    });
+    expect(invalidateAddressesMock).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.auth.me });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.instructors.me });
+  });
+
+  it('shows a partial-success toast when the profile saves but address sync fails', async () => {
+    const user = userEvent.setup();
+
+    renderSettings();
+
+    fetchWithAuthMock.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/me') {
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as Response;
+      }
+
+      if (url === '/api/v1/addresses/me') {
+        return {
+          ok: false,
+          json: async () => ({ detail: 'failed' }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    await user.click(screen.getByRole('button', { name: /Account details/i }));
+    await user.clear(screen.getByLabelText(/First name/i));
+    await user.type(screen.getByLabelText(/First name/i), 'Alicia');
+    await user.clear(screen.getByLabelText(/ZIP code/i));
+    await user.type(screen.getByLabelText(/ZIP code/i), '11211');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        'Profile updated, but address failed to save. Please try again.'
+      );
+    });
+    expect(toast.error).not.toHaveBeenCalledWith('Failed to update account details');
   });
 
   it('transitions the inline phone verification flow from verified to pending and back', async () => {

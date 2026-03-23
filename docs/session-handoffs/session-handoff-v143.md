@@ -420,7 +420,6 @@ Applied after 7 independent reviews: single-use JWT via jti, per-IP rate limit (
 |------|----------|-------|
 | **Founding instructor activation** | **CRITICAL** | 0 invites sent. System ready. Registration secured. |
 | #18 — Push notification verification | Medium | Verify toggle behavior with/without device permission |
-| Calendar Beast Phase 1 | Medium | Format-aware availability with travel buffers |
 | SEO programmatic pages | Low | 7 categories × 77 subcategories × 224 services × neighborhoods |
 | Student acquisition launch | Blocked | Post founding activation |
 

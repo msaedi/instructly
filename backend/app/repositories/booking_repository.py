@@ -80,6 +80,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 raise exc.__cause__
             raise
 
+    def get_by_ids(
+        self, booking_ids: Sequence[str], load_relationships: bool = True
+    ) -> list[Booking]:
+        """Fetch multiple bookings in a single query."""
+        ids = [booking_id for booking_id in booking_ids if booking_id]
+        if not ids:
+            return []
+
+        try:
+            query = self.db.query(Booking).filter(Booking.id.in_(ids))
+            if load_relationships:
+                query = self._apply_eager_loading(query)
+            return cast(list[Booking], query.all())
+        except Exception as e:
+            self.logger.error("Error getting bookings by ids %s: %s", ids, str(e))
+            raise RepositoryException(f"Failed to retrieve Booking list: {str(e)}")
+
     def acquire_transaction_advisory_lock(self, lock_key: int) -> None:
         """Acquire a transaction-scoped advisory lock when running on PostgreSQL."""
         get_bind = getattr(self.db, "get_bind", None)

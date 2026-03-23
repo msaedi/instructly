@@ -44,7 +44,9 @@ class TestProcessInstructorReferralPayout:
         mock_instructor_repo.return_value.get_by_user_id.return_value = mock_profile
 
         mock_stripe_service.return_value.create_referral_bonus_transfer.return_value = {
-            "transfer_id": "tr_test123"
+            "status": "success",
+            "transfer_id": "tr_test123",
+            "amount_cents": 7500,
         }
 
         result = process_instructor_referral_payout.run("payout_123")
@@ -108,6 +110,47 @@ class TestProcessInstructorReferralPayout:
         assert result["reason"] == "no_stripe_account"
         assert mock_payout.stripe_transfer_status == "failed"
         assert mock_payout.failure_reason == "referrer_no_stripe_account"
+
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.StripeService")
+    @patch("app.tasks.referral_tasks.InstructorProfileRepository")
+    def test_skipped_transfer_marks_payout_completed(
+        self, mock_instructor_repo, mock_stripe_service, mock_db_session
+    ):
+        mock_db = MagicMock()
+        mock_db_session.return_value.__enter__.return_value = mock_db
+
+        mock_payout = Mock(spec=InstructorReferralPayout)
+        mock_payout.id = "payout_skip"
+        mock_payout.referrer_user_id = "referrer_456"
+        mock_payout.referred_instructor_id = "referred_789"
+        mock_payout.amount_cents = 0
+        mock_payout.was_founding_bonus = False
+        mock_payout.stripe_transfer_status = "pending"
+        (
+            mock_db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value
+        ) = mock_payout
+
+        mock_profile = Mock()
+        mock_profile.stripe_connected_account = Mock(
+            stripe_account_id="acct_123",
+            onboarding_completed=True,
+        )
+        mock_instructor_repo.return_value.get_by_user_id.return_value = mock_profile
+        mock_stripe_service.return_value.create_referral_bonus_transfer.return_value = {
+            "status": "skipped",
+            "reason": "zero_amount",
+            "transfer_id": None,
+            "amount_cents": 0,
+        }
+
+        result = process_instructor_referral_payout.run("payout_skip")
+
+        assert result["status"] == "completed"
+        assert result["transfer_id"] is None
+        assert mock_payout.stripe_transfer_status == "completed"
+        assert mock_payout.stripe_transfer_id is None
+        assert mock_payout.transferred_at is not None
 
     @patch("app.tasks.referral_tasks.get_db_session")
     @patch("app.tasks.referral_tasks.StripeService")
@@ -217,14 +260,17 @@ class TestProcessInstructorReferralPayout:
             onboarding_completed=True,
         )
         mock_instructor_repo.return_value.get_by_user_id.return_value = mock_profile
-        mock_stripe_service.return_value.create_referral_bonus_transfer.return_value = {}
+        mock_stripe_service.return_value.create_referral_bonus_transfer.return_value = {
+            "status": "success",
+            "transfer_id": None,
+            "amount_cents": 5000,
+        }
 
-        result = process_instructor_referral_payout.run("payout_no_id")
+        with pytest.raises(ValueError, match="Stripe transfer returned no ID for payout payout_no_id"):
+            process_instructor_referral_payout.run("payout_no_id")
 
-        assert result["status"] == "error"
-        assert result["reason"] == "no_transfer_id"
         assert mock_payout.stripe_transfer_status == "failed"
-        assert mock_payout.failure_reason == "stripe_transfer_no_id"
+        assert mock_payout.failure_reason == "Stripe transfer returned no ID for payout payout_no_id"
 
 
 class TestRetryFailedPayouts:

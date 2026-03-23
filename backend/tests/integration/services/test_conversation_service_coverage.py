@@ -222,6 +222,39 @@ def test_send_message_auto_tags_booking_id(
     assert message_multi.booking_id is None
 
 
+def test_send_message_restores_both_participants_to_active(
+    db,
+    conversation_service,
+    conversation,
+    test_student,
+    test_instructor_with_availability,
+):
+    state_repo = ConversationStateRepository(db)
+    state_repo.set_state(test_student.id, "archived", conversation_id=conversation.id)
+    state_repo.set_state(
+        test_instructor_with_availability.id,
+        "trashed",
+        conversation_id=conversation.id,
+    )
+    db.commit()
+
+    result = conversation_service.send_message(
+        conversation_id=conversation.id,
+        sender_id=test_student.id,
+        content="Restore both sides",
+    )
+
+    assert result is not None
+    assert state_repo.get_state(test_student.id, conversation_id=conversation.id).state == "active"
+    assert (
+        state_repo.get_state(
+            test_instructor_with_availability.id,
+            conversation_id=conversation.id,
+        ).state
+        == "active"
+    )
+
+
 def test_create_conversation_with_message_and_invalid_participants(
     db, conversation_service, test_student, test_instructor_with_availability
 ):
@@ -304,3 +337,36 @@ def test_send_message_with_context_notifications(
         explicit_booking_id="missing-booking",
     )
     assert notification_mock.send_message_notification.call_count == 1
+
+
+def test_send_message_with_context_restores_both_participants_to_active(
+    db,
+    conversation_service,
+    conversation,
+    test_student,
+    test_instructor_with_availability,
+):
+    state_repo = ConversationStateRepository(db)
+    state_repo.set_state(test_student.id, "archived", conversation_id=conversation.id)
+    state_repo.set_state(
+        test_instructor_with_availability.id,
+        "trashed",
+        conversation_id=conversation.id,
+    )
+    db.commit()
+
+    result = conversation_service.send_message_with_context(
+        conversation_id=conversation.id,
+        sender_id=test_student.id,
+        content="Restore via context",
+    )
+
+    assert result.message is not None
+    assert state_repo.get_state(test_student.id, conversation_id=conversation.id).state == "active"
+    assert (
+        state_repo.get_state(
+            test_instructor_with_availability.id,
+            conversation_id=conversation.id,
+        ).state
+        == "active"
+    )

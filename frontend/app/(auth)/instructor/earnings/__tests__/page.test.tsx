@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import InstructorEarningsPage from '../page';
 import { useCommissionStatus } from '@/hooks/queries/useCommissionStatus';
@@ -38,6 +39,23 @@ const mockUseInstructorPayouts = useInstructorPayouts as jest.MockedFunction<typ
 const mockFetchWithAuth = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
 const mockToastSuccess = toast.success as jest.MockedFunction<typeof toast.success>;
 const mockToastError = toast.error as jest.MockedFunction<typeof toast.error>;
+
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  const renderResult = render(
+    <QueryClientProvider client={queryClient}>
+      <InstructorEarningsPage />
+    </QueryClientProvider>
+  );
+
+  return { queryClient, ...renderResult };
+}
 
 describe('Instructor earnings page', () => {
   beforeEach(() => {
@@ -168,7 +186,7 @@ describe('Instructor earnings page', () => {
   });
 
   it('renders three earnings stat cards and invoice rows with totals', () => {
-    const { container } = render(<InstructorEarningsPage />);
+    const { container } = renderPage();
 
     expect(container.querySelectorAll('.insta-dashboard-stat-card')).toHaveLength(3);
     expect(screen.getByText('Gross Earnings')).toBeInTheDocument();
@@ -189,7 +207,7 @@ describe('Instructor earnings page', () => {
   it('shows dynamic export years and defaults the modal to the current year', async () => {
     const user = userEvent.setup();
 
-    render(<InstructorEarningsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('button', { name: 'Export transactions' }));
 
@@ -219,7 +237,7 @@ describe('Instructor earnings page', () => {
       isLoading: false,
     } as unknown as ReturnType<typeof useInstructorEarnings>);
 
-    render(<InstructorEarningsPage />);
+    renderPage();
 
     expect(
       screen.getByText('No invoices yet — your completed lessons will appear here.')
@@ -228,8 +246,10 @@ describe('Instructor earnings page', () => {
 
   it('shows a success toast after exporting a report', async () => {
     const user = userEvent.setup();
-
-    render(<InstructorEarningsPage />);
+    const { queryClient } = renderPage();
+    const invalidateSpy = jest
+      .spyOn(queryClient, 'invalidateQueries')
+      .mockResolvedValue(undefined);
 
     await user.click(screen.getByRole('button', { name: 'Export transactions' }));
 
@@ -243,6 +263,8 @@ describe('Instructor earnings page', () => {
     await waitFor(() => {
       expect(mockToastSuccess).toHaveBeenCalledWith('Export downloaded');
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['instructor', 'earnings'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['instructor', 'payouts'] });
   });
 
   it('shows an error toast when export fails', async () => {
@@ -253,7 +275,7 @@ describe('Instructor earnings page', () => {
       headers: new Headers(),
     } as unknown as Response);
 
-    render(<InstructorEarningsPage />);
+    renderPage();
 
     await user.click(screen.getByRole('button', { name: 'Export transactions' }));
 

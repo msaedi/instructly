@@ -117,16 +117,29 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
                 referral_type=referral_type,
                 was_founding_bonus=payout.was_founding_bonus,
             )
-            transfer_id = None
-            if isinstance(transfer, dict):
-                transfer_id = transfer.get("transfer_id") or transfer.get("id")
-            if transfer_id is None:
-                transfer_id = getattr(transfer, "id", None)
+            transfer_status = transfer["status"]
+            if transfer_status == "skipped":
+                payout.stripe_transfer_id = None
+                payout.stripe_transfer_status = "completed"
+                payout.transferred_at = datetime.now(timezone.utc)
+                logger.info(
+                    "Skipped Stripe transfer for payout %s due to non-positive amount",
+                    payout_id,
+                )
+                return {
+                    "status": "completed",
+                    "transfer_id": None,
+                    "amount_cents": payout.amount_cents,
+                }
 
+            if transfer_status != "success":
+                raise ValueError(
+                    f"Unexpected Stripe transfer status for payout {payout_id}: {transfer_status}"
+                )
+
+            transfer_id = transfer["transfer_id"]
             if not transfer_id:
-                logger.error("Stripe transfer returned no ID for payout %s", payout_id)
-                _mark_payout_failed(payout, "stripe_transfer_no_id")
-                return {"status": "error", "reason": "no_transfer_id"}
+                raise ValueError(f"Stripe transfer returned no ID for payout {payout_id}")
 
             payout.stripe_transfer_id = transfer_id
             payout.stripe_transfer_status = "completed"

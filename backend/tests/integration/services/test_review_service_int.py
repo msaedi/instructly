@@ -124,6 +124,15 @@ def test_submit_review_completed_booking_allows_and_notifies(db, test_booking, m
     cache = DummyCache()
     notifier = MagicMock()
     service = ReviewService(db, cache=cache, notification_service=notifier)
+    overall_key = f"ratings:{service.CACHE_VERSION}:instructor:{test_booking.instructor_id}"
+    all_search_key = f"ratings:search:{service.CACHE_VERSION}:{test_booking.instructor_id}:all"
+    service_search_key = (
+        f"ratings:search:{service.CACHE_VERSION}:{test_booking.instructor_id}:"
+        f"{test_booking.instructor_service_id}"
+    )
+    cache.set(overall_key, {"rating": 4.9})
+    cache.set(all_search_key, {"rating": 4.9})
+    cache.set(service_search_key, {"rating": 4.9})
 
     review = service.submit_review(
         student_id=test_booking.student_id,
@@ -134,7 +143,9 @@ def test_submit_review_completed_booking_allows_and_notifies(db, test_booking, m
 
     assert review.id is not None
     assert notifier.notify_user_best_effort.called
-    assert cache.deleted
+    assert overall_key in cache.deleted
+    assert all_search_key in cache.deleted
+    assert service_search_key in cache.deleted
 
 
 def test_submit_review_falls_back_when_user_time_lookup_fails(db, test_booking, monkeypatch):

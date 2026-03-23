@@ -14,12 +14,32 @@ from app.services.stripe_service import StripeService
 class TestCreateReferralBonusTransfer:
     """Tests for the create_referral_bonus_transfer method."""
 
+    def test_returns_skipped_shape_for_zero_amount(self, db):
+        service = StripeService(db, config_service=Mock(), pricing_service=Mock())
+
+        result = service.create_referral_bonus_transfer(
+            payout_id="payout_zero",
+            destination_account_id="acct_456",
+            amount_cents=0,
+            referrer_user_id="referrer_789",
+            referred_user_id="referred_012",
+            referral_type="instructor",
+            was_founding_bonus=False,
+        )
+
+        assert result == {
+            "status": "skipped",
+            "reason": "zero_amount",
+            "transfer_id": None,
+            "amount_cents": 0,
+        }
+
     @patch("stripe.Transfer.create")
     def test_creates_transfer_with_correct_amount(self, mock_stripe_create, db):
         mock_stripe_create.return_value = MagicMock(id="tr_test123")
 
         service = StripeService(db, config_service=Mock(), pricing_service=Mock())
-        service.create_referral_bonus_transfer(
+        result = service.create_referral_bonus_transfer(
             payout_id="payout_123",
             destination_account_id="acct_456",
             amount_cents=7500,
@@ -32,6 +52,11 @@ class TestCreateReferralBonusTransfer:
         call_kwargs = mock_stripe_create.call_args.kwargs
         assert call_kwargs["amount"] == 7500
         assert call_kwargs["currency"] == "usd"
+        assert result == {
+            "status": "success",
+            "transfer_id": "tr_test123",
+            "amount_cents": 7500,
+        }
 
     @patch("stripe.Transfer.create")
     def test_uses_correct_destination_account(self, mock_stripe_create, db):
