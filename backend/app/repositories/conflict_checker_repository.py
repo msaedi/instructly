@@ -202,6 +202,43 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error("Error getting bookings for week: %s", str(e))
             raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
 
+    def get_bookings_for_date_range(
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+    ) -> List[Booking]:
+        """
+        Get all bookings for an instructor within an inclusive date range.
+
+        Args:
+            instructor_id: The instructor ID
+            start_date: Start of the range
+            end_date: End of the range
+
+        Returns:
+            List of bookings ordered by date and start time
+        """
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .filter(
+                    Booking.instructor_id == instructor_id,
+                    Booking.booking_date >= start_date,
+                    Booking.booking_date <= end_date,
+                    Booking.status.in_(
+                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    ),
+                )
+                .order_by(Booking.booking_date, Booking.start_time)
+                .all(),
+            )
+
+        except Exception as e:
+            self.logger.error("Error getting bookings for date range: %s", str(e))
+            raise RepositoryException(f"Failed to get bookings: {str(e)}")
+
     # Blackout Date Queries (unchanged)
 
     def get_blackout_date(self, instructor_id: str, target_date: date) -> Optional[BlackoutDate]:

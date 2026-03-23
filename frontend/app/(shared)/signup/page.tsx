@@ -11,7 +11,7 @@
  * @module signup/page
  */
 
-import { useState, Suspense, useSyncExternalStore } from 'react';
+import { useEffect, useState, Suspense, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
@@ -127,10 +127,12 @@ function SignUpForm() {
     });
   };
 
-  logger.debug('SignUpForm initialized', {
-    redirectTo: redirect,
-    hasRedirect: redirect !== '/',
-  });
+  useEffect(() => {
+    logger.debug('SignUpForm initialized', {
+      redirectTo: redirect,
+      hasRedirect: redirect !== '/',
+    });
+  }, [redirect]);
 
   /**
    * Handle form input changes
@@ -327,6 +329,10 @@ function SignUpForm() {
 
     setRequestStatus(RequestStatus.LOADING);
     setErrors({});
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const emailDomain = normalizedEmail.includes('@')
+      ? (normalizedEmail.split('@')[1] ?? null)
+      : null;
 
     try {
       const inviteCode =
@@ -337,7 +343,7 @@ function SignUpForm() {
       savePendingSignup({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        email: formData.email.trim().toLowerCase(),
+        email: normalizedEmail,
         phone: formData.phone,
         zipCode: formData.zipCode.trim(),
         password: formData.password,
@@ -351,17 +357,17 @@ function SignUpForm() {
       });
 
       logger.info('Sending signup email verification code', {
-        email: formData.email.trim().toLowerCase(),
+        emailDomain,
         role,
       });
       await httpPost<{ message: string }>(API_ENDPOINTS.SEND_EMAIL_VERIFICATION, {
-        email: formData.email.trim().toLowerCase(),
+        email: normalizedEmail,
       });
 
       setRequestStatus(RequestStatus.SUCCESS);
       const verifyEmailParams = new URLSearchParams();
       verifyEmailParams.set('redirect', redirect);
-      verifyEmailParams.set('email', formData.email.trim().toLowerCase());
+      verifyEmailParams.set('email', normalizedEmail);
       if (isInstructorFlow) {
         verifyEmailParams.set('role', 'instructor');
       }
@@ -382,7 +388,7 @@ function SignUpForm() {
           : 'An unexpected error occurred';
 
       logger.error('Signup process failed', error, {
-        email: formData.email,
+        emailDomain,
         errorMessage,
       });
 

@@ -394,6 +394,7 @@ class TestAuthServiceCoverage:
             "beta_phase": "open",
             "beta_invited_by": "CODE",
         }
+        assert "_user_obj" not in result
 
     def test_fetch_user_for_auth_missing_user(self, service, monkeypatch):
         monkeypatch.setattr(service, "get_user_by_email", lambda email: None)
@@ -419,6 +420,7 @@ class TestAuthServiceCoverage:
         result = service.fetch_user_for_auth("nobeta@example.com")
 
         assert "_beta_claims" not in result
+        assert "_user_obj" not in result
 
     def test_fetch_user_for_auth_handles_beta_repo_error(self, service, monkeypatch):
         user = SimpleNamespace(id="user-4", email="beta2@example.com", hashed_password="hash")

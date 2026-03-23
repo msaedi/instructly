@@ -11,7 +11,7 @@ FIXED: Added @measure_operation decorators to all public methods
 from datetime import datetime, timezone
 import logging
 import re
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, TypedDict, cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -31,6 +31,18 @@ logger = logging.getLogger(__name__)
 _ULID_PATTERN = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 _INVITE_OPEN_PHASES = frozenset({"public", "open", "ga", "general_availability"})
 _INVITE_REQUIRED_PHASES = frozenset({"instructor_only", "open_beta", "openbeta"})
+
+
+class AuthUserSnapshot(TypedDict, total=False):
+    id: str
+    email: str
+    hashed_password: str
+    account_status: str | None
+    totp_enabled: bool
+    first_name: str
+    last_name: str
+    is_active: bool
+    _beta_claims: Dict[str, Any]
 
 
 def invite_required_for_registration(role: str | None, phase: str | None) -> bool:
@@ -343,7 +355,7 @@ class AuthService(BaseService):
             raise ValidationException("Unable to create account. Please try again.")
 
     @BaseService.measure_operation("fetch_user_for_auth")
-    def fetch_user_for_auth(self, email: str) -> Optional[Dict[str, Any]]:
+    def fetch_user_for_auth(self, email: str) -> Optional[AuthUserSnapshot]:
         """
         Fetch user data needed for authentication WITHOUT verifying password.
 
@@ -375,7 +387,7 @@ class AuthService(BaseService):
             return None
 
         # Extract all needed fields to memory so ORM object can be detached
-        result: Dict[str, Any] = {
+        result: AuthUserSnapshot = {
             "id": user.id,
             "email": user.email,
             "hashed_password": user.hashed_password,
@@ -384,8 +396,6 @@ class AuthService(BaseService):
             "first_name": getattr(user, "first_name", ""),
             "last_name": getattr(user, "last_name", ""),
             "is_active": getattr(user, "is_active", True),
-            # Include user object reference for 2FA check (will be detached)
-            "_user_obj": user,
         }
 
         # Fetch beta claims here (in the same thread-wrapped call) to avoid

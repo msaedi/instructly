@@ -283,7 +283,7 @@ async def create_conversation(
         if error_code in {"current_user_not_found", "target_user_not_found"}:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=result.error,
+                detail="Cannot create conversation with this user.",
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -1381,13 +1381,14 @@ class TestGetAllServicesWithInstructorsCacheBranches:
         service.online_capable = True
         service.requires_certification = False
         service.is_active = True
+        service.subcategory = SimpleNamespace(category=SimpleNamespace(id="c-1"))
         svc.catalog_repository.get_active_services_with_categories.return_value = [service]
 
         analytics = MagicMock()
         analytics.active_instructors = 2
         analytics.demand_score = 50
         analytics.is_trending = False
-        svc.analytics_repository.get_or_create.return_value = analytics
+        svc.analytics_repository.get_or_create_bulk.return_value = {"s-1": analytics}
 
         inst_svc = MagicMock()
         inst_svc.min_hourly_rate = 75.0

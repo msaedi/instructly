@@ -440,7 +440,9 @@ class BookingService(BaseService):
         if end_datetime.date() == next_day and end_time == midnight and start_time != midnight:
             return end_time
 
-        raise ValidationException("Bookings must start and end on the same calendar day")
+        raise ValidationException(
+            "Bookings cannot span multiple days (end time at midnight is allowed)."
+        )
 
     def _resolve_local_booking_day(
         self,

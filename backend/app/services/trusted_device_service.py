@@ -125,7 +125,7 @@ class TrustedDeviceService:
     def list_user_devices(self, user_id: str) -> list[TrustedDevice]:
         return self.repository.find_by_user(user_id)
 
-    def validate_request_trust(self, user: User, request: Request, response: Response) -> bool:
+    def validate_request_trust(self, user_id: str, request: Request, response: Response) -> bool:
         token = request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME)
         if not token:
             return False
@@ -135,7 +135,7 @@ class TrustedDeviceService:
             self.clear_trust_cookie(response, request)
             return False
 
-        if trusted_device.user_id != user.id:
+        if trusted_device.user_id != user_id:
             self.clear_trust_cookie(response, request)
             return False
 

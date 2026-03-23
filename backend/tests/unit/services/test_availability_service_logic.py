@@ -124,10 +124,10 @@ class TestAvailabilityServiceBusinessLogic:
         service.instructor_repository = Mock()
         service.instructor_repository.get_by_user_id.return_value = None
         bitmap_repo = Mock()
-        bitmap_repo.get_day_bitmaps.return_value = None
+        bitmap_repo.get_days_in_range.return_value = []
         service._bitmap_repo = Mock(return_value=bitmap_repo)
         service.conflict_repository = Mock()
-        service.conflict_repository.get_bookings_for_date.return_value = []
+        service.conflict_repository.get_bookings_for_date_range.return_value = []
 
         target_date = date.today() + timedelta(days=1)
         with patch(

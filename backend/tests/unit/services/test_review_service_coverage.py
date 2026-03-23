@@ -383,11 +383,13 @@ class TestGetExistingReviewsForBookings:
 
     def test_get_existing_reviews_with_student_context(self, review_service):
         """Test with student context filters by ownership."""
-        review_service.db.current_student_id = "student-1"
         review_service.booking_repository.filter_owned_booking_ids.return_value = ["booking-1"]
         review_service.repository.get_existing_for_bookings.return_value = ["booking-1"]
 
-        result = review_service.get_existing_reviews_for_bookings(["booking-1", "booking-2"])
+        result = review_service.get_existing_reviews_for_bookings(
+            ["booking-1", "booking-2"],
+            student_id="student-1",
+        )
 
         review_service.booking_repository.filter_owned_booking_ids.assert_called_with(
             ["booking-1", "booking-2"], "student-1"
@@ -396,16 +398,17 @@ class TestGetExistingReviewsForBookings:
 
     def test_get_existing_reviews_no_owned_bookings(self, review_service):
         """Test returns empty when no owned bookings."""
-        review_service.db.current_student_id = "student-1"
         review_service.booking_repository.filter_owned_booking_ids.return_value = []
 
-        result = review_service.get_existing_reviews_for_bookings(["booking-1"])
+        result = review_service.get_existing_reviews_for_bookings(
+            ["booking-1"],
+            student_id="student-1",
+        )
 
         assert result == []
 
     def test_get_existing_reviews_exception_returns_empty(self, review_service):
         """Test returns empty list on exception."""
-        review_service.db.current_student_id = None
         review_service.repository.get_existing_for_bookings.side_effect = Exception("DB error")
 
         result = review_service.get_existing_reviews_for_bookings(["booking-1"])

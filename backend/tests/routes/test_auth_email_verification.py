@@ -122,8 +122,8 @@ def test_send_email_verification_returns_generic_success_for_new_and_existing_em
 ) -> None:
     fake_cache = FakeCacheService()
     monkeypatch.setattr(
-        "app.routes.v1.auth._send_email_verification_email_sync",
-        lambda **_kwargs: None,
+        "app.routes.v1.auth.EmailVerificationService._send_email_verification_email_sync",
+        lambda *_args, **_kwargs: None,
     )
 
     existing_user = User(
@@ -160,8 +160,8 @@ def test_send_email_verification_rate_limits_after_three_sends(
 ) -> None:
     fake_cache = FakeCacheService(FakeRedis())
     monkeypatch.setattr(
-        "app.routes.v1.auth._send_email_verification_email_sync",
-        lambda **_kwargs: None,
+        "app.routes.v1.auth.EmailVerificationService._send_email_verification_email_sync",
+        lambda *_args, **_kwargs: None,
     )
 
     with _override_cache_service(fake_cache):
@@ -187,11 +187,11 @@ def test_send_email_verification_surfaces_delivery_failure(
 ) -> None:
     fake_cache = FakeCacheService()
 
-    def _boom(**_kwargs: Any) -> None:
+    def _boom(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("email down")
 
     monkeypatch.setattr(
-        "app.routes.v1.auth._send_email_verification_email_sync",
+        "app.routes.v1.auth.EmailVerificationService._send_email_verification_email_sync",
         _boom,
     )
 
@@ -209,8 +209,8 @@ def test_send_email_verification_surfaces_delivery_failure(
 def test_send_email_verification_rate_limits_per_ip(client: TestClient, monkeypatch) -> None:
     fake_cache = FakeCacheService(FakeRedis())
     monkeypatch.setattr(
-        "app.routes.v1.auth._send_email_verification_email_sync",
-        lambda **_kwargs: None,
+        "app.routes.v1.auth.EmailVerificationService._send_email_verification_email_sync",
+        lambda *_args, **_kwargs: None,
     )
 
     with _override_cache_service(fake_cache):

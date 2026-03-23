@@ -10,7 +10,9 @@ import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
+import { logger } from '@/lib/logger';
 import { formatStudentDisplayName } from '@/lib/studentName';
+import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
 import { InstructorDashboardShell } from '@/components/dashboard/InstructorDashboardShell';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
@@ -62,7 +64,8 @@ export default function BookingDetailsPage() {
       toast.success('Lesson marked as complete', { duration: 3000 });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
-    } catch {
+    } catch (error) {
+      logger.error('Failed to mark lesson as complete', error);
       toast.error('Failed to mark lesson as complete', { duration: 4000 });
     }
   };
@@ -77,7 +80,8 @@ export default function BookingDetailsPage() {
       setShowNoShowModal(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
-    } catch {
+    } catch (error) {
+      logger.error('Failed to mark lesson as no-show', error);
       toast.error('Failed to mark lesson as no-show', { duration: 4000 });
     }
   };
@@ -89,7 +93,8 @@ export default function BookingDetailsPage() {
 
     try {
       await createConversation(booking.student.id, { navigateToMessages: true });
-    } catch {
+    } catch (error) {
+      logger.error('Failed to open messages', error);
       toast.error('Failed to open messages', { duration: 4000 });
     }
   };
@@ -99,8 +104,15 @@ export default function BookingDetailsPage() {
       return false;
     }
 
-    const lessonEnd = new Date(`${booking.booking_date}T${booking.end_time}`);
-    return lessonEnd < new Date();
+    if (booking.booking_end_utc) {
+      const bookingEndUtc = new Date(booking.booking_end_utc);
+      if (!Number.isNaN(bookingEndUtc.getTime())) {
+        return bookingEndUtc < new Date();
+      }
+    }
+
+    const { end } = resolveBookingDateTimes(booking);
+    return end !== null && end < new Date();
   };
 
   if (isLoading) {

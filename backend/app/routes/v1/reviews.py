@@ -30,7 +30,6 @@ from ...core.exceptions import DomainException, RepositoryException, raise_503_i
 from ...database import get_db
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
-from ...repositories.booking_repository import BookingRepository
 from ...schemas.review import (
     ExistingReviewIdsResponse,
     InstructorRatingsResponse,
@@ -66,8 +65,10 @@ def _display_name(user: Optional[User]) -> Optional[str]:
     if not user:
         return None
     first = (user.first_name or "").strip()
-    last_init = (user.last_name or " ")[:1]
-    return f"{first} {last_init}.".strip() if first else None
+    last_init = (user.last_name or "").strip()[:1]
+    if not first:
+        return None
+    return f"{first} {last_init}." if last_init else first
 
 
 def _last_initial(user: Optional[User]) -> Optional[str]:
@@ -145,15 +146,10 @@ def get_existing_reviews_for_bookings(
     Returns list of booking IDs that have existing reviews.
     Only returns reviews for bookings owned by the current student.
     """
-    try:
-        setattr(service.db, "current_student_id", current_user.id)
-    except Exception:
-        logger.debug("Non-fatal error ignored", exc_info=True)
-    owner_repo = BookingRepository(service.db)
-    owned_ids = owner_repo.filter_owned_booking_ids(booking_ids, current_user.id)
-    if not owned_ids:
-        return ExistingReviewIdsResponse([])
-    review_ids = service.get_existing_reviews_for_bookings(owned_ids)
+    review_ids = service.get_existing_reviews_for_bookings(
+        booking_ids,
+        student_id=current_user.id,
+    )
     return ExistingReviewIdsResponse([str(rid) for rid in review_ids])
 
 

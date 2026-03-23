@@ -45,6 +45,10 @@ function LoginForm({
   const [trustThisBrowser, setTrustThisBrowser] = useState(false);
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
 
+  useEffect(() => {
+    logger.info('Login page loaded');
+  }, []);
+
   type LoginResponseData = {
     requires_2fa?: boolean;
     temp_token?: string | null;
@@ -102,8 +106,10 @@ function LoginForm({
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    const emailDomain = formData.email.includes('@') ? (formData.email.split('@')[1] ?? null) : null;
     logger.info('Login attempt started', {
-      email: formData.email,
+      emailDomain,
+      hasEmail: Boolean(formData.email),
       hasRedirect: redirect !== '/',
       redirectTo: redirect,
       LOGIN_ENDPOINT: API_ENDPOINTS.LOGIN,
@@ -139,7 +145,9 @@ function LoginForm({
       logger.info('Sending login request:', {
         path: loginPath,
         hasGuestSession: !!guestSessionId,
-        bodyPreview: guestSessionId ? { email: formData.email, guest_session_id: guestSessionId } : 'form-data',
+        emailDomain,
+        includesGuestSessionId: !!guestSessionId,
+        payloadType: guestSessionId ? 'json' : 'form-data',
       });
 
       const data = await http<LoginResponseData>('POST', loginPath, {
@@ -435,7 +443,7 @@ function LoginForm({
             </div>
             <div>
               <label htmlFor="twofa" className="block text-sm font-medium text-gray-700 dark:text-gray-300">6-digit code</label>
-              <input id="twofa" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
+              <input id="twofa" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
             </div>
             <div>
               <label htmlFor="backup" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code (optional)</label>
@@ -483,7 +491,6 @@ export function LoginClient({
   redirect: string;
   referralCode: string | null;
 }) {
-  logger.info('Login page loaded');
   return <LoginForm redirect={redirect} referralCode={referralCode} />;
 }
 

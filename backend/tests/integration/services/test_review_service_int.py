@@ -556,8 +556,10 @@ def test_get_existing_reviews_for_bookings_filters_by_student(db, test_booking, 
         rating=4,
     )
 
-    db.current_student_id = test_booking.student_id
-    existing = service.get_existing_reviews_for_bookings([test_booking.id, other_booking.id])
+    existing = service.get_existing_reviews_for_bookings(
+        [test_booking.id, other_booking.id],
+        student_id=test_booking.student_id,
+    )
     assert existing == [test_booking.id]
 
 

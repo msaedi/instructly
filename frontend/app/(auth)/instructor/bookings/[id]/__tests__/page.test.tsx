@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import BookingDetailsPage from '../page';
 import { useCreateConversation } from '@/hooks/useCreateConversation';
+import { logger } from '@/lib/logger';
 import {
   useBooking,
   useCompleteBooking,
@@ -51,6 +52,12 @@ jest.mock('sonner', () => ({
   },
 }));
 
+jest.mock('@/lib/logger', () => ({
+  logger: {
+    error: jest.fn(),
+  },
+}));
+
 jest.mock('@/src/api/services/bookings');
 jest.mock('@/hooks/useCreateConversation');
 
@@ -62,6 +69,7 @@ const mockUseMarkBookingNoShow = useMarkBookingNoShow as jest.MockedFunction<
 const mockUseCreateConversation = useCreateConversation as jest.MockedFunction<
   typeof useCreateConversation
 >;
+const mockLoggerError = logger.error as jest.MockedFunction<typeof logger.error>;
 
 const completeMutateAsyncMock = jest.fn();
 const markNoShowMutateAsyncMock = jest.fn();
@@ -73,6 +81,7 @@ const createMockBooking = (overrides = {}) => ({
   booking_date: '2026-03-16',
   start_time: '16:30:00',
   end_time: '17:15:00',
+  booking_end_utc: null,
   service_name: 'Piano',
   duration_minutes: 45,
   hourly_rate: 110,
@@ -209,6 +218,24 @@ describe('Instructor Booking Details Page', () => {
     });
   });
 
+  it('shows an error toast when opening messages fails', async () => {
+    createConversationMock.mockRejectedValueOnce(new Error('Conversation failed'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Message' }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith('Failed to open messages', expect.any(Object));
+    });
+    expect(mockLoggerError).toHaveBeenCalledWith('Failed to open messages', expect.any(Error));
+  });
+
   it('renders Join Lesson for confirmed online bookings inside the join window', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:28:00Z'));
     mockUseBooking.mockReturnValue({
@@ -297,6 +324,10 @@ describe('Instructor Booking Details Page', () => {
         expect.any(Object)
       );
     });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to mark lesson as complete',
+      expect.any(Error)
+    );
   });
 
   it('opens and closes the no-show modal, then submits a no-show', async () => {
@@ -362,6 +393,26 @@ describe('Instructor Booking Details Page', () => {
         expect.any(Object)
       );
     });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to mark lesson as no-show',
+      expect.any(Error)
+    );
+  });
+
+  it('prefers booking_end_utc when determining whether action is required', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        booking_date: '2026-03-25',
+        booking_end_utc: '2026-03-21T10:00:00Z',
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('Action Required')).toBeInTheDocument();
   });
 
   it('hides action buttons for future, completed, and cancelled bookings', () => {

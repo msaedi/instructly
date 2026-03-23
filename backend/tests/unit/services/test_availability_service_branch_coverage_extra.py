@@ -398,19 +398,19 @@ def test_add_blackout_date_reraises_non_duplicate_repository_error():
 
 def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(monkeypatch):
     service = _service()
+    target_date = date(2030, 1, 6)
     service._bitmap_repo = MagicMock()
-    service._bitmap_repo.return_value.get_day_bits.side_effect = [b"bits"]
-    service._bitmap_repo.return_value.get_day_bitmaps.return_value = (b"bits", new_empty_tags())
+    service._bitmap_repo.return_value.get_days_in_range.return_value = [
+        SimpleNamespace(day_date=target_date, bits=b"bits", format_tags=new_empty_tags())
+    ]
     service.instructor_repository = MagicMock()
     service.conflict_repository = MagicMock()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(
         non_travel_buffer_minutes=30
     )
-    service.conflict_repository.get_bookings_for_date.return_value = [
-        SimpleNamespace(start_time=time(23, 0), end_time=time(22, 0))
+    service.conflict_repository.get_bookings_for_date_range.return_value = [
+        SimpleNamespace(booking_date=target_date, start_time=time(23, 0), end_time=time(22, 0))
     ]
-
-    target_date = date(2030, 1, 6)
     monkeypatch.setattr(
         "app.services.availability_service.get_user_now_by_id",
         lambda *_: datetime(2030, 1, 6, 10, 0, tzinfo=timezone.utc),
