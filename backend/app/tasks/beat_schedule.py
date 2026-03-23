@@ -141,6 +141,14 @@ CELERYBEAT_SCHEDULE = {
             "priority": 1,
         },
     },
+    "cleanup-expired-trusted-devices": {
+        "task": "db_maintenance.cleanup_expired_trusted_devices",
+        "schedule": crontab(hour=5, minute=30),  # Daily at 5:30 AM UTC
+        "options": {
+            "queue": "celery",
+            "priority": 1,
+        },
+    },
     # Self-learning: promote unresolved location queries into trusted aliases
     "learn-location-aliases": {
         "task": "app.tasks.location_learning.process_location_learning",

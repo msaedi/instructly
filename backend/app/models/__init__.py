@@ -92,6 +92,7 @@ from .service_catalog import (
     ServiceFormatPrice,
 )
 from .subcategory import ServiceSubcategory
+from .trusted_device import TrustedDevice
 from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
 from .webhook_event import WebhookEvent
@@ -136,6 +137,7 @@ __all__ = [
     "AvailabilityDay",
     # Authentication models
     "PasswordResetToken",
+    "TrustedDevice",
     # Review models
     "Review",
     "ReviewResponse",

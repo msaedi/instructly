@@ -48,6 +48,9 @@ class _TFAService:
     def verify_login(self, _user, **_kwargs):
         return self._verify_ok
 
+    def rollback_optional_trust_persistence(self, _user_id: str) -> None:
+        self.db.rollback()
+
     @contextmanager
     def transaction(self):
         yield
@@ -148,6 +151,50 @@ def test_setup_verify_invalidates_all_tokens(db, test_student, monkeypatch):
     assert response.enabled is True
     assert calls == [test_student.id]
     assert triggers == ["2fa_change"]
+
+
+def test_setup_verify_revokes_all_trusted_devices_and_clears_cookie(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db)
+    revoked_user_ids: list[str] = []
+    cleared: list[tuple[Response, Request]] = []
+
+    class _Repo:
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
+            return True
+
+    class _TrustedDeviceService:
+        def __init__(self, _db):
+            pass
+
+        def revoke_all_for_user(self, user_id: str) -> int:
+            revoked_user_ids.append(user_id)
+            return 2
+
+        def clear_trust_cookie(self, response: Response, request: Request) -> None:
+            cleared.append((response, request))
+
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+    monkeypatch.setattr(routes, "TrustedDeviceService", _TrustedDeviceService)
+
+    response = Response()
+    request = _make_request()
+    result = routes.setup_verify(
+        TFASetupVerifyRequest(code="123456"),
+        response,
+        request,
+        current_user=test_student.email,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+
+    assert result.enabled is True
+    assert revoked_user_ids == [test_student.id]
+    assert cleared == [(response, request)]
 
 
 def test_setup_verify_expired_ttl(db, test_student, monkeypatch):
@@ -256,6 +303,30 @@ def test_disable_invalidates_all_tokens(db, test_student, monkeypatch):
     assert response.message
     assert calls == [test_student.id]
     assert triggers == ["2fa_change"]
+
+
+def test_disable_rate_limit_blocks_request(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+
+    async def _deny_rate_limit(self, **_kwargs):
+        return False, 1, 60
+
+    monkeypatch.setattr(
+        "app.middleware.rate_limiter.RateLimiter.check_rate_limit",
+        _deny_rate_limit,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        routes.disable(
+            TFADisableRequest(current_password="password"),
+            Response(),
+            _make_request(),
+            current_user=test_student.email,
+            auth_service=auth_service,
+            tfa_service=_TFAService(db),
+        )
+
+    assert exc.value.status_code == 429
 
 
 def test_setup_verify_audit_failure(db, test_student, monkeypatch):
@@ -390,7 +461,10 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
     assert result.model_dump() == {}
     assert captured_origin["value"] == "http://beta-local.instainstru.com:3000"
     set_cookie_headers = response.headers.getlist("set-cookie")
-    assert any("tfa_trusted" in cookie and "Domain=.instainstru.com" in cookie for cookie in set_cookie_headers)
+    assert any(
+        "tfa_device_trust" in cookie and "Domain=.instainstru.com" in cookie
+        for cookie in set_cookie_headers
+    )
     assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
 
 
@@ -427,9 +501,53 @@ def test_verify_login_trust_cookie_without_origin_is_host_only(db, test_student,
     assert result.model_dump() == {}
     assert captured_origin["value"] is None
     set_cookie_headers = response.headers.getlist("set-cookie")
-    trusted_cookie = next((cookie for cookie in set_cookie_headers if "tfa_trusted=" in cookie), "")
+    trusted_cookie = next(
+        (cookie for cookie in set_cookie_headers if "tfa_device_trust=" in cookie),
+        "",
+    )
     assert trusted_cookie
     assert "Domain=" not in trusted_cookie
+
+
+def test_verify_login_trust_persistence_failure_rolls_back_and_stays_non_fatal(
+    db, test_student, monkeypatch
+):
+    test_student.totp_enabled = True
+    db.commit()
+
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db, verify_ok=True)
+    rollback_calls: list[str] = []
+
+    class _BrokenTrustedDeviceService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def trust_current_device(self, *_args, **_kwargs):
+            raise RuntimeError("trust write failed")
+
+    def _rollback() -> None:
+        rollback_calls.append("rollback")
+
+    monkeypatch.setattr(routes, "TrustedDeviceService", _BrokenTrustedDeviceService)
+    monkeypatch.setattr(db, "rollback", _rollback)
+
+    token = create_temp_token({"sub": test_student.email, "tfa_pending": True})
+    response = Response()
+
+    result = routes.verify_login(
+        TFAVerifyLoginRequest(temp_token=token, code="123"),
+        _make_request({"X-Trust-Browser": "true"}),
+        response,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+
+    assert result.model_dump() == {}
+    assert rollback_calls == ["rollback"]
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert not any("tfa_device_trust=" in cookie for cookie in set_cookie_headers)
+    assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
 
 
 # ── Coverage tests for _extract_request_token (lines 60-62, 67) ──
@@ -702,9 +820,9 @@ def test_verify_login_no_guest_session_and_no_trust_header(db, test_student, mon
         tfa_service=tfa_service,
     )
     assert result.model_dump() == {}
-    # No tfa_trusted cookie should be set
+    # No trusted-device cookie should be set
     set_cookie_headers = response_obj.headers.getlist("set-cookie")
-    assert not any("tfa_trusted" in cookie for cookie in set_cookie_headers)
+    assert not any("tfa_device_trust" in cookie for cookie in set_cookie_headers)
 
 
 def test_verify_login_guest_session_id_conversion_success(db, test_student, monkeypatch):

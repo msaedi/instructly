@@ -79,6 +79,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/2fa/trusted-devices": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["trusted_devices_api_v1_2fa_trusted_devices_get"];
+ put?: never;
+ post?: never;
+ delete: operations["revoke_all_trusted_devices_api_v1_2fa_trusted_devices_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/2fa/trusted-devices/{device_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["revoke_trusted_device_api_v1_2fa_trusted_devices__device_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/2fa/verify-login": {
  parameters: {
  query?: never;
@@ -10557,6 +10589,19 @@ export type components = {
  tip_status?: string | null;
  total_paid: number;
  };
+ TrustedDeviceListResponse: {
+ items: components["schemas"]["TrustedDeviceResponse"][];
+ };
+ TrustedDeviceResponse: {
+ created_at: string;
+ device_name: string;
+ expires_at: string;
+ id: string;
+ last_used_at: string;
+ };
+ TrustedDeviceRevokeResponse: {
+ message: string;
+ };
  TypingRequest: {
  is_typing: boolean;
  };
@@ -10961,6 +11006,73 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["TFAStatusResponse"];
+ };
+ };
+ };
+ };
+ trusted_devices_api_v1_2fa_trusted_devices_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TrustedDeviceListResponse"];
+ };
+ };
+ };
+ };
+ revoke_all_trusted_devices_api_v1_2fa_trusted_devices_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TrustedDeviceRevokeResponse"];
+ };
+ };
+ };
+ };
+ revoke_trusted_device_api_v1_2fa_trusted_devices__device_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ device_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TrustedDeviceRevokeResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };

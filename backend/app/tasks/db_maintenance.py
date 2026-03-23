@@ -15,6 +15,7 @@ from celery import shared_task
 from sqlalchemy import text
 
 from app.database import get_db_session
+from app.services.trusted_device_service import TrustedDeviceService
 
 logger = logging.getLogger(__name__)
 
@@ -64,3 +65,16 @@ def cleanup_stale_2fa_setups() -> None:
                 logger.info("[DB-MAINT] Cleared %d stale 2FA setups", count)
         except Exception:
             logger.warning("[DB-MAINT] cleanup_stale_2fa_setups failed", exc_info=True)
+
+
+@_typed_shared_task(name="db_maintenance.cleanup_expired_trusted_devices", ignore_result=True)
+def cleanup_expired_trusted_devices() -> None:
+    """Delete expired trusted-device rows."""
+    with get_db_session() as db:
+        try:
+            deleted = TrustedDeviceService(db).delete_expired_devices()
+            db.commit()
+            if deleted:
+                logger.info("[DB-MAINT] Deleted %d expired trusted devices", deleted)
+        except Exception:
+            logger.warning("[DB-MAINT] cleanup_expired_trusted_devices failed", exc_info=True)

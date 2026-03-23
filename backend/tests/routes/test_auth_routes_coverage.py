@@ -228,18 +228,6 @@ def test_send_password_changed_notification_sync_closes_db(monkeypatch):
     assert closed["count"] == 1
 
 
-def test_should_trust_device_paths(monkeypatch):
-    req_cookie = SimpleNamespace(cookies={"tfa_trusted": "1"}, headers={})
-    assert auth_routes._should_trust_device(req_cookie) is True
-
-    req_header = SimpleNamespace(cookies={}, headers={"X-Trusted-Bypass": "true"})
-    monkeypatch.setattr(auth_routes.settings, "environment", "local", raising=False)
-    assert auth_routes._should_trust_device(req_header) is True
-
-    monkeypatch.setattr(auth_routes.settings, "environment", "production", raising=False)
-    assert auth_routes._should_trust_device(req_header) is False
-
-
 def test_issue_two_factor_challenge():
     user = SimpleNamespace(email="user@example.com", totp_enabled=True)
     request = SimpleNamespace(cookies={}, headers={})
@@ -251,10 +239,38 @@ def test_issue_two_factor_challenge():
     assert auth_routes._issue_two_factor_challenge_if_needed(user_disabled, request) is None
 
 
-def test_issue_two_factor_trusted_device_returns_none():
+def test_issue_two_factor_trusted_device_returns_none(monkeypatch):
     user = SimpleNamespace(email="user@example.com", totp_enabled=True)
-    request = SimpleNamespace(cookies={"tfa_trusted": "1"}, headers={})
-    assert auth_routes._issue_two_factor_challenge_if_needed(user, request) is None
+    request = SimpleNamespace(cookies={"tfa_device_trust": "token"}, headers={})
+    response = Response()
+
+    class _TrustedDeviceService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def validate_request_trust(self, *_args, **_kwargs):
+            return True
+
+    monkeypatch.setattr(auth_routes, "TrustedDeviceService", _TrustedDeviceService)
+
+    assert (
+        auth_routes._issue_two_factor_challenge_if_needed(
+            user,
+            request,
+            db=object(),
+            response=response,
+        )
+        is None
+    )
+
+
+def test_issue_two_factor_old_cookie_is_ignored():
+    user = SimpleNamespace(email="user@example.com", totp_enabled=True)
+    legacy_cookie_key = "tfa_" + "trusted"
+    request = SimpleNamespace(cookies={legacy_cookie_key: "1"}, headers={})
+    response = auth_routes._issue_two_factor_challenge_if_needed(user, request)
+    assert response is not None
+    assert response.requires_2fa is True
 
 
 def test_issue_two_factor_with_extra_claims():
@@ -265,6 +281,22 @@ def test_issue_two_factor_with_extra_claims():
     )
     assert response is not None
     assert response.requires_2fa is True
+
+
+def test_change_password_route_uses_write_rate_limit():
+    route = next(
+        route
+        for route in auth_routes.router.routes
+        if getattr(route, "path", None) == "/change-password"
+    )
+    dependency_closures = [
+        getattr(dep.dependency, "__closure__", None) or ()
+        for dep in route.dependencies
+    ]
+    assert any(
+        any(getattr(cell, "cell_contents", None) == "write" for cell in closure)
+        for closure in dependency_closures
+    )
 
 
 @pytest.mark.asyncio
@@ -909,7 +941,7 @@ async def test_login_with_session_two_factor_guest_session(monkeypatch, db):
 
     monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
 
-    def _issue(user_obj, request, extra_claims=None):
+    def _issue(user_obj, request, *, db=None, response=None, extra_claims=None):
         assert extra_claims == {"guest_session_id": "guest"}
         return auth_routes.LoginResponse(requires_2fa=True, temp_token="temp")
 
@@ -991,6 +1023,7 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
         await auth_routes.change_password(
             request,
             _DummyRequest(),
+            Response(),
             user.email,
             auth_service,
             db,
@@ -1005,6 +1038,7 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
         await auth_routes.change_password(
             weak_request,
             _DummyRequest(),
+            Response(),
             user.email,
             auth_service,
             db,
@@ -1026,6 +1060,7 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
         await auth_routes.change_password(
             strong_request,
             _DummyRequest(),
+            Response(),
             user.email,
             auth_service,
             db,
@@ -1059,6 +1094,7 @@ async def test_change_password_invalidation_failure_is_non_blocking(monkeypatch,
     response = await auth_routes.change_password(
         request,
         _DummyRequest(),
+        Response(),
         user.email,
         auth_service,
         db,
@@ -1097,6 +1133,7 @@ async def test_change_password_calls_invalidate_all_tokens(monkeypatch, test_stu
     response = await auth_routes.change_password(
         request,
         _DummyRequest(),
+        Response(),
         user.email,
         auth_service,
         db,
@@ -1138,6 +1175,7 @@ async def test_change_password_notification_failure(monkeypatch, test_student, d
     response = await auth_routes.change_password(
         request,
         _DummyRequest(),
+        Response(),
         user.email,
         auth_service,
         db,
@@ -1177,6 +1215,7 @@ async def test_change_password_audit_failure(monkeypatch, test_student, db):
     response = await auth_routes.change_password(
         request,
         _DummyRequest(),
+        Response(),
         user.email,
         auth_service,
         db,

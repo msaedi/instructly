@@ -18,6 +18,12 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { useSession } from '@/src/api/hooks/useSession';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
+import {
+  useInvalidateTrustedDevices,
+  useRevokeAllTrustedDevices,
+  useRevokeTrustedDevice,
+  useTrustedDevices,
+} from '@/hooks/queries/useTrustedDevices';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
 import { usePhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerificationFlow';
@@ -50,6 +56,12 @@ const CHANNEL_LABELS: Record<PreferenceChannel, string> = {
   sms: 'SMS',
   push: 'Push',
 };
+
+const TRUSTED_DEVICE_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
 
 const PREFERENCE_ROWS: Array<{ category: PreferenceCategory; description: string }> = [
   { category: 'lesson_updates', description: 'Booking confirmations, reminders, cancellations' },
@@ -162,6 +174,14 @@ const NotificationPreferenceRow = memo(function NotificationPreferenceRow({
   );
 });
 
+function formatTrustedDeviceDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown';
+  }
+  return TRUSTED_DEVICE_DATE_FORMATTER.format(parsed);
+}
+
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openSection, setOpenSection] = useState<OpenSection>(null);
   const [showTfaModal, setShowTfaModal] = useState(false);
@@ -179,10 +199,16 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   // React Query hooks for data fetching (replaces useEffect fetches)
   const shouldLoadTfaStatus = embedded ? openSection === 'security' : true;
   const { data: tfaStatus, isLoading: tfaStatusLoading } = useTfaStatus(shouldLoadTfaStatus);
+  const shouldLoadTrustedDevices = shouldLoadTfaStatus && tfaStatus?.enabled === true;
+  const { data: trustedDevicesData, isLoading: trustedDevicesLoading } =
+    useTrustedDevices(shouldLoadTrustedDevices);
   const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
+  const invalidateTrustedDevices = useInvalidateTrustedDevices();
   const invalidateAddresses = useInvalidateUserAddresses();
+  const revokeTrustedDevice = useRevokeTrustedDevice();
+  const revokeAllTrustedDevices = useRevokeAllTrustedDevices();
   const {
     isSupported: pushSupported,
     permission: pushPermission,
@@ -209,6 +235,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const tfaEnabled = tfaStatus?.enabled ?? null;
   const tfaToggleChecked = tfaEnabled === true;
   const tfaToggleDisabled = tfaStatusLoading || showTfaModal;
+  const trustedDevices = trustedDevicesData?.items ?? [];
+  const trustedDevicesBusy = revokeTrustedDevice.isPending || revokeAllTrustedDevices.isPending;
   const tfaStateLabel = tfaStatusLoading ? 'Loading…' : tfaToggleChecked ? 'Enabled' : 'Off';
   const tfaStateSubtitle = tfaStatusLoading
     ? 'Checking your current two-factor authentication status'
@@ -245,6 +273,24 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     if (tfaToggleDisabled) return;
     setShowTfaModal(true);
   }, [tfaToggleDisabled]);
+
+  const handleRevokeTrustedDevice = async (deviceId: string) => {
+    try {
+      const result = await revokeTrustedDevice.mutateAsync(deviceId);
+      toast.success(result.message);
+    } catch {
+      toast.error('Failed to revoke trusted device.');
+    }
+  };
+
+  const handleRevokeAllTrustedDevices = async () => {
+    try {
+      const result = await revokeAllTrustedDevices.mutateAsync();
+      toast.success(result.message);
+    } catch {
+      toast.error('Failed to revoke trusted devices.');
+    }
+  };
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
@@ -377,6 +423,70 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         >
           Change password
         </button>
+      </div>
+      <div className="my-4 border-t border-gray-100 dark:border-gray-700" />
+      <div className="space-y-3 py-1">
+        <div className="flex items-start justify-between gap-4">
+          <div className="max-w-xl">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Trusted devices</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {tfaToggleChecked
+                ? 'Browsers you trust can skip the two-factor prompt for 30 days.'
+                : 'Enable two-factor authentication to manage trusted browsers.'}
+            </p>
+          </div>
+          {tfaToggleChecked && trustedDevices.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => void handleRevokeAllTrustedDevices()}
+              disabled={trustedDevicesBusy}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 transition hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Revoke all
+            </button>
+          ) : null}
+        </div>
+
+        {tfaStatusLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading trusted devices…</p>
+        ) : !tfaToggleChecked ? (
+          <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+            Turn on two-factor authentication first. Then you can trust a browser during login and manage it here.
+          </div>
+        ) : trustedDevicesLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading trusted devices…</p>
+        ) : trustedDevices.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+            No trusted devices yet. Choose &quot;Trust this browser&quot; the next time you complete two-factor authentication on a device you own.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {trustedDevices.map((device) => (
+              <div
+                key={device.id}
+                className="flex items-start justify-between gap-4 rounded-xl border border-gray-100 dark:border-gray-700 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{device.device_name}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Last used {formatTrustedDeviceDate(device.last_used_at)}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Expires {formatTrustedDeviceDate(device.expires_at)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleRevokeTrustedDevice(device.id)}
+                  disabled={trustedDevicesBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 transition hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -846,6 +956,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             onClose={() => setShowTfaModal(false)}
             onChanged={() => {
               void invalidateTfaStatus();
+              void invalidateTrustedDevices();
             }}
           />
         )}

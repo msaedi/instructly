@@ -143,6 +143,12 @@ class User(Base):
     password_reset_tokens = relationship(
         "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
     )
+    trusted_devices = relationship(
+        "TrustedDevice",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     # Payment relationships
     stripe_customer = relationship(

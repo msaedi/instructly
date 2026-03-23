@@ -92,6 +92,7 @@ from ...services.search_history_service import SearchHistoryService
 from ...services.template_registry import TemplateRegistry
 from ...services.template_service import TemplateService
 from ...services.token_blacklist_service import TokenBlacklistService
+from ...services.trusted_device_service import TrustedDeviceService
 from ...utils.cookies import (
     refresh_cookie_base_name,
     session_cookie_candidates,
@@ -237,24 +238,21 @@ def _send_password_changed_notification_sync(*, user_id: str, changed_at: dateti
             service.db.close()
 
 
-def _should_trust_device(request: Request) -> bool:
-    is_trusted_cookie = request.cookies.get("tfa_trusted") == "1"
-    if is_trusted_cookie:
-        return True
-    if settings.environment != "production":
-        trusted_header = cast(str | None, request.headers.get("X-Trusted-Bypass"))
-        return (trusted_header or "false").lower() == "true"
-    return False
-
-
 def _issue_two_factor_challenge_if_needed(
-    user: User, request: Request, extra_claims: dict[str, str] | None = None
+    user: User,
+    request: Request,
+    *,
+    db: Session | None = None,
+    response: Response | None = None,
+    extra_claims: dict[str, str] | None = None,
 ) -> LoginResponse | None:
     if not getattr(user, "totp_enabled", False):
         return None
 
-    if _should_trust_device(request):
-        return None
+    if db is not None and response is not None:
+        trusted_device_service = TrustedDeviceService(db)
+        if trusted_device_service.validate_request_trust(user, request, response):
+            return None
 
     temp_claims = {"sub": user.email, "tfa_pending": True}
     if extra_claims:
@@ -963,7 +961,12 @@ async def login(
 
     # Step 6: Check 2FA requirement (uses pre-loaded attributes, no DB needed)
     if user_obj and totp_enabled:
-        two_factor_response = _issue_two_factor_challenge_if_needed(user_obj, request)
+        two_factor_response = _issue_two_factor_challenge_if_needed(
+            user_obj,
+            request,
+            db=db,
+            response=response,
+        )
         if two_factor_response:
             await account_lockout.reset(email_input)
             await account_rate_limiter.reset(email_input)
@@ -1106,10 +1109,15 @@ async def refresh_session_token(
     return SessionRefreshResponse(message="Session refreshed")
 
 
-@router.post("/change-password", response_model=PasswordChangeResponse)
+@router.post(
+    "/change-password",
+    response_model=PasswordChangeResponse,
+    dependencies=[Depends(bucket_rate_limit("write"))],
+)
 async def change_password(
     payload: PasswordChangeRequest,
     http_request: Request,
+    response: Response,
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
@@ -1158,6 +1166,10 @@ async def change_password(
             "Password changed but token invalidation failed for user %s — old tokens remain valid",
             user.id,
         )
+
+    trusted_device_service = TrustedDeviceService(db)
+    await asyncio.to_thread(trusted_device_service.revoke_all_for_user, user.id)
+    TrustedDeviceService.clear_trust_cookie(response, http_request)
 
     # Belt-and-suspenders: also blacklist the current token's JTI for immediate
     # Redis-based rejection (tokens_valid_after handles the rest on next cache refresh).
@@ -1347,7 +1359,11 @@ async def login_with_session(
 
     if user_obj and totp_enabled:
         two_factor_response = _issue_two_factor_challenge_if_needed(
-            user_obj, request, extra_claims=extra_claims
+            user_obj,
+            request,
+            db=db,
+            response=response,
+            extra_claims=extra_claims,
         )
         if two_factor_response:
             await account_lockout.reset(email_input)

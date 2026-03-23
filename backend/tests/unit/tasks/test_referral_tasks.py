@@ -267,6 +267,34 @@ class TestRetryFailedPayouts:
         assert result["retried"] == 0
         mock_enqueue.assert_not_called()
 
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.enqueue_task")
+    def test_enqueues_only_after_session_exit(self, mock_enqueue, mock_db_session):
+        events: list[str] = []
+        mock_db = MagicMock()
+        mock_payout = Mock(id="payout_1")
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_payout]
+
+        session_context = MagicMock()
+        session_context.__enter__.return_value = mock_db
+
+        def _on_exit(*_args, **_kwargs):
+            events.append("session_exit")
+            return False
+
+        session_context.__exit__.side_effect = _on_exit
+        mock_db_session.return_value = session_context
+
+        def _enqueue(*_args, **_kwargs):
+            events.append("enqueue")
+
+        mock_enqueue.side_effect = _enqueue
+
+        result = retry_failed_instructor_referral_payouts.run()
+
+        assert result["retried"] == 1
+        assert events == ["session_exit", "enqueue"]
+
 
 class TestCheckPendingPayouts:
     """Tests for the pending payout safety net task."""
@@ -287,3 +315,31 @@ class TestCheckPendingPayouts:
             "app.tasks.referral_tasks.process_instructor_referral_payout",
             args=("payout_1",),
         )
+
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.enqueue_task")
+    def test_enqueues_only_after_session_exit(self, mock_enqueue, mock_db_session):
+        events: list[str] = []
+        mock_db = MagicMock()
+        mock_payout = Mock(id="payout_1")
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_payout]
+
+        session_context = MagicMock()
+        session_context.__enter__.return_value = mock_db
+
+        def _on_exit(*_args, **_kwargs):
+            events.append("session_exit")
+            return False
+
+        session_context.__exit__.side_effect = _on_exit
+        mock_db_session.return_value = session_context
+
+        def _enqueue(*_args, **_kwargs):
+            events.append("enqueue")
+
+        mock_enqueue.side_effect = _enqueue
+
+        result = check_pending_instructor_referral_payouts.run()
+
+        assert result["queued"] == 1
+        assert events == ["session_exit", "enqueue"]

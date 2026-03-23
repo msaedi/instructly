@@ -104,7 +104,10 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     )
     assert session_cookie_header
     assert "Secure" in session_cookie_header
-    trust_cookie_header = next((h for h in set_cookie_headers if "tfa_trusted=1" in h), "")
+    trust_cookie_header = next(
+        (h for h in set_cookie_headers if "tfa_device_trust=" in h),
+        "",
+    )
     assert trust_cookie_header
     assert "Secure" in trust_cookie_header
     assert "HttpOnly" in trust_cookie_header

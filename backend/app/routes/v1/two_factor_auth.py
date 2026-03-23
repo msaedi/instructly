@@ -23,15 +23,16 @@ from app.auth import (
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
+from app.models.trusted_device import TrustedDevice
 from app.repositories.factory import RepositoryFactory
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
 from app.services.search_history_service import SearchHistoryService
 from app.services.token_blacklist_service import TokenBlacklistService
+from app.services.trusted_device_service import TrustedDeviceService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
-    effective_cookie_domain,
     session_cookie_candidates,
     set_auth_cookies,
 )
@@ -47,11 +48,24 @@ from ...schemas.security import (
     TFAStatusResponse,
     TFAVerifyLoginRequest,
     TFAVerifyLoginResponse,
+    TrustedDeviceListResponse,
+    TrustedDeviceResponse,
+    TrustedDeviceRevokeResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["2fa"])
+
+
+def _serialize_trusted_device(device: TrustedDevice) -> TrustedDeviceResponse:
+    return TrustedDeviceResponse(
+        id=device.id,
+        device_name=device.device_name,
+        created_at=device.created_at.isoformat(),
+        last_used_at=device.last_used_at.isoformat(),
+        expires_at=device.expires_at.isoformat(),
+    )
 
 
 def _extract_request_token(request: Request) -> str | None:
@@ -129,6 +143,7 @@ def setup_verify(
     user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
+        trusted_device_service = TrustedDeviceService(tfa_service.db)
         backup_codes = tfa_service.setup_verify(user, req.code)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
         if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
@@ -138,15 +153,8 @@ def setup_verify(
             )
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_enable")
-        # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
-        domain = effective_cookie_domain(request.headers.get("origin"))
-        response.delete_cookie(
-            key="tfa_trusted",
-            path="/",
-            domain=domain,
-            secure=bool(settings.session_cookie_secure),
-            samesite="lax",
-        )
+        trusted_device_service.revoke_all_for_user(user.id)
+        trusted_device_service.clear_trust_cookie(response, request)
         try:
             notification_service = NotificationService(tfa_service.db)
             notification_service.send_two_factor_changed_notification(
@@ -180,6 +188,11 @@ def setup_verify(
 
 
 @router.post("/disable", response_model=TFADisableResponse)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many 2FA disable attempts. Please try again later.",
+)
 def disable(
     req: TFADisableRequest,
     response: Response,
@@ -191,6 +204,7 @@ def disable(
     user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
+        trusted_device_service = TrustedDeviceService(tfa_service.db)
         tfa_service.disable(user, req.current_password)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
         if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
@@ -200,15 +214,8 @@ def disable(
             )
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_disable")
-        # Invalidate any trusted-browser cookie on disable
-        domain = effective_cookie_domain(request.headers.get("origin"))
-        response.delete_cookie(
-            key="tfa_trusted",
-            path="/",
-            domain=domain,
-            secure=bool(settings.session_cookie_secure),
-            samesite="lax",
-        )
+        trusted_device_service.revoke_all_for_user(user.id)
+        trusted_device_service.clear_trust_cookie(response, request)
         try:
             notification_service = NotificationService(tfa_service.db)
             notification_service.send_two_factor_changed_notification(
@@ -246,6 +253,61 @@ def status_endpoint(
     user = auth_service.get_current_user(current_user)
     data = tfa_service.status(user)
     return TFAStatusResponse(**data)
+
+
+@router.get("/trusted-devices", response_model=TrustedDeviceListResponse)
+def trusted_devices(
+    current_user: str = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+    tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
+) -> TrustedDeviceListResponse:
+    user = auth_service.get_current_user(current_user)
+    trusted_device_service = TrustedDeviceService(tfa_service.db)
+    devices = trusted_device_service.list_user_devices(user.id)
+    return TrustedDeviceListResponse(
+        items=[_serialize_trusted_device(device) for device in devices]
+    )
+
+
+@router.delete("/trusted-devices/{device_id}", response_model=TrustedDeviceRevokeResponse)
+def revoke_trusted_device(
+    device_id: str,
+    request: Request,
+    response: Response,
+    current_user: str = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+    tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
+) -> TrustedDeviceRevokeResponse:
+    user = auth_service.get_current_user(current_user)
+    trusted_device_service = TrustedDeviceService(tfa_service.db)
+    should_clear_cookie = trusted_device_service.current_cookie_matches_device(
+        user_id=user.id,
+        device_id=device_id,
+        request=request,
+    )
+    revoked = trusted_device_service.revoke_device_for_user(user.id, device_id)
+    if revoked is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Trusted device not found"
+        )
+    if should_clear_cookie:
+        trusted_device_service.clear_trust_cookie(response, request)
+    return TrustedDeviceRevokeResponse(message="Trusted device revoked")
+
+
+@router.delete("/trusted-devices", response_model=TrustedDeviceRevokeResponse)
+def revoke_all_trusted_devices(
+    request: Request,
+    response: Response,
+    current_user: str = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+    tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
+) -> TrustedDeviceRevokeResponse:
+    user = auth_service.get_current_user(current_user)
+    trusted_device_service = TrustedDeviceService(tfa_service.db)
+    trusted_device_service.revoke_all_for_user(user.id)
+    trusted_device_service.clear_trust_cookie(response, request)
+    return TrustedDeviceRevokeResponse(message="All trusted devices revoked")
 
 
 @router.post("/regenerate-backup-codes", response_model=BackupCodesResponse)
@@ -330,7 +392,6 @@ def verify_login(
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
     origin = request.headers.get("origin")
-    cookie_domain = effective_cookie_domain(origin)
     # Write session + refresh cookies
     set_auth_cookies(response, access_token, refresh_token, origin=origin)
 
@@ -352,17 +413,11 @@ def verify_login(
     # Optionally set a trust cookie if client requested trust (header flag)
     trust_header = request.headers.get("X-Trust-Browser", "false").lower() == "true"
     if trust_header:
-        max_age = settings.two_factor_trust_days * 24 * 60 * 60
-        response.set_cookie(
-            key="tfa_trusted",
-            value="1",
-            max_age=max_age,
-            httponly=True,
-            secure=bool(settings.session_cookie_secure),
-            samesite=settings.session_cookie_samesite or "lax",
-            path="/",
-            domain=cookie_domain,
-        )
+        try:
+            TrustedDeviceService(tfa_service.db).trust_current_device(user, request, response)
+        except Exception as exc:
+            logger.warning("Failed to persist trusted device for %s: %s", user.id, exc)
+            tfa_service.rollback_optional_trust_persistence(user.id)
     try:
         AuditService(tfa_service.db).log(
             action="user.login",

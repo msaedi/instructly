@@ -8712,6 +8712,22 @@ export interface TransactionHistoryItem {
   total_paid: number;
 }
 
+export interface TrustedDeviceResponse {
+  created_at: string;
+  device_name: string;
+  expires_at: string;
+  id: string;
+  last_used_at: string;
+}
+
+export interface TrustedDeviceListResponse {
+  items: TrustedDeviceResponse[];
+}
+
+export interface TrustedDeviceRevokeResponse {
+  message: string;
+}
+
 /**
  * Typing indicator payload.
  */

@@ -169,6 +169,7 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
     """Retry failed payouts from the last 7 days."""
     logger.info("Retrying failed instructor referral payouts")
 
+    payout_ids_to_retry: list[str] = []
     with get_db_session() as db:
         from app.repositories.referral_repository import ReferralRewardRepository
 
@@ -181,14 +182,17 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
             payout.stripe_transfer_status = "pending"
             payout.failed_at = None
             payout.failure_reason = None
-            enqueue_task(
-                "app.tasks.referral_tasks.process_instructor_referral_payout",
-                args=(payout.id,),
-            )
+            payout_ids_to_retry.append(payout.id)
             retried += 1
 
-        logger.info("Queued %s failed payouts for retry", retried)
-        return {"retried": retried, "checked_since": cutoff.isoformat()}
+    for payout_id in payout_ids_to_retry:
+        enqueue_task(
+            "app.tasks.referral_tasks.process_instructor_referral_payout",
+            args=(payout_id,),
+        )
+
+    logger.info("Queued %s failed payouts for retry", retried)
+    return {"retried": retried, "checked_since": cutoff.isoformat()}
 
 
 @typed_task(
@@ -200,6 +204,7 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
     """Queue pending payouts older than 5 minutes for processing."""
     logger.info("Checking for pending instructor referral payouts")
 
+    payout_ids_to_queue: list[str] = []
     with get_db_session() as db:
         from app.repositories.referral_repository import ReferralRewardRepository
 
@@ -209,11 +214,14 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
 
         queued = 0
         for payout in pending_payouts:
-            enqueue_task(
-                "app.tasks.referral_tasks.process_instructor_referral_payout",
-                args=(payout.id,),
-            )
+            payout_ids_to_queue.append(payout.id)
             queued += 1
 
-        logger.info("Queued %s pending payouts for processing", queued)
-        return {"queued": queued}
+    for payout_id in payout_ids_to_queue:
+        enqueue_task(
+            "app.tasks.referral_tasks.process_instructor_referral_payout",
+            args=(payout_id,),
+        )
+
+    logger.info("Queued %s pending payouts for processing", queued)
+    return {"queued": queued}
