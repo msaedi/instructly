@@ -2317,7 +2317,19 @@ class InstructorService(BaseService):
             },
         }
 
-        # For each category, get ALL services (not just top N)
+        all_services = self.catalog_repository.get_active_services_with_categories(limit=None)
+        analytics_by_service = self.analytics_repository.get_or_create_bulk(
+            [service.id for service in all_services]
+        )
+        services_by_category: dict[str, list[Any]] = {}
+        for service in all_services:
+            subcategory = getattr(service, "subcategory", None)
+            category = getattr(subcategory, "category", None)
+            category_id = getattr(category, "id", None)
+            if not category_id:
+                continue
+            services_by_category.setdefault(category_id, []).append(service)
+
         for category in sorted(categories, key=lambda c: c.display_order):
             services_list: JsonList = []
             category_data: JsonDict = {
@@ -2329,17 +2341,10 @@ class InstructorService(BaseService):
                 "services": services_list,
             }
 
-            # Get ALL services for this category (ordered by display_order)
-            services = self.catalog_repository.get_active_services_with_categories(
-                category_id=category.id,
-                limit=None,  # No limit - get all services
-            )
-
             # Collect services with analytics data
             services_with_analytics: JsonList = []
-            for service in services:
-                # Get analytics for demand score and instructor count
-                analytics = self.analytics_repository.get_or_create(service.id)
+            for service in services_by_category.get(category.id, []):
+                analytics = analytics_by_service.get(service.id)
 
                 # Include ALL services, even those without instructors
                 active_instructors = analytics.active_instructors if analytics else 0

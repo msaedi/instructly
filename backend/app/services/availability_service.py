@@ -2160,23 +2160,18 @@ class AvailabilityService(BaseService):
         bitmap_repo = self._bitmap_repo()
         by_date: dict[date, list[tuple[time, time]]] = {}
         tags_by_date: dict[date, bytes] = {}
-        current_date = start_date
-        while current_date <= end_date:
-            day_bitmaps = bitmap_repo.get_day_bitmaps(instructor_id, current_date)
-            if day_bitmaps:
-                bits, format_tags = day_bitmaps
-                tags_by_date[current_date] = format_tags
-                windows_str: list[tuple[str, str]] = windows_from_bits(bits)
-                # Convert to time objects for return type
-                windows_time: list[tuple[time, time]] = [
-                    (
-                        string_to_time(start_str),
-                        string_to_time(end_str),
-                    )
-                    for start_str, end_str in windows_str
-                ]
-                by_date[current_date] = windows_time
-            current_date += timedelta(days=1)
+        for day_row in bitmap_repo.get_days_in_range(instructor_id, start_date, end_date):
+            bits = day_row.bits
+            format_tags = day_row.format_tags or new_empty_tags()
+            tags_by_date[day_row.day_date] = format_tags
+            windows_str: list[tuple[str, str]] = windows_from_bits(bits)
+            by_date[day_row.day_date] = [
+                (
+                    string_to_time(start_str),
+                    string_to_time(end_str),
+                )
+                for start_str, end_str in windows_str
+            ]
 
         def trim_intervals_for_min_start(
             intervals: list[tuple[time, time]], min_start_minutes: int
@@ -2199,13 +2194,19 @@ class AvailabilityService(BaseService):
 
         # Build result
         result: dict[str, list[tuple[time, time]]] = {}
+        bookings_by_date: dict[date, list[Any]] = {}
+        for booking in self.conflict_repository.get_bookings_for_date_range(
+            instructor_id,
+            start_date,
+            end_date,
+        ):
+            bookings_by_date.setdefault(booking.booking_date, []).append(booking)
         cur = start_date
         while cur <= end_date:
             bases = self._merge_time_intervals(by_date.get(cur, []))
-            booked_rows = self.conflict_repository.get_bookings_for_date(instructor_id, cur)
             remaining = self._subtract_buffered_bookings_from_windows(
                 bases,
-                booked_rows,
+                bookings_by_date.get(cur, []),
                 requested_location_type=effective_requested_location_type,
                 non_travel_buffer_minutes=non_travel_buffer_minutes,
                 travel_buffer_minutes=travel_buffer_minutes,

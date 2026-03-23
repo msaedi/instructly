@@ -506,23 +506,17 @@ class ReviewService(BaseService):
         return self.repository.get_by_booking_id(booking_id)
 
     @BaseService.measure_operation("get_existing_reviews_for_bookings")
-    def get_existing_reviews_for_bookings(self, booking_ids: list[str]) -> list[str]:
+    def get_existing_reviews_for_bookings(
+        self, booking_ids: list[str], student_id: str | None = None
+    ) -> list[str]:
         if not booking_ids:
             return []
         try:
-            # Restrict to current user's bookings: derive student_id from auth context if available.
-            # The service layer does not have direct auth context; routes enforce it. As an extra guard,
-            # filter the provided booking_ids through ownership based on the booking repository and current
-            # transaction session when a student context is attached to the DB session info.
-            current_student_id = getattr(self.db, "current_student_id", None)
-            if current_student_id:
-                owned = self.booking_repository.filter_owned_booking_ids(
-                    booking_ids, current_student_id
-                )
+            if student_id:
+                owned = self.booking_repository.filter_owned_booking_ids(booking_ids, student_id)
                 if not owned:
                     return []
                 return self.repository.get_existing_for_bookings(owned)
-            # Fallback: route should have already enforced ownership; return checked ids
             return self.repository.get_existing_for_bookings(booking_ids)
         except Exception:
             return []

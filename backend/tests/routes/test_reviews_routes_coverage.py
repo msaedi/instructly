@@ -26,22 +26,10 @@ def test_handle_domain_exception_without_helper():
 
 
 def test_get_existing_reviews_empty_returns_empty(monkeypatch):
-    class _BadDB:
-        def __setattr__(self, *_args, **_kwargs):
-            raise RuntimeError("no")
-
     class _Service:
-        def __init__(self):
-            self.db = _BadDB()
-
         def get_existing_reviews_for_bookings(self, *_args, **_kwargs):
             return []
 
-    monkeypatch.setattr(
-        reviews_routes.BookingRepository,
-        "filter_owned_booking_ids",
-        lambda *_args, **_kwargs: [],
-    )
     current_user = SimpleNamespace(id="student-1")
     response = reviews_routes.get_existing_reviews_for_bookings(
         booking_ids=["b1"],
@@ -53,17 +41,10 @@ def test_get_existing_reviews_empty_returns_empty(monkeypatch):
 
 def test_get_existing_reviews_returns_ids(monkeypatch):
     class _Service:
-        def __init__(self):
-            self.db = SimpleNamespace()
-
-        def get_existing_reviews_for_bookings(self, booking_ids):
+        def get_existing_reviews_for_bookings(self, booking_ids, student_id=None):
+            assert student_id == "student-1"
             return booking_ids
 
-    monkeypatch.setattr(
-        reviews_routes.BookingRepository,
-        "filter_owned_booking_ids",
-        lambda *_args, **_kwargs: ["b1", "b2"],
-    )
     current_user = SimpleNamespace(id="student-1")
     response = reviews_routes.get_existing_reviews_for_bookings(
         booking_ids=["b1", "b2"],
@@ -71,6 +52,11 @@ def test_get_existing_reviews_returns_ids(monkeypatch):
         service=_Service(),
     )
     assert response.root == ["b1", "b2"]
+
+
+def test_display_name_without_last_name():
+    user = SimpleNamespace(first_name="First", last_name=None)
+    assert reviews_routes._display_name(user) == "First"
 
 
 @pytest.mark.asyncio

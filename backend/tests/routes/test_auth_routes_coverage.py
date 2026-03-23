@@ -6,7 +6,11 @@ from fastapi import HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 import pytest
 
-from app.auth import create_email_verification_token, get_password_hash
+from app.auth import (
+    create_email_verification_token,
+    decode_email_verification_token,
+    get_password_hash,
+)
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.routes.v1 import auth as auth_routes
 from app.schemas.security import PasswordChangeRequest
@@ -46,7 +50,7 @@ class _StubCache:
 
 def _issue_email_verification_token(cache: _StubCache, email: str) -> str:
     token = create_email_verification_token(email)
-    payload = auth_routes.decode_email_verification_token(token)
+    payload = decode_email_verification_token(token)
     cache._store[auth_routes._email_verification_token_jti_key(str(payload["jti"]))] = True
     return token
 
@@ -229,18 +233,28 @@ def test_send_password_changed_notification_sync_closes_db(monkeypatch):
 
 
 def test_issue_two_factor_challenge():
-    user = SimpleNamespace(email="user@example.com", totp_enabled=True)
     request = SimpleNamespace(cookies={}, headers={})
-    response = auth_routes._issue_two_factor_challenge_if_needed(user, request)
+    response = auth_routes._issue_two_factor_challenge_if_needed(
+        user_id="user-1",
+        user_email="user@example.com",
+        totp_enabled=True,
+        request=request,
+    )
     assert response is not None
     assert response.requires_2fa is True
 
-    user_disabled = SimpleNamespace(email="user@example.com", totp_enabled=False)
-    assert auth_routes._issue_two_factor_challenge_if_needed(user_disabled, request) is None
+    assert (
+        auth_routes._issue_two_factor_challenge_if_needed(
+            user_id="user-1",
+            user_email="user@example.com",
+            totp_enabled=False,
+            request=request,
+        )
+        is None
+    )
 
 
 def test_issue_two_factor_trusted_device_returns_none(monkeypatch):
-    user = SimpleNamespace(email="user@example.com", totp_enabled=True)
     request = SimpleNamespace(cookies={"tfa_device_trust": "token"}, headers={})
     response = Response()
 
@@ -255,8 +269,10 @@ def test_issue_two_factor_trusted_device_returns_none(monkeypatch):
 
     assert (
         auth_routes._issue_two_factor_challenge_if_needed(
-            user,
-            request,
+            user_id="user-1",
+            user_email="user@example.com",
+            totp_enabled=True,
+            request=request,
             db=object(),
             response=response,
         )
@@ -265,19 +281,26 @@ def test_issue_two_factor_trusted_device_returns_none(monkeypatch):
 
 
 def test_issue_two_factor_old_cookie_is_ignored():
-    user = SimpleNamespace(email="user@example.com", totp_enabled=True)
     legacy_cookie_key = "tfa_" + "trusted"
     request = SimpleNamespace(cookies={legacy_cookie_key: "1"}, headers={})
-    response = auth_routes._issue_two_factor_challenge_if_needed(user, request)
+    response = auth_routes._issue_two_factor_challenge_if_needed(
+        user_id="user-1",
+        user_email="user@example.com",
+        totp_enabled=True,
+        request=request,
+    )
     assert response is not None
     assert response.requires_2fa is True
 
 
 def test_issue_two_factor_with_extra_claims():
-    user = SimpleNamespace(email="user@example.com", totp_enabled=True)
     request = SimpleNamespace(cookies={}, headers={})
     response = auth_routes._issue_two_factor_challenge_if_needed(
-        user, request, extra_claims={"guest_session_id": "guest"}
+        user_id="user-1",
+        user_email="user@example.com",
+        totp_enabled=True,
+        request=request,
+        extra_claims={"guest_session_id": "guest"},
     )
     assert response is not None
     assert response.requires_2fa is True
@@ -510,14 +533,12 @@ async def test_login_captcha_valid_success_trims_known_devices(monkeypatch):
 
     monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
 
-    user_obj = SimpleNamespace(email="user@example.com", totp_enabled=False)
     user_data = {
         "id": "user",
         "email": "user@example.com",
         "hashed_password": get_password_hash("pass"),
         "account_status": None,
         "totp_enabled": False,
-        "_user_obj": user_obj,
         "_beta_claims": None,
     }
     auth_service = _StubAuthService(user_data=user_data)
@@ -577,6 +598,57 @@ async def test_login_preview_claims(monkeypatch):
 
     result = await auth_routes.login(request, response, form, auth_service, cache_service=object())
     assert result.requires_2fa is False
+
+
+@pytest.mark.asyncio
+async def test_login_and_login_with_session_share_success_response_without_user_obj(monkeypatch, db):
+    monkeypatch.setattr(auth_routes, "account_lockout", _StubLockout(locked=False))
+    monkeypatch.setattr(auth_routes, "captcha_verifier", _StubCaptcha(required=False))
+    monkeypatch.setattr(auth_routes, "account_rate_limiter", _StubRateLimiter(allowed=True))
+    monkeypatch.setattr(auth_routes, "login_slot", lambda: _noop_slot())
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    user_data = {
+        "id": "user",
+        "email": "user@example.com",
+        "hashed_password": get_password_hash("pass"),
+        "account_status": None,
+        "totp_enabled": False,
+        "_beta_claims": None,
+    }
+    auth_service = _StubAuthService(user_data=user_data)
+
+    form = OAuth2PasswordRequestForm(
+        username="user@example.com",
+        password="pass",
+        scope="",
+        client_id=None,
+        client_secret=None,
+    )
+    login_result = await auth_routes.login(
+        _DummyRequest(),
+        Response(),
+        form,
+        auth_service,
+        db,
+        cache_service=object(),
+    )
+    login_with_session_result = await auth_routes.login_with_session(
+        _DummyRequest(),
+        Response(),
+        auth_routes.UserLogin(email="user@example.com", password="pass"),
+        auth_service,
+        db,
+        cache_service=object(),
+    )
+
+    assert login_result.requires_2fa is False
+    assert login_with_session_result.requires_2fa is False
+    assert login_result.temp_token == login_with_session_result.temp_token
 
 
 @pytest.mark.asyncio
@@ -941,7 +1013,10 @@ async def test_login_with_session_two_factor_guest_session(monkeypatch, db):
 
     monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
 
-    def _issue(user_obj, request, *, db=None, response=None, extra_claims=None):
+    def _issue(*, user_id, user_email, totp_enabled, request, db=None, response=None, extra_claims=None):
+        assert user_id == "user"
+        assert user_email == "user@example.com"
+        assert totp_enabled is True
         assert extra_claims == {"guest_session_id": "guest"}
         return auth_routes.LoginResponse(requires_2fa=True, temp_token="temp")
 

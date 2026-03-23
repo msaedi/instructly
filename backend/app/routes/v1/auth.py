@@ -18,8 +18,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
-import secrets
-from typing import Any, Optional, cast
+from typing import Any, Awaitable, Callable, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -34,18 +33,15 @@ from ...api.dependencies.services import (
 from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
-    create_email_verification_token,
     create_refresh_token,
     create_temp_token,
     decode_access_token,
-    decode_email_verification_token,
     get_current_user,
     is_refresh_token_payload,
     verify_password_async,
 )
 from ...core.auth_cache import invalidate_cached_user_by_id_sync
 from ...core.config import settings
-from ...core.constants import BRAND_NAME
 from ...core.enums import RoleName
 from ...core.exceptions import NotFoundException, ValidationException
 from ...core.login_protection import (
@@ -86,11 +82,22 @@ from ...services.auth_service import AuthService, invite_required_for_registrati
 from ...services.beta_service import BetaService
 from ...services.cache_service import CacheService
 from ...services.email import EmailService
-from ...services.email_subjects import EmailSubject
+from ...services.email_verification_service import (
+    EMAIL_VERIFICATION_ATTEMPT_MAX,
+    EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_CODE_TTL_SECONDS,
+    EMAIL_VERIFICATION_LOCK_TTL_SECONDS,
+    EMAIL_VERIFICATION_SEND_IP_MAX,
+    EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_SEND_MAX,
+    EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+    EmailVerificationService,
+    email_verification_token_jti_key,
+    normalize_email as _normalize_email,
+)
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
-from ...services.template_registry import TemplateRegistry
-from ...services.template_service import TemplateService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...services.trusted_device_service import TrustedDeviceService
 from ...utils.cookies import (
@@ -108,15 +115,18 @@ logger = logging.getLogger(__name__)
 # New device tracking config
 KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
 KNOWN_DEVICE_MAX = 10
-EMAIL_VERIFICATION_CODE_TTL_SECONDS = 5 * 60
-EMAIL_VERIFICATION_SEND_WINDOW_SECONDS = 10 * 60
-EMAIL_VERIFICATION_SEND_MAX = 3
-EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS = 60 * 60
-EMAIL_VERIFICATION_SEND_IP_MAX = 20
-EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS = 10 * 60
-EMAIL_VERIFICATION_ATTEMPT_MAX = 5
-EMAIL_VERIFICATION_LOCK_TTL_SECONDS = 10 * 60
-EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = 15 * 60
+_EMAIL_VERIFICATION_EXPORTS = (
+    EMAIL_VERIFICATION_CODE_TTL_SECONDS,
+    EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_SEND_MAX,
+    EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_SEND_IP_MAX,
+    EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS,
+    EMAIL_VERIFICATION_ATTEMPT_MAX,
+    EMAIL_VERIFICATION_LOCK_TTL_SECONDS,
+    EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+)
+_email_verification_token_jti_key = email_verification_token_jti_key
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
@@ -239,22 +249,24 @@ def _send_password_changed_notification_sync(*, user_id: str, changed_at: dateti
 
 
 def _issue_two_factor_challenge_if_needed(
-    user: User,
-    request: Request,
     *,
+    user_id: str,
+    user_email: str,
+    totp_enabled: bool,
+    request: Request,
     db: Session | None = None,
     response: Response | None = None,
     extra_claims: dict[str, str] | None = None,
 ) -> LoginResponse | None:
-    if not getattr(user, "totp_enabled", False):
+    if not totp_enabled:
         return None
 
     if db is not None and response is not None:
         trusted_device_service = TrustedDeviceService(db)
-        if trusted_device_service.validate_request_trust(user, request, response):
+        if trusted_device_service.validate_request_trust(user_id, request, response):
             return None
 
-    temp_claims = {"sub": user.email, "tfa_pending": True}
+    temp_claims = {"sub": user_email, "tfa_pending": True}
     if extra_claims:
         temp_claims.update(extra_claims)
 
@@ -265,112 +277,177 @@ def _issue_two_factor_challenge_if_needed(
     return LoginResponse(requires_2fa=True, temp_token=temp_token)
 
 
-def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
-
-
-def _email_verification_code_key(email: str) -> str:
-    return f"email_verify:{_normalize_email(email)}"
-
-
-def _email_verification_send_key(email: str) -> str:
-    return f"email_verify_send_count:{_normalize_email(email)}"
-
-
-def _email_verification_send_ip_key(client_ip: str) -> str:
-    return f"email_verify_send_ip_count:{client_ip.strip() or 'unknown'}"
-
-
-def _email_verification_attempts_key(email: str) -> str:
-    return f"email_verify_attempts:{_normalize_email(email)}"
-
-
-def _email_verification_lock_key(email: str) -> str:
-    return f"email_verify_lock:{_normalize_email(email)}"
-
-
-def _email_verification_token_jti_key(jti: str) -> str:
-    return f"email_verify_token_jti:{jti.strip()}"
-
-
-async def _get_cache_count(cache_service: CacheService, key: str) -> int:
-    cached_value = None
-    try:
-        redis_client = await cache_service.get_redis_client()
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.warning("Redis unavailable while reading auth cache counter: %s", exc)
-        redis_client = None
-
-    if redis_client is not None:
-        cached_value = await redis_client.get(key)
-    if cached_value is None:
-        cached_value = await cache_service.get(key)
-
-    if isinstance(cached_value, bytes):
-        cached_value = cached_value.decode("utf-8", errors="ignore")
-    try:
-        return int(cached_value) if cached_value is not None else 0
-    except (TypeError, ValueError):
-        return 0
-
-
-async def _increment_cache_counter(cache_service: CacheService, key: str, ttl: int) -> int:
-    redis_client = None
-    try:
-        redis_client = await cache_service.get_redis_client()
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.warning("Redis unavailable for auth cache counter: %s", exc)
-
-    if redis_client is not None:
-        value = await redis_client.incr(key)
-        if value == 1:
-            await redis_client.expire(key, ttl)
-        return int(value)
-
-    current_value = await _get_cache_count(cache_service, key)
-    next_value = current_value + 1
-    await cache_service.set(key, next_value, ttl=ttl)
-    return next_value
-
-
-async def _delete_cache_keys(cache_service: CacheService, *keys: str) -> None:
-    redis_client = None
-    try:
-        redis_client = await cache_service.get_redis_client()
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.warning("Redis unavailable while deleting cache keys: %s", exc)
-
-    if redis_client is not None:
-        await redis_client.delete(*keys)
-
-    for key in keys:
-        await cache_service.delete(key)
-
-
-def _send_email_verification_email_sync(
+async def _convert_guest_searches_after_login(
     *,
+    guest_session_id: str,
+    user_id: str,
     db: Session,
-    email_service: EmailService,
-    to_email: str,
-    code: str,
 ) -> None:
-    template_service = TemplateService(db, None)
-    html_content = template_service.render_template(
-        TemplateRegistry.AUTH_EMAIL_VERIFICATION,
-        context={
-            "brand_name": BRAND_NAME,
-            "code": code,
-        },
+    try:
+        search_service = SearchHistoryService(db)
+        converted_count = await asyncio.to_thread(
+            search_service.convert_guest_searches_to_user,
+            guest_session_id=guest_session_id,
+            user_id=user_id,
+        )
+        logger.info("Converted %s guest searches for user %s", converted_count, user_id)
+    except Exception as exc:
+        logger.error("Failed to convert guest searches during login: %s", str(exc))
+
+
+async def _authenticate_and_respond(
+    *,
+    request: Request,
+    response: Response,
+    email_input: str,
+    password: str,
+    captcha_token: str | None,
+    auth_service: AuthService,
+    db: Session,
+    cache_service: CacheService,
+    invalid_credentials_detail: Any,
+    deactivated_detail: Any,
+    extra_claims: dict[str, str] | None = None,
+    after_success: Callable[[str, str], Awaitable[None]] | None = None,
+    audit_description: str = "User login",
+) -> LoginResponse:
+    client_ip = request.client.host if request.client else None
+
+    locked, lockout_info = await account_lockout.check_lockout(email_input)
+    if locked:
+        record_login_result("locked_out")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=lockout_info.get("message", "Account temporarily locked. Try again later."),
+            headers={"Retry-After": str(lockout_info.get("retry_after", 1))},
+        )
+
+    captcha_required = await captcha_verifier.is_captcha_required(email_input)
+    if captcha_required:
+        record_captcha_event("required")
+        if not captcha_token:
+            record_login_result("captcha_required")
+            record_captcha_event("missing")
+            raise HTTPException(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                detail="CAPTCHA verification required",
+                headers={"X-Captcha-Required": "true"},
+            )
+
+        captcha_valid = await captcha_verifier.verify(captcha_token, client_ip)
+        if not captcha_valid:
+            record_captcha_event("failed")
+            record_login_result("captcha_failed")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA verification failed",
+            )
+        record_captcha_event("passed")
+
+    allowed, rate_info = await account_rate_limiter.check(email_input)
+    if not allowed:
+        record_login_result("rate_limited")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=rate_info["message"],
+            headers={"Retry-After": str(rate_info.get("retry_after", 1))},
+        )
+
+    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, email_input)
+    if user_data:
+        user_id = user_data["id"]
+        user_email = user_data["email"]
+        hashed_password = user_data["hashed_password"]
+        account_status = user_data.get("account_status")
+        totp_enabled = bool(user_data.get("totp_enabled", False))
+        beta_claims = user_data.get("_beta_claims")
+    else:
+        user_id = None
+        user_email = None
+        hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
+        account_status = None
+        totp_enabled = False
+        beta_claims = None
+
+    await asyncio.to_thread(auth_service.release_connection)
+
+    async with login_slot():
+        password_valid = await verify_password_async(password, hashed_password)
+
+    if not user_data or not password_valid or not user_id or not user_email:
+        await account_rate_limiter.record_attempt(email_input)
+        await account_lockout.record_failure(email_input)
+        record_login_result("invalid_credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=invalid_credentials_detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if account_status == "deactivated":
+        record_login_result("deactivated")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=deactivated_detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    two_factor_response = _issue_two_factor_challenge_if_needed(
+        user_id=user_id,
+        user_email=user_email,
+        totp_enabled=totp_enabled,
+        request=request,
+        db=db,
+        response=response,
+        extra_claims=extra_claims,
     )
-    email_service.send_email(
-        to_email=to_email,
-        subject=EmailSubject.email_verification(),
-        html_content=html_content,
-        text_content=(
-            f"Your {BRAND_NAME} verification code is {code}. " "This code expires in 5 minutes."
-        ),
-        template=TemplateRegistry.AUTH_EMAIL_VERIFICATION,
+    if two_factor_response:
+        await account_lockout.reset(email_input)
+        await account_rate_limiter.reset(email_input)
+        record_login_result("two_factor_challenge")
+        return two_factor_response
+
+    access_token = create_access_token(
+        data={"sub": user_id, "email": user_email},
+        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
+        beta_claims=beta_claims,
     )
+    refresh_token = create_refresh_token(
+        data={"sub": user_id, "email": user_email},
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
+    )
+
+    await account_lockout.reset(email_input)
+    await account_rate_limiter.reset(email_input)
+    record_login_result("success")
+
+    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
+
+    if after_success is not None:
+        await after_success(user_id, user_email)
+
+    if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
+        await _maybe_send_new_device_login_notification(
+            user_id=user_id,
+            request=request,
+            cache_service=cache_service,
+        )
+
+    try:
+        AuditService(db).log(
+            action="user.login",
+            resource_type="user",
+            resource_id=user_id,
+            actor_type="user",
+            actor_id=user_id,
+            actor_email=user_email,
+            description=audit_description,
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for user login", exc_info=True)
+
+    return LoginResponse(requires_2fa=False)
 
 
 def _extract_invite_code(payload: UserCreate) -> str | None:
@@ -385,52 +462,6 @@ def _extract_invite_code(payload: UserCreate) -> str | None:
         return None
     invite_code_str = str(invite_code).strip()
     return invite_code_str or None
-
-
-def _require_valid_email_verification_token(payload: UserCreate) -> dict[str, Any]:
-    token = (payload.email_verification_token or "").strip()
-    if not token:
-        raise ValidationException(
-            "Email verification token is required.",
-            code="EMAIL_VERIFICATION_REQUIRED",
-        )
-
-    try:
-        token_payload = decode_email_verification_token(token)
-    except Exception as exc:
-        logger.info("Email verification token rejected: %s", exc)
-        raise ValidationException(
-            "Email verification token is invalid or expired.",
-            code="EMAIL_VERIFICATION_INVALID",
-        ) from exc
-
-    token_email = _normalize_email(str(token_payload.get("sub") or ""))
-    request_email = _normalize_email(str(payload.email))
-    if not token_email or token_email != request_email:
-        raise ValidationException(
-            "Email verification token does not match the registration email.",
-            code="EMAIL_VERIFICATION_EMAIL_MISMATCH",
-        )
-    return token_payload
-
-
-async def _consume_email_verification_token_jti(
-    cache_service: CacheService,
-    token_payload: dict[str, Any],
-) -> None:
-    jti = str(token_payload.get("jti") or "").strip()
-    if not jti:
-        raise ValidationException(
-            "Email verification token is invalid or expired.",
-            code="EMAIL_VERIFICATION_INVALID",
-        )
-
-    consumed = await cache_service.delete(_email_verification_token_jti_key(jti))
-    if not consumed:
-        raise ValidationException(
-            "Email verification token is invalid or expired.",
-            code="EMAIL_VERIFICATION_INVALID",
-        )
 
 
 def _get_registration_beta_phase(db: Session) -> str:
@@ -515,77 +546,9 @@ async def send_email_verification(
     email_service: EmailService = Depends(get_email_service),
 ) -> SendEmailVerificationResponse:
     """Send a pre-registration email verification code."""
-    email = str(payload.email)
-    normalized_email = _normalize_email(email)
-    local_part, _, domain = normalized_email.partition("@")
-    masked_email = (
-        f"{local_part[:2]}***@{domain}"
-        if domain
-        else (f"{normalized_email[:2]}***" if normalized_email else "***")
-    )
-    send_key = _email_verification_send_key(email)
-    if await _get_cache_count(cache_service, send_key) >= EMAIL_VERIFICATION_SEND_MAX:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "message": "Too many verification requests. Please try again later.",
-                "code": "EMAIL_VERIFICATION_RATE_LIMITED",
-                "details": {"retry_after_seconds": EMAIL_VERIFICATION_SEND_WINDOW_SECONDS},
-            },
-        )
     client_ip = request.client.host if request.client and request.client.host else "unknown"
-    ip_send_key = _email_verification_send_ip_key(client_ip)
-    if await _get_cache_count(cache_service, ip_send_key) >= EMAIL_VERIFICATION_SEND_IP_MAX:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "message": "Too many verification requests. Please try again later.",
-                "code": "EMAIL_VERIFICATION_IP_RATE_LIMITED",
-                "details": {"retry_after_seconds": EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS},
-            },
-        )
-
-    code = f"{secrets.randbelow(900000) + 100000:06d}"
-    code_key = _email_verification_code_key(email)
-    await cache_service.set(
-        code_key,
-        code,
-        ttl=EMAIL_VERIFICATION_CODE_TTL_SECONDS,
-    )
-    await _delete_cache_keys(
-        cache_service,
-        _email_verification_attempts_key(email),
-        _email_verification_lock_key(email),
-    )
-    try:
-        await asyncio.to_thread(
-            _send_email_verification_email_sync,
-            db=db,
-            email_service=email_service,
-            to_email=email,
-            code=code,
-        )
-    except Exception:
-        logger.warning("Email verification delivery failed for %s", masked_email, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "message": "Unable to send verification email. Please try again.",
-                "code": "EMAIL_VERIFICATION_DELIVERY_FAILED",
-            },
-        )
-
-    await _increment_cache_counter(
-        cache_service,
-        send_key,
-        EMAIL_VERIFICATION_SEND_WINDOW_SECONDS,
-    )
-    await _increment_cache_counter(
-        cache_service,
-        ip_send_key,
-        EMAIL_VERIFICATION_SEND_IP_WINDOW_SECONDS,
-    )
-
+    verification_service = EmailVerificationService(db, cache_service, email_service)
+    await verification_service.send_code(str(payload.email), client_ip)
     return SendEmailVerificationResponse(message="Verification code sent")
 
 
@@ -598,107 +561,19 @@ async def send_email_verification(
 async def verify_email_code(
     request: Request,
     payload: VerifyEmailCodeRequest = Body(...),
+    db: Session = Depends(get_db),
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> VerifyEmailCodeResponse:
     """Verify a pre-registration email code and return a short-lived signed token."""
-    email = str(payload.email)
-    submitted_code = payload.code.strip()
-    code_key = _email_verification_code_key(email)
-    attempts_key = _email_verification_attempts_key(email)
-    lock_key = _email_verification_lock_key(email)
-
-    redis_client = None
-    try:
-        redis_client = await cache_service.get_redis_client()
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.warning("Redis unavailable for email verification confirm: %s", exc)
-
-    locked = False
-    if redis_client is not None:
-        locked = bool(await redis_client.get(lock_key))
-        if not locked:
-            locked = bool(await cache_service.get(lock_key))
-    else:
-        locked = bool(await cache_service.get(lock_key))
-
-    if locked:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "message": "Too many attempts. Please wait 10 minutes and try again.",
-                "code": "EMAIL_VERIFICATION_LOCKED",
-                "details": {"retry_after_seconds": EMAIL_VERIFICATION_LOCK_TTL_SECONDS},
-            },
-        )
-
-    cached_code_raw = await cache_service.get(code_key)
-    cached_code = (
-        cached_code_raw.decode("utf-8", errors="ignore")
-        if isinstance(cached_code_raw, bytes)
-        else (str(cached_code_raw) if cached_code_raw is not None else "")
+    del request
+    verification_service = EmailVerificationService(db, cache_service)
+    verification_token, expires_in_seconds = await verification_service.verify_code(
+        str(payload.email),
+        payload.code,
     )
-    if not cached_code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "message": "Verification code is invalid or expired.",
-                "code": "EMAIL_VERIFICATION_CODE_INVALID",
-                "details": {"expired": True},
-            },
-        )
-
-    if not secrets.compare_digest(cached_code, submitted_code):
-        attempts = await _increment_cache_counter(
-            cache_service,
-            attempts_key,
-            EMAIL_VERIFICATION_ATTEMPT_WINDOW_SECONDS,
-        )
-        remaining_attempts = max(EMAIL_VERIFICATION_ATTEMPT_MAX - attempts, 0)
-        if attempts >= EMAIL_VERIFICATION_ATTEMPT_MAX:
-            await cache_service.set(lock_key, True, ttl=EMAIL_VERIFICATION_LOCK_TTL_SECONDS)
-            await cache_service.delete(code_key)
-            await _delete_cache_keys(cache_service, attempts_key)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Too many attempts. Please wait 10 minutes and try again.",
-                    "code": "EMAIL_VERIFICATION_LOCKED",
-                    "details": {"retry_after_seconds": EMAIL_VERIFICATION_LOCK_TTL_SECONDS},
-                },
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "message": "Invalid verification code.",
-                "code": "EMAIL_VERIFICATION_CODE_INVALID",
-                "details": {"remaining_attempts": remaining_attempts},
-            },
-        )
-
-    await _delete_cache_keys(cache_service, code_key, attempts_key, lock_key)
-    verification_token = create_email_verification_token(
-        _normalize_email(email),
-        expires_delta=timedelta(seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS),
-    )
-    token_payload = decode_email_verification_token(verification_token)
-    jti = str(token_payload.get("jti") or "").strip()
-    stored = await cache_service.set(
-        _email_verification_token_jti_key(jti),
-        True,
-        ttl=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
-    )
-    if not stored:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "message": "Unable to verify email. Please try again.",
-                "code": "EMAIL_VERIFICATION_UNAVAILABLE",
-            },
-        )
     return VerifyEmailCodeResponse(
         verification_token=verification_token,
-        expires_in_seconds=EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+        expires_in_seconds=expires_in_seconds,
     )
 
 
@@ -718,9 +593,14 @@ async def register(
 ) -> RegisterResponse:
     """Register a new user. Always returns a generic response to prevent email enumeration."""
     generic_response = RegisterResponse(message="Please check your email to verify your account.")
+    email_verification_service = EmailVerificationService(db, cache_service)
 
     try:
-        token_payload = _require_valid_email_verification_token(payload)
+        token_payload = await asyncio.to_thread(
+            email_verification_service.validate_registration_token,
+            str(payload.email),
+            payload.email_verification_token or "",
+        )
         beta_phase = _get_registration_beta_phase(db)
         invite_code = _extract_invite_code(payload)
         validated_invite = _validate_registration_invite(
@@ -730,7 +610,7 @@ async def register(
             email=str(payload.email),
             invite_code=invite_code,
         )
-        await _consume_email_verification_token_jti(cache_service, token_payload)
+        await email_verification_service.consume_token_jti(token_payload)
 
         db_user = await asyncio.to_thread(
             auth_service.register_user,
@@ -854,170 +734,25 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    email_input = (form_data.username or "").strip()
-    captcha_token = await _extract_captcha_token(request)
-    client_ip = request.client.host if request.client else None
-
-    # Check lockout first (cheapest)
-    locked, lockout_info = await account_lockout.check_lockout(email_input)
-    if locked:
-        record_login_result("locked_out")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=lockout_info.get("message", "Account temporarily locked. Try again later."),
-            headers={"Retry-After": str(lockout_info.get("retry_after", 1))},
-        )
-
-    # CAPTCHA requirement based on prior failures
-    captcha_required = await captcha_verifier.is_captcha_required(email_input)
-    if captcha_required:
-        record_captcha_event("required")
-        if not captcha_token:
-            record_login_result("captcha_required")
-            record_captcha_event("missing")
-            raise HTTPException(
-                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-                detail="CAPTCHA verification required",
-                headers={"X-Captcha-Required": "true"},
-            )
-
-        captcha_valid = await captcha_verifier.verify(captcha_token, client_ip)
-        if not captcha_valid:
-            record_captcha_event("failed")
-            record_login_result("captcha_failed")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="CAPTCHA verification failed"
-            )
-        record_captcha_event("passed")
-
-    # Per-account rate limiting
-    # Check rate limit (don't increment yet - only count failed attempts)
-    allowed, rate_info = await account_rate_limiter.check(email_input)
-    if not allowed:
-        record_login_result("rate_limited")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=rate_info["message"],
-            headers={"Retry-After": str(rate_info.get("retry_after", 1))},
-        )
-
-    # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
-    # CRITICAL: Run in thread pool to avoid blocking event loop under load
-    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, email_input)
-
-    # Step 2: Extract data needed BEFORE releasing DB
-    if user_data:
-        user_id = user_data["id"]
-        user_email = user_data["email"]
-        hashed_password = user_data["hashed_password"]
-        account_status = user_data.get("account_status")
-        totp_enabled = user_data.get("totp_enabled", False)
-        # Keep reference to user object for 2FA check (attributes already loaded)
-        user_obj = user_data.get("_user_obj")
-        # Beta claims pre-fetched in fetch_user_for_auth (no extra DB query needed)
-        beta_claims = user_data.get("_beta_claims")
-    else:
-        user_id = None
-        user_email = None
-        hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
-        account_status = None
-        totp_enabled = False
-        user_obj = None
-        beta_claims = None
-
-    # Step 3: Release DB connection BEFORE Argon2id verification (critical for throughput)
-    await asyncio.to_thread(auth_service.release_connection)
-
-    # Step 4: ONLY password verification is concurrency-capped
-    async with login_slot():
-        password_valid = await verify_password_async(form_data.password, hashed_password)
-
-    # Step 5: Validate authentication result
-    if not user_data or not password_valid:
-        # Only count failed attempts toward rate limiting (better UX)
-        await account_rate_limiter.record_attempt(email_input)
-        await account_lockout.record_failure(email_input)
-        record_login_result("invalid_credentials")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "message": "Incorrect email or password",
-                "code": "AUTH_INVALID_CREDENTIALS",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Check account status - deactivated users cannot login
-    if account_status == "deactivated":
-        record_login_result("deactivated")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "message": "Account has been deactivated",
-                "code": "AUTH_ACCOUNT_DEACTIVATED",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Step 6: Check 2FA requirement (uses pre-loaded attributes, no DB needed)
-    if user_obj and totp_enabled:
-        two_factor_response = _issue_two_factor_challenge_if_needed(
-            user_obj,
-            request,
-            db=db,
-            response=response,
-        )
-        if two_factor_response:
-            await account_lockout.reset(email_input)
-            await account_rate_limiter.reset(email_input)
-            record_login_result("two_factor_challenge")
-            return two_factor_response
-
-    # Step 7: Create access token (no DB needed)
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    _claims = {"sub": user_id, "email": user_email}
-
-    access_token = create_access_token(
-        data=_claims,
-        expires_delta=access_token_expires,
-        beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
+    return await _authenticate_and_respond(
+        request=request,
+        response=response,
+        email_input=(form_data.username or "").strip(),
+        password=form_data.password,
+        captcha_token=await _extract_captcha_token(request),
+        auth_service=auth_service,
+        db=db,
+        cache_service=cache_service,
+        invalid_credentials_detail={
+            "message": "Incorrect email or password",
+            "code": "AUTH_INVALID_CREDENTIALS",
+        },
+        deactivated_detail={
+            "message": "Account has been deactivated",
+            "code": "AUTH_ACCOUNT_DEACTIVATED",
+        },
+        audit_description="User login",
     )
-    refresh_token = create_refresh_token(
-        data=_claims,
-        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
-    )
-
-    # Success - reset counters
-    await account_lockout.reset(email_input)
-    await account_rate_limiter.reset(email_input)
-    record_login_result("success")
-
-    # Step 8: Set access + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
-
-    if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
-        await _maybe_send_new_device_login_notification(
-            user_id=user_id,
-            request=request,
-            cache_service=cache_service,
-        )
-
-    try:
-        if user_id:
-            AuditService(db).log(
-                action="user.login",
-                resource_type="user",
-                resource_id=user_id,
-                actor_type="user",
-                actor_id=user_id,
-                actor_email=user_email,
-                description="User login",
-                request=request,
-            )
-    except Exception:
-        logger.warning("Audit log write failed for user login", exc_info=True)
-
-    return LoginResponse(requires_2fa=False)
 
 
 @router.post(
@@ -1258,176 +993,37 @@ async def login_with_session(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    email_input = (login_data.email or "").strip()
-    client_ip = request.client.host if request.client else None
-
-    locked, lockout_info = await account_lockout.check_lockout(email_input)
-    if locked:
-        record_login_result("locked_out")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=lockout_info.get("message", "Account temporarily locked. Try again later."),
-            headers={"Retry-After": str(lockout_info.get("retry_after", 1))},
-        )
-
-    captcha_required = await captcha_verifier.is_captcha_required(email_input)
-    if captcha_required:
-        record_captcha_event("required")
-        if not login_data.captcha_token:
-            record_login_result("captcha_required")
-            record_captcha_event("missing")
-            raise HTTPException(
-                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-                detail="CAPTCHA verification required",
-                headers={"X-Captcha-Required": "true"},
-            )
-
-        captcha_valid = await captcha_verifier.verify(login_data.captcha_token, client_ip)
-        if not captcha_valid:
-            record_captcha_event("failed")
-            record_login_result("captcha_failed")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="CAPTCHA verification failed"
-            )
-        record_captcha_event("passed")
-
-    # Check rate limit (don't increment yet - only count failed attempts)
-    allowed, rate_info = await account_rate_limiter.check(email_input)
-    if not allowed:
-        record_login_result("rate_limited")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=rate_info["message"],
-            headers={"Retry-After": str(rate_info.get("retry_after", 1))},
-        )
-
-    # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
-    # CRITICAL: Run in thread pool to avoid blocking event loop under load
-    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, email_input)
-
-    # Step 2: Extract data needed BEFORE releasing DB
-    if user_data:
-        user_id = user_data["id"]
-        user_email = user_data["email"]
-        hashed_password = user_data["hashed_password"]
-        account_status = user_data.get("account_status")
-        totp_enabled = user_data.get("totp_enabled", False)
-        user_obj = user_data.get("_user_obj")
-        # Beta claims pre-fetched in fetch_user_for_auth (no extra DB query needed)
-        beta_claims = user_data.get("_beta_claims")
-    else:
-        user_id = None
-        user_email = None
-        hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
-        account_status = None
-        totp_enabled = False
-        user_obj = None
-        beta_claims = None
-
-    # Step 3: Release auth_service DB connection BEFORE Argon2id verification
-    await asyncio.to_thread(auth_service.release_connection)
-
-    # Step 4: ONLY password verification is concurrency-capped
-    async with login_slot():
-        password_valid = await verify_password_async(login_data.password, hashed_password)
-
-    # Step 5: Validate authentication result
-    if not user_data or not password_valid:
-        # Only count failed attempts toward rate limiting (better UX)
-        await account_rate_limiter.record_attempt(email_input)
-        await account_lockout.record_failure(email_input)
-        record_login_result("invalid_credentials")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Check account status
-    if account_status == "deactivated":
-        record_login_result("deactivated")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account has been deactivated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Step 6: Check 2FA requirement
     extra_claims: dict[str, str] = {}
     if login_data.guest_session_id:
         extra_claims["guest_session_id"] = login_data.guest_session_id
 
-    if user_obj and totp_enabled:
-        two_factor_response = _issue_two_factor_challenge_if_needed(
-            user_obj,
-            request,
-            db=db,
-            response=response,
-            extra_claims=extra_claims,
-        )
-        if two_factor_response:
-            await account_lockout.reset(email_input)
-            await account_rate_limiter.reset(email_input)
-            record_login_result("two_factor_challenge")
-            return two_factor_response
+    after_success: Callable[[str, str], Awaitable[None]] | None = None
+    if login_data.guest_session_id:
 
-    # Step 7: Create access token (no DB needed)
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(
-        data={"sub": user_id, "email": user_email},
-        expires_delta=access_token_expires,
-        beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
-    )
-    refresh_token = create_refresh_token(
-        data={"sub": user_id, "email": user_email},
-        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
-    )
-
-    # Success - reset counters
-    await account_lockout.reset(email_input)
-    await account_rate_limiter.reset(email_input)
-    record_login_result("success")
-
-    # Step 8: Set access + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
-
-    # Step 9: Convert guest searches if guest_session_id provided
-    # Uses the separate `db` session (not auth_service.db which is closed)
-    if login_data.guest_session_id and user_id:
-        try:
-            search_service = SearchHistoryService(db)
-            converted_count = await asyncio.to_thread(
-                search_service.convert_guest_searches_to_user,
-                guest_session_id=login_data.guest_session_id,
+        async def _after_success(user_id: str, _user_email: str) -> None:
+            await _convert_guest_searches_after_login(
+                guest_session_id=login_data.guest_session_id or "",
                 user_id=user_id,
+                db=db,
             )
-            logger.info("Converted %s guest searches for user %s", converted_count, user_id)
-        except Exception as e:
-            logger.error("Failed to convert guest searches during login: %s", str(e))
-            # Don't fail login if conversion fails
 
-    if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
-        await _maybe_send_new_device_login_notification(
-            user_id=user_id,
-            request=request,
-            cache_service=cache_service,
-        )
+        after_success = _after_success
 
-    try:
-        if user_id:
-            AuditService(db).log(
-                action="user.login",
-                resource_type="user",
-                resource_id=user_id,
-                actor_type="user",
-                actor_id=user_id,
-                actor_email=user_email,
-                description="User login (guest conversion)",
-                request=request,
-            )
-    except Exception:
-        logger.warning("Audit log write failed for user login", exc_info=True)
-    return LoginResponse(requires_2fa=False)
+    return await _authenticate_and_respond(
+        request=request,
+        response=response,
+        email_input=(login_data.email or "").strip(),
+        password=login_data.password,
+        captcha_token=login_data.captcha_token,
+        auth_service=auth_service,
+        db=db,
+        cache_service=cache_service,
+        invalid_credentials_detail="Incorrect email or password",
+        deactivated_detail="Account has been deactivated",
+        extra_claims=extra_claims or None,
+        after_success=after_success,
+        audit_description="User login (guest conversion)",
+    )
 
 
 @router.get("/me", response_model=AuthUserWithPermissionsResponse)

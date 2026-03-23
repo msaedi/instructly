@@ -118,11 +118,13 @@ class TestIssueTwoFactorChallenge:
     def test_no_totp_enabled(self):
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
-        user = MagicMock()
-        user.totp_enabled = False
-        user.email = "test@example.com"
         request = MagicMock()
-        result = _issue_two_factor_challenge_if_needed(user, request)
+        result = _issue_two_factor_challenge_if_needed(
+            user_id="user-1",
+            user_email="test@example.com",
+            totp_enabled=False,
+            request=request,
+        )
         assert result is None
 
     @patch("app.routes.v1.auth.TrustedDeviceService")
@@ -130,13 +132,12 @@ class TestIssueTwoFactorChallenge:
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
         mock_trusted_device_service.return_value.validate_request_trust.return_value = True
-        user = MagicMock()
-        user.totp_enabled = True
-        user.email = "test@example.com"
         request = MagicMock()
         result = _issue_two_factor_challenge_if_needed(
-            user,
-            request,
+            user_id="user-1",
+            user_email="test@example.com",
+            totp_enabled=True,
+            request=request,
             db=MagicMock(),
             response=Response(),
         )
@@ -147,11 +148,13 @@ class TestIssueTwoFactorChallenge:
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
         mock_temp.return_value = "temp_token_abc"
-        user = MagicMock()
-        user.totp_enabled = True
-        user.email = "test@example.com"
         request = MagicMock()
-        result = _issue_two_factor_challenge_if_needed(user, request)
+        result = _issue_two_factor_challenge_if_needed(
+            user_id="user-1",
+            user_email="test@example.com",
+            totp_enabled=True,
+            request=request,
+        )
         assert result is not None
         assert result.requires_2fa is True
         assert result.temp_token == "temp_token_abc"
@@ -161,12 +164,13 @@ class TestIssueTwoFactorChallenge:
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
         mock_temp.return_value = "temp_token_xyz"
-        user = MagicMock()
-        user.totp_enabled = True
-        user.email = "test@example.com"
         request = MagicMock()
         result = _issue_two_factor_challenge_if_needed(
-            user, request, extra_claims={"session_id": "S1"}
+            user_id="user-1",
+            user_email="test@example.com",
+            totp_enabled=True,
+            request=request,
+            extra_claims={"session_id": "S1"},
         )
         assert result is not None
         assert result.requires_2fa is True

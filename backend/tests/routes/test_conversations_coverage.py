@@ -266,6 +266,7 @@ async def test_create_conversation_error_paths(monkeypatch, test_student):
             service=StubServiceNotFound(),
         )
     assert excinfo.value.status_code == 404
+    assert excinfo.value.detail == "Cannot create conversation with this user."
 
     class StubServiceBadRequest:
         def create_conversation_with_message(self, *_args, **_kwargs):

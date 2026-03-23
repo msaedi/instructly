@@ -196,7 +196,7 @@ class TestCalculateAndValidateEndTime:
         start_time = time(23, 0)
         duration = 120  # 2 hours (would end at 1:00 AM)
 
-        with pytest.raises(ValidationException, match="same calendar day"):
+        with pytest.raises(ValidationException, match="cannot span multiple days"):
             booking_service._calculate_and_validate_end_time(
                 booking_date, start_time, duration
             )
