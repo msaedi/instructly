@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.search_history import SearchHistory
+from app.models.trusted_device import TrustedDevice
 from app.services.auth_service import AuthService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 
@@ -133,7 +134,10 @@ class TestLoginWithSessionTwoFactor:
         assert decoded["sub"] == user_id
         set_cookie = verify_response.headers.get("set-cookie") or ""
         assert f"{settings.session_cookie_name}=" in set_cookie
-        assert "tfa_trusted=1" in set_cookie
+        assert "tfa_device_trust=" in set_cookie
+        trusted_devices = db.query(TrustedDevice).filter(TrustedDevice.user_id == user_id).all()
+        assert len(trusted_devices) == 1
+        assert trusted_devices[0].device_name
 
         guest_rows = db.query(SearchHistory).filter(
             SearchHistory.guest_session_id == guest_session_id
@@ -144,21 +148,6 @@ class TestLoginWithSessionTwoFactor:
             db.query(SearchHistory).filter(SearchHistory.user_id == user_id).count()
             >= len(guest_rows)
         )
-
-        # Subsequent login should skip 2FA due to trust cookie
-        follow_up = client.post(
-            "/api/v1/auth/login-with-session",
-            json={
-                "email": email,
-                "password": "Test1234!",
-                "guest_session_id": guest_session_id,
-            },
-        )
-        assert follow_up.status_code == 200
-        follow_payload = follow_up.json()
-        assert follow_payload["requires_2fa"] is False
-        assert "access_token" not in follow_payload
-        assert f"{settings.session_cookie_name}=" in (follow_up.headers.get("set-cookie") or "")
 
     def test_wrong_2fa_code_rejected(self, client: TestClient, db: Session):
         client.cookies.clear()

@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from .service_format_pricing_repository import ServiceFormatPricingRepository
     from .subcategory_repository import SubcategoryRepository
     from .taxonomy_filter_repository import TaxonomyFilterRepository
+    from .trusted_device_repository import TrustedDeviceRepository
     from .user_repository import UserRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -256,6 +257,13 @@ class RepositoryFactory:
         from .user_repository import UserRepository
 
         return UserRepository(db)
+
+    @staticmethod
+    def create_trusted_device_repository(db: Session) -> "TrustedDeviceRepository":
+        """Create repository for trusted-device operations."""
+        from .trusted_device_repository import TrustedDeviceRepository
+
+        return TrustedDeviceRepository(db)
 
     @staticmethod
     def create_rbac_repository(db: Session) -> "RBACRepository":

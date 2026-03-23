@@ -13,6 +13,7 @@ from typing import List
 from app.tasks import (
     analytics,  # noqa: F401
     codebase_metrics,  # noqa: F401
+    db_maintenance,  # noqa: F401
     monitoring_tasks,  # noqa: F401
     notification_tasks,  # noqa: F401
     privacy_audit_task,  # noqa: F401
@@ -46,6 +47,9 @@ ALL_TASKS = [
     "app.tasks.referral_tasks.retry_failed_instructor_referral_payouts",
     "app.tasks.referral_tasks.check_pending_instructor_referral_payouts",
     "retention.purge_soft_deleted",
+    "db_maintenance.analyze_high_churn_tables",
+    "db_maintenance.cleanup_stale_2fa_setups",
+    "db_maintenance.cleanup_expired_trusted_devices",
     # Notification outbox
     "outbox.dispatch_pending",
     "outbox.deliver_event",

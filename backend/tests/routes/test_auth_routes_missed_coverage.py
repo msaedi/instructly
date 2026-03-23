@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi import Response
 import pytest
 
 
@@ -112,48 +113,6 @@ class TestDeviceFingerprint:
         fp1 = _device_fingerprint("1.2.3.4", "Chrome")
         fp2 = _device_fingerprint("5.6.7.8", "Chrome")
         assert fp1 != fp2
-
-
-@pytest.mark.unit
-class TestShouldTrustDevice:
-    def test_trusted_cookie(self):
-        from app.routes.v1.auth import _should_trust_device
-
-        request = MagicMock()
-        request.cookies.get.return_value = "1"
-        assert _should_trust_device(request) is True
-
-    @patch("app.routes.v1.auth.settings")
-    def test_non_production_header_bypass(self, mock_settings):
-        from app.routes.v1.auth import _should_trust_device
-
-        mock_settings.environment = "staging"
-        request = MagicMock()
-        request.cookies.get.return_value = None
-        request.headers.get.return_value = "true"
-        assert _should_trust_device(request) is True
-
-    @patch("app.routes.v1.auth.settings")
-    def test_production_no_bypass(self, mock_settings):
-        from app.routes.v1.auth import _should_trust_device
-
-        mock_settings.environment = "production"
-        request = MagicMock()
-        request.cookies.get.return_value = None
-        request.headers.get.return_value = "true"
-        assert _should_trust_device(request) is False
-
-    @patch("app.routes.v1.auth.settings")
-    def test_no_cookie_no_header(self, mock_settings):
-        from app.routes.v1.auth import _should_trust_device
-
-        mock_settings.environment = "staging"
-        request = MagicMock()
-        request.cookies.get.return_value = None
-        request.headers.get.return_value = None
-        assert _should_trust_device(request) is False
-
-
 @pytest.mark.unit
 class TestIssueTwoFactorChallenge:
     def test_no_totp_enabled(self):
@@ -166,24 +125,27 @@ class TestIssueTwoFactorChallenge:
         result = _issue_two_factor_challenge_if_needed(user, request)
         assert result is None
 
-    @patch("app.routes.v1.auth._should_trust_device")
-    def test_trusted_device_skips(self, mock_trust):
+    @patch("app.routes.v1.auth.TrustedDeviceService")
+    def test_trusted_device_skips(self, mock_trusted_device_service):
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
-        mock_trust.return_value = True
+        mock_trusted_device_service.return_value.validate_request_trust.return_value = True
         user = MagicMock()
         user.totp_enabled = True
         user.email = "test@example.com"
         request = MagicMock()
-        result = _issue_two_factor_challenge_if_needed(user, request)
+        result = _issue_two_factor_challenge_if_needed(
+            user,
+            request,
+            db=MagicMock(),
+            response=Response(),
+        )
         assert result is None
 
-    @patch("app.routes.v1.auth._should_trust_device")
     @patch("app.routes.v1.auth.create_temp_token")
-    def test_challenge_issued(self, mock_temp, mock_trust):
+    def test_challenge_issued(self, mock_temp):
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
-        mock_trust.return_value = False
         mock_temp.return_value = "temp_token_abc"
         user = MagicMock()
         user.totp_enabled = True
@@ -194,12 +156,10 @@ class TestIssueTwoFactorChallenge:
         assert result.requires_2fa is True
         assert result.temp_token == "temp_token_abc"
 
-    @patch("app.routes.v1.auth._should_trust_device")
     @patch("app.routes.v1.auth.create_temp_token")
-    def test_with_extra_claims(self, mock_temp, mock_trust):
+    def test_with_extra_claims(self, mock_temp):
         from app.routes.v1.auth import _issue_two_factor_challenge_if_needed
 
-        mock_trust.return_value = False
         mock_temp.return_value = "temp_token_xyz"
         user = MagicMock()
         user.totp_enabled = True

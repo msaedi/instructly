@@ -32,6 +32,8 @@ import type {
   TFAStatusResponse,
   TFAVerifyLoginRequest,
   TFAVerifyLoginResponse,
+  TrustedDeviceListResponse,
+  TrustedDeviceRevokeResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -509,6 +511,330 @@ export function useStatusEndpointApiV12faStatusGet<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * @summary Revoke All Trusted Devices
+ */
+export const getRevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteUrl = () => {
+  return `/api/v1/2fa/trusted-devices`;
+};
+
+export const revokeAllTrustedDevicesApiV12faTrustedDevicesDelete = async (
+  options?: RequestInit
+): Promise<TrustedDeviceRevokeResponse> => {
+  return customFetch<TrustedDeviceRevokeResponse>(
+    getRevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteUrl(),
+    {
+      ...options,
+      method: 'DELETE',
+    }
+  );
+};
+
+export const getRevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['revokeAllTrustedDevicesApiV12faTrustedDevicesDelete'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>,
+    void
+  > = () => {
+    return revokeAllTrustedDevicesApiV12faTrustedDevicesDelete(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>
+>;
+
+export type RevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Revoke All Trusted Devices
+ */
+export const useRevokeAllTrustedDevicesApiV12faTrustedDevicesDelete = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeAllTrustedDevicesApiV12faTrustedDevicesDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getRevokeAllTrustedDevicesApiV12faTrustedDevicesDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Trusted Devices
+ */
+export const getTrustedDevicesApiV12faTrustedDevicesGetUrl = () => {
+  return `/api/v1/2fa/trusted-devices`;
+};
+
+export const trustedDevicesApiV12faTrustedDevicesGet = async (
+  options?: RequestInit
+): Promise<TrustedDeviceListResponse> => {
+  return customFetch<TrustedDeviceListResponse>(getTrustedDevicesApiV12faTrustedDevicesGetUrl(), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getTrustedDevicesApiV12faTrustedDevicesGetQueryKey = () => {
+  return [`/api/v1/2fa/trusted-devices`] as const;
+};
+
+export const getTrustedDevicesApiV12faTrustedDevicesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getTrustedDevicesApiV12faTrustedDevicesGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>
+  > = ({ signal }) => trustedDevicesApiV12faTrustedDevicesGet({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type TrustedDevicesApiV12faTrustedDevicesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>
+>;
+export type TrustedDevicesApiV12faTrustedDevicesGetQueryError = ErrorType<unknown>;
+
+export function useTrustedDevicesApiV12faTrustedDevicesGet<
+  TData = Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useTrustedDevicesApiV12faTrustedDevicesGet<
+  TData = Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useTrustedDevicesApiV12faTrustedDevicesGet<
+  TData = Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Trusted Devices
+ */
+
+export function useTrustedDevicesApiV12faTrustedDevicesGet<
+  TData = Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof trustedDevicesApiV12faTrustedDevicesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getTrustedDevicesApiV12faTrustedDevicesGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Revoke Trusted Device
+ */
+export const getRevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteUrl = (deviceId: string) => {
+  return `/api/v1/2fa/trusted-devices/${deviceId}`;
+};
+
+export const revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete = async (
+  deviceId: string,
+  options?: RequestInit
+): Promise<TrustedDeviceRevokeResponse> => {
+  return customFetch<TrustedDeviceRevokeResponse>(
+    getRevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteUrl(deviceId),
+    {
+      ...options,
+      method: 'DELETE',
+    }
+  );
+};
+
+export const getRevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>,
+    TError,
+    { deviceId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>,
+  TError,
+  { deviceId: string },
+  TContext
+> => {
+  const mutationKey = ['revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>,
+    { deviceId: string }
+  > = (props) => {
+    const { deviceId } = props ?? {};
+
+    return revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete(deviceId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>
+>;
+
+export type RevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Revoke Trusted Device
+ */
+export const useRevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>,
+      TError,
+      { deviceId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDelete>>,
+  TError,
+  { deviceId: string },
+  TContext
+> => {
+  return useMutation(
+    getRevokeTrustedDeviceApiV12faTrustedDevicesDeviceIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * @summary Verify Login
  */

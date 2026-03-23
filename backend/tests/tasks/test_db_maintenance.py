@@ -125,3 +125,40 @@ class TestCleanupStale2faSetups:
 
         params = mock_db.execute.call_args[0][1]
         assert "cutoff" in params
+
+
+class TestCleanupExpiredTrustedDevices:
+    """Tests for cleanup_expired_trusted_devices task."""
+
+    @patch("app.tasks.db_maintenance.get_db_session")
+    @patch("app.tasks.db_maintenance.TrustedDeviceService")
+    def test_cleanup_commits_when_devices_deleted(self, mock_service_cls, mock_get_session):
+        from app.tasks.db_maintenance import cleanup_expired_trusted_devices
+
+        mock_db = MagicMock()
+        mock_service = MagicMock()
+        mock_service.delete_expired_devices.return_value = 4
+        mock_service_cls.return_value = mock_service
+        mock_get_session.return_value.__enter__ = MagicMock(return_value=mock_db)
+        mock_get_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        cleanup_expired_trusted_devices()
+
+        mock_service.delete_expired_devices.assert_called_once()
+        mock_db.commit.assert_called_once()
+
+    @patch("app.tasks.db_maintenance.get_db_session")
+    @patch("app.tasks.db_maintenance.TrustedDeviceService")
+    def test_cleanup_handles_exception(self, mock_service_cls, mock_get_session):
+        from app.tasks.db_maintenance import cleanup_expired_trusted_devices
+
+        mock_db = MagicMock()
+        mock_service = MagicMock()
+        mock_service.delete_expired_devices.side_effect = RuntimeError("boom")
+        mock_service_cls.return_value = mock_service
+        mock_get_session.return_value.__enter__ = MagicMock(return_value=mock_db)
+        mock_get_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        cleanup_expired_trusted_devices()
+
+        mock_db.commit.assert_not_called()

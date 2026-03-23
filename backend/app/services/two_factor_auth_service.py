@@ -222,6 +222,18 @@ class TwoFactorAuthService(BaseService):
                     continue
         return False
 
+    @BaseService.measure_operation("tfa_rollback_optional_trust_persistence")
+    def rollback_optional_trust_persistence(self, user_id: str) -> None:
+        """Best-effort rollback when optional trusted-device persistence fails."""
+        try:
+            self.user_repository.rollback()
+        except Exception:
+            self.logger.debug(
+                "Rollback after trusted-device persistence failure also failed for %s",
+                user_id,
+                exc_info=True,
+            )
+
     @BaseService.measure_operation("tfa_check_required")
     def check_2fa_required(self, user: Optional[User]) -> bool:
         return bool(user and user.totp_enabled)

@@ -284,9 +284,6 @@ function LoginForm({
           backup_code: sanitizedBackup || undefined,
         },
       });
-      if (trustThisBrowser) {
-        try { sessionStorage.setItem('tfa_trusted', 'true'); } catch {}
-      }
       await transferGuestSearchesToAccount();
       await checkAuth();
       try {

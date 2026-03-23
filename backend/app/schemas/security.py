@@ -54,6 +54,25 @@ class TFAStatusResponse(StrictModel):
     last_used_at: Optional[str] = None
 
 
+class TrustedDeviceResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    id: str
+    device_name: str
+    created_at: str
+    last_used_at: str
+    expires_at: str
+
+
+class TrustedDeviceListResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    items: List[TrustedDeviceResponse]
+
+
+class TrustedDeviceRevokeResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    message: str
+
+
 class TFAVerifyLoginRequest(StrictRequestModel):
     temp_token: str
     code: Optional[str] = None

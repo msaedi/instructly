@@ -230,6 +230,42 @@ def upgrade() -> None:
     op.create_index("idx_favorites_student", "user_favorites", ["student_id"])
     op.create_index("idx_favorites_instructor", "user_favorites", ["instructor_id"])
 
+    # Trusted devices
+    op.create_table(
+        "trusted_devices",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("device_token_hash", sa.String(64), nullable=False),
+        sa.Column("device_name", sa.String(120), nullable=False),
+        sa.Column("user_agent", sa.String(512), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "last_used_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "device_token_hash",
+            name="uq_trusted_devices_device_token_hash",
+        ),
+        comment="Server-side trusted-device records for 2FA bypass",
+    )
+    op.create_index("ix_trusted_devices_user_id", "trusted_devices", ["user_id"])
+    op.create_index("ix_trusted_devices_expires_at", "trusted_devices", ["expires_at"])
+
     # Addresses and spatial data
     class Geometry(sa.types.UserDefinedType):
         def __init__(self, geom_type: str = "POINT", srid: int = 4326):
@@ -1444,6 +1480,15 @@ def downgrade() -> None:
         tables = _get_public_tables(exclude_tables)
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
+
+    op.drop_index("ix_trusted_devices_expires_at", table_name="trusted_devices")
+    op.drop_index("ix_trusted_devices_user_id", table_name="trusted_devices")
+    op.drop_constraint(
+        "uq_trusted_devices_device_token_hash",
+        "trusted_devices",
+        type_="unique",
+    )
+    op.drop_table("trusted_devices")
 
     op.drop_index("ix_bookings_video_noshow_candidates", table_name="bookings")
     op.drop_index("ix_booking_video_sessions_session_id", table_name="booking_video_sessions")

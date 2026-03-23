@@ -8,6 +8,12 @@ import { useSession } from '@/src/api/hooks/useSession';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
+import {
+  useInvalidateTrustedDevices,
+  useRevokeAllTrustedDevices,
+  useRevokeTrustedDevice,
+  useTrustedDevices,
+} from '@/hooks/queries/useTrustedDevices';
 import { toast } from 'sonner';
 
 jest.mock('@/components/UserProfileDropdown', () => {
@@ -45,6 +51,13 @@ jest.mock('@/hooks/queries/useUserAddresses', () => ({
   useInvalidateUserAddresses: jest.fn(),
 }));
 
+jest.mock('@/hooks/queries/useTrustedDevices', () => ({
+  useTrustedDevices: jest.fn(),
+  useInvalidateTrustedDevices: jest.fn(),
+  useRevokeTrustedDevice: jest.fn(),
+  useRevokeAllTrustedDevices: jest.fn(),
+}));
+
 jest.mock('@/features/shared/hooks/usePushNotifications', () => ({
   usePushNotifications: jest.fn(),
 }));
@@ -72,6 +85,10 @@ const updatePreferenceMock = notificationPreferencesApi.updatePreference as jest
 const useSessionMock = useSession as jest.Mock;
 const useUserAddressesMock = useUserAddresses as jest.Mock;
 const useInvalidateUserAddressesMock = useInvalidateUserAddresses as jest.Mock;
+const useTrustedDevicesMock = useTrustedDevices as jest.Mock;
+const useInvalidateTrustedDevicesMock = useInvalidateTrustedDevices as jest.Mock;
+const useRevokeTrustedDeviceMock = useRevokeTrustedDevice as jest.Mock;
+const useRevokeAllTrustedDevicesMock = useRevokeAllTrustedDevices as jest.Mock;
 const usePushNotificationsMock = usePushNotifications as jest.Mock;
 const usePhoneVerificationMock = usePhoneVerification as jest.Mock;
 
@@ -107,6 +124,15 @@ describe('SettingsImpl', () => {
   let updatePhoneMock: jest.Mock;
   let sendVerificationMock: jest.Mock;
   let confirmVerificationMock: jest.Mock;
+  let trustedDevicesState: Array<{
+    id: string;
+    device_name: string;
+    created_at: string;
+    last_used_at: string;
+    expires_at: string;
+  }>;
+  let revokeTrustedDeviceMutationMock: jest.Mock;
+  let revokeAllTrustedDevicesMutationMock: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -155,6 +181,27 @@ describe('SettingsImpl', () => {
     });
 
     useInvalidateUserAddressesMock.mockReturnValue(jest.fn());
+    trustedDevicesState = [];
+    revokeTrustedDeviceMutationMock = jest.fn().mockResolvedValue({
+      message: 'Trusted device revoked',
+    });
+    revokeAllTrustedDevicesMutationMock = jest.fn().mockResolvedValue({
+      message: 'All trusted devices revoked',
+    });
+
+    useTrustedDevicesMock.mockImplementation(() => ({
+      data: { items: trustedDevicesState },
+      isLoading: false,
+    }));
+    useInvalidateTrustedDevicesMock.mockReturnValue(jest.fn());
+    useRevokeTrustedDeviceMock.mockReturnValue({
+      mutateAsync: revokeTrustedDeviceMutationMock,
+      isPending: false,
+    });
+    useRevokeAllTrustedDevicesMock.mockReturnValue({
+      mutateAsync: revokeAllTrustedDevicesMutationMock,
+      isPending: false,
+    });
 
     usePushNotificationsMock.mockReturnValue({
       isSupported: true,
@@ -421,6 +468,81 @@ describe('SettingsImpl', () => {
       expect(screen.getByText('To disable 2FA, confirm your password.')).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: 'Disable 2FA' })).toBeInTheDocument();
+  });
+
+  it('renders trusted devices in the Security section', async () => {
+    const user = userEvent.setup();
+    trustedDevicesState = [
+      {
+        id: 'device-1',
+        device_name: 'Chrome on macOS',
+        created_at: '2026-03-01T12:00:00Z',
+        last_used_at: '2026-03-10T12:00:00Z',
+        expires_at: '2026-04-01T12:00:00Z',
+      },
+    ];
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Security/i }));
+
+    expect(await screen.findByText('Trusted devices')).toBeInTheDocument();
+    expect(screen.getByText('Chrome on macOS')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke all' })).toBeInTheDocument();
+  });
+
+  it('revokes a single trusted device from the Security section', async () => {
+    const user = userEvent.setup();
+    trustedDevicesState = [
+      {
+        id: 'device-1',
+        device_name: 'Safari on iPhone',
+        created_at: '2026-03-01T12:00:00Z',
+        last_used_at: '2026-03-11T12:00:00Z',
+        expires_at: '2026-04-01T12:00:00Z',
+      },
+    ];
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Security/i }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+
+    await waitFor(() => {
+      expect(revokeTrustedDeviceMutationMock).toHaveBeenCalledWith('device-1');
+    });
+    expect(toast.success).toHaveBeenCalledWith('Trusted device revoked');
+  });
+
+  it('revokes all trusted devices from the Security section', async () => {
+    const user = userEvent.setup();
+    trustedDevicesState = [
+      {
+        id: 'device-1',
+        device_name: 'Firefox on Windows',
+        created_at: '2026-03-01T12:00:00Z',
+        last_used_at: '2026-03-12T12:00:00Z',
+        expires_at: '2026-04-01T12:00:00Z',
+      },
+      {
+        id: 'device-2',
+        device_name: 'Chrome on macOS',
+        created_at: '2026-03-02T12:00:00Z',
+        last_used_at: '2026-03-13T12:00:00Z',
+        expires_at: '2026-04-02T12:00:00Z',
+      },
+    ];
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Security/i }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke all' }));
+
+    await waitFor(() => {
+      expect(revokeAllTrustedDevicesMutationMock).toHaveBeenCalledTimes(1);
+    });
+    expect(toast.success).toHaveBeenCalledWith('All trusted devices revoked');
   });
 
   it('renders Security and Account Status sections on the standalone settings route', async () => {
