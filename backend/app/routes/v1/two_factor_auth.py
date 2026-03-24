@@ -143,18 +143,17 @@ def setup_verify(
     user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
-        trusted_device_service = TrustedDeviceService(tfa_service.db)
         backup_codes = tfa_service.setup_verify(user, req.code)
-        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
-        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
-            logger.critical(
-                "2FA enable succeeded but token invalidation returned false for %s — old tokens remain valid",
-                user.id,
+
+        # --- Non-critical operations (safe to fail) ---
+        try:
+            trusted_device_service = TrustedDeviceService(tfa_service.db)
+            trusted_device_service.revoke_all_for_user(user.id)
+            trusted_device_service.clear_trust_cookie(response, request)
+        except Exception as exc:
+            logger.warning(
+                "Failed to revoke trusted devices during 2FA enable for %s: %s", user.id, exc
             )
-        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
-        _blacklist_current_token(request, trigger="2fa_enable")
-        trusted_device_service.revoke_all_for_user(user.id)
-        trusted_device_service.clear_trust_cookie(response, request)
         try:
             notification_service = NotificationService(tfa_service.db)
             notification_service.send_two_factor_changed_notification(
@@ -178,6 +177,16 @@ def setup_verify(
             )
         except Exception:
             logger.warning("Audit log write failed for 2FA enable", exc_info=True)
+
+        # --- Point of no return: invalidate tokens LAST ---
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
+            logger.critical(
+                "2FA enable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
+            )
+        _blacklist_current_token(request, trigger="2fa_enable")
+
         return TFASetupVerifyResponse(enabled=True, backup_codes=backup_codes)
     except ValueError:
         # Return a user-friendly message without exposing internals
@@ -204,18 +213,17 @@ def disable(
     user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
-        trusted_device_service = TrustedDeviceService(tfa_service.db)
         tfa_service.disable(user, req.current_password)
-        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
-        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
-            logger.critical(
-                "2FA disable succeeded but token invalidation returned false for %s — old tokens remain valid",
-                user.id,
+
+        # --- Non-critical operations (safe to fail) ---
+        try:
+            trusted_device_service = TrustedDeviceService(tfa_service.db)
+            trusted_device_service.revoke_all_for_user(user.id)
+            trusted_device_service.clear_trust_cookie(response, request)
+        except Exception as exc:
+            logger.warning(
+                "Failed to revoke trusted devices during 2FA disable for %s: %s", user.id, exc
             )
-        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
-        _blacklist_current_token(request, trigger="2fa_disable")
-        trusted_device_service.revoke_all_for_user(user.id)
-        trusted_device_service.clear_trust_cookie(response, request)
         try:
             notification_service = NotificationService(tfa_service.db)
             notification_service.send_two_factor_changed_notification(
@@ -239,6 +247,16 @@ def disable(
             )
         except Exception:
             logger.warning("Audit log write failed for 2FA disable", exc_info=True)
+
+        # --- Point of no return: invalidate tokens LAST ---
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
+            logger.critical(
+                "2FA disable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
+            )
+        _blacklist_current_token(request, trigger="2fa_disable")
+
         return TFADisableResponse(message="Two-factor authentication disabled")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
