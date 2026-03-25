@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
 import CommissionTierCard from '@/components/earnings/CommissionTierCard';
-import { Download, DollarSign, Info, ArrowLeft, Wallet, BadgeDollarSign, BookOpen } from 'lucide-react';
+import { Download, DollarSign, Info, ArrowLeft, Wallet, BookOpen } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -322,17 +322,15 @@ function EarningsPageImpl() {
           }
         />
 
-        <CommissionTierCard />
-
         {/* Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between gap-4 h-full">
-              <div className="flex flex-col justify-between h-full">
-                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+              <div>
+                <h3 className="mb-1 sm:mb-2 text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
                   Gross Earnings
                 </h3>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   {isLoadingEarnings ? '—' : formatCents(totalLessonValue)}
                 </p>
               </div>
@@ -341,31 +339,31 @@ function EarningsPageImpl() {
               </div>
             </div>
           </div>
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between gap-4 h-full">
-              <div className="flex flex-col justify-between h-full">
-                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+              <div>
+                <h3 className="mb-1 sm:mb-2 text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
                   Net Earnings
                 </h3>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   {isLoadingEarnings ? '—' : formatCents(netEarnings)}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                <BadgeDollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
           </div>
-          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 min-h-[9.5rem]">
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-4 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between gap-4 h-full">
-              <div className="flex flex-col justify-between h-full">
-                <h3 className="min-h-[3rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
+              <div>
+                <h3 className="mb-1 sm:mb-2 text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300">
                   Lessons
                 </h3>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   {isLoadingEarnings ? '—' : resolvedServiceCount}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                   {isLoadingEarnings ? '—' : hoursSummary}
                 </p>
               </div>
@@ -375,6 +373,8 @@ function EarningsPageImpl() {
             </div>
           </div>
         </div>
+
+        <CommissionTierCard />
 
         {/* Tabs */}
         <div className="insta-surface-card">

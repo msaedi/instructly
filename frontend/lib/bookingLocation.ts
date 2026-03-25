@@ -19,12 +19,18 @@ export function formatBookingLocationLabel(locationType: BookingLocationType): s
 
 export function formatBookingLocationDetail(
   locationType: BookingLocationType,
+  locationAddress?: string | null,
   meetingLocation?: string | null,
   serviceArea?: string | null
 ): string {
   const label = formatBookingLocationLabel(locationType);
   if (locationType === 'online') {
     return label;
+  }
+
+  const explicitAddress = locationAddress?.trim();
+  if (explicitAddress) {
+    return explicitAddress;
   }
 
   const suffix = [meetingLocation?.trim(), serviceArea?.trim()].find(

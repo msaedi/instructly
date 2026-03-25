@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { Calendar, Clock, Clock3, MapPin } from 'lucide-react';
+import { HourglassLow } from '@phosphor-icons/react';
+import { Calendar, Clock, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { formatBookingLocationLabel } from '@/lib/bookingLocation';
 import { formatStudentDisplayName } from '@/lib/studentName';
@@ -48,13 +48,15 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
         data-testid="booking-card"
       >
         <div className="px-5 py-4">
-          <BookingStatusBadge status={booking.status} />
-        </div>
-
-        <Separator />
-
-        <div className="px-5 py-4">
-          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{studentName}</p>
+          <div
+            className="flex items-start justify-between gap-3"
+            data-testid="booking-card-header"
+          >
+            <p className="flex-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {studentName}
+            </p>
+            <BookingStatusBadge status={booking.status} className="shrink-0" />
+          </div>
         </div>
 
         <div className="px-5 pb-4">
@@ -76,7 +78,7 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
             </div>
 
             <div className={detailItemClassName}>
-              <Clock3 className={detailIconClassName} />
+              <HourglassLow className={detailIconClassName} weight="regular" />
               <span>
                 {formatDurationWithService(booking.duration_minutes, booking.service_name)}
               </span>
@@ -89,10 +91,10 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
           </div>
         </div>
 
-        <Separator />
+        <div className="border-t border-gray-100 dark:border-gray-800" />
 
-        <div className="flex justify-end px-5 py-4 text-sm font-medium text-gray-700 transition-colors group-hover:text-gray-900 dark:text-gray-300 dark:group-hover:text-gray-100">
-          <span>View lesson ›</span>
+        <div className="flex justify-end px-5 py-4 text-sm font-medium text-[#7C3AED] transition-colors group-hover:text-[#6D28D9] dark:text-[#C4B5FD] dark:group-hover:text-[#DDD6FE]">
+          <span>Lesson details ›</span>
         </div>
       </Card>
     </Link>

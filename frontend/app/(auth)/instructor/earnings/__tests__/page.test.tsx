@@ -187,8 +187,11 @@ describe('Instructor earnings page', () => {
 
   it('renders three earnings stat cards and invoice rows with totals', () => {
     const { container } = renderPage();
+    const grossHeading = screen.getByText('Gross Earnings');
+    const commissionSummary = screen.getByText('Entry tier · 15%');
 
     expect(container.querySelectorAll('.insta-dashboard-stat-card')).toHaveLength(3);
+    expect(grossHeading.compareDocumentPosition(commissionSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Gross Earnings')).toBeInTheDocument();
     expect(screen.getByText('Net Earnings')).toBeInTheDocument();
     expect(screen.getByText('Lessons')).toBeInTheDocument();
