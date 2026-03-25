@@ -87,6 +87,7 @@ const createMockBooking = (overrides = {}) => ({
   hourly_rate: 110,
   total_price: 82.5,
   location_type: 'instructor_location',
+  location_address: '129 W 67th St, New York, NY 10023',
   meeting_location: 'Manhattan',
   service_area: 'Upper East Side',
   student_id: '01STUDENT123456789ABCDEFGH',
@@ -190,14 +191,33 @@ describe('Instructor Booking Details Page', () => {
     expect(screen.getByText('Created on 3/14/2026')).toBeInTheDocument();
     expect(screen.getByText('John S.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
+    expect(screen.getByText('Piano')).toBeInTheDocument();
+    expect(screen.queryByText('45 min · Piano')).not.toBeInTheDocument();
     expect(screen.getByText('Monday, March 16')).toBeInTheDocument();
     expect(screen.getByText('4:30 PM – 5:15 PM')).toBeInTheDocument();
-    expect(screen.getByText("At instructor's location · Manhattan")).toBeInTheDocument();
+    expect(screen.getByText('129 W 67th St, New York, NY 10023')).toBeInTheDocument();
+    expect(screen.queryByText('Date')).not.toBeInTheDocument();
+    expect(screen.queryByText('Time')).not.toBeInTheDocument();
+    expect(screen.queryByText('Location')).not.toBeInTheDocument();
     expect(screen.getByText('$110.00/hr')).toBeInTheDocument();
     expect(screen.getByText('45 min')).toBeInTheDocument();
     expect(screen.getByText('$82.50')).toBeInTheDocument();
     expect(screen.queryByText('john@example.com')).not.toBeInTheDocument();
     expect(screen.queryByText('John Smith')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the generic location label when a full address is unavailable', () => {
+    mockUseBooking.mockReturnValue({
+      data: createMockBooking({
+        location_address: null,
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBooking>);
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText("At instructor's location · Manhattan")).toBeInTheDocument();
   });
 
   it('opens messaging for the student when Message is clicked', async () => {
@@ -289,6 +309,16 @@ describe('Instructor Booking Details Page', () => {
     render(<BookingDetailsPage />);
 
     expect(screen.getByText('Action Required')).toBeInTheDocument();
+    expect(
+      screen.getByText('This lesson time has passed. Did it take place?')
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('booking-action-banner')).toHaveClass(
+      'bg-[#F3E8FF]',
+      'border-[#7C3AED]/20'
+    );
+    expect(screen.getByRole('button', { name: 'Mark Complete' })).toHaveClass('bg-[#7C3AED]');
+    expect(screen.getByRole('button', { name: 'Mark Complete' }).querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Report No-Show' }).querySelector('svg')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mark Complete' }));
 

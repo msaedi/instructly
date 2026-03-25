@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { InstructorBookingCard } from '../InstructorBookingCard';
 
 describe('InstructorBookingCard', () => {
@@ -23,9 +23,10 @@ describe('InstructorBookingCard', () => {
       />
     );
 
-    const badge = screen.getByText('Confirmed');
+    const header = screen.getByTestId('booking-card-header');
+    const badge = within(header).getByText('Confirmed');
     expect(badge).toHaveClass('bg-emerald-50', 'text-emerald-700');
-    expect(screen.getByText('David M.')).toBeInTheDocument();
+    expect(within(header).getByText('David M.')).toBeInTheDocument();
     expect(screen.queryByText(/^Piano$/)).not.toBeInTheDocument();
     expect(screen.getByText('Sat, Mar 14')).toBeInTheDocument();
     expect(screen.getByText('2:45 PM – 3:30 PM')).toBeInTheDocument();
@@ -34,7 +35,7 @@ describe('InstructorBookingCard', () => {
 
     const link = screen.getByRole('link');
     expect(link).toHaveAttribute('href', '/instructor/bookings/01KKQKWD9V9QF0J2T0AB3124');
-    expect(screen.getByText('View lesson ›')).toBeInTheDocument();
+    expect(screen.getByText('Lesson details ›')).toBeInTheDocument();
   });
 
   it('falls back to first name only when the last initial is blank', () => {

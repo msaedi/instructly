@@ -449,7 +449,7 @@ test.describe('Instructor bookings list entry points', () => {
     const bookingCard = page.getByTestId('booking-card').first();
     await expect(bookingCard).toContainText('Alex');
     await expect(bookingCard).toContainText('Piano Lesson');
-    await expect(bookingCard).toContainText('View lesson');
+    await expect(bookingCard).toContainText('Lesson details');
     await expect(page.getByTestId('join-lesson-button')).toHaveCount(0);
   });
 
@@ -482,7 +482,7 @@ test.describe('Instructor bookings list entry points', () => {
 
     await page.goto('/instructor/bookings');
     const bookingCard = page.getByTestId('booking-card').first();
-    await expect(bookingCard).toContainText('View lesson', { timeout: 10_000 });
+    await expect(bookingCard).toContainText('Lesson details', { timeout: 10_000 });
     await expect(page.getByTestId('join-lesson-button')).toHaveCount(0);
 
     await bookingCard.click();
