@@ -418,7 +418,7 @@ function EarningsPageImpl() {
           <div className="p-4 sm:p-6">
             {activeTab === 'invoices' ? (
               invoices.length === 0 ? (
-                <div className="text-sm text-gray-600 dark:text-gray-400">No invoices yet — your completed lessons will appear here.</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">No invoices yet — completed lessons will appear here.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -488,7 +488,7 @@ function EarningsPageImpl() {
               <div className="text-sm text-gray-600 dark:text-gray-400">Loading payouts...</div>
             ) : !payoutsData?.payouts || payoutsData.payouts.length === 0 ? (
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                No payouts yet. Your lesson earnings will be sent to your bank account automatically.
+                No payouts yet — earnings are sent to your bank automatically.
               </div>
             ) : (
               <div className="overflow-x-auto">

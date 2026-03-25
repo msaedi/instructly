@@ -43,11 +43,36 @@ import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/compon
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
 
+function getYearsExperienceValue(profile: ProfileFormState): number {
+  return Number(profile.years_experience);
+}
+
 function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpdatePayload {
   return {
     bio: profile.bio.trim(),
-    years_experience: Number(profile.years_experience) || 1,
+    years_experience: getYearsExperienceValue(profile),
   };
+}
+
+function profileRequiresPreferredTeachingLocation(
+  profile: InstructorProfileResponse | null,
+): boolean {
+  if (!Array.isArray(profile?.services)) {
+    return false;
+  }
+
+  return profile.services.some((service) => {
+    const serviceRecord = service as Record<string, unknown>;
+    const formatPrices = Array.isArray(serviceRecord['format_prices'])
+      ? (serviceRecord['format_prices'] as Array<Record<string, unknown>>)
+      : [];
+
+    return formatPrices.some((formatPrice) => formatPrice['format'] === 'instructor_location');
+  });
+}
+
+function hasNonEmptyLocation(locations: string[]): boolean {
+  return locations.some((location) => location.trim().length > 0);
 }
 
 type InstructorAddressPayload = {
@@ -135,7 +160,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     bio: '',
     service_area_summary: null,
     service_area_boroughs: [],
-    years_experience: 1
+    years_experience: 0
   });
   const [instructorMeta, setInstructorMeta] = useState<InstructorProfileResponse | null>(null);
   const handleProfileChange = useCallback((updates: Partial<ProfileFormState>) => {
@@ -195,6 +220,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openPreferredLocations, setOpenPreferredLocations] = useState(shouldDefaultExpand);
   const [openSkills, setOpenSkills] = useState(false);
   const shouldRenderPersonalInfo = isOnboarding || showPersonalInfo;
+  const requiresPreferredTeachingLocation = useMemo(
+    () => profileRequiresPreferredTeachingLocation(instructorMeta),
+    [instructorMeta]
+  );
 
   // Derive profile picture status from instructor profile hook (avoids duplicate API call)
   useEffect(() => {
@@ -561,6 +590,15 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         return;
       }
 
+      const yearsExperience = getYearsExperienceValue(profile);
+      if (!Number.isFinite(yearsExperience) || yearsExperience < 1) {
+        const message = 'Years of experience is required (minimum 1)';
+        setError(message);
+        toast.error(message);
+        onStepStatusChange?.('failed');
+        return;
+      }
+
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
         const nameResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
@@ -784,6 +822,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         Boolean(profile.last_name?.trim()) &&
         Boolean(profile.postal_code?.trim()) &&
         selectedNeighborhoods.size > 0 &&
+        (!requiresPreferredTeachingLocation || hasNonEmptyLocation(preferredLocations)) &&
         (hasProfilePicture || false)
       );
       try {

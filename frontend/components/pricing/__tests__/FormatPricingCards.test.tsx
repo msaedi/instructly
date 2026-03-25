@@ -141,6 +141,14 @@ describe('FormatPricingCards', () => {
     expect(screen.getByText('Rate is below the minimum')).toBeInTheDocument();
   });
 
+  it('shows the max hourly rate validation message at $1,001', () => {
+    renderCards({
+      formatPrices: { online: '1001' },
+    });
+
+    expect(screen.getByText('Maximum hourly rate is $1,000')).toBeInTheDocument();
+  });
+
   it('disabled card (studentLocationDisabled) shows reason and toggle is disabled', () => {
     renderCards({
       studentLocationDisabled: true,

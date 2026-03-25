@@ -65,15 +65,39 @@ jest.mock('sonner', () => {
 /* ---------- BGCStep mock — captures ensureConsent prop ---------- */
 let capturedEnsureConsent: (() => Promise<boolean>) | undefined;
 let capturedIdentityVerified: boolean | undefined;
+let mockBgcStepStatus: 'passed' | null = null;
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
   BGCStep: (props: {
     instructorId: string;
     ensureConsent?: () => Promise<boolean>;
     identityVerified?: boolean;
+    onStatusUpdate?: (snapshot: {
+      status: 'passed' | null;
+      reportId: string | null;
+      completedAt: string | null;
+      consentRecent: boolean;
+      consentRecentAt: string | null;
+      eta: string | null;
+    }) => void;
   }) => {
-    capturedEnsureConsent = props.ensureConsent;
-    capturedIdentityVerified = props.identityVerified;
+    const React = require('react') as typeof import('react');
+    const { ensureConsent, identityVerified, onStatusUpdate } = props;
+    capturedEnsureConsent = ensureConsent;
+    capturedIdentityVerified = identityVerified;
+    React.useEffect(() => {
+      if (!mockBgcStepStatus || !onStatusUpdate) {
+        return;
+      }
+      onStatusUpdate({
+        status: mockBgcStepStatus,
+        reportId: 'report-1',
+        completedAt: '2026-03-24T12:00:00Z',
+        consentRecent: false,
+        consentRecentAt: null,
+        eta: null,
+      });
+    }, [onStatusUpdate]);
     return <div data-testid="bgc-step">BGC Step</div>;
   },
 }));
@@ -195,6 +219,7 @@ describe('Onboarding status page – BGC consent regression', () => {
     mockCreateStripeIdentitySession.mockClear();
     capturedEnsureConsent = undefined;
     capturedIdentityVerified = undefined;
+    mockBgcStepStatus = null;
     mockProfile.identity_name_mismatch = false;
     mockProfile.bgc_name_mismatch = false;
     mockProfile.identity_verified_at = null;
@@ -205,6 +230,7 @@ describe('Onboarding status page – BGC consent regression', () => {
     mockGoLiveCheck.canGoLive = false;
     mockGoLiveCheck.missing = ['Phone verification', 'bgc', 'stripe'];
     stableRawData.user.phone_verified = false;
+    mockConnectStatus.onboarding_completed = false;
   });
 
   it('renders the BGC step component', async () => {
@@ -260,7 +286,7 @@ describe('Onboarding status page – BGC consent regression', () => {
     ).toBeDisabled();
   });
 
-  it('shows background check mismatch banners and disables go-live', async () => {
+  it('shows a single background check mismatch warning and disables go-live', async () => {
     mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
     mockProfile.bgc_name_mismatch = true;
     mockGoLiveCheck.canGoLive = false;
@@ -270,8 +296,8 @@ describe('Onboarding status page – BGC consent regression', () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText(/doesn't match your verified identity/i).length
-      ).toBeGreaterThan(0);
+        screen.getAllByText(/doesn't match your verified identity/i)
+      ).toHaveLength(1);
     });
     expect(
       screen.queryByRole('link', { name: /profile settings/i })
@@ -299,8 +325,26 @@ describe('Onboarding status page – BGC consent regression', () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.getAllByText(/doesn't match your verified identity/i).length
-    ).toBeGreaterThan(0);
+      screen.getAllByText(/doesn't match your verified identity/i)
+    ).toHaveLength(1);
+  });
+
+  it('uses the dedicated mismatch banner copy when that is the only remaining blocker', async () => {
+    mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
+    mockProfile.bgc_name_mismatch = true;
+    mockProfile.skills_configured = true;
+    mockProfile.services = [{ id: 'svc-1' }];
+    stableRawData.user.phone_verified = true;
+    mockConnectStatus.onboarding_completed = true;
+    mockBgcStepStatus = 'passed';
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = ['Background check name must match verified identity'];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    expect(
+      await screen.findByText('Resolve your background check mismatch to go live.')
+    ).toBeInTheDocument();
   });
 
   it('renders the BackgroundCheckDisclosureModal (hidden by default)', async () => {
@@ -326,6 +370,26 @@ describe('Onboarding status page – BGC consent regression', () => {
       '/instructor/onboarding/account-setup'
     );
     expect(screen.queryByRole('heading', { name: /Phone verification/i })).not.toBeInTheDocument();
+  });
+
+  it('routes class location blockers back to account setup with the dedicated action copy', async () => {
+    stableRawData.user.phone_verified = true;
+    mockConnectStatus.onboarding_completed = true;
+    mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
+    mockProfile.skills_configured = true;
+    mockProfile.services = [{ id: 'svc-1' }];
+    mockBgcStepStatus = 'passed';
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = ['Class locations'];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    expect(
+      await screen.findByText("You're close! Finish Class location setup to go live.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /complete your class location setup/i })
+    ).toHaveAttribute('href', '/instructor/onboarding/account-setup');
   });
 
   it('enables go live once phone verification is no longer blocking readiness', async () => {

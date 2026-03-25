@@ -126,7 +126,7 @@ export function RefineFiltersSection({
 
               return (
                 <div key={`${service.catalog_service_id}-${filter.filter_key}`}>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
                     {filter.filter_display_name}
                   </p>
                   <div className="flex flex-wrap gap-1.5">

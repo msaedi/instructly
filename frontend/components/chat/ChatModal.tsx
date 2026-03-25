@@ -16,9 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
 import { QueryErrorBoundary } from '@/components/errors/QueryErrorBoundary';
 import { cn } from '@/lib/utils';
-import { withApiBaseForRequest } from '@/lib/apiBase';
-import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
-import type { CreateConversationResponse } from '@/types/conversation';
+import { createConversation } from '@/src/api/services/conversations';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollLock } from '@/hooks/useScrollLock';
 
@@ -61,20 +59,10 @@ export function ChatModal({
 
   const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['conversation-for-instructor', instructorId],
-    queryFn: async () => {
-      const response = await fetchWithSessionRefresh(withApiBaseForRequest('/api/v1/conversations', 'POST'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ instructor_id: instructorId }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to get conversation');
-      }
-      return response.json() as Promise<CreateConversationResponse>;
-    },
-    enabled: !conversationId && !!instructorId,
+    queryFn: () => createConversation(instructorId!),
+    enabled: isOpen && !conversationId && !!instructorId,
     staleTime: Infinity,
+    retry: false,
   });
 
   const resolvedConversationId = conversationId ?? conversationData?.id ?? null;

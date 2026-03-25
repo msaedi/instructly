@@ -177,14 +177,33 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard', () => {
-  function BioCard({ profile, bioTooShort, onGenerateBio, isGenerating, hasServices, onToggle }: { profile: { bio?: string }; bioTooShort: boolean; onGenerateBio: () => void; isGenerating?: boolean; hasServices?: boolean; onToggle?: () => void }) {
+  function BioCard({
+    profile,
+    bioTooShort,
+    onGenerateBio,
+    isGenerating,
+    hasServices,
+    onToggle,
+    onProfileChange,
+  }: {
+    profile: { bio?: string; years_experience?: number };
+    bioTooShort: boolean;
+    onGenerateBio: () => void;
+    isGenerating?: boolean;
+    hasServices?: boolean;
+    onToggle?: () => void;
+    onProfileChange: (updates: Record<string, unknown>) => void;
+  }) {
     return (
       <section>
         <div data-testid="bio-content">{profile.bio}</div>
         <div data-testid="bio-too-short">{bioTooShort ? 'short' : 'long'}</div>
+        <div data-testid="years-experience">{profile.years_experience ?? ''}</div>
         {isGenerating && <div data-testid="bio-generating">Generating...</div>}
         {hasServices === false && <div data-testid="bio-sparse-hint">Add skills first</div>}
         <button type="button" onClick={onGenerateBio} disabled={isGenerating}>Generate Bio</button>
+        <button type="button" onClick={() => onProfileChange({ years_experience: 0 })}>Clear Years</button>
+        <button type="button" onClick={() => onProfileChange({ years_experience: 2 })}>Set Years Two</button>
         <button type="button" onClick={() => onToggle?.()}>Toggle Bio</button>
       </section>
     );
@@ -259,6 +278,29 @@ const mockUseUserAddresses = useUserAddresses as jest.Mock;
 const mockUseInvalidateUserAddresses = useInvalidateUserAddresses as jest.Mock;
 const mockFetchWithAuth = fetchWithAuth as jest.Mock;
 const mockSubmitServiceAreasOnce = submitServiceAreasOnce as jest.MockedFunction<typeof submitServiceAreasOnce>;
+
+function withDefaultInstructorYears<T extends { data?: unknown }>(value: T): T {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const data = value.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data) || 'years_experience' in data) {
+    return value;
+  }
+
+  return {
+    ...value,
+    data: {
+      years_experience: 5,
+      ...(data as Record<string, unknown>),
+    },
+  };
+}
+
+const originalMockInstructorProfileReturnValue = mockUseInstructorProfileMe.mockReturnValue.bind(mockUseInstructorProfileMe);
+mockUseInstructorProfileMe.mockReturnValue = ((value: unknown) =>
+  originalMockInstructorProfileReturnValue(withDefaultInstructorYears(value as { data?: unknown }))) as typeof mockUseInstructorProfileMe.mockReturnValue;
 
 describe('InstructorProfileForm', () => {
   const createWrapper = () => {
@@ -419,6 +461,62 @@ describe('InstructorProfileForm', () => {
 
     expect(await screen.findByText(/bad request/i)).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith('Bad request');
+  });
+
+  it('blocks save when years of experience is cleared during onboarding', async () => {
+    const { Wrapper } = createWrapper();
+    const onStepStatusChange = jest.fn();
+    const ref = React.createRef<{ save: (options?: { redirectTo?: string }) => Promise<void> }>();
+
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), years_experience: 2, has_profile_picture: true },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(
+      <InstructorProfileForm ref={ref} context="onboarding" onStepStatusChange={onStepStatusChange} />,
+      { wrapper: Wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('years-experience')).toHaveTextContent('2');
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /clear years/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('years-experience')).toHaveTextContent('0');
+    });
+
+    await act(async () => {
+      await ref.current?.save();
+    });
+
+    expect(await screen.findByText('Years of experience is required (minimum 1)')).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith('Years of experience is required (minimum 1)');
+    expect(onStepStatusChange).toHaveBeenCalledWith('failed');
+
+    const instructorSaveCalls = mockFetchWithAuth.mock.calls.filter(
+      ([url, options]: [string, RequestInit | undefined]) =>
+        url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT'
+    );
+    expect(instructorSaveCalls).toHaveLength(0);
   });
 
   it('redirects onboarding instructors who are already live', async () => {
@@ -6727,6 +6825,138 @@ describe('InstructorProfileForm', () => {
       await act(async () => {
         await ref.current?.save();
       });
+
+      await waitFor(() => {
+        expect(onStepStatus).toHaveBeenCalledWith('done');
+      });
+    });
+
+    it('reports failed when instructor-location services exist without a preferred teaching location', async () => {
+      const onStepStatus = jest.fn();
+      const { Wrapper } = createWrapper();
+      const ref = React.createRef<{ save: (options?: { redirectTo?: string }) => Promise<void> }>();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+          profile_picture_version: 3,
+          services: [
+            {
+              id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+            },
+          ],
+          preferred_teaching_locations: [],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+            }),
+          };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(
+        <InstructorProfileForm ref={ref} context="onboarding" onStepStatusChange={onStepStatus} />,
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        await ref.current?.save();
+      });
+
+      await waitFor(() => {
+        expect(onStepStatus).toHaveBeenCalledWith('failed');
+      });
+    });
+
+    it('reports done when instructor-location services have a preferred teaching location', async () => {
+      const onStepStatus = jest.fn();
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+          profile_picture_version: 3,
+          services: [
+            {
+              id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+            },
+          ],
+          preferred_teaching_locations: [{ address: '123 Studio Lane' }],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+            }),
+          };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm onStepStatusChange={onStepStatus} />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /set preferred/i }));
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
 
       await waitFor(() => {
         expect(onStepStatus).toHaveBeenCalledWith('done');

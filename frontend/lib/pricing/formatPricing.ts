@@ -28,6 +28,9 @@ export type FormatCardConfig = {
   placeholderRate: string;
 };
 
+export const MAX_HOURLY_RATE = 1000;
+export const MAX_HOURLY_RATE_MESSAGE = `Maximum hourly rate is $${MAX_HOURLY_RATE.toLocaleString()}`;
+
 export const FORMAT_CARD_CONFIGS: readonly FormatCardConfig[] = [
   {
     format: 'student_location',
@@ -76,6 +79,57 @@ export function formatPricesToPayload(
     }
   }
   return result;
+}
+
+export function getHourlyRateValidationMessage(rate: string): string | null {
+  if (rate.trim().length === 0) {
+    return null;
+  }
+
+  const parsedRate = Number(rate);
+  if (!Number.isFinite(parsedRate)) {
+    return null;
+  }
+
+  return parsedRate > MAX_HOURLY_RATE ? MAX_HOURLY_RATE_MESSAGE : null;
+}
+
+export function getFormatPriceValidationErrors(
+  state: FormatPriceState,
+): Partial<Record<ServiceFormat, string>> {
+  const errors: Partial<Record<ServiceFormat, string>> = {};
+
+  for (const format of ALL_FORMATS) {
+    const rate = state[format];
+    if (rate === undefined) {
+      continue;
+    }
+
+    const message = getHourlyRateValidationMessage(rate);
+    if (message) {
+      errors[format] = message;
+    }
+  }
+
+  return errors;
+}
+
+export function getFirstFormatPriceValidationError(
+  state: FormatPriceState,
+): string | null {
+  for (const format of ALL_FORMATS) {
+    const rate = state[format];
+    if (rate === undefined) {
+      continue;
+    }
+
+    const message = getHourlyRateValidationMessage(rate);
+    if (message) {
+      return message;
+    }
+  }
+
+  return null;
 }
 
 /**

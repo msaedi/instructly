@@ -240,7 +240,28 @@ describe('Instructor earnings page', () => {
     renderPage();
 
     expect(
-      screen.getByText('No invoices yet — your completed lessons will appear here.')
+      screen.getByText('No invoices yet — completed lessons will appear here.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the refreshed empty payouts copy', async () => {
+    const user = userEvent.setup();
+    mockUseInstructorPayouts.mockReturnValue({
+      data: {
+        payouts: [],
+        total_paid_cents: 0,
+        total_pending_cents: 0,
+        payout_count: 0,
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useInstructorPayouts>);
+
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /payouts/i }));
+
+    expect(
+      screen.getByText('No payouts yet — earnings are sent to your bank automatically.')
     ).toBeInTheDocument();
   });
 
