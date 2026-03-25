@@ -3,8 +3,11 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Step3SkillsPricing from '@/app/(auth)/instructor/onboarding/skill-selection/page';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
+import { fetchWithAuth } from '@/lib/api';
+import { toast } from 'sonner';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
+import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
 
 const searchParamsProxy = {
   get: (_key: string) => null,
@@ -20,6 +23,21 @@ jest.mock('@/features/shared/hooks/useAuth', () => ({
     user: { id: 'user-1', roles: ['instructor'] },
     isAuthenticated: true,
   }),
+}));
+
+jest.mock('@/lib/api', () => ({
+  API_ENDPOINTS: {
+    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
+    NYC_ZIP_CHECK: '/api/v1/addresses/nyc-zip-check',
+  },
+  fetchWithAuth: jest.fn(),
+}));
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+  },
 }));
 
 jest.mock('@/features/instructor-onboarding/OnboardingProgressHeader', () => ({
@@ -53,6 +71,21 @@ jest.mock('@/hooks/queries/useTaxonomy', () => ({
   useSubcategoryFilters: jest.fn(),
 }));
 
+jest.mock('@/hooks/queries/useUserAddresses', () => ({
+  useUserAddresses: jest.fn(),
+}));
+
+jest.mock('@/lib/apiBase', () => ({
+  withApiBase: (url: string) => url,
+}));
+
+jest.mock('@/lib/auth/sessionRefresh', () => ({
+  fetchWithSessionRefresh: jest.fn(async () => ({
+    ok: true,
+    json: async () => ({ is_nyc: true }),
+  })),
+}));
+
 jest.mock('@/components/ui/ToggleSwitch', () => ({
   ToggleSwitch: ({
     checked,
@@ -80,6 +113,9 @@ const useServiceCategoriesMock = useServiceCategories as jest.Mock;
 const useAllServicesWithInstructorsMock = useAllServicesWithInstructors as jest.Mock;
 const useCategoriesWithSubcategoriesMock = useCategoriesWithSubcategories as jest.Mock;
 const useSubcategoryFiltersMock = useSubcategoryFilters as jest.Mock;
+const useUserAddressesMock = useUserAddresses as jest.Mock;
+const fetchWithAuthMock = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
+const toastErrorMock = toast.error as jest.MockedFunction<typeof toast.error>;
 
 const CATEGORY_DATA = [
   {
@@ -223,6 +259,27 @@ describe('Skill selection page refine header', () => {
       isLoading: false,
       error: null,
     }));
+
+    useUserAddressesMock.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+    });
+
+    fetchWithAuthMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/v1/addresses/service-areas/me' && options?.method === undefined) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [] }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
   });
 
   it('renders refine label as selectable text and toggles via chevron button only', async () => {
@@ -254,8 +311,8 @@ describe('Skill selection page refine header', () => {
     });
     expect(screen.getByText('Goal')).toBeInTheDocument();
 
-    expect(screen.getByText('Age Groups')).toBeInTheDocument();
-    expect(screen.getByText('Skill Level')).toBeInTheDocument();
+    expect(screen.getByText('Age groups')).toBeInTheDocument();
+    expect(screen.getByText('Skill level')).toBeInTheDocument();
   });
 
   it('supports expanding and collapsing subcategories inside an expanded category', async () => {
@@ -277,5 +334,67 @@ describe('Skill selection page refine header', () => {
     fireEvent.click(subcategoryToggle);
     expect(subcategoryToggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: /add service piano/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the max hourly rate error at $1,001', async () => {
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.click(screen.getByRole('button', { name: /music/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /toggle subcategory piano/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /add service piano/i }));
+
+    const rateInput = screen
+      .getAllByRole('spinbutton')
+      .find((element) => !(element as HTMLInputElement).disabled);
+
+    expect(rateInput).toBeTruthy();
+    fireEvent.change(rateInput as HTMLElement, { target: { value: '1001' } });
+
+    expect(await screen.findByText('Maximum hourly rate is $1,000')).toBeInTheDocument();
+  });
+
+  it('does not redirect away when the backend rejects the save', async () => {
+    const startingHref = window.location.href;
+    fetchWithAuthMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/v1/addresses/service-areas/me' && options?.method === undefined) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [] }),
+        } as Response;
+      }
+
+      if (url === '/api/v1/instructors/me') {
+        return {
+          ok: false,
+          status: 422,
+          json: async () => ({ detail: 'Validation failed' }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.click(screen.getByRole('button', { name: /music/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /toggle subcategory piano/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /add service piano/i }));
+
+    const rateInput = screen
+      .getAllByRole('spinbutton')
+      .find((element) => !(element as HTMLInputElement).disabled);
+
+    expect(rateInput).toBeTruthy();
+    fireEvent.change(rateInput as HTMLElement, { target: { value: '1000' } });
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
+
+    expect(await screen.findByText('Validation failed')).toBeInTheDocument();
+    expect(toastErrorMock).toHaveBeenCalledWith('Validation failed');
+    expect(window.location.href).toBe(startingHref);
   });
 });

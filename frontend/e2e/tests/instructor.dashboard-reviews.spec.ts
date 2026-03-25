@@ -113,6 +113,9 @@ test.describe('[instructor] dashboard reviews snapshot', () => {
 
     await page.goto(`${baseURL}/instructor/dashboard`);
 
-    await expect(page.getByTestId('reviews-summary')).toHaveText('4.5★ (3)');
+    await expect(page.getByTestId('reviews-summary')).toBeVisible();
+    await expect(page.getByTestId('reviews-rating-value')).toHaveText('4.5');
+    await expect(page.getByTestId('reviews-rating-star')).toBeVisible();
+    await expect(page.getByTestId('reviews-rating-count')).toHaveText('(3)');
   });
 });

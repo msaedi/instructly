@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useLessonDetails } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
 import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, MessageCircle, User as UserIcon } from 'lucide-react';
-import { logger } from '@/lib/logger';
 import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -35,6 +34,19 @@ type LessonPaymentSummary = {
   total_paid: number;
   tip_status?: string | null;
 };
+
+const GENERIC_LOCATION_LABELS = new Set([
+  "at instructor's location",
+  'instructor address shared after booking confirmation',
+]);
+
+function isGenericLocationLabel(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return GENERIC_LOCATION_LABELS.has(value.trim().toLowerCase());
+}
 
 export default function LessonDetailsPage() {
   const params = useParams();
@@ -186,6 +198,25 @@ export default function LessonDetailsPage() {
   const hasCreditApplied = resolvedCreditApplied > 0;
   const hasTip = tipDisplayAmount > 0;
   const tipPending = hasTip && resolvedTipPaid < resolvedTipAmount;
+  const locationAddress =
+    typeof lesson.location_address === 'string' ? lesson.location_address.trim() : '';
+  const meetingLocation =
+    typeof lesson.meeting_location === 'string' ? lesson.meeting_location.trim() : '';
+  const resolvedLocation =
+    locationAddress ||
+    meetingLocation ||
+    lesson.service_area ||
+    'NYC';
+  const hasMappableAddress =
+    (locationAddress.length > 0 && !isGenericLocationLabel(locationAddress)) ||
+    (meetingLocation.length > 0 && !isGenericLocationLabel(meetingLocation));
+  const mapHref =
+    typeof lesson.location_lat === 'number' &&
+    typeof lesson.location_lng === 'number'
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lesson.location_lat},${lesson.location_lng}`)}`
+      : hasMappableAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || meetingLocation)}`
+      : null;
   const totalPaid =
     paymentSummary?.total_paid ??
     fallbackTotalPaid ??
@@ -341,18 +372,19 @@ export default function LessonDetailsPage() {
             {/* Location */}
             <div className="mb-4">
               <h3 className="font-medium mb-2 text-gray-600 dark:text-gray-400">Location</h3>
-              {lesson.meeting_location ? (
+              {resolvedLocation ? (
                 <>
-                  <p className="text-gray-500 dark:text-gray-400">{lesson.meeting_location}</p>
-                  {isUpcoming && lesson.meeting_location.toLowerCase() !== 'online' && (
-                    <Button
-                      variant="link"
-                      className="px-0 h-auto text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
-                      onClick={() => logger.info('View map clicked')}
+                  <p className="text-gray-500 dark:text-gray-400">{resolvedLocation}</p>
+                  {isUpcoming && meetingLocation.toLowerCase() !== 'online' && mapHref && (
+                    <a
+                      href={mapHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center px-0 h-auto text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
                     >
                       <MapPin className="h-4 w-4 mr-1" />
                       View map
-                    </Button>
+                    </a>
                   )}
                 </>
               ) : (

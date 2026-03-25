@@ -15,7 +15,9 @@ import { evaluateFormatPriceFloorViolations, formatCents, type FormatFloorViolat
 import {
   defaultFormatPrices,
   formatPricesToPayload,
+  getFirstFormatPriceValidationError,
   hasAnyFormatEnabled,
+  getFormatPriceValidationErrors,
   payloadToFormatPriceState,
   type ServiceFormat,
 } from '@/lib/pricing/formatPricing';
@@ -592,6 +594,26 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
         return;
       }
 
+      const maxRateErrors: Record<string, Partial<Record<ServiceFormat, string>>> = {};
+      for (const service of selectedServices) {
+        const serviceErrors = getFormatPriceValidationErrors(service.format_prices);
+        if (Object.keys(serviceErrors).length > 0) {
+          maxRateErrors[service.catalog_service_id] = serviceErrors;
+        }
+      }
+
+      if (Object.keys(maxRateErrors).length > 0) {
+        const firstError = selectedServices
+          .map((service) => getFirstFormatPriceValidationError(service.format_prices))
+          .find((message): message is string => Boolean(message));
+        setPriceErrors(maxRateErrors);
+        if (firstError) {
+          toast.error(firstError, { id: 'max-rate-error' });
+        }
+        setSvcSaving(false);
+        return;
+      }
+
       // FIX 8: Add comprehensive logging to debug price floor validation
       logger.debug('SkillsPricingInline: price floor validation check', {
         source,
@@ -886,7 +908,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                 </div>
 
                 <div className="rounded-lg p-3 insta-surface-card mb-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Groups</label>
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Age groups</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
                     {ALL_AUDIENCE_GROUPS.map((group) => {
                       const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
@@ -930,7 +952,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div className="rounded-lg p-3 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Skill Levels</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Skill level</label>
                     <div className="flex gap-1">
                       {DEFAULT_SKILL_LEVELS.map((lvl) => {
                         const selectedLevels = s.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
@@ -963,7 +985,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     </div>
                   </div>
                   <div className="rounded-lg p-3 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Session Duration</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Session duration</label>
                     <div className="flex gap-1">
                       {[30, 45, 60, 90].map((d) => (
                         <button
@@ -988,7 +1010,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Description (Optional)</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Description (optional)</label>
                     <textarea
                       rows={2}
                       className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
@@ -998,7 +1020,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Equipment (optional)</label>
                     <textarea
                       rows={2}
                       className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"

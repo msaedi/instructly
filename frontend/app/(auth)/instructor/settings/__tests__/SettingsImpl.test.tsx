@@ -370,6 +370,40 @@ describe('SettingsImpl', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.instructors.me });
   });
 
+  it('skips address sync entirely when the ZIP code is unchanged', async () => {
+    const user = userEvent.setup();
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Account details/i }));
+    await user.clear(screen.getByLabelText(/First name/i));
+    await user.type(screen.getByLabelText(/First name/i), 'Alicia');
+
+    fetchWithAuthMock.mockClear();
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith(
+        '/api/v1/me',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            first_name: 'Alicia',
+            zip_code: '10001',
+          }),
+        })
+      );
+    });
+
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/me');
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
+      '/api/v1/addresses/me/addr-1',
+      expect.anything()
+    );
+    expect(toast.success).toHaveBeenCalledWith('Account details updated');
+  });
+
   it('shows a partial-success toast when the profile saves but address sync fails', async () => {
     const user = userEvent.setup();
 
@@ -409,6 +443,30 @@ describe('SettingsImpl', () => {
       );
     });
     expect(toast.error).not.toHaveBeenCalledWith('Failed to update account details');
+  });
+
+  it('shows the updated blocked push notifications warning copy', async () => {
+    const user = userEvent.setup();
+
+    usePushNotificationsMock.mockReturnValue({
+      isSupported: true,
+      permission: 'denied',
+      isSubscribed: false,
+      isLoading: false,
+      error: null,
+      subscribe: jest.fn(),
+      unsubscribe: jest.fn(),
+    });
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Preferences/i }));
+
+    expect(
+      screen.getByText(
+        'Push notifications are currently blocked. Enable them in your browser settings to continue.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('transitions the inline phone verification flow from verified to pending and back', async () => {

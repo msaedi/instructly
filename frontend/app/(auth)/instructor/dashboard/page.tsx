@@ -16,7 +16,6 @@ import {
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Star as PhosphorStar } from '@phosphor-icons/react';
 import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
@@ -46,9 +45,9 @@ import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationListResponse } from '@/types/conversation';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { ReviewsStatCardIcon, ReviewsStatCardValue } from '@/components/dashboard/ReviewsStatCard';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
-import { getReviewFillPercent, getReviewsCardSummary } from '@/lib/dashboardReviews';
 import {
   INSTRUCTOR_DASHBOARD_NAV_ITEMS,
   MOBILE_NAV_PRIMARY_ITEMS,
@@ -66,25 +65,6 @@ type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string; label?: string };
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-
-function ReviewRatingStar({ rating }: { rating?: number | null }) {
-  const fillPercent = getReviewFillPercent(rating);
-
-  return (
-    <div className="relative h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true">
-      <PhosphorStar
-        weight="regular"
-        className="absolute inset-0 h-full w-full text-[#7E22CE]/35"
-      />
-      <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
-        <PhosphorStar
-          weight="fill"
-          className="h-full w-full text-[#7E22CE]"
-        />
-      </div>
-    </div>
-  );
-}
 
 function DashboardPopover({
   icon: Icon,
@@ -448,8 +428,6 @@ export default function InstructorDashboardNew() {
     (typeof ratingsData?.overall?.rating === 'number'
       ? ratingsData.overall.rating.toFixed(1)
       : null);
-  const reviewRatingValue = ratingsData?.overall?.rating ?? null;
-  const reviewSummaryText = getReviewsCardSummary(reviewAverageDisplay, reviewCount);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -1062,15 +1040,13 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Reviews</h3>
-                <p
-                  className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1"
-                  data-testid="reviews-summary"
-                >
-                  {reviewSummaryText}
-                </p>
+                <ReviewsStatCardValue
+                  reviewAverageDisplay={reviewAverageDisplay}
+                  reviewCount={reviewCount}
+                />
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <ReviewRatingStar rating={reviewRatingValue} />
+                <ReviewsStatCardIcon />
               </div>
             </div>
           </button>

@@ -210,6 +210,117 @@ describe('useOnboardingStepStatus', () => {
     expect(result.current.stepStatus['verify-identity']).toBe('done');
   });
 
+  it('keeps account setup failed when instructor-location services exist without class locations', async () => {
+    const user = {
+      first_name: 'Jane',
+      last_name: 'Doe',
+      zip_code: '10001',
+      has_profile_picture: true,
+    };
+    const profile = {
+      id: 'instructor-1',
+      bio: 'x'.repeat(400),
+      services: [
+        {
+          id: 'svc-1',
+          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+        },
+      ],
+      preferred_teaching_locations: [],
+      identity_verified_at: '2024-01-01T00:00:00Z',
+    };
+
+    fetchWithAuthMock.mockImplementation((url: string) => {
+      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
+      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
+      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
+      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
+      return Promise.resolve(makeResponse(null, false));
+    });
+    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
+
+    const { result } = renderHook(() => useOnboardingStepStatus());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
+  });
+
+  it('marks account setup done once instructor-location services have a class location', async () => {
+    const user = {
+      first_name: 'Jane',
+      last_name: 'Doe',
+      zip_code: '10001',
+      has_profile_picture: true,
+    };
+    const profile = {
+      id: 'instructor-1',
+      bio: 'x'.repeat(400),
+      services: [
+        {
+          id: 'svc-1',
+          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+        },
+      ],
+      preferred_teaching_locations: [{ address: '123 Studio Lane' }],
+      identity_verified_at: '2024-01-01T00:00:00Z',
+    };
+
+    fetchWithAuthMock.mockImplementation((url: string) => {
+      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
+      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
+      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
+      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
+      return Promise.resolve(makeResponse(null, false));
+    });
+    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
+
+    const { result } = renderHook(() => useOnboardingStepStatus());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.stepStatus['account-setup']).toBe('done');
+  });
+
+  it('ignores invalid preferred teaching location entries when checking class locations', async () => {
+    const user = {
+      first_name: 'Jane',
+      last_name: 'Doe',
+      zip_code: '10001',
+      has_profile_picture: true,
+    };
+    const profile = {
+      id: 'instructor-1',
+      bio: 'x'.repeat(400),
+      services: [
+        {
+          id: 'svc-1',
+          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+        },
+      ],
+      preferred_teaching_locations: [null, { label: 'Studio' }],
+      identity_verified_at: '2024-01-01T00:00:00Z',
+    };
+
+    fetchWithAuthMock.mockImplementation((url: string) => {
+      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
+      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
+      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
+      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
+      return Promise.resolve(makeResponse(null, false));
+    });
+    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
+
+    const { result } = renderHook(() => useOnboardingStepStatus());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
+  });
+
   it('falls back to user zip_code when address parsing fails', async () => {
     const user = {
       first_name: 'Jane',
@@ -277,6 +388,34 @@ describe('useOnboardingStepStatus', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.stepStatus['verify-identity']).toBe('done');
+  });
+
+  it('requires class locations to go live when instructor-location services are enabled', () => {
+    const result = canInstructorGoLive({
+      profile: {
+        bio: 'x'.repeat(400),
+        services: [
+          {
+            id: 'svc-1',
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+          },
+        ],
+        preferred_teaching_locations: [],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+      } as never,
+      user: {
+        first_name: 'Jane',
+        last_name: 'Doe',
+        phone_verified: true,
+        has_profile_picture: true,
+      } as never,
+      serviceAreas: [{ id: 'area-1' }] as never,
+      connectStatus: { onboarding_completed: true } as never,
+      bgcStatus: 'passed',
+    });
+
+    expect(result.canGoLive).toBe(false);
+    expect(result.missing).toContain('Class locations');
   });
 
   it('handles bgc status endpoint throwing error', async () => {

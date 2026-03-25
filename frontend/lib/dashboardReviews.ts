@@ -8,7 +8,7 @@ export function getReviewFillPercent(rating?: number | null): number {
 
 export function getReviewsCardSummary(reviewAverageDisplay: string | null, reviewCount: number): string {
   if (reviewCount > 0 && reviewAverageDisplay) {
-    return `${reviewAverageDisplay}★ (${reviewCount})`;
+    return `${reviewAverageDisplay} ★ (${reviewCount})`;
   }
 
   return 'Not yet available';

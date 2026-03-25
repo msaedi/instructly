@@ -53,7 +53,7 @@ export function BioCard({
   yearsLabel = 'Years of Experience',
   yearsMin = 1,
   yearsMax = 50,
-  allowEmptyYears = false,
+  allowEmptyYears = true,
 }: BioCardProps) {
   const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
@@ -63,7 +63,7 @@ export function BioCard({
     : 'p-4 sm:p-6 insta-surface-card';
   const showInlinePhotoUpload = embedded || isOnboarding;
   const showBioWarning = showMinCharHint && bioTouched && bioTooShort;
-  const yearsValue = allowEmptyYears && profile.years_experience === 0 ? '' : profile.years_experience;
+  const yearsValue = allowEmptyYears && profile.years_experience <= 0 ? '' : profile.years_experience;
 
   const header = (
     <div className="insta-dashboard-accordion-trigger">
@@ -89,7 +89,7 @@ export function BioCard({
     }
     const parsed = parseInt(value || '0', 10);
     if (Number.isNaN(parsed)) {
-      onProfileChange({ years_experience: yearsMin });
+      onProfileChange({ years_experience: 0 });
       return;
     }
     const next = Math.max(yearsMin, Math.min(yearsMax, parsed));
@@ -168,6 +168,11 @@ export function BioCard({
                   step={1}
                   inputMode="numeric"
                   value={yearsValue}
+                  onFocus={(e) => {
+                    if (e.target.value) {
+                      e.target.select();
+                    }
+                  }}
                   onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
                   onChange={(e) => handleYearsChange(e.target.value)}
                   className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"

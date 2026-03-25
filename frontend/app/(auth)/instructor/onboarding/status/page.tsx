@@ -153,6 +153,7 @@ export default function OnboardingStatusPage() {
   const pendingRequired = goLiveCheck.missing;
   const phoneVerified = Boolean(rawData.user?.phone_verified);
   const needsPhoneVerification = !phoneVerified;
+  const needsClassLocations = pendingRequired.includes('Class locations');
 
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
   const identityVerified = Boolean(profile?.['identity_verified_at']);
@@ -167,6 +168,7 @@ export default function OnboardingStatusPage() {
   // User-facing labels for the fun/actionable card in the desired order
   const pendingLabels: string[] = [];
   if (needsServiceAreas) pendingLabels.push('Add service areas');
+  if (needsClassLocations) pendingLabels.push('Class location setup');
   if (needsPhoneVerification) pendingLabels.push('Verify phone');
   if (needsSkills) pendingLabels.push('Add skills');
   if (needsIdentity) pendingLabels.push('Verify Identity');
@@ -180,6 +182,10 @@ export default function OnboardingStatusPage() {
     if (items.length === 2) return `${items[0]} and ${items[1]}`;
     return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
   };
+  const bannerMessage =
+    pendingLabels.length === 1 && pendingLabels[0] === 'Resolve background check mismatch'
+      ? 'Resolve your background check mismatch to go live.'
+      : `You're close! Finish ${formatList(pendingLabels)} to go live.`;
 
   const goLive = async () => {
     try {
@@ -271,7 +277,7 @@ export default function OnboardingStatusPage() {
         {pendingRequired.length > 0 && (
           <div className="insta-surface-card p-4 mb-6 blink-card text-center">
             <p className="text-sm insta-onboarding-strong-text font-medium">
-              You&apos;re close! Finish {formatList(pendingLabels)} to go live.
+              {bannerMessage}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 justify-center">
               {needsServiceAreas && (
@@ -280,6 +286,14 @@ export default function OnboardingStatusPage() {
                   className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
                 >
                   Add service areas
+                </Link>
+              )}
+              {needsClassLocations && (
+                <Link
+                  href="/instructor/onboarding/account-setup"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                >
+                  Complete your class location setup
                 </Link>
               )}
               {needsSkills && (
@@ -401,14 +415,6 @@ export default function OnboardingStatusPage() {
                   profile settings
                 </Link>
                 .
-              </p>
-            </div>
-          )}
-          {bgcNameMismatch && (
-            <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              <p>
-                The information submitted during your background check doesn&apos;t match your verified identity.
-                Please contact support at support@instainstru.com before going live.
               </p>
             </div>
           )}

@@ -103,13 +103,20 @@ describe('ChatModal', () => {
   });
 
   it('does not render when isOpen is false', () => {
+    const { conversationId: _conversationId, ...propsWithoutConversationId } = baseProps;
+
     render(
       <QueryClientProvider client={queryClient}>
-        <ChatModal {...baseProps} isOpen={false} />
+        <ChatModal
+          {...propsWithoutConversationId}
+          isOpen={false}
+          instructorId="instructor-123"
+        />
       </QueryClientProvider>
     );
 
     expect(screen.queryByText('Chat with Student A')).not.toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('calls onClose when escape key is pressed', () => {
@@ -471,7 +478,7 @@ describe('ChatModal', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ instructor_id: 'instructor-123' }),
+            body: JSON.stringify({ other_user_id: 'instructor-123' }),
           })
         );
       },

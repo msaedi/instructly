@@ -11,6 +11,35 @@ type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
 type ServiceAreaItem = components['schemas']['ServiceAreaItem'];
 type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
 
+function profileUsesInstructorLocation(profile: ProfileData | null): boolean {
+  if (!Array.isArray(profile?.services)) {
+    return false;
+  }
+
+  return profile.services.some((service) => {
+    const serviceRecord = service as Record<string, unknown>;
+    const formatPrices = Array.isArray(serviceRecord['format_prices'])
+      ? (serviceRecord['format_prices'] as Array<Record<string, unknown>>)
+      : [];
+
+    return formatPrices.some((formatPrice) => formatPrice['format'] === 'instructor_location');
+  });
+}
+
+function hasPreferredTeachingLocations(profile: ProfileData | null): boolean {
+  const teachingLocations = Array.isArray(profile?.preferred_teaching_locations)
+    ? profile.preferred_teaching_locations
+    : [];
+
+  return teachingLocations.some((location) => {
+    if (!location || typeof location !== 'object') {
+      return false;
+    }
+
+    return typeof location['address'] === 'string' && location['address'].trim().length > 0;
+  });
+}
+
 /**
  * Unified hook to evaluate onboarding step completion status.
  * Used across all onboarding pages for consistent status display.
@@ -104,7 +133,14 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
       const personalInfoFilled = Boolean(user?.first_name?.trim()) && Boolean(user?.last_name?.trim()) && Boolean(postalCode);
       const bioOk = (String(profile?.bio || '').trim().length) >= 400;
       const hasServiceArea = serviceAreas.length > 0;
-      const accountSetupComplete = hasPic && personalInfoFilled && bioOk && hasServiceArea;
+      const requiresTeachingLocation = profileUsesInstructorLocation(profile);
+      const hasTeachingLocation = hasPreferredTeachingLocations(profile);
+      const accountSetupComplete =
+        hasPic &&
+        personalInfoFilled &&
+        bioOk &&
+        hasServiceArea &&
+        (!requiresTeachingLocation || hasTeachingLocation);
 
       // Evaluate Skill Selection (Step 2)
       const hasSkills = Array.isArray(profile?.services) && profile.services.length > 0;
@@ -176,6 +212,9 @@ export function canInstructorGoLive(rawData: {
 
   // Check service areas
   if (!serviceAreas || serviceAreas.length === 0) missing.push('Service areas');
+  if (profileUsesInstructorLocation(profile) && !hasPreferredTeachingLocations(profile)) {
+    missing.push('Class locations');
+  }
 
   // Check skills
   if (!profile?.services || !Array.isArray(profile.services) || profile.services.length === 0) {

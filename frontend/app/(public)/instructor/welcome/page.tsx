@@ -109,8 +109,8 @@ function WelcomeInner() {
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-gray-100">Founding Instructor Badge</h3>
                   <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    A Founding Instructor badge on your profile marks you as one of the first 100.
-                    It can&apos;t be achieved later.
+                    A Founding Instructor badge on your profile marks you as part of our founding cohort.
+                    It can&apos;t be earned later.
                   </p>
                 </div>
               </div>
@@ -126,21 +126,7 @@ function WelcomeInner() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Availability Commitment</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    Founding Instructors commit to posting availability—10 hours per week, across 3+ days,
-                    during 8am–8pm. This ensures students always find real options when they search.
-                  </p>
-                </div>
-              </div>
             </div>
-
-            <p className="text-sm text-gray-600 dark:text-gray-400 italic mt-6">
-              Only 100 founding instructors will ever exist.
-            </p>
           </div>
 
           <div className="mt-6 flex justify-center">

@@ -6,6 +6,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import type {
   ApiErrorResponse,
   CategoryServiceDetail,
@@ -26,7 +27,10 @@ import {
   type ServiceFormat,
   defaultFormatPrices,
   formatPricesToPayload,
+  getFirstFormatPriceValidationError,
+  getFormatPriceValidationErrors,
   hasAnyFormatEnabled,
+  MAX_HOURLY_RATE_MESSAGE,
   payloadToFormatPriceState,
 } from '@/lib/pricing/formatPricing';
 import { FormatPricingCards } from '@/components/pricing/FormatPricingCards';
@@ -526,6 +530,19 @@ function Step3SkillsPricingInner() {
   }, [pricingFloors, selected]);
 
   const hasFloorViolations = formatViolationsByService.size > 0;
+  const maxRateErrorsByService = useMemo(() => {
+    const map = new Map<string, Partial<Record<ServiceFormat, string>>>();
+
+    selected.forEach((service) => {
+      const formatErrors = getFormatPriceValidationErrors(service.format_prices);
+      if (Object.keys(formatErrors).length > 0) {
+        map.set(service.catalog_service_id, formatErrors);
+      }
+    });
+
+    return map;
+  }, [selected]);
+  const hasRateCapViolations = maxRateErrorsByService.size > 0;
 
   const catalogLoadError = useMemo(() => {
     if (categoriesError) {
@@ -908,6 +925,19 @@ function Step3SkillsPricingInner() {
         return;
       }
 
+      if (hasRateCapViolations) {
+        const firstViolation = selected
+          .map((service) => getFirstFormatPriceValidationError(service.format_prices))
+          .find((message): message is string => Boolean(message));
+
+        if (firstViolation) {
+          setError(firstViolation);
+          toast.error(firstViolation);
+        }
+        setSaving(false);
+        return;
+      }
+
       if (pricingFloors && hasFloorViolations) {
         const firstViolation = formatViolationsByService.entries().next();
         if (!firstViolation.done) {
@@ -941,13 +971,26 @@ function Step3SkillsPricingInner() {
         }
 
         try {
-          await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
+          const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ services: [] }),
           });
+          if (!response.ok) {
+            const apiError = (await response.json().catch(() => null)) as ApiErrorResponse | null;
+            const message = apiError
+              ? extractApiErrorMessage(apiError, 'Failed to save skills')
+              : 'Failed to save skills';
+            setError(message);
+            toast.error(message);
+            setSaving(false);
+            return;
+          }
         } catch {
-          logger.warn('Failed to clear services, continuing to next step');
+          setError('Failed to save skills');
+          toast.error('Failed to save skills');
+          setSaving(false);
+          return;
         }
 
         if (typeof window !== 'undefined') {
@@ -1054,13 +1097,13 @@ function Step3SkillsPricingInner() {
       });
 
       if (!response.ok) {
-        try {
-          const message = (await response.json()) as ApiErrorResponse;
-          logger.warn('Save services failed, moving to verification', { message });
-        } catch {
-          logger.warn('Save services failed, moving to verification');
-        }
-        window.location.href = nextUrl;
+        const apiError = (await response.json().catch(() => null)) as ApiErrorResponse | null;
+        const message = apiError
+          ? extractApiErrorMessage(apiError, 'Failed to save skills')
+          : 'Failed to save skills';
+        logger.warn('Save services failed', { message: apiError });
+        setError(message);
+        toast.error(message);
         return;
       }
 
@@ -1071,10 +1114,6 @@ function Step3SkillsPricingInner() {
       window.location.href = nextUrl;
     } catch (saveError) {
       logger.error('Save services failed', saveError);
-      if (saveError instanceof TypeError) {
-        window.location.href = redirectParam || '/instructor/onboarding/verification';
-        return;
-      }
       const message =
         saveError instanceof Error ? saveError.message : 'Failed to save';
       setError(message);
@@ -1088,6 +1127,12 @@ function Step3SkillsPricingInner() {
       setError(null);
     }
   }, [hasFloorViolations, error]);
+
+  useEffect(() => {
+    if (!hasRateCapViolations && error === MAX_HOURLY_RATE_MESSAGE) {
+      setError(null);
+    }
+  }, [error, hasRateCapViolations]);
 
   const submitServiceRequest = async () => {
     if (!requestText.trim()) {
@@ -1319,8 +1364,8 @@ function Step3SkillsPricingInner() {
                                   }
                                   className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
                                 >
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                    {group.subcategory_name}
+                                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                    {toTitle(group.subcategory_name)}
                                   </span>
                                   <svg
                                     className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${
@@ -1415,6 +1460,10 @@ function Step3SkillsPricingInner() {
                     }
                   }
                 }
+                const maxRateErrors = maxRateErrorsByService.get(service.catalog_service_id);
+                if (maxRateErrors) {
+                  Object.assign(formatErrors, maxRateErrors);
+                }
 
                 const selectedAgeGroups = normalizeAudienceGroups(
                   service.filter_selections['age_groups'],
@@ -1501,8 +1550,8 @@ function Step3SkillsPricingInner() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                       <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                          Age Groups
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                          Age groups
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           {ALL_AUDIENCE_GROUPS.map((ageGroup) => {
@@ -1547,8 +1596,8 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                          Session Duration
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                          Session duration
                         </label>
                         <div className="flex gap-1">
                           {[30, 45, 60, 90].map((duration) => (
@@ -1595,8 +1644,8 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                          Skill Level
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">
+                          Skill level
                         </label>
                         <div className="flex gap-1">
                           {DEFAULT_SKILL_LEVELS.map((level) => {
@@ -1660,8 +1709,8 @@ function Step3SkillsPricingInner() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">
-                          Description (Optional)
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">
+                          Description (optional)
                         </label>
                         <textarea
                           rows={2}
@@ -1681,8 +1730,8 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">
-                          Equipment (Optional)
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">
+                          Equipment (optional)
                         </label>
                         <textarea
                           rows={2}
@@ -1795,7 +1844,7 @@ function Step3SkillsPricingInner() {
           </button>
           <button
             onClick={save}
-            disabled={saving || hasFloorViolations}
+            disabled={saving || hasFloorViolations || hasRateCapViolations}
             className="insta-primary-btn w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white disabled:opacity-50 shadow-sm justify-center"
           >
             {saving ? 'Saving...' : 'Save & Continue'}

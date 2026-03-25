@@ -2241,6 +2241,38 @@ describe('SkillsPricingInline', () => {
 
       jest.useRealTimers();
     });
+
+    it('blocks autosave and surfaces a toast when a rate exceeds the max', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          preferred_teaching_locations: [],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = getFormatRateInput('online');
+      await user.clear(rateInput);
+      await user.type(rateInput, '1001');
+
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Maximum hourly rate is $1,000', { id: 'max-rate-error' });
+      });
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
   });
 
   describe('NaN price validation', () => {

@@ -188,6 +188,49 @@ describe('LessonDetailsPage', () => {
     expect(screen.getByRole('button', { name: /cancel lesson/i })).toBeInTheDocument();
   });
 
+  it('shows the structured instructor address and a working map link after booking confirmation', () => {
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
+    useLessonDetails.mockReturnValue({
+      data: {
+        ...mockLesson,
+        location_type: 'instructor_location',
+        meeting_location: "At instructor's location",
+        location_address: '123 Studio Lane, New York, NY 10001',
+        location_lat: 40.7128,
+        location_lng: -74.006,
+        location_place_id: 'place_123',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.getByText('123 Studio Lane, New York, NY 10001')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /view map/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('query=40.7128%2C-74.006')
+    );
+  });
+
+  it('hides the map link when the lesson only has the generic instructor-location label', () => {
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
+    useLessonDetails.mockReturnValue({
+      data: {
+        ...mockLesson,
+        location_type: 'instructor_location',
+        meeting_location: "At instructor's location",
+        location_address: null,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.queryByRole('link', { name: /view map/i })).not.toBeInTheDocument();
+  });
+
   it('opens reschedule modal when reschedule button is clicked', async () => {
     // Mock a future date to ensure the lesson is upcoming
     const futureLesson = {

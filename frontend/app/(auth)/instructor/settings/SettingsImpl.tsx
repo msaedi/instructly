@@ -130,6 +130,7 @@ type SaveAccountMutationVariables = {
 type SaveAccountMutationResult = {
   firstName: string;
   zip: string;
+  attemptedAddressSync: boolean;
   addressSyncFailed: boolean;
 };
 
@@ -338,7 +339,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     <div className="mt-2 space-y-1 text-xs">
       {!pushSupported && <p className="text-gray-500 dark:text-gray-400">Push notifications are not supported in this browser.</p>}
       {pushPermission === 'denied' && (
-        <p className="text-amber-600">Enable notifications in your browser settings to receive push alerts.</p>
+        <p className="text-amber-600">Push notifications are currently blocked. Enable them in your browser settings to continue.</p>
       )}
       {pushLoading && <p className="text-gray-500 dark:text-gray-400">Updating push notifications…</p>}
       {pushError && <p className="text-red-600">{pushError}</p>}
@@ -543,6 +544,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       firstName: mutationFirstName,
       zip: mutationZip,
     }): Promise<SaveAccountMutationResult> => {
+      const normalizedSavedZip = accountDefaults.zip.trim();
+      const attemptedAddressSync = mutationZip !== normalizedSavedZip;
+
       const userResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -558,49 +562,52 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       }
 
       let addressSyncFailed = false;
-      try {
-        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
-        if (!addrRes.ok) {
-          addressSyncFailed = true;
-        } else {
-          const list = (await addrRes.json()) as AddressListResponse;
-          const items = Array.isArray(list?.items) ? list.items : [];
-          const defaultAddress =
-            items.find((item) => item.is_default) || (items.length > 0 ? items[0] : null);
+      if (attemptedAddressSync) {
+        try {
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
+          if (!addrRes.ok) {
+            addressSyncFailed = true;
+          } else {
+            const list = (await addrRes.json()) as AddressListResponse;
+            const items = Array.isArray(list?.items) ? list.items : [];
+            const defaultAddress =
+              items.find((item) => item.is_default) || (items.length > 0 ? items[0] : null);
 
-          if (defaultAddress?.id) {
-            if (mutationZip !== (defaultAddress.postal_code || '')) {
-              const patchResponse = await fetchWithAuth(`/api/v1/addresses/me/${defaultAddress.id}`, {
-                method: 'PATCH',
+            if (defaultAddress?.id) {
+              if (mutationZip !== (defaultAddress.postal_code || '')) {
+                const patchResponse = await fetchWithAuth(`/api/v1/addresses/me/${defaultAddress.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ postal_code: mutationZip }),
+                });
+                if (!patchResponse.ok) {
+                  addressSyncFailed = true;
+                }
+              }
+            } else {
+              const createResponse = await fetchWithAuth('/api/v1/addresses/me', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postal_code: mutationZip }),
+                body: JSON.stringify({ postal_code: mutationZip, is_default: true }),
               });
-              if (!patchResponse.ok) {
+              if (!createResponse.ok) {
                 addressSyncFailed = true;
               }
             }
-          } else {
-            const createResponse = await fetchWithAuth('/api/v1/addresses/me', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ postal_code: mutationZip, is_default: true }),
-            });
-            if (!createResponse.ok) {
-              addressSyncFailed = true;
-            }
           }
+        } catch {
+          addressSyncFailed = true;
         }
-      } catch {
-        addressSyncFailed = true;
       }
 
       return {
         firstName: mutationFirstName,
         zip: mutationZip,
+        attemptedAddressSync,
         addressSyncFailed,
       };
     },
-    onSuccess: async ({ firstName: savedFirstName, zip: savedZip, addressSyncFailed }) => {
+    onSuccess: async ({ firstName: savedFirstName, zip: savedZip, attemptedAddressSync, addressSyncFailed }) => {
       await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: queryKeys.auth.me }),
         queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
@@ -609,7 +616,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setFirstNameDraft(savedFirstName);
       setZipDraft(savedZip);
       toast.success(
-        addressSyncFailed
+        attemptedAddressSync && addressSyncFailed
           ? 'Profile updated, but address failed to save. Please try again.'
           : 'Account details updated'
       );

@@ -3,8 +3,10 @@
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   FORMAT_CARD_CONFIGS,
+  MAX_HOURLY_RATE,
   type FormatPriceState,
   type ServiceFormat,
+  getHourlyRateValidationMessage,
 } from '@/lib/pricing/formatPricing';
 import type { PriceFloorConfig } from '@/lib/pricing/priceFloors';
 
@@ -76,7 +78,8 @@ export function FormatPricingCards({
         const rate = formatPrices[config.format] ?? '';
         const rateNum = Number(rate);
         const showTakeHome = rate !== '' && rateNum > 0;
-        const error = formatErrors?.[config.format];
+        const validationError = getHourlyRateValidationMessage(rate);
+        const error = validationError ?? formatErrors?.[config.format];
 
         return (
           <div
@@ -109,11 +112,13 @@ export function FormatPricingCards({
                 <input
                   type="number"
                   min={0}
+                  max={MAX_HOURLY_RATE}
                   step="1"
                   inputMode="decimal"
                   placeholder={config.placeholderRate}
                   value={rate}
                   disabled={!enabled || disabled}
+                  aria-invalid={error ? 'true' : 'false'}
                   onChange={(e) => handleRateChange(config.format, e.target.value)}
                   className={`w-20 rounded-md border px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 ${
                     error
