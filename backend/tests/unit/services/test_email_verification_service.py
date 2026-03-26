@@ -14,6 +14,8 @@ from app.services.email_verification_service import (
     EMAIL_VERIFICATION_SEND_IP_MAX,
     EMAIL_VERIFICATION_SEND_MAX,
     EmailVerificationService,
+    _mask_email,
+    email_verification_code_key,
     email_verification_lock_key,
     email_verification_send_ip_key,
     email_verification_send_key,
@@ -72,6 +74,25 @@ def _service(cache_service: FakeCacheService) -> EmailVerificationService:
     return EmailVerificationService(MagicMock(), cache_service, MagicMock())
 
 
+class FailingJtiCacheService(FakeCacheService):
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
+        if key.startswith("email_verify_token_jti:"):
+            return False
+        return await super().set(key, value, ttl)
+
+
+@pytest.mark.parametrize(
+    ("email", "masked"),
+    [
+        ("user@example.com", "us***@example.com"),
+        ("nodomain", "no***"),
+        ("", "***"),
+    ],
+)
+def test_mask_email_handles_domainless_and_blank_inputs(email: str, masked: str) -> None:
+    assert _mask_email(email) == masked
+
+
 @pytest.mark.asyncio
 async def test_check_send_rate_limit_rejects_email_limit() -> None:
     cache = FakeCacheService(FakeRedis())
@@ -101,6 +122,16 @@ async def test_check_send_rate_limit_rejects_ip_limit() -> None:
 
 
 @pytest.mark.asyncio
+async def test_check_send_rate_limit_treats_corrupted_counters_as_zero() -> None:
+    redis = FakeRedis()
+    redis.store[email_verification_send_key("broken@example.com")] = b"not-a-number"
+    redis.store[email_verification_send_ip_key("127.0.0.1")] = b"still-not-a-number"
+    service = _service(FakeCacheService(redis))
+
+    await service.check_send_rate_limit("broken@example.com", "127.0.0.1")
+
+
+@pytest.mark.asyncio
 async def test_send_code_stores_code_and_resets_attempt_keys() -> None:
     redis = FakeRedis()
     cache = FakeCacheService(redis)
@@ -119,6 +150,14 @@ async def test_send_code_stores_code_and_resets_attempt_keys() -> None:
 
 
 @pytest.mark.asyncio
+async def test_send_verification_email_requires_email_service() -> None:
+    service = EmailVerificationService(MagicMock(), FakeCacheService(), None)
+
+    with pytest.raises(RuntimeError, match="Email service is required to send verification emails"):
+        await service.send_verification_email("user@example.com", "123456")
+
+
+@pytest.mark.asyncio
 async def test_verify_code_returns_token_and_invalidates_code() -> None:
     cache = FakeCacheService()
     cache.store["email_verify:verify@example.com"] = "123456"
@@ -131,6 +170,20 @@ async def test_verify_code_returns_token_and_invalidates_code() -> None:
     assert expires_in > 0
     assert cache.store[email_verification_token_jti_key(str(payload["jti"]))] is True
     assert "email_verify:verify@example.com" not in cache.store
+
+
+@pytest.mark.asyncio
+async def test_verify_code_returns_unavailable_when_jti_marker_cannot_be_stored() -> None:
+    cache = FailingJtiCacheService()
+    cache.store[email_verification_code_key("verify@example.com")] = "123456"
+    service = _service(cache)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.verify_code("verify@example.com", "123456")
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "EMAIL_VERIFICATION_UNAVAILABLE"
+    assert email_verification_code_key("verify@example.com") not in cache.store
 
 
 @pytest.mark.asyncio
@@ -203,3 +256,14 @@ async def test_consume_token_jti_requires_existing_jti_marker() -> None:
 
     with pytest.raises(ValidationException):
         await service.consume_token_jti(claims)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("claims", [{}, {"jti": "   "}])
+async def test_consume_token_jti_rejects_blank_claim_markers(claims: dict[str, Any]) -> None:
+    service = _service(FakeCacheService())
+
+    with pytest.raises(ValidationException) as exc_info:
+        await service.consume_token_jti(claims)
+
+    assert exc_info.value.code == "EMAIL_VERIFICATION_INVALID"

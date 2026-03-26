@@ -47,6 +47,11 @@ class _DummySecret:
         return self._value
 
 
+class _StripeEvent(dict[str, object]):
+    def to_dict_recursive(self) -> dict[str, object]:
+        return dict(self)
+
+
 class TestPaymentRoutes:
     """Test suite for payment API routes."""
 
@@ -1009,6 +1014,29 @@ class TestInstantPayoutEndpoints:
 
     @patch("app.routes.v1.payments.prometheus_metrics")
     @patch("app.services.stripe_service.StripeService.request_instructor_instant_payout")
+    def test_request_instant_payout_service_exception(
+        self,
+        mock_request_payout,
+        mock_metrics,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_request_payout.side_effect = ServiceException("Payout not eligible")
+
+        response = client.post(
+            "/api/v1/payments/connect/instant-payout",
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "Payout not eligible"
+        assert mock_metrics.inc_instant_payout_request.call_args_list == [
+            call("attempt"),
+            call("error"),
+        ]
+
+    @patch("app.routes.v1.payments.prometheus_metrics")
+    @patch("app.services.stripe_service.StripeService.request_instructor_instant_payout")
     def test_request_instant_payout_generic_exception(
         self,
         mock_request_payout,
@@ -1104,6 +1132,59 @@ class TestEarningsAndPayoutsEndpoints:
         assert response.status_code == HTTP_422_STATUS
 
 
+class TestSetupIntentEndpoints:
+    @patch("app.services.stripe_service.StripeService.create_setup_intent_for_saving")
+    def test_create_setup_intent_success(
+        self,
+        mock_create_setup_intent,
+        client: TestClient,
+        auth_headers_student: Dict[str, str],
+    ):
+        mock_create_setup_intent.return_value = {"client_secret": "seti_secret_123"}
+
+        response = client.post(
+            "/api/v1/payments/setup-intent",
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"client_secret": "seti_secret_123"}
+
+    @patch("app.services.stripe_service.StripeService.create_setup_intent_for_saving")
+    def test_create_setup_intent_service_exception(
+        self,
+        mock_create_setup_intent,
+        client: TestClient,
+        auth_headers_student: Dict[str, str],
+    ):
+        mock_create_setup_intent.side_effect = ServiceException("Missing Stripe customer")
+
+        response = client.post(
+            "/api/v1/payments/setup-intent",
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "Missing Stripe customer"
+
+    @patch("app.services.stripe_service.StripeService.create_setup_intent_for_saving")
+    def test_create_setup_intent_unexpected_exception(
+        self,
+        mock_create_setup_intent,
+        client: TestClient,
+        auth_headers_student: Dict[str, str],
+    ):
+        mock_create_setup_intent.side_effect = Exception("stripe unavailable")
+
+        response = client.post(
+            "/api/v1/payments/setup-intent",
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.json()["detail"] == "Failed to create setup intent"
+
+
 class TestEarningsExport:
     """Tests for earnings export endpoint."""
 
@@ -1179,6 +1260,26 @@ class TestEarningsExport:
         _, kwargs = mock_export.call_args
         assert kwargs["start_date"] == date(2025, 1, 1)
         assert kwargs["end_date"] == date(2025, 1, 31)
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_pdf")
+    @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
+    def test_export_rejects_inverted_date_range(
+        self,
+        mock_csv_export,
+        mock_pdf_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={"start_date": "2025-02-01", "end_date": "2025-01-01"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "start_date must be on or before end_date"
+        mock_csv_export.assert_not_called()
+        mock_pdf_export.assert_not_called()
 
     @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
     def test_export_csv_has_correct_columns(
@@ -1534,6 +1635,81 @@ class TestWebhookErrorCases:
         )
 
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    @patch("app.routes.v1.payments.WebhookLedgerService")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_duplicate_event_uses_constructed_payload_when_body_is_invalid_json(
+        self,
+        mock_settings,
+        mock_construct_event,
+        mock_handle_event,
+        mock_ledger_service_cls,
+        client: TestClient,
+    ):
+        mock_settings.webhook_secrets = ["whsec_test"]
+        mock_construct_event.return_value = _StripeEvent(
+            {
+                "id": "evt_duplicate",
+                "type": "payout.paid",
+                "account": "acct_connected",
+            }
+        )
+        ledger_service = MagicMock()
+        ledger_service.log_received.return_value = MagicMock(id="ledger_evt", status="received")
+        ledger_service.mark_processing.return_value = False
+        ledger_service.get_event.return_value = MagicMock(status="processed")
+        mock_ledger_service_cls.return_value = ledger_service
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content=b"{not-json",
+            headers={"Content-Type": "application/json", "stripe-signature": "sig"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {
+            "status": "success",
+            "event_type": "payout.paid",
+            "message": "Duplicate event ignored",
+        }
+        logged_payload = ledger_service.log_received.call_args.kwargs["payload"]
+        assert logged_payload["id"] == "evt_duplicate"
+        assert logged_payload["account"] == "acct_connected"
+        mock_handle_event.assert_not_called()
+
+    @patch("app.routes.v1.payments.WebhookLedgerService")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_transient_processing_error_returns_503(
+        self,
+        mock_settings,
+        mock_construct_event,
+        mock_handle_event,
+        mock_ledger_service_cls,
+        client: TestClient,
+    ):
+        mock_settings.webhook_secrets = ["whsec_test"]
+        mock_construct_event.return_value = _StripeEvent({"id": "evt_retry", "type": "charge.refunded"})
+        mock_handle_event.side_effect = ConnectionError("temporary network issue")
+        ledger_event = MagicMock(id="ledger_evt", status="received")
+        ledger_service = MagicMock()
+        ledger_service.log_received.return_value = ledger_event
+        ledger_service.mark_processing.return_value = True
+        mock_ledger_service_cls.return_value = ledger_service
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content=b'{"id":"evt_retry","type":"charge.refunded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "sig"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["detail"] == "Temporary failure, please retry"
+        mock_handle_event.assert_called_once_with({"id": "evt_retry", "type": "charge.refunded"})
+        ledger_service.mark_failed.assert_called_once()
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")

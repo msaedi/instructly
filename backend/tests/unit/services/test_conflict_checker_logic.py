@@ -356,6 +356,19 @@ class TestConflictCheckerValidationRules:
     def test_coerce_buffer_minutes_uses_default_for_boolean(self, service, buffer_value: bool):
         assert service._coerce_buffer_minutes(buffer_value, 15) == 15
 
+    @pytest.mark.parametrize(
+        ("buffer_value", "default", "expected"),
+        [
+            (22.9, 15, 22),
+            ("25", 15, 25),
+            ("bad-data", 15, 15),
+        ],
+    )
+    def test_coerce_buffer_minutes_handles_float_and_string_edge_cases(
+        self, service, buffer_value: object, default: int, expected: int
+    ):
+        assert service._coerce_buffer_minutes(buffer_value, default) == expected
+
     @patch("app.services.conflict_checker.get_user_today_by_id")
     def test_service_duration_validation_rules(self, mock_get_today, service):
         """Test service-specific duration validation."""
@@ -618,6 +631,39 @@ class TestConflictCheckerValidationRules:
         )
         assert no_conflict == []
 
+    def test_instructor_conflicts_fall_back_to_config_defaults_without_profile(self, service):
+        existing = Mock(spec=Booking)
+        existing.id = generate_ulid()
+        existing.start_time = time(10, 0)
+        existing.end_time = time(11, 0)
+        existing.location_type = "online"
+        existing.student = Mock(first_name="John", last_name="Doe")
+        existing.service_name = "Piano"
+        existing.status = BookingStatus.CONFIRMED
+
+        service.repository.get_bookings_for_conflict_check.return_value = [existing]
+        service.repository.get_instructor_profile.return_value = None
+        service.config_service = Mock(spec=ConfigService)
+        service.config_service.get_booking_rules_config.return_value = (
+            {
+                "default_non_travel_buffer_minutes": 15,
+                "default_travel_buffer_minutes": 60,
+            },
+            None,
+        )
+        service.config_service.resolve_default_buffer_minutes_from_config.side_effect = [60, 15]
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
+            new_location_type="student_location",
+        )
+
+        assert len(conflicts) == 1
+        service.repository.get_instructor_profile.assert_called_once()
+
     def test_instructor_conflicts_use_non_travel_buffer_when_both_bookings_are_non_travel(self, service):
         service.repository.get_instructor_profile.return_value = SimpleNamespace(
             travel_buffer_minutes=60,
@@ -832,6 +878,41 @@ class TestConflictCheckerEdgeCases:
 
         assert result["valid"] == False
         assert any("not found or no longer available" in error for error in result["errors"])
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_validate_booking_constraints_surfaces_student_conflicts(
+        self, mock_get_today, service
+    ):
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+        service.repository.get_instructor_profile.return_value = Mock(spec=InstructorProfile)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+        student_conflicts = [
+            {
+                "booking_id": generate_ulid(),
+                "start_time": "14:00:00",
+                "end_time": "15:00:00",
+                "service_name": "Math",
+                "status": BookingStatus.CONFIRMED,
+                "instructor_id": generate_ulid(),
+            }
+        ]
+        service.check_student_booking_conflicts = Mock(return_value=student_conflicts)
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor.id,
+            booking_date=today + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            student_id=generate_ulid(),
+        )
+
+        assert result["valid"] == False
+        assert any("student's bookings" in error for error in result["errors"])
+        assert result["details"]["student_conflicts"] == student_conflicts
 
 
 def _make_booking_for_conflict(

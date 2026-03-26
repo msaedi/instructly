@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
+import stripe
 
 from app.core.exceptions import MCPTokenError, ValidationException
 from app.core.ulid_helper import generate_ulid
@@ -40,9 +41,15 @@ class DummyRedis:
 
 
 class FakeStripeService:
-    def __init__(self, result: dict | None = None) -> None:
+    def __init__(
+        self,
+        result: dict | None = None,
+        *,
+        side_effect: Exception | None = None,
+    ) -> None:
         self.calls: list[dict] = []
         self.result = result or {"status": "succeeded", "refund_id": "re_123"}
+        self.side_effect = side_effect
 
     def refund_payment(self, payment_intent_id: str, *, amount_cents: int, reason: str, idempotency_key: str):
         self.calls.append(
@@ -53,6 +60,8 @@ class FakeStripeService:
                 "idempotency_key": idempotency_key,
             }
         )
+        if self.side_effect is not None:
+            raise self.side_effect
         return self.result
 
 
@@ -157,9 +166,14 @@ def _attach_payment(
     return payment
 
 
-def _build_service(db):
+def _build_service(
+    db,
+    *,
+    stripe_result: dict | None = None,
+    stripe_side_effect: Exception | None = None,
+):
     redis = DummyRedis()
-    stripe_service = FakeStripeService()
+    stripe_service = FakeStripeService(result=stripe_result, side_effect=stripe_side_effect)
     credit_service = FakeCreditService()
     audit_service = FakeAuditService()
     confirm_service = MCPConfirmTokenService(db)
@@ -531,6 +545,152 @@ async def test_refund_execute_success_card_refund(
     assert response.updated_payment is not None
     assert response.updated_payment.status == "refunded"
     assert stripe_service.calls[0]["payment_intent_id"] == payment.stripe_payment_intent_id
+
+
+@pytest.mark.asyncio
+async def test_refund_execute_card_refund_pending_keeps_success_and_marks_payment_pending(
+    db, test_student, test_instructor_with_availability
+):
+    service_id = _get_active_service_id(db, test_instructor_with_availability.id)
+    booking = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=service_id,
+        status=BookingStatus.CONFIRMED,
+        offset_index=90,
+    )
+    _set_booking_start(booking, datetime.now(timezone.utc) + timedelta(hours=30))
+    payment = _attach_payment(db, booking, payment_status=PaymentStatus.AUTHORIZED.value)
+    db.commit()
+
+    service, _, _, audit_service = _build_service(
+        db,
+        stripe_result={"status": "pending", "refund_id": "re_pending"},
+    )
+    preview = service.preview_refund(
+        booking_id=booking.id,
+        reason_code=RefundReasonCode.GOODWILL,
+        amount=RefundAmount(type=RefundAmountType.FULL),
+        note=None,
+        actor_id="actor",
+    )
+
+    response = await service.execute_refund(
+        confirm_token=preview.confirm_token or "",
+        idempotency_key=preview.idempotency_key or "",
+        actor_id="actor",
+    )
+
+    db.refresh(booking)
+    db.refresh(payment)
+    assert response.result == "success"
+    assert response.refund is not None
+    assert response.refund.status == "pending"
+    assert response.updated_booking is not None
+    assert response.updated_booking.status == BookingStatus.CANCELLED.value
+    assert response.updated_payment is not None
+    assert response.updated_payment.status == "refund_pending"
+    assert booking.status == BookingStatus.CANCELLED
+    assert payment.status == "refund_pending"
+    assert audit_service.calls[-1]["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_refund_execute_card_refund_failed_leaves_booking_and_payment_untouched(
+    db, test_student, test_instructor_with_availability
+):
+    service_id = _get_active_service_id(db, test_instructor_with_availability.id)
+    booking = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=service_id,
+        status=BookingStatus.CONFIRMED,
+        offset_index=91,
+    )
+    _set_booking_start(booking, datetime.now(timezone.utc) + timedelta(hours=30))
+    payment = _attach_payment(db, booking, payment_status=PaymentStatus.AUTHORIZED.value)
+    db.commit()
+
+    service, _, _, audit_service = _build_service(
+        db,
+        stripe_result={"status": "failed", "refund_id": "re_failed"},
+    )
+    preview = service.preview_refund(
+        booking_id=booking.id,
+        reason_code=RefundReasonCode.GOODWILL,
+        amount=RefundAmount(type=RefundAmountType.FULL),
+        note=None,
+        actor_id="actor",
+    )
+
+    response = await service.execute_refund(
+        confirm_token=preview.confirm_token or "",
+        idempotency_key=preview.idempotency_key or "",
+        actor_id="actor",
+    )
+
+    db.refresh(booking)
+    db.refresh(payment)
+    assert response.result == "failed"
+    assert response.error == "payment_provider_error"
+    assert response.refund is None
+    assert response.updated_booking is None
+    assert response.updated_payment is None
+    assert booking.status == BookingStatus.CONFIRMED
+    assert payment.status == "requires_capture"
+    assert audit_service.calls[-1]["status"] == "failed"
+    assert audit_service.calls[-1]["error_message"] == "payment_provider_error"
+
+
+@pytest.mark.asyncio
+async def test_refund_execute_stripe_exception_includes_provider_code(
+    db, test_student, test_instructor_with_availability
+):
+    service_id = _get_active_service_id(db, test_instructor_with_availability.id)
+    booking = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=service_id,
+        status=BookingStatus.CONFIRMED,
+        offset_index=92,
+    )
+    _set_booking_start(booking, datetime.now(timezone.utc) + timedelta(hours=30))
+    payment = _attach_payment(db, booking, payment_status=PaymentStatus.AUTHORIZED.value)
+    db.commit()
+
+    stripe_error = stripe.StripeError("Refund failed")
+    setattr(stripe_error, "code", "card_declined")
+
+    service, _, _, audit_service = _build_service(
+        db,
+        stripe_side_effect=stripe_error,
+    )
+    preview = service.preview_refund(
+        booking_id=booking.id,
+        reason_code=RefundReasonCode.GOODWILL,
+        amount=RefundAmount(type=RefundAmountType.FULL),
+        note=None,
+        actor_id="actor",
+    )
+
+    response = await service.execute_refund(
+        confirm_token=preview.confirm_token or "",
+        idempotency_key=preview.idempotency_key or "",
+        actor_id="actor",
+    )
+
+    db.refresh(booking)
+    db.refresh(payment)
+    assert response.result == "failed"
+    assert response.error == "payment_provider_error:card_declined"
+    assert response.refund is None
+    assert booking.status == BookingStatus.CONFIRMED
+    assert payment.status == "requires_capture"
+    assert audit_service.calls[-1]["status"] == "failed"
+    assert audit_service.calls[-1]["error_message"] == "payment_provider_error:card_declined"
 
 
 @pytest.mark.asyncio

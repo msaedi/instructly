@@ -61,6 +61,12 @@ def test_toggle_index_288_raises() -> None:
         toggle_index(new_empty_bits(), idx=288, value=True)
 
 
+def test_toggle_index_sets_selected_slot_when_enabled() -> None:
+    bits = toggle_index(new_empty_bits(), idx=5, value=True)
+
+    assert unpack_indexes(bits) == [5]
+
+
 def test_unpack_wrong_length_raises() -> None:
     with pytest.raises(ValueError, match="bits length must be 36"):
         unpack_indexes(b"\x00" * 6)
@@ -85,3 +91,12 @@ def test_round_trip() -> None:
     bits = bits_from_windows(original)
     result = windows_from_bits(bits)
     assert result == [("08:00:00", "12:00:00"), ("14:30:00", "17:45:00")]
+
+
+def test_unpack_indexes_ignores_padding_bits_when_storage_has_extra_byte(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.utils.bitset.BYTES_PER_DAY", BYTES_PER_DAY + 1)
+    bits = bytearray(BYTES_PER_DAY + 1)
+    bits[-2] = 0x80  # slot 287
+    bits[-1] = 0xFF  # simulated padding beyond the last valid slot
+
+    assert unpack_indexes(bytes(bits)) == [SLOTS_PER_DAY - 1]
