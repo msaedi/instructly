@@ -16,6 +16,7 @@ import type {
   AgeGroup,
   ApiErrorResponse,
   AllServicesWithInstructorsResponse,
+  CatalogBrowseResponse,
   BookingCreate,
   CategoryDetail as ApiCategoryDetail,
   CategorySummary as ApiCategorySummary,
@@ -559,6 +560,14 @@ export const publicApi = {
    */
   async getTopServicesPerCategory() {
     return cleanFetch<TopServicesResponse>('/api/v1/services/catalog/top-per-category');
+  },
+
+  /**
+   * Get lightweight service taxonomy grouped by category (no analytics/instructors).
+   * Optimized for onboarding skill selection.
+   */
+  async getCatalogBrowse() {
+    return cleanFetch<CatalogBrowseResponse>('/api/v1/services/catalog/browse');
   },
 
   /**

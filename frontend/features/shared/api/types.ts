@@ -312,6 +312,11 @@ export type CategoryServiceDetail = components['schemas']['CategoryServiceDetail
 export type CategoryWithServices = components['schemas']['CategoryWithServices'];
 export type AllServicesWithInstructorsResponse = components['schemas']['AllServicesWithInstructorsResponse'];
 
+// Catalog browse (lightweight taxonomy — no analytics/instructor data)
+export type CatalogBrowseServiceItem = components['schemas']['CatalogBrowseServiceItem'];
+export type CatalogBrowseCategoryItem = components['schemas']['CatalogBrowseCategoryItem'];
+export type CatalogBrowseResponse = components['schemas']['CatalogBrowseResponse'];
+
 // Badges and awards
 export type BadgeProgressView = components['schemas']['BadgeProgressView'];
 export type StudentBadgeView = components['schemas']['StudentBadgeView'];

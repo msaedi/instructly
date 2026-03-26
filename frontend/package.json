@@ -192,6 +192,7 @@
     "!types/generated/**": []
   },
   "overrides": {
+    "picomatch": "4.0.4",
     "serialize-javascript": "7.0.3",
     "path-to-regexp": "6.3.0",
     "tar-fs": "3.1.1",

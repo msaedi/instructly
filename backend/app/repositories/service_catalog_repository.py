@@ -27,6 +27,7 @@ from ..models.service_catalog import (
     ServiceAnalytics,
     ServiceCatalog,
     ServiceCategory,
+    ServiceFormatPrice,
 )
 from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
@@ -944,6 +945,36 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             List[ServiceCatalog],
             query.order_by(ServiceCatalog.display_order, ServiceCatalog.name).limit(limit).all(),
         )
+
+    def get_bulk_price_ranges(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get min/max hourly rates per service_catalog_id in a single query.
+
+        Only includes active instructor services from live instructor profiles.
+
+        Returns:
+            Dict mapping service_catalog_id to {"min": Decimal, "max": Decimal}
+        """
+        rows = cast(
+            Sequence[Tuple[str, Any, Any]],
+            self.db.query(
+                InstructorService.service_catalog_id,
+                func.min(ServiceFormatPrice.hourly_rate).label("min_price"),
+                func.max(ServiceFormatPrice.hourly_rate).label("max_price"),
+            )
+            .join(ServiceFormatPrice, ServiceFormatPrice.service_id == InstructorService.id)
+            .join(
+                InstructorProfile,
+                InstructorProfile.id == InstructorService.instructor_profile_id,
+            )
+            .filter(
+                InstructorService.is_active == True,
+                InstructorProfile.is_live == True,
+            )
+            .group_by(InstructorService.service_catalog_id)
+            .all(),
+        )
+        return {row[0]: {"min": float(row[1]), "max": float(row[2])} for row in rows}
 
 
 class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):

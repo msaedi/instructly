@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import {
   PROGRESSIVE_LOADING,
+  useCatalogBrowse,
   useServiceCategories,
   useAllServicesWithInstructors,
   useServicesByCategory,
@@ -18,6 +19,7 @@ jest.mock('@/features/shared/api/client', () => ({
   publicApi: {
     getServiceCategories: jest.fn(),
     getAllServicesWithInstructors: jest.fn(),
+    getCatalogBrowse: jest.fn(),
     getCatalogServices: jest.fn(),
   },
 }));
@@ -28,6 +30,7 @@ jest.mock('@/lib/apiBase', () => ({
 
 const getServiceCategoriesMock = publicApi.getServiceCategories as jest.Mock;
 const getAllServicesWithInstructorsMock = publicApi.getAllServicesWithInstructors as jest.Mock;
+const getCatalogBrowseMock = publicApi.getCatalogBrowse as jest.Mock;
 const getCatalogServicesMock = publicApi.getCatalogServices as jest.Mock;
 
 const createWrapper = () => {
@@ -69,6 +72,26 @@ describe('useServices hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual({ categories: [{ id: 'cat-1', name: 'Music', services: [] }] });
+  });
+
+  it('loads lightweight catalog browse taxonomy', async () => {
+    getCatalogBrowseMock.mockResolvedValue({
+      data: {
+        categories: [{
+          id: 'cat-1',
+          name: 'Music',
+          services: [{ id: 'svc-1', name: 'Piano', subcategory_id: 'sub-1', eligible_age_groups: ['kids'], description: null, display_order: 1 }],
+        }],
+      },
+      status: 200,
+    });
+
+    const { result } = renderHook(() => useCatalogBrowse(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.categories).toHaveLength(1);
+    expect(result.current.data?.categories?.[0]?.services?.[0]?.name).toBe('Piano');
+    expect(getCatalogBrowseMock).toHaveBeenCalledTimes(1);
   });
 
   it('loads services for a category when enabled', async () => {

@@ -171,9 +171,39 @@ class AllServicesWithInstructorsResponse(StrictModel):
     metadata: AllServicesMetadata
 
 
+class CatalogBrowseServiceItem(StrictModel):
+    """Minimal service for taxonomy browsing (no instructor/analytics data)."""
+
+    id: str
+    name: str
+    subcategory_id: str
+    eligible_age_groups: List[Literal["toddler", "kids", "teens", "adults"]] = Field(
+        default_factory=list
+    )
+    description: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+class CatalogBrowseCategoryItem(StrictModel):
+    """Category with minimal services for taxonomy browsing."""
+
+    id: str
+    name: str
+    services: List[CatalogBrowseServiceItem] = Field(default_factory=list)
+
+
+class CatalogBrowseResponse(StrictModel):
+    """Lightweight catalog response for taxonomy browsing (no analytics/instructors)."""
+
+    categories: List[CatalogBrowseCategoryItem] = Field(default_factory=list)
+
+
 __all__ = [
     "AllServicesMetadata",
     "AllServicesWithInstructorsResponse",
+    "CatalogBrowseCategoryItem",
+    "CatalogBrowseResponse",
+    "CatalogBrowseServiceItem",
     "CategoryServiceDetail",
     "CategoryWithServices",
     "InstructorSearchResult",

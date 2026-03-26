@@ -1,13 +1,30 @@
 'use client';
 
-import { useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import InstructorProfileForm, { type InstructorProfileFormHandle } from '@/features/instructor-profile/InstructorProfileForm';
 import { OnboardingProgressHeader, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
+import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { publicApi } from '@/features/shared/api/client';
+import { convertApiResponse } from '@/lib/react-query/api';
 
 export default function AccountSetupPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Prefetch catalog taxonomy so it's ready when user navigates to skill selection
+  useEffect(() => {
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.services.browse,
+      queryFn: async () => {
+        const response = await publicApi.getCatalogBrowse();
+        return convertApiResponse(response);
+      },
+      staleTime: CACHE_TIMES.STATIC,
+    });
+  }, [queryClient]);
   const formRef = useRef<InstructorProfileFormHandle>(null);
   const [ctaPending, setCtaPending] = useState(false);
   // Use unified step status evaluation

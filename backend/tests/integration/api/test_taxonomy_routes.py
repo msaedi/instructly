@@ -122,6 +122,50 @@ class TestGetCatalogEndpoint:
         assert resp.status_code == status.HTTP_200_OK
 
 
+class TestCatalogBrowseEndpoint:
+    def test_catalog_browse_returns_all_active_services_with_lean_shape(
+        self, client: TestClient, route_taxonomy
+    ):
+        resp = client.get("/api/v1/services/catalog/browse")
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+
+        assert isinstance(data, dict)
+        assert "categories" in data
+
+        test_cat = next((c for c in data["categories"] if c["id"] == route_taxonomy["category"].id), None)
+        assert test_cat is not None
+        assert set(test_cat.keys()) == {"id", "name", "services"}
+        assert test_cat["name"] == route_taxonomy["cat_name"]
+
+        services = test_cat["services"]
+        assert isinstance(services, list)
+        assert len(services) == 2
+
+        service_names = {svc["name"] for svc in services}
+        assert route_taxonomy["svc1"].name in service_names
+        assert route_taxonomy["svc2"].name in service_names
+
+        service_ids = {svc["id"] for svc in services}
+        assert route_taxonomy["svc1"].id in service_ids
+        assert route_taxonomy["svc2"].id in service_ids
+
+        for svc in services:
+            assert set(svc.keys()) == {
+                "id",
+                "name",
+                "subcategory_id",
+                "eligible_age_groups",
+                "description",
+                "display_order",
+            }
+            assert "active_instructors" not in svc
+            assert "actual_min_price" not in svc
+            assert "actual_max_price" not in svc
+            assert "demand_score" not in svc
+            assert "is_trending" not in svc
+
+
 class TestGetCategoriesEndpoint:
     def test_returns_categories(self, client: TestClient, route_taxonomy):
         resp = client.get("/api/v1/services/categories")
