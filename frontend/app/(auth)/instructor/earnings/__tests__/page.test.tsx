@@ -199,6 +199,12 @@ describe('Instructor earnings page', () => {
     expect(screen.getByText('$680.00')).toBeInTheDocument();
     expect(screen.getByText('4 hrs')).toBeInTheDocument();
     expect(screen.getByText('Entry tier · 15%')).toBeInTheDocument();
+    expect(screen.getByText('3 lessons completed · in the last 30 days')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(
+      'data-filled-dots',
+      '3'
+    );
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByText('Piano Basics')).toBeInTheDocument();
     expect(screen.getByText('Emma J.')).toBeInTheDocument();
     expect(screen.getByText('$120.00')).toBeInTheDocument();

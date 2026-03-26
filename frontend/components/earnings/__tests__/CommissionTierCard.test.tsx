@@ -121,6 +121,10 @@ describe('CommissionTierCard', () => {
 
     expect(screen.getByText('Founding Instructor')).toBeInTheDocument();
     expect(screen.getByText('8% · locked')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
+      'bg-[#F3E8FF]',
+      'text-[#7E22CE]'
+    );
     expect(
       screen.getByText(
         "You have locked in our lowest rate—permanently. Whatever the floor is, you're on it."
@@ -132,7 +136,62 @@ describe('CommissionTierCard', () => {
     expect(container.querySelector('svg')).toBeTruthy();
   });
 
-  it('renders standard tier ladder with progress helper text', () => {
+  it('uses fallback dot counts for nonstandard tier names', () => {
+    mockUseCommissionStatus.mockReturnValue({
+      data: buildStatus({
+        tier_name: 'custom_window',
+        commission_rate_pct: 13,
+        completed_lessons_30d: 3,
+        next_tier_name: 'custom_open',
+        next_tier_threshold: 5,
+        lessons_to_next_tier: 2,
+        tiers: [
+          {
+            name: 'custom_window',
+            display_name: 'Custom Window',
+            commission_pct: 13,
+            min_lessons: 2,
+            max_lessons: 4,
+            is_current: true,
+            is_unlocked: true,
+          },
+          {
+            name: 'custom_open',
+            display_name: 'Custom Open',
+            commission_pct: 9,
+            min_lessons: 5,
+            max_lessons: null,
+            is_current: false,
+            is_unlocked: false,
+          },
+        ],
+      }),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCommissionStatus>);
+
+    render(<CommissionTierCard />);
+
+    expect(screen.getByText('Custom Window tier · 13%')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-track-custom_window')).toHaveAttribute(
+      'data-dot-count',
+      '3'
+    );
+    expect(screen.getByTestId('commission-tier-track-custom_window')).toHaveAttribute(
+      'data-filled-dots',
+      '2'
+    );
+    expect(screen.getByTestId('commission-tier-track-custom_open')).toHaveAttribute(
+      'data-dot-count',
+      '1'
+    );
+    expect(screen.getByTestId('commission-tier-track-custom_open')).toHaveAttribute(
+      'data-filled-dots',
+      '0'
+    );
+  });
+
+  it('renders the entry tier ladder with the dot-line pattern and lavender rate pill', () => {
     mockUseCommissionStatus.mockReturnValue({
       data: buildStatus({
         activity_window_days: 45,
@@ -145,24 +204,56 @@ describe('CommissionTierCard', () => {
 
     expect(screen.getByText('Entry tier · 15%')).toBeInTheDocument();
     expect(
-      screen.getByText('3 of 5 lessons completed · in the last 45 days')
+      screen.getByText('3 lessons completed · in the last 45 days')
     ).toBeInTheDocument();
-    expect(screen.getByText('Growth · 12%')).toBeInTheDocument();
-    expect(screen.getByText('3 of 5 · 2 more to unlock')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Growth progress' })).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar', { name: 'Entry progress' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+    expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
+      'bg-[#F3E8FF]',
+      'text-[#7E22CE]'
+    );
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-connector')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-row-entry')).toHaveAttribute(
+      'data-tier-state',
+      'active'
+    );
+    expect(screen.getByTestId('commission-tier-step-entry')).toHaveClass(
+      'bg-[#7C3AED]',
+      'border-[#7C3AED]'
+    );
+    expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute('data-dot-count', '4');
+    expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(
+      'data-filled-dots',
+      '3'
+    );
+    expect(screen.getAllByTestId(/commission-tier-dot-entry-/)).toHaveLength(4);
+    expect(screen.getByTestId('commission-tier-dot-entry-4')).toHaveAttribute(
+      'data-dot-state',
+      'unfilled'
+    );
+    expect(screen.getByTestId('commission-tier-row-growth')).toHaveAttribute(
+      'data-tier-state',
+      'unmet'
+    );
+    expect(screen.getByTestId('commission-tier-track-growth')).toHaveAttribute(
+      'data-dot-count',
+      '6'
+    );
+    expect(screen.getByTestId('commission-tier-track-growth')).toHaveAttribute(
+      'data-filled-dots',
+      '0'
+    );
+    expect(screen.getByTestId('commission-tier-track-pro')).toHaveAttribute('data-dot-count', '1');
   });
 
-  it('renders growth tier with a full current-tier bar and partial next-tier bar', () => {
+  it('renders met, active, and unmet tier states for growth instructors', () => {
     mockUseCommissionStatus.mockReturnValue({
       data: buildStatus({
         tier_name: 'growth',
         commission_rate_pct: 12,
-        completed_lessons_30d: 7,
+        completed_lessons_30d: 6,
         next_tier_name: 'pro',
         next_tier_threshold: 11,
-        lessons_to_next_tier: 4,
+        lessons_to_next_tier: 5,
         tiers: [
           {
             name: 'entry',
@@ -201,27 +292,59 @@ describe('CommissionTierCard', () => {
 
     expect(screen.getByText('Growth tier · 12%')).toBeInTheDocument();
     expect(
-      screen.getByText('7 of 11 lessons completed · in the last 30 days')
+      screen.getByText('6 lessons completed · in the last 30 days')
     ).toBeInTheDocument();
-    expect(screen.getByText('7 of 11 · 4 more to unlock')).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar', { name: 'Entry progress' })).not.toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Growth progress' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-row-entry')).toHaveAttribute(
+      'data-tier-state',
+      'met'
     );
-    expect(screen.getByRole('progressbar', { name: 'Pro progress' })).toHaveAttribute(
-      'aria-valuenow',
-      '7'
+    expect(screen.getByTestId('commission-tier-step-entry')).toHaveClass(
+      'bg-[#F3E8FF]',
+      'text-[#7E22CE]'
     );
-    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
+    expect(screen.getByTestId('commission-tier-step-entry')).toHaveTextContent('1');
+    expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(
+      'data-filled-dots',
+      '4'
+    );
+    expect(screen.getByTestId('commission-tier-row-growth')).toHaveAttribute(
+      'data-tier-state',
+      'active'
+    );
+    expect(screen.getByTestId('commission-tier-step-growth')).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
+    expect(screen.getByTestId('commission-tier-track-growth')).toHaveAttribute(
+      'data-dot-count',
+      '6'
+    );
+    expect(screen.getByTestId('commission-tier-track-growth')).toHaveAttribute(
+      'data-filled-dots',
+      '2'
+    );
+    expect(screen.getByTestId('commission-tier-dot-growth-3')).toHaveAttribute(
+      'data-dot-state',
+      'unfilled'
+    );
+    expect(screen.getByTestId('commission-tier-row-pro')).toHaveAttribute(
+      'data-tier-state',
+      'unmet'
+    );
+    expect(screen.getByTestId('commission-tier-step-pro')).toHaveTextContent('3');
+    expect(screen.getByTestId('commission-tier-track-pro')).toHaveAttribute(
+      'data-filled-dots',
+      '0'
+    );
   });
 
-  it('renders pro tier with completed lower-tier bars and no helper text', () => {
+  it('renders pro tier with completed lower tiers and a single filled pro milestone', () => {
     mockUseCommissionStatus.mockReturnValue({
       data: buildStatus({
         tier_name: 'pro',
         commission_rate_pct: 10,
-        completed_lessons_30d: 14,
+        completed_lessons_30d: 19,
         next_tier_name: null,
         next_tier_threshold: null,
         lessons_to_next_tier: null,
@@ -263,18 +386,42 @@ describe('CommissionTierCard', () => {
 
     expect(screen.getByText('Pro tier · 10%')).toBeInTheDocument();
     expect(
-      screen.getByText('14 lessons completed · in the last 30 days')
+      screen.getByText('19 lessons completed · in the last 30 days')
     ).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar', { name: 'Entry progress' })).not.toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Growth progress' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-row-entry')).toHaveAttribute(
+      'data-tier-state',
+      'met'
     );
-    expect(screen.getByRole('progressbar', { name: 'Pro progress' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
+    expect(screen.getByTestId('commission-tier-step-entry')).toHaveTextContent('1');
+    expect(screen.getByTestId('commission-tier-row-growth')).toHaveAttribute(
+      'data-tier-state',
+      'met'
     );
-    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
-    expect(screen.queryByText(/more to unlock/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-step-growth')).toHaveTextContent('2');
+    expect(screen.getByTestId('commission-tier-row-pro')).toHaveAttribute(
+      'data-tier-state',
+      'active'
+    );
+    expect(screen.getByTestId('commission-tier-step-pro')).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
+    expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(
+      'data-filled-dots',
+      '4'
+    );
+    expect(screen.getByTestId('commission-tier-track-growth')).toHaveAttribute(
+      'data-filled-dots',
+      '6'
+    );
+    expect(screen.getByTestId('commission-tier-track-pro')).toHaveAttribute(
+      'data-filled-dots',
+      '1'
+    );
+    expect(screen.getByTestId('commission-tier-dot-pro-1')).toHaveAttribute(
+      'data-dot-state',
+      'filled'
+    );
   });
 });

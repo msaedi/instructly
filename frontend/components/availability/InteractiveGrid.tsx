@@ -579,9 +579,9 @@ export default function InteractiveGrid({
                 isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
               const fillClass = selected
                 ? cellTag === TAG_ONLINE_ONLY
-                  ? 'bg-sky-100 dark:bg-sky-500/25'
+                  ? 'bg-[#D1FAE5] dark:bg-[#064E3B]/30'
                   : cellTag === TAG_NO_TRAVEL
-                    ? 'bg-emerald-100 dark:bg-emerald-500/25'
+                    ? 'bg-[#FFEDAF] dark:bg-[#78350F]/30'
                     : 'bg-[#EDE3FA] dark:bg-purple-500/25'
                 : visualPast
                   ? 'bg-gray-50 dark:bg-gray-800/60'
@@ -679,13 +679,13 @@ export default function InteractiveGrid({
                   {selected && !booked && cellTag === TAG_ONLINE_ONLY ? (
                     <span
                       data-testid="tag-indicator-online"
-                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-sky-700 dark:text-sky-300"
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-[#059669]"
                     >
                       <MonitorCheck className="h-3.5 w-3.5" />
                     </span>
                   ) : null}
                   {selected && !booked && cellTag === TAG_NO_TRAVEL ? (
-                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-700 dark:text-emerald-300">
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[#92400E]">
                       <NoTravelIcon
                         className="h-3.5 w-3.5"
                         data-testid="tag-indicator-no-travel"
