@@ -14,6 +14,11 @@ import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceA
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
+import {
+  hasNonEmptyTeachingLocation,
+  servicesUseInstructorLocation,
+  TEACHING_ADDRESS_REQUIRED_MESSAGE,
+} from '@/lib/teachingLocations';
 import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
@@ -202,6 +207,11 @@ export default function EditProfileModal({
   const areasPrefillAppliedRef = useRef(false);
   const serviceAreasPrefillAppliedRef = useRef(false);
   const isAreasVariant = variant === 'areas';
+  const [requiresTeachingAddress, setRequiresTeachingAddress] = useState(false);
+  const teachingAddressError = requiresTeachingAddress &&
+    !hasNonEmptyTeachingLocation(teachingPlaces.map((place) => place.address))
+    ? TEACHING_ADDRESS_REQUIRED_MESSAGE
+    : '';
 
   // Use React Query hook for service areas (deduplicates API calls)
   const { data: serviceAreasData } = useInstructorServiceAreas(isOpen);
@@ -287,6 +297,7 @@ export default function EditProfileModal({
         last_name: lastName,
         postal_code: postalCode,
       });
+      setRequiresTeachingAddress(servicesUseInstructorLocation(data.services));
 
       logger.debug('Profile data loaded', {
         boroughCount: boroughSelection.length,
@@ -502,6 +513,11 @@ export default function EditProfileModal({
   }, [idToItem, selectedNeighborhoods]);
 
   const handleAreasSave = useCallback(async () => {
+    if (teachingAddressError) {
+      setError(teachingAddressError);
+      return;
+    }
+
     const neighborhoodIds = selectedNeighborhoodList.map((item) => item.neighborhood_id);
     const teachingPayload = teachingPlaces.slice(0, 2).map((place) => {
       const address = place.address.trim();
@@ -568,7 +584,7 @@ export default function EditProfileModal({
     } finally {
       setSavingAreas(false);
     }
-  }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodList, teachingPlaces]);
+  }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodList, teachingAddressError, teachingPlaces]);
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
@@ -1129,18 +1145,24 @@ export default function EditProfileModal({
                 </div>
                 {/* Teaching Location */}
                 <div className="mt-6">
-                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Where You Teach (Optional)</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">
+                    {requiresTeachingAddress ? 'Where You Teach' : 'Where You Teach (Optional)'}
+                  </p>
                   <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 md:max-w-[28rem]">
                     Have a studio, gym, or home address where you can host lessons? Add it here.
                   </p>
-                <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <PlacesAutocompleteInput
                           value={preferredAddress}
                           onValueChange={setPreferredAddress}
                           placeholder="Type address..."
-                          inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
+                          inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-purple-500 ${
+                            teachingAddressError
+                              ? 'border-red-400 focus:border-red-500'
+                              : 'border-gray-300'
+                          }`}
                         />
                         <button
                           type="button"
@@ -1178,6 +1200,14 @@ export default function EditProfileModal({
                       ))}
                     </div>
                   </div>
+                  {teachingAddressError ? (
+                    <p
+                      className="mt-2 text-sm text-red-600 dark:text-red-400"
+                      role="alert"
+                    >
+                      {teachingAddressError}
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Preferred Public Spaces */}

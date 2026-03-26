@@ -240,20 +240,28 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/Preferred
   function PreferredLocationsCard({
     preferredLocations,
     neutralPlaces,
+    isTeachingAddressRequired,
+    teachingAddressError,
     setPreferredLocations,
     setNeutralPlaces,
     onToggle,
   }: {
     preferredLocations?: string[];
     neutralPlaces?: string[];
+    isTeachingAddressRequired?: boolean;
+    teachingAddressError?: string | null;
     setPreferredLocations: (values: string[]) => void;
     setNeutralPlaces: (values: string[]) => void;
     onToggle?: () => void;
   }) {
     return (
       <section>
+        <div data-testid="preferred-locations-heading">
+          {isTeachingAddressRequired ? 'Where You Teach' : 'Where You Teach (Optional)'}
+        </div>
         <div data-testid="preferred-locations-count">{preferredLocations?.length ?? 0}</div>
         <div data-testid="neutral-locations-count">{neutralPlaces?.length ?? 0}</div>
+        {teachingAddressError ? <div role="alert">{teachingAddressError}</div> : null}
         <button type="button" onClick={() => setPreferredLocations(['Studio'])}>Set Preferred</button>
         <button type="button" onClick={() => setNeutralPlaces(['Library'])}>Set Neutral</button>
         <button type="button" onClick={() => setPreferredLocations(['', '  ', 'Studio A', 'studio a', 'Studio B'])}>Set Dirty Preferred</button>
@@ -6443,6 +6451,7 @@ describe('InstructorProfileForm', () => {
       });
 
       expect(screen.getByTestId('preferred-locations-count')).toBeInTheDocument();
+      expect(screen.getByTestId('preferred-locations-heading')).toHaveTextContent('Where You Teach');
     });
 
     it('enabling instructor_location via SkillsPricingInline reveals Class Locations', async () => {
@@ -6476,6 +6485,7 @@ describe('InstructorProfileForm', () => {
       });
 
       expect(screen.getByTestId('preferred-locations-count')).toBeInTheDocument();
+      expect(screen.getByTestId('preferred-locations-heading')).toHaveTextContent('Where You Teach');
     });
   });
 
@@ -6786,6 +6796,12 @@ describe('InstructorProfileForm', () => {
           bio: 'A'.repeat(420),
           has_profile_picture: true,
           profile_picture_version: 3,
+          services: [
+            {
+              id: 'svc-1',
+              format_prices: [{ format: 'student_location', hourly_rate: 100 }],
+            },
+          ],
         },
         isLoading: false,
       });
@@ -6813,7 +6829,7 @@ describe('InstructorProfileForm', () => {
       });
 
       render(
-        <InstructorProfileForm ref={ref} context="onboarding" onStepStatusChange={onStepStatus} />,
+        <InstructorProfileForm ref={ref} onStepStatusChange={onStepStatus} />,
         { wrapper: Wrapper },
       );
 
@@ -6821,7 +6837,9 @@ describe('InstructorProfileForm', () => {
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      // In onboarding context, save via ref (no inline save button)
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /toggle neighborhood/i }));
+
       await act(async () => {
         await ref.current?.save();
       });
@@ -6882,13 +6900,36 @@ describe('InstructorProfileForm', () => {
       });
 
       render(
-        <InstructorProfileForm ref={ref} context="onboarding" onStepStatusChange={onStepStatus} />,
+        <InstructorProfileForm ref={ref} onStepStatusChange={onStepStatus} />,
         { wrapper: Wrapper },
       );
 
       await waitFor(() => {
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByText(/skills & pricing/i));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('skills-inline')).toBeInTheDocument();
+      });
+
+      act(() => {
+        mockOnFormatsChange?.({
+          student_location: false,
+          instructor_location: true,
+          online: true,
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('preferred-locations-heading')).toHaveTextContent('Where You Teach');
+      });
+
+      expect(
+        screen.getByText('A teaching address is required when offering lessons at your location.')
+      ).toBeInTheDocument();
 
       await act(async () => {
         await ref.current?.save();
@@ -6897,6 +6938,12 @@ describe('InstructorProfileForm', () => {
       await waitFor(() => {
         expect(onStepStatus).toHaveBeenCalledWith('failed');
       });
+
+      const instructorSaveCalls = mockFetchWithAuth.mock.calls.filter(
+        ([url, options]: [string, RequestInit | undefined]) =>
+          url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT'
+      );
+      expect(instructorSaveCalls).toHaveLength(0);
     });
 
     it('reports done when instructor-location services have a preferred teaching location', async () => {

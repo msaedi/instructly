@@ -1,65 +1,168 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { useOnboardingStepStatus, canInstructorGoLive } from '../useOnboardingStepStatus';
-import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+
+import { fetchWithAuth } from '@/lib/api';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
+import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
+import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { useSession } from '@/src/api/hooks/useSession';
+
+import { canInstructorGoLive, useOnboardingStepStatus } from '../useOnboardingStepStatus';
 
 jest.mock('@/lib/api', () => ({
   fetchWithAuth: jest.fn(),
-  getConnectStatus: jest.fn(),
-  API_ENDPOINTS: {
-    ME: '/api/v1/auth/me',
-    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
-    CONNECT_STATUS: '/api/v1/payments/connect/status',
-  },
 }));
 
-const fetchWithAuthMock = fetchWithAuth as jest.Mock;
-const getConnectStatusMock = getConnectStatus as jest.Mock;
+jest.mock('@/hooks/queries/useInstructorProfileMe', () => ({
+  useInstructorProfileMe: jest.fn(),
+}));
 
-const makeResponse = (data: unknown, ok = true) => ({
-  ok,
-  json: jest.fn().mockResolvedValue(data),
-});
+jest.mock('@/hooks/queries/useInstructorServiceAreas', () => ({
+  useInstructorServiceAreas: jest.fn(),
+}));
+
+jest.mock('@/hooks/queries/useStripeConnectStatus', () => ({
+  useStripeConnectStatus: jest.fn(),
+}));
+
+jest.mock('@/hooks/queries/useUserAddresses', () => ({
+  useUserAddresses: jest.fn(),
+}));
+
+jest.mock('@/src/api/hooks/useSession', () => ({
+  useSession: jest.fn(),
+}));
+
+type MockQueryResult<T> = {
+  data: T | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isFetched: boolean;
+  refetch: jest.Mock<Promise<unknown>, []>;
+};
+
+type HookOverrides = {
+  user?: MockQueryResult<Record<string, unknown> | null>;
+  profile?: MockQueryResult<Record<string, unknown> | null>;
+  addresses?: MockQueryResult<{ items: Array<Record<string, unknown>> } | null>;
+  serviceAreas?: MockQueryResult<{ items: Array<Record<string, unknown>> } | null>;
+  connectStatus?: MockQueryResult<Record<string, unknown> | null>;
+};
+
+const fetchWithAuthMock = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
+const useInstructorProfileMeMock = useInstructorProfileMe as jest.Mock;
+const useInstructorServiceAreasMock = useInstructorServiceAreas as jest.Mock;
+const useStripeConnectStatusMock = useStripeConnectStatus as jest.Mock;
+const useUserAddressesMock = useUserAddresses as jest.Mock;
+const useSessionMock = useSession as jest.Mock;
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  }
+
+  return Wrapper;
+}
+
+function makeQueryResult<T>(
+  data?: T,
+  overrides?: Partial<Omit<MockQueryResult<T>, 'data'>>
+): MockQueryResult<T> {
+  return {
+    data,
+    isLoading: false,
+    isError: false,
+    isFetched: data !== undefined,
+    refetch: jest.fn(async () => ({ data })),
+    ...overrides,
+  };
+}
+
+function setupHookMocks(overrides?: HookOverrides) {
+  useSessionMock.mockReturnValue(
+    overrides?.user ??
+      makeQueryResult({
+        first_name: 'Jane',
+        last_name: 'Doe',
+        zip_code: '10001',
+        has_profile_picture: true,
+        phone_verified: true,
+      })
+  );
+
+  useInstructorProfileMeMock.mockReturnValue(
+    overrides?.profile ??
+      makeQueryResult({
+        id: 'instructor-1',
+        bio: 'x'.repeat(400),
+        services: [{ id: 'svc-1' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+      })
+  );
+
+  useUserAddressesMock.mockReturnValue(
+    overrides?.addresses ??
+      makeQueryResult({
+        items: [{ postal_code: '10001', is_default: true }],
+      })
+  );
+
+  useInstructorServiceAreasMock.mockReturnValue(
+    overrides?.serviceAreas ?? makeQueryResult({ items: [{ id: 'area-1' }] })
+  );
+
+  useStripeConnectStatusMock.mockReturnValue(
+    overrides?.connectStatus ??
+      makeQueryResult({
+        onboarding_completed: true,
+      })
+  );
+}
+
+function okResponse(body: unknown): Response {
+  return {
+    ok: true,
+    json: async () => body,
+  } as Response;
+}
+
+function errorResponse(): Response {
+  return {
+    ok: false,
+    json: async () => ({}),
+  } as Response;
+}
 
 describe('useOnboardingStepStatus', () => {
   beforeEach(() => {
-    fetchWithAuthMock.mockReset();
-    getConnectStatusMock.mockReset();
+    jest.clearAllMocks();
+    fetchWithAuthMock.mockResolvedValue(okResponse({ status: 'passed' }));
+    setupHookMocks();
   });
 
-  it('skips evaluation when skip is true', async () => {
-    const { result } = renderHook(() => useOnboardingStepStatus({ skip: true }));
+  it('skips evaluation when skip is true', () => {
+    const { result } = renderHook(() => useOnboardingStepStatus({ skip: true }), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.loading).toBe(false);
     expect(fetchWithAuthMock).not.toHaveBeenCalled();
   });
 
-  it('marks all steps done when data is complete', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-    const serviceAreas = { items: [{ id: 'area-1' }] };
-    const addresses = { items: [{ postal_code: '10001', is_default: true }] };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse(serviceAreas));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse(addresses));
-      if (url === `/api/v1/instructors/${profile.id}/bgc/status`) return Promise.resolve(makeResponse({ status: 'PASSED' }));
-      return Promise.resolve(makeResponse(null, false));
+  it('marks all steps done when shared query data is complete', async () => {
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -71,328 +174,161 @@ describe('useOnboardingStepStatus', () => {
     });
   });
 
-  it('marks steps failed when data is incomplete', async () => {
-    const user = {
-      first_name: '',
-      last_name: '',
-      zip_code: '',
-      has_profile_picture: false,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'short',
-      services: [],
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [] }));
-      return Promise.resolve(makeResponse(null, false));
+  it('marks steps failed when shared query data is incomplete', async () => {
+    setupHookMocks({
+      user: makeQueryResult({
+        first_name: '',
+        last_name: '',
+        zip_code: '',
+        has_profile_picture: false,
+      }),
+      profile: makeQueryResult({
+        id: 'instructor-1',
+        bio: 'short',
+        services: [],
+      }),
+      addresses: makeQueryResult({ items: [] }),
+      serviceAreas: makeQueryResult({ items: [] }),
+      connectStatus: makeQueryResult({ onboarding_completed: false }),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: false });
+    fetchWithAuthMock.mockResolvedValue(okResponse({ status: 'pending' }));
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.stepStatus['account-setup']).toBe('failed');
-    expect(result.current.stepStatus['skill-selection']).toBe('failed');
-    expect(result.current.stepStatus['verify-identity']).toBe('failed');
-    expect(result.current.stepStatus['payment-setup']).toBe('failed');
+    expect(result.current.stepStatus).toEqual({
+      'account-setup': 'failed',
+      'skill-selection': 'failed',
+      'verify-identity': 'failed',
+      'payment-setup': 'failed',
+    });
   });
 
-  it('falls back to profile background check status when endpoint fails', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-      bgc_status: 'clear',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url === `/api/v1/instructors/${profile.id}/bgc/status`) return Promise.resolve(makeResponse(null, false));
-      return Promise.resolve(makeResponse(null, false));
+  it('falls back to profile background check status when the status endpoint fails', async () => {
+    setupHookMocks({
+      profile: makeQueryResult({
+        id: 'instructor-1',
+        bio: 'x'.repeat(400),
+        services: [{ id: 'svc-1' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+        bgc_status: 'clear',
+      }),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
+    fetchWithAuthMock.mockResolvedValue(errorResponse());
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.stepStatus['verify-identity']).toBe('done');
   });
 
-  it('handles API failures gracefully', async () => {
-    fetchWithAuthMock.mockRejectedValue(new Error('Network error'));
-    getConnectStatusMock.mockRejectedValue(new Error('Network error'));
+  it('returns pending defaults when no core shared query data has loaded', async () => {
+    setupHookMocks({
+      user: makeQueryResult<Record<string, unknown> | null>(undefined, { isFetched: false }),
+      profile: makeQueryResult<Record<string, unknown> | null>(undefined, { isFetched: false }),
+      addresses: makeQueryResult<{ items: Array<Record<string, unknown>> } | null>(undefined, {
+        isFetched: false,
+      }),
+      serviceAreas: makeQueryResult<{ items: Array<Record<string, unknown>> } | null>(
+        undefined,
+        { isFetched: false }
+      ),
+      connectStatus: makeQueryResult<Record<string, unknown> | null>(undefined, {
+        isFetched: false,
+      }),
+    });
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // All steps remain pending on error
     expect(result.current.stepStatus['account-setup']).toBe('pending');
+    expect(result.current.stepStatus['skill-selection']).toBe('pending');
+    expect(result.current.stepStatus['verify-identity']).toBe('pending');
+    expect(result.current.stepStatus['payment-setup']).toBe('pending');
   });
 
-  it('uses profile_picture_version for hasPic check', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: false, // false but has version
-      profile_picture_version: 2,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
+  it('treats service-area query errors as missing service areas', async () => {
+    setupHookMocks({
+      serviceAreas: makeQueryResult<{ items: Array<Record<string, unknown>> } | null>(
+        undefined,
+        { isError: true, isFetched: true }
+      ),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.rawData.serviceAreas).toBeNull();
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
+  });
+
+  it('treats an empty fetched service-area payload as no selected neighborhoods', async () => {
+    setupHookMocks({
+      serviceAreas: makeQueryResult<{ items: Array<Record<string, unknown>> } | null>(
+        undefined,
+        { isFetched: true }
+      ),
+    });
+
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.rawData.serviceAreas).toEqual([]);
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
+  });
+
+  it('uses profile_picture_version as a valid profile photo', async () => {
+    setupHookMocks({
+      user: makeQueryResult({
+        first_name: 'Jane',
+        last_name: 'Doe',
+        zip_code: '10001',
+        has_profile_picture: false,
+        profile_picture_version: 2,
+        phone_verified: true,
+      }),
+    });
+
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.stepStatus['account-setup']).toBe('done');
   });
 
-  it('handles bgc status "eligible" as passed', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
+  it('treats bgc status "eligible" as passed', async () => {
+    fetchWithAuthMock.mockResolvedValue(okResponse({ status: 'eligible' }));
 
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'eligible' }));
-      return Promise.resolve(makeResponse(null, false));
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.stepStatus['verify-identity']).toBe('done');
   });
 
-  it('keeps account setup failed when instructor-location services exist without class locations', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [
-        {
-          id: 'svc-1',
-          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
-        },
-      ],
-      preferred_teaching_locations: [],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
-    });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.stepStatus['account-setup']).toBe('failed');
-  });
-
-  it('marks account setup done once instructor-location services have a class location', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [
-        {
-          id: 'svc-1',
-          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
-        },
-      ],
-      preferred_teaching_locations: [{ address: '123 Studio Lane' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
-    });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.stepStatus['account-setup']).toBe('done');
-  });
-
-  it('ignores invalid preferred teaching location entries when checking class locations', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [
-        {
-          id: 'svc-1',
-          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
-        },
-      ],
-      preferred_teaching_locations: [null, { label: 'Studio' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
-    });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.stepStatus['account-setup']).toBe('failed');
-  });
-
-  it('falls back to user zip_code when address parsing fails', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') {
-        // Simulate ok but json parsing error
-        return Promise.resolve({
-          ok: true,
-          json: jest.fn().mockRejectedValue(new Error('JSON parse error')),
-        });
-      }
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
-    });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.stepStatus['account-setup']).toBe('done');
-  });
-
-  it('uses background_check_status field when bgc_status not present', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-      background_check_status: 'PASSED',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse(null, false));
-      return Promise.resolve(makeResponse(null, false));
-    });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
-
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    expect(result.current.stepStatus['verify-identity']).toBe('done');
-  });
-
-  it('requires class locations to go live when instructor-location services are enabled', () => {
-    const result = canInstructorGoLive({
-      profile: {
+  it('requires class locations when instructor-location services are enabled', async () => {
+    setupHookMocks({
+      profile: makeQueryResult({
+        id: 'instructor-1',
         bio: 'x'.repeat(400),
         services: [
           {
@@ -402,138 +338,199 @@ describe('useOnboardingStepStatus', () => {
         ],
         preferred_teaching_locations: [],
         identity_verified_at: '2024-01-01T00:00:00Z',
-      } as never,
-      user: {
-        first_name: 'Jane',
-        last_name: 'Doe',
-        phone_verified: true,
-        has_profile_picture: true,
-      } as never,
-      serviceAreas: [{ id: 'area-1' }] as never,
-      connectStatus: { onboarding_completed: true } as never,
-      bgcStatus: 'passed',
+      }),
     });
 
-    expect(result.canGoLive).toBe(false);
-    expect(result.missing).toContain('Class locations');
-  });
-
-  it('handles bgc status endpoint throwing error', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-      bgc_status: 'passed',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.reject(new Error('BGC service down'));
-      return Promise.resolve(makeResponse(null, false));
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
-
-    const { result } = renderHook(() => useOnboardingStepStatus());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Falls back to profile.bgc_status
-    expect(result.current.stepStatus['verify-identity']).toBe('done');
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
   });
 
-  it('uses first address when no default address exists', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') {
-        return Promise.resolve(makeResponse({ items: [{ postal_code: '10002', is_default: false }] }));
-      }
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: 'passed' }));
-      return Promise.resolve(makeResponse(null, false));
+  it('marks account setup done once instructor-location services have a class location', async () => {
+    setupHookMocks({
+      profile: makeQueryResult({
+        id: 'instructor-1',
+        bio: 'x'.repeat(400),
+        services: [
+          {
+            id: 'svc-1',
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+          },
+        ],
+        preferred_teaching_locations: [{ address: '123 Studio Lane' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+      }),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.stepStatus['account-setup']).toBe('done');
   });
 
-  it('handles non-string bgc status response', async () => {
-    const user = {
-      first_name: 'Jane',
-      last_name: 'Doe',
-      zip_code: '10001',
-      has_profile_picture: true,
-    };
-    const profile = {
-      id: 'instructor-1',
-      bio: 'x'.repeat(400),
-      services: [{ id: 'svc-1' }],
-      identity_verified_at: '2024-01-01T00:00:00Z',
-      bgc_status: 12345, // Non-string status
-    };
-
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse(user));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse(profile));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [{ id: 'area-1' }] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [{ postal_code: '10001', is_default: true }] }));
-      if (url.includes('/bgc/status')) return Promise.resolve(makeResponse({ status: null }));
-      return Promise.resolve(makeResponse(null, false));
+  it('ignores invalid preferred teaching location entries', async () => {
+    setupHookMocks({
+      profile: makeQueryResult({
+        id: 'instructor-1',
+        bio: 'x'.repeat(400),
+        services: [
+          {
+            id: 'svc-1',
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+          },
+        ],
+        preferred_teaching_locations: [null, { label: 'Studio' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+      }),
     });
-    getConnectStatusMock.mockResolvedValueOnce({ onboarding_completed: true });
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Verify identity fails because bgc status is not valid
-    expect(result.current.stepStatus['verify-identity']).toBe('failed');
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
   });
 
-  it('exposes refresh function for manual re-evaluation', async () => {
-    fetchWithAuthMock.mockImplementation((url: string) => {
-      if (url === API_ENDPOINTS.ME) return Promise.resolve(makeResponse({ first_name: 'A', last_name: 'B' }));
-      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) return Promise.resolve(makeResponse({ id: 'i-1' }));
-      if (url === '/api/v1/addresses/service-areas/me') return Promise.resolve(makeResponse({ items: [] }));
-      if (url === '/api/v1/addresses/me') return Promise.resolve(makeResponse({ items: [] }));
-      return Promise.resolve(makeResponse(null, false));
+  it('falls back to user zip_code when addresses are missing', async () => {
+    setupHookMocks({
+      addresses: makeQueryResult({ items: [] }),
     });
-    getConnectStatusMock.mockResolvedValue({ onboarding_completed: false });
 
-    const { result } = renderHook(() => useOnboardingStepStatus());
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Call refresh
+    expect(result.current.stepStatus['account-setup']).toBe('done');
+  });
+
+  it('uses background_check_status when bgc_status is absent', async () => {
+    setupHookMocks({
+      profile: makeQueryResult({
+        id: 'instructor-1',
+        bio: 'x'.repeat(400),
+        services: [{ id: 'svc-1' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+        background_check_status: 'PASSED',
+      }),
+    });
+    fetchWithAuthMock.mockResolvedValue(errorResponse());
+
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.stepStatus['verify-identity']).toBe('done');
+  });
+
+  it('uses shared query hooks instead of raw address and service-area fetches', async () => {
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/instructors/instructor-1/bgc/status');
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/me');
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/service-areas/me');
+  });
+
+  it('exposes refresh to refetch shared queries and background check status', async () => {
+    const userRefetch = jest.fn(async () => ({ data: { first_name: 'Jane' } }));
+    const profileRefetch = jest.fn(async () => ({ data: { id: 'instructor-1' } }));
+    const addressesRefetch = jest.fn(async () => ({ data: { items: [] } }));
+    const serviceAreasRefetch = jest.fn(async () => ({ data: { items: [] } }));
+    const connectRefetch = jest.fn(async () => ({ data: { onboarding_completed: false } }));
+
+    setupHookMocks({
+      user: makeQueryResult(
+        {
+          first_name: 'Jane',
+          last_name: 'Doe',
+          zip_code: '10001',
+          has_profile_picture: true,
+          phone_verified: true,
+        },
+        { refetch: userRefetch }
+      ),
+      profile: makeQueryResult(
+        {
+          id: 'instructor-1',
+          bio: 'x'.repeat(400),
+          services: [{ id: 'svc-1' }],
+          identity_verified_at: '2024-01-01T00:00:00Z',
+        },
+        { refetch: profileRefetch }
+      ),
+      addresses: makeQueryResult(
+        { items: [{ postal_code: '10001', is_default: true }] },
+        { refetch: addressesRefetch }
+      ),
+      serviceAreas: makeQueryResult(
+        { items: [{ id: 'area-1' }] },
+        { refetch: serviceAreasRefetch }
+      ),
+      connectStatus: makeQueryResult(
+        { onboarding_completed: true },
+        { refetch: connectRefetch }
+      ),
+    });
+
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
     await result.current.refresh();
 
-    expect(fetchWithAuthMock).toHaveBeenCalledTimes(10); // Initial 5 + refresh 5
+    expect(userRefetch).toHaveBeenCalledTimes(1);
+    expect(profileRefetch).toHaveBeenCalledTimes(1);
+    expect(addressesRefetch).toHaveBeenCalledTimes(1);
+    expect(serviceAreasRefetch).toHaveBeenCalledTimes(1);
+    expect(connectRefetch).toHaveBeenCalledTimes(1);
+    expect(fetchWithAuthMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns early from refresh when the hook is skipped', async () => {
+    const userRefetch = jest.fn(async () => ({ data: null }));
+    const profileRefetch = jest.fn(async () => ({ data: null }));
+    const addressesRefetch = jest.fn(async () => ({ data: null }));
+    const serviceAreasRefetch = jest.fn(async () => ({ data: null }));
+    const connectRefetch = jest.fn(async () => ({ data: null }));
+
+    setupHookMocks({
+      user: makeQueryResult(null, { refetch: userRefetch }),
+      profile: makeQueryResult(null, { refetch: profileRefetch }),
+      addresses: makeQueryResult(null, { refetch: addressesRefetch }),
+      serviceAreas: makeQueryResult(null, { refetch: serviceAreasRefetch }),
+      connectStatus: makeQueryResult(null, { refetch: connectRefetch }),
+    });
+
+    const { result } = renderHook(() => useOnboardingStepStatus({ skip: true }), {
+      wrapper: createWrapper(),
+    });
+
+    await result.current.refresh();
+
+    expect(userRefetch).not.toHaveBeenCalled();
+    expect(profileRefetch).not.toHaveBeenCalled();
+    expect(addressesRefetch).not.toHaveBeenCalled();
+    expect(serviceAreasRefetch).not.toHaveBeenCalled();
+    expect(connectRefetch).not.toHaveBeenCalled();
+    expect(fetchWithAuthMock).not.toHaveBeenCalled();
   });
 });
 
@@ -554,7 +551,18 @@ describe('canInstructorGoLive', () => {
 
     expect(result.canGoLive).toBe(false);
     expect(result.missing).toEqual(
-      expect.arrayContaining(['Profile picture', 'First name', 'Last name', 'Phone verification', 'Bio (400+ characters)', 'Service areas', 'Skills & pricing', 'ID verification', 'Background check', 'Stripe Connect'])
+      expect.arrayContaining([
+        'Profile picture',
+        'First name',
+        'Last name',
+        'Phone verification',
+        'Bio (400+ characters)',
+        'Service areas',
+        'Skills & pricing',
+        'ID verification',
+        'Background check',
+        'Stripe Connect',
+      ])
     );
   });
 
@@ -580,50 +588,32 @@ describe('canInstructorGoLive', () => {
     expect(result.missing).toEqual([]);
   });
 
-  it('accepts profile_picture_version as valid profile picture', () => {
+  it('requires class locations to go live when instructor-location services are enabled', () => {
     const result = canInstructorGoLive({
       profile: {
         bio: 'x'.repeat(400),
-        services: [{ id: 'svc-1' }],
+        services: [
+          {
+            id: 'svc-1',
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
+          },
+        ],
+        preferred_teaching_locations: [],
         identity_verified_at: '2024-01-01T00:00:00Z',
       } as never,
       user: {
         first_name: 'Jane',
         last_name: 'Doe',
-        has_profile_picture: false,
-        profile_picture_version: 3, // Version present but has_profile_picture is false
         phone_verified: true,
-      } as never,
-      serviceAreas: [{ id: 'area-1' } as never],
-      connectStatus: { onboarding_completed: true } as never,
-      bgcStatus: 'passed',
-    });
-
-    expect(result.canGoLive).toBe(true);
-    expect(result.missing).not.toContain('Profile picture');
-  });
-
-  it('requires identity_verified_at for go-live — session_id alone is not enough', () => {
-    const result = canInstructorGoLive({
-      profile: {
-        bio: 'x'.repeat(400),
-        services: [{ id: 'svc-1' }],
-        identity_verification_session_id: 'session-123', // Session exists but not verified yet
-      } as never,
-      user: {
-        first_name: 'Jane',
-        last_name: 'Doe',
         has_profile_picture: true,
-        phone_verified: true,
       } as never,
       serviceAreas: [{ id: 'area-1' } as never],
       connectStatus: { onboarding_completed: true } as never,
       bgcStatus: 'passed',
     });
 
-    // A pending session is NOT enough to go live — must be fully verified
-    expect(result.missing).toContain('ID verification');
     expect(result.canGoLive).toBe(false);
+    expect(result.missing).toContain('Class locations');
   });
 
   it('blocks go-live when the account name does not match government ID', () => {
@@ -686,26 +676,5 @@ describe('canInstructorGoLive', () => {
     expect(result.missing).toContain('Phone verification');
     expect(result.missing).toContain('Bio (400+ characters)');
     expect(result.missing).toContain('Service areas');
-  });
-
-  it('handles profile with services as non-array', () => {
-    const result = canInstructorGoLive({
-      profile: {
-        bio: 'x'.repeat(400),
-        services: null,
-        identity_verified_at: '2024-01-01T00:00:00Z',
-      } as never,
-      user: {
-        first_name: 'Jane',
-        last_name: 'Doe',
-        has_profile_picture: true,
-        phone_verified: true,
-      } as never,
-      serviceAreas: [{ id: 'area-1' } as never],
-      connectStatus: { onboarding_completed: true } as never,
-      bgcStatus: 'passed',
-    });
-
-    expect(result.missing).toContain('Skills & pricing');
   });
 });

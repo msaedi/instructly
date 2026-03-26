@@ -21,6 +21,10 @@ import { usePhoneVerificationFlow } from '@/features/shared/hooks/usePhoneVerifi
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
+import {
+  hasNonEmptyTeachingLocation,
+  TEACHING_ADDRESS_REQUIRED_MESSAGE,
+} from '@/lib/teachingLocations';
 import type {
   AddressListResponse,
   ApiErrorResponse,
@@ -52,27 +56,6 @@ function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpd
     bio: profile.bio.trim(),
     years_experience: getYearsExperienceValue(profile),
   };
-}
-
-function profileRequiresPreferredTeachingLocation(
-  profile: InstructorProfileResponse | null,
-): boolean {
-  if (!Array.isArray(profile?.services)) {
-    return false;
-  }
-
-  return profile.services.some((service) => {
-    const serviceRecord = service as Record<string, unknown>;
-    const formatPrices = Array.isArray(serviceRecord['format_prices'])
-      ? (serviceRecord['format_prices'] as Array<Record<string, unknown>>)
-      : [];
-
-    return formatPrices.some((formatPrice) => formatPrice['format'] === 'instructor_location');
-  });
-}
-
-function hasNonEmptyLocation(locations: string[]): boolean {
-  return locations.some((location) => location.trim().length > 0);
 }
 
 type InstructorAddressPayload = {
@@ -184,12 +167,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
   const [bioTouched, setBioTouched] = useState<boolean>(false);
   // Track which lesson formats are enabled across all services (driven by SkillsPricingInline).
-  // Default to true so sections show until SkillsPricingInline reports the actual state.
+  // Default to visible until the inline editor or saved services report the actual state.
   const [enabledFormats, setEnabledFormats] = useState<EnabledFormats>({
     student_location: true,
     instructor_location: true,
     online: true,
   });
+  const [resolvedFormats, setResolvedFormats] = useState<EnabledFormats | null>(null);
   const inFlightServiceAreasRef = useRef(false);
   const redirectingRef = useRef(false);
   // Fetch guard to prevent duplicate API calls in React Strict Mode
@@ -220,10 +204,11 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openPreferredLocations, setOpenPreferredLocations] = useState(shouldDefaultExpand);
   const [openSkills, setOpenSkills] = useState(false);
   const shouldRenderPersonalInfo = isOnboarding || showPersonalInfo;
-  const requiresPreferredTeachingLocation = useMemo(
-    () => profileRequiresPreferredTeachingLocation(instructorMeta),
-    [instructorMeta]
-  );
+  const requiresTeachingAddress = Boolean(resolvedFormats?.instructor_location);
+  const teachingAddressError = requiresTeachingAddress &&
+    !hasNonEmptyTeachingLocation(preferredLocations)
+    ? TEACHING_ADDRESS_REQUIRED_MESSAGE
+    : null;
 
   // Derive profile picture status from instructor profile hook (avoids duplicate API call)
   useEffect(() => {
@@ -280,6 +265,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             }
           }
           setEnabledFormats(initial);
+          setResolvedFormats(initial);
         }
         const record = (data ?? {}) as Record<string, unknown>;
         logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(record || {}) });
@@ -599,6 +585,11 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         return;
       }
 
+      if (teachingAddressError) {
+        onStepStatusChange?.('failed');
+        return;
+      }
+
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
         const nameResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
@@ -822,7 +813,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         Boolean(profile.last_name?.trim()) &&
         Boolean(profile.postal_code?.trim()) &&
         selectedNeighborhoods.size > 0 &&
-        (!requiresPreferredTeachingLocation || hasNonEmptyLocation(preferredLocations)) &&
+        (!requiresTeachingAddress || hasNonEmptyTeachingLocation(preferredLocations)) &&
         (hasProfilePicture || false)
       );
       try {
@@ -1028,7 +1019,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               </button>
               {openSkills && (
                 <div className="py-2">
-                  <SkillsPricingInline instructorProfile={instructorMeta} onFormatsChange={setEnabledFormats} />
+                  <SkillsPricingInline
+                    instructorProfile={instructorMeta}
+                    onFormatsChange={(formats) => {
+                      setEnabledFormats(formats);
+                      setResolvedFormats(formats);
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -1070,6 +1067,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             context={context}
             isOpen={openPreferredLocations}
             onToggle={() => setOpenPreferredLocations((v) => !v)}
+            isTeachingAddressRequired={requiresTeachingAddress}
+            teachingAddressError={teachingAddressError}
             preferredAddress={preferredAddress}
             setPreferredAddress={setPreferredAddress}
             preferredLocations={preferredLocations}

@@ -220,7 +220,7 @@ jobs:
       working-directory: backend
       run: |
         # Scan requirements files directly - NOT the system Python packages
-        pip-audit -r requirements.txt -r requirements-dev.txt --desc
+        bash scripts/run_pip_audit.sh --desc
 
   test-mcp:
     name: Test MCP Server

@@ -1,4 +1,8 @@
 {
-  "ignore": [],
-  "notes": {}
+  "ignore": [
+    "GHSA-5239-wwwm-4pmq"
+  ],
+  "notes": {
+    "GHSA-5239-wwwm-4pmq": "Temporary ignore for CVE-2026-4539 while pygments has no release newer than 2.19.2. Remove once upstream ships a fixed version."
+  }
 }

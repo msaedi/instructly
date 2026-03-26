@@ -36,10 +36,11 @@ export type SessionUser = AuthUserWithPermissionsResponse;
  * }
  * ```
  */
-export function useSession() {
+export function useSession(enabled: boolean = true) {
   return useReadUsersMeApiV1AuthMeGet({
     query: {
       queryKey: queryKeys.auth.me,
+      enabled,
       staleTime: Infinity,
       gcTime: Infinity,
       refetchOnWindowFocus: false,
