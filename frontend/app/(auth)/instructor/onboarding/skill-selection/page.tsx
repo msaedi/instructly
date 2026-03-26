@@ -38,7 +38,7 @@ import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } fr
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
-import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
+import { useCatalogBrowse, useServiceCategories } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories } from '@/hooks/queries/useTaxonomy';
 import {
   ALL_AUDIENCE_GROUPS,
@@ -136,10 +136,10 @@ function Step3SkillsPricingInner() {
     error: categoriesError,
   } = useServiceCategories();
   const {
-    data: allServicesResponse,
+    data: catalogBrowseResponse,
     isLoading: servicesLoading,
     error: servicesError,
-  } = useAllServicesWithInstructors();
+  } = useCatalogBrowse();
   const { data: categoriesWithSubcategories = [] } = useCategoriesWithSubcategories();
 
   const profileRecord = rawData.profile as Record<string, unknown> | null;
@@ -417,12 +417,22 @@ function Step3SkillsPricingInner() {
 
   const servicesByCategory = useMemo(() => {
     const map: Record<string, CategoryServiceDetail[]> = {};
-    const categoryRows = allServicesResponse?.categories ?? [];
+    const categoryRows = catalogBrowseResponse?.categories ?? [];
     for (const category of categoryRows) {
-      map[category.id] = category.services ?? [];
+      map[category.id] = (category.services ?? []).map((svc) => ({
+        id: svc.id,
+        name: svc.name,
+        subcategory_id: svc.subcategory_id,
+        eligible_age_groups: svc.eligible_age_groups ?? [],
+        description: svc.description ?? null,
+        display_order: svc.display_order ?? null,
+        active_instructors: 0,
+        demand_score: 0,
+        is_trending: false,
+      }));
     }
     return map;
-  }, [allServicesResponse]);
+  }, [catalogBrowseResponse]);
 
   const allCatalogServices = useMemo(
     () => Object.values(servicesByCategory).flat(),
@@ -1161,7 +1171,37 @@ function Step3SkillsPricingInner() {
   };
 
   if (categoriesLoading || servicesLoading) {
-    return <div className="p-8">Loading…</div>;
+    return (
+      <div className="min-h-screen insta-onboarding-page">
+        <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} />
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+          <div className="insta-surface-card insta-onboarding-header">
+            <div className="h-7 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-4 w-72 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mt-2" />
+          </div>
+          <div className="insta-onboarding-divider" />
+          {/* Category tab skeleton */}
+          <div className="flex gap-2 flex-wrap mb-6">
+            {Array.from({ length: 7 }, (_, i) => (
+              <div
+                key={i}
+                className="h-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+                style={{ width: `${72 + (i % 3) * 24}px` }}
+              />
+            ))}
+          </div>
+          {/* Skill chip skeleton */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {Array.from({ length: 12 }, (_, i) => (
+              <div
+                key={i}
+                className="h-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const showError = Boolean(error);

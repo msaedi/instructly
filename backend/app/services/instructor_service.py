@@ -2284,6 +2284,61 @@ class InstructorService(BaseService):
 
         return result
 
+    @BaseService.measure_operation("get_catalog_browse")
+    def get_catalog_browse(self) -> Dict[str, Any]:
+        """
+        Get the full service taxonomy grouped by category — no analytics/instructor data.
+
+        Uses 1-hour caching since taxonomy rarely changes. Optimized for onboarding
+        skill selection where only id, name, subcategory_id, eligible_age_groups,
+        and description are needed.
+        """
+        cache_key = "catalog:browse"
+        if self.cache_service:
+            cached_result = self.cache_service.get(cache_key)
+            if cached_result:
+                return cast(Dict[str, Any], cached_result)
+
+        categories = self.category_repository.get_all_active()
+        all_services = self.catalog_repository.list_services_with_categories()
+
+        services_by_category: dict[str, list[Any]] = {}
+        for service in all_services:
+            subcategory = getattr(service, "subcategory", None)
+            category = getattr(subcategory, "category", None)
+            category_id = getattr(category, "id", None)
+            if not category_id:
+                continue
+            services_by_category.setdefault(category_id, []).append(service)
+
+        categories_data: List[Dict[str, Any]] = []
+        for category in sorted(categories, key=lambda c: c.display_order):
+            services_list = [
+                {
+                    "id": svc.id,
+                    "name": svc.name,
+                    "subcategory_id": svc.subcategory_id,
+                    "eligible_age_groups": svc.eligible_age_groups or [],
+                    "description": svc.description,
+                    "display_order": svc.display_order,
+                }
+                for svc in services_by_category.get(category.id, [])
+            ]
+            categories_data.append(
+                {
+                    "id": category.id,
+                    "name": category.name,
+                    "services": services_list,
+                }
+            )
+
+        result: Dict[str, Any] = {"categories": categories_data}
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)  # 1 hour
+
+        return result
+
     @BaseService.measure_operation("get_all_services_with_instructors")
     def get_all_services_with_instructors(self) -> Dict[str, Any]:
         """
@@ -2321,6 +2376,8 @@ class InstructorService(BaseService):
         analytics_by_service = self.analytics_repository.get_or_create_bulk(
             [service.id for service in all_services]
         )
+        # Batch price ranges in a single query (replaces per-service N+1 loop)
+        bulk_price_ranges = self.catalog_repository.get_bulk_price_ranges()
         services_by_category: dict[str, list[Any]] = {}
         for service in all_services:
             subcategory = getattr(service, "subcategory", None)
@@ -2369,16 +2426,11 @@ class InstructorService(BaseService):
                     "_original_display_order": service.display_order,
                 }
 
-                # Add price range if we have instructors
-                if active_instructors > 0:
-                    # Get price range from instructor services
-                    instructor_services = self._get_instructors_for_service_in_price_range(
-                        service.id, None, None
-                    )
-                    if instructor_services:
-                        price_range = self._calculate_price_range(instructor_services)
-                        service_data["actual_min_price"] = price_range["min"]
-                        service_data["actual_max_price"] = price_range["max"]
+                # Add price range from bulk lookup (single query, no N+1)
+                price_range = bulk_price_ranges.get(service.id)
+                if price_range:
+                    service_data["actual_min_price"] = price_range["min"]
+                    service_data["actual_max_price"] = price_range["max"]
 
                 services_with_analytics.append(service_data)
 

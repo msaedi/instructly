@@ -606,6 +606,24 @@ describe('publicApi — additional branch coverage', () => {
     expect(headers['X-Guest-Session-ID']).toBeUndefined();
     getItemSpy.mockRestore();
   });
+
+  it('getCatalogBrowse calls the lightweight browse endpoint', async () => {
+    const browseData = {
+      categories: [{ id: 'cat-1', name: 'Music', services: [] }],
+    };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => browseData,
+    });
+
+    const result = await publicApi.getCatalogBrowse();
+    expect(result.data).toEqual(browseData);
+
+    const callUrl = fetchMock.mock.calls[0][0] as string;
+    expect(callUrl).toContain('/api/v1/services/catalog/browse');
+  });
 });
 
 describe('protectedApi — additional branch coverage', () => {

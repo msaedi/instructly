@@ -23,6 +23,7 @@ import type {
 
 import type {
   AllServicesWithInstructorsResponse,
+  CatalogBrowseResponse,
   CatalogServiceMinimalResponse,
   CatalogServiceResponse,
   CategoryResponse,
@@ -430,6 +431,158 @@ export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstr
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
     getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get the full service taxonomy grouped by category — lightweight, no analytics.
+
+Optimized for onboarding skill selection and other pages that only need
+the catalog structure (id, name, subcategory_id, eligible_age_groups, description).
+Cached for 1 hour since taxonomy rarely changes.
+ * @summary Get Catalog Browse
+ */
+export const getGetCatalogBrowseApiV1ServicesCatalogBrowseGetUrl = () => {
+  return `/api/v1/services/catalog/browse`;
+};
+
+export const getCatalogBrowseApiV1ServicesCatalogBrowseGet = async (
+  options?: RequestInit
+): Promise<CatalogBrowseResponse> => {
+  return customFetch<CatalogBrowseResponse>(getGetCatalogBrowseApiV1ServicesCatalogBrowseGetUrl(), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryKey = () => {
+  return [`/api/v1/services/catalog/browse`] as const;
+};
+
+export const getGetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>
+  > = ({ signal }) => getCatalogBrowseApiV1ServicesCatalogBrowseGet({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>
+>;
+export type GetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryError = ErrorType<unknown>;
+
+export function useGetCatalogBrowseApiV1ServicesCatalogBrowseGet<
+  TData = Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCatalogBrowseApiV1ServicesCatalogBrowseGet<
+  TData = Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCatalogBrowseApiV1ServicesCatalogBrowseGet<
+  TData = Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Catalog Browse
+ */
+
+export function useGetCatalogBrowseApiV1ServicesCatalogBrowseGet<
+  TData = Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogBrowseApiV1ServicesCatalogBrowseGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCatalogBrowseApiV1ServicesCatalogBrowseGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

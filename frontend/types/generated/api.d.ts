@@ -7303,6 +7303,30 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/catalog/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog Browse
+         * @description Get the full service taxonomy grouped by category — lightweight, no analytics.
+         *
+         *     Optimized for onboarding skill selection and other pages that only need
+         *     the catalog structure (id, name, subcategory_id, eligible_age_groups, description).
+         *     Cached for 1 hour since taxonomy rarely changes.
+         */
+        get: operations["get_catalog_browse_api_v1_services_catalog_browse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/services/catalog/by-age-group/{age_group}": {
         parameters: {
             query?: never;
@@ -11484,6 +11508,44 @@ export type components = {
         CaptchaState: {
             /** Active */
             active: boolean;
+        };
+        /**
+         * CatalogBrowseCategoryItem
+         * @description Category with minimal services for taxonomy browsing.
+         */
+        CatalogBrowseCategoryItem: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Services */
+            services?: components["schemas"]["CatalogBrowseServiceItem"][];
+        };
+        /**
+         * CatalogBrowseResponse
+         * @description Lightweight catalog response for taxonomy browsing (no analytics/instructors).
+         */
+        CatalogBrowseResponse: {
+            /** Categories */
+            categories?: components["schemas"]["CatalogBrowseCategoryItem"][];
+        };
+        /**
+         * CatalogBrowseServiceItem
+         * @description Minimal service for taxonomy browsing (no instructor/analytics data).
+         */
+        CatalogBrowseServiceItem: {
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order?: number | null;
+            /** Eligible Age Groups */
+            eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Subcategory Id */
+            subcategory_id: string;
         };
         /**
          * CatalogServiceMinimalResponse
@@ -33531,6 +33593,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
+                };
+            };
+        };
+    };
+    get_catalog_browse_api_v1_services_catalog_browse_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogBrowseResponse"];
                 };
             };
         };

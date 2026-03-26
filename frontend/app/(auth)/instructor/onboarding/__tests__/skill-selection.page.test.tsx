@@ -5,7 +5,7 @@ import Step3SkillsPricing from '@/app/(auth)/instructor/onboarding/skill-selecti
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
-import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useServiceCategories, useCatalogBrowse } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
 
@@ -63,7 +63,7 @@ jest.mock('@/hooks/usePlatformConfig', () => ({
 
 jest.mock('@/hooks/queries/useServices', () => ({
   useServiceCategories: jest.fn(),
-  useAllServicesWithInstructors: jest.fn(),
+  useCatalogBrowse: jest.fn(),
 }));
 
 jest.mock('@/hooks/queries/useTaxonomy', () => ({
@@ -110,7 +110,7 @@ jest.mock('@/components/ui/ToggleSwitch', () => ({
 
 const useOnboardingStepStatusMock = useOnboardingStepStatus as jest.Mock;
 const useServiceCategoriesMock = useServiceCategories as jest.Mock;
-const useAllServicesWithInstructorsMock = useAllServicesWithInstructors as jest.Mock;
+const useCatalogBrowseMock = useCatalogBrowse as jest.Mock;
 const useCategoriesWithSubcategoriesMock = useCategoriesWithSubcategories as jest.Mock;
 const useSubcategoryFiltersMock = useSubcategoryFilters as jest.Mock;
 const useUserAddressesMock = useUserAddresses as jest.Mock;
@@ -128,34 +128,23 @@ const CATEGORY_DATA = [
   },
 ];
 
-const SERVICES_RESPONSE = {
+const CATALOG_BROWSE_RESPONSE = {
   categories: [
     {
       id: 'cat-1',
       name: 'Music',
-      description: null,
-      icon_name: null,
-      subtitle: null,
       services: [
         {
           id: 'svc-1',
           name: 'Piano',
           subcategory_id: 'sub-1',
           eligible_age_groups: ['kids', 'teens', 'adults'],
-          active_instructors: 2,
-          demand_score: 10,
-          is_trending: false,
+          description: null,
           display_order: 1,
         },
       ],
     },
   ],
-  metadata: {
-    cached_for_seconds: 60,
-    total_categories: 1,
-    total_services: 1,
-    updated_at: '2026-02-08T00:00:00Z',
-  },
 };
 
 const CATEGORIES_WITH_SUBCATEGORIES = [
@@ -242,8 +231,8 @@ describe('Skill selection page refine header', () => {
       error: null,
     });
 
-    useAllServicesWithInstructorsMock.mockReturnValue({
-      data: SERVICES_RESPONSE,
+    useCatalogBrowseMock.mockReturnValue({
+      data: CATALOG_BROWSE_RESPONSE,
       isLoading: false,
       error: null,
     });
@@ -280,6 +269,19 @@ describe('Skill selection page refine header', () => {
         json: async () => ({}),
       } as Response;
     });
+  });
+
+  it('renders skeleton loading state while catalog browse data is loading', () => {
+    useCatalogBrowseMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    });
+
+    const { container } = renderWithClient(<Step3SkillsPricing />);
+
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
   });
 
   it('renders refine label as selectable text and toggles via chevron button only', async () => {

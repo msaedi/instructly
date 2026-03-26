@@ -14,6 +14,7 @@ Endpoints:
     GET /subcategories/{id}/filters          → Filters for a subcategory (public)
     GET /catalog                             → Get catalog services (public)
     GET /catalog/top-per-category            → Top services per category (public)
+    GET /catalog/browse                      → Lightweight taxonomy (no analytics/instructors) (public)
     GET /catalog/all-with-instructors        → All services with instructor counts (public)
     GET /catalog/kids-available              → Services with kids-capable instructors (public)
     GET /catalog/by-age-group/{age_group}    → Services by age group (public)
@@ -47,6 +48,9 @@ from ...schemas.service_catalog import (
 from ...schemas.service_catalog_responses import (
     AllServicesMetadata,
     AllServicesWithInstructorsResponse,
+    CatalogBrowseCategoryItem,
+    CatalogBrowseResponse,
+    CatalogBrowseServiceItem,
     CategoryServiceDetail,
     CategoryWithServices,
     ServiceSearchMetadata,
@@ -242,6 +246,44 @@ async def get_top_services_per_category(
 
     return TopServicesPerCategoryResponse(
         **model_filter(TopServicesPerCategoryResponse, response_payload)
+    )
+
+
+@router.get(
+    "/catalog/browse",
+    response_model=CatalogBrowseResponse,
+    dependencies=[Depends(rate_limit("read"))],
+)
+async def get_catalog_browse(
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> CatalogBrowseResponse:
+    """
+    Get the full service taxonomy grouped by category — lightweight, no analytics.
+
+    Optimized for onboarding skill selection and other pages that only need
+    the catalog structure (id, name, subcategory_id, eligible_age_groups, description).
+    Cached for 1 hour since taxonomy rarely changes.
+    """
+    payload: Dict[str, Any] = await asyncio.to_thread(instructor_service.get_catalog_browse)
+    return CatalogBrowseResponse(
+        categories=[
+            CatalogBrowseCategoryItem(
+                id=str(cat["id"]),
+                name=cat["name"],
+                services=[
+                    CatalogBrowseServiceItem(
+                        id=str(svc["id"]),
+                        name=svc["name"],
+                        subcategory_id=str(svc["subcategory_id"]),
+                        eligible_age_groups=svc.get("eligible_age_groups") or [],
+                        description=svc.get("description"),
+                        display_order=svc.get("display_order"),
+                    )
+                    for svc in cat.get("services", [])
+                ],
+            )
+            for cat in payload.get("categories", [])
+        ]
     )
 
 

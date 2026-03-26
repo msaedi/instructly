@@ -2634,6 +2634,44 @@ export interface CandidateTopService {
 
 export type CandidateTopServicesResponse = CandidateTopService[];
 
+export type CatalogBrowseServiceItemEligibleAgeGroupsItem =
+  (typeof CatalogBrowseServiceItemEligibleAgeGroupsItem)[keyof typeof CatalogBrowseServiceItemEligibleAgeGroupsItem];
+
+export const CatalogBrowseServiceItemEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
+/**
+ * Minimal service for taxonomy browsing (no instructor/analytics data).
+ */
+export interface CatalogBrowseServiceItem {
+  description?: string | null;
+  display_order?: number | null;
+  eligible_age_groups?: CatalogBrowseServiceItemEligibleAgeGroupsItem[];
+  id: string;
+  name: string;
+  subcategory_id: string;
+}
+
+/**
+ * Category with minimal services for taxonomy browsing.
+ */
+export interface CatalogBrowseCategoryItem {
+  id: string;
+  name: string;
+  services?: CatalogBrowseServiceItem[];
+}
+
+/**
+ * Lightweight catalog response for taxonomy browsing (no analytics/instructors).
+ */
+export interface CatalogBrowseResponse {
+  categories?: CatalogBrowseCategoryItem[];
+}
+
 /**
  * Minimal catalog service response for pills/lists.
  */

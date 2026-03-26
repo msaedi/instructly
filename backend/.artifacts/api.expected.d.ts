@@ -5327,6 +5327,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/services/catalog/browse": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_catalog_browse_api_v1_services_catalog_browse_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/services/catalog/by-age-group/{age_group}": {
  parameters: {
  query?: never;
@@ -7216,6 +7232,22 @@ export type components = {
  CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
  CaptchaState: {
  active: boolean;
+ };
+ CatalogBrowseCategoryItem: {
+ id: string;
+ name: string;
+ services?: components["schemas"]["CatalogBrowseServiceItem"][];
+ };
+ CatalogBrowseResponse: {
+ categories?: components["schemas"]["CatalogBrowseCategoryItem"][];
+ };
+ CatalogBrowseServiceItem: {
+ description?: string | null;
+ display_order?: number | null;
+ eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
+ id: string;
+ name: string;
+ subcategory_id: string;
  };
  CatalogServiceMinimalResponse: {
  id: string;
@@ -21575,6 +21607,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
+ };
+ };
+ };
+ };
+ get_catalog_browse_api_v1_services_catalog_browse_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CatalogBrowseResponse"];
  };
  };
  };

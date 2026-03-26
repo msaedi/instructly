@@ -5,6 +5,7 @@ import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type {
   AllServicesWithInstructorsResponse,
+  CatalogBrowseResponse,
   ServiceCategory as ShimServiceCategory,
   ServiceSearchResponseWithPaging,
 } from '@/features/shared/api/types';
@@ -81,6 +82,24 @@ export function useAllServicesWithInstructors() {
     },
     staleTime: CACHE_TIMES.SLOW, // 15 minutes - service counts change moderately
     gcTime: CACHE_TIMES.SLOW * 2, // 30 minutes
+  });
+}
+
+/**
+ * Hook to fetch the lightweight service taxonomy grouped by category.
+ * Returns only catalog fields (id, name, subcategory_id, eligible_age_groups, description).
+ * No instructor counts, analytics, or pricing data.
+ * Optimized for onboarding skill selection.
+ */
+export function useCatalogBrowse() {
+  return useQuery<CatalogBrowseResponse>({
+    queryKey: queryKeys.services.browse,
+    queryFn: async () => {
+      const response = await publicApi.getCatalogBrowse();
+      return convertApiResponse(response);
+    },
+    staleTime: CACHE_TIMES.STATIC, // 1 hour - taxonomy rarely changes
+    gcTime: CACHE_TIMES.STATIC * 2, // 2 hours
   });
 }
 

@@ -133,6 +133,7 @@ export const queryKeys = {
     featured: ['services', 'featured'] as const,
     categories: ['services', 'categories'] as const,
     byCategory: (categoryId: string) => ['services', 'category', categoryId] as const,
+    browse: ['services', 'catalog', 'browse'] as const,
     withInstructors: ['services', 'with-instructors'] as const,
     topPerCategory: ['services', 'top-per-category'] as const,
     kidsAvailable: ['services', 'kids-available'] as const,
