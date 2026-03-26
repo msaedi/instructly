@@ -1707,6 +1707,191 @@ describe('EditProfileModal', () => {
       });
     });
 
+    it('removes the optional suffix and shows the teaching-address validation when at-location lessons are enabled', async () => {
+      fetchWithAuthMock.mockImplementation((url: string) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ...mockInstructorProfile,
+                services: [
+                  {
+                    id: 'svc-1',
+                    service_catalog_id: 'svc-1',
+                    service_catalog_name: 'Piano Lessons',
+                    format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+                  },
+                ],
+                preferred_teaching_locations: [],
+              }),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ items: [] }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.queryByText((_, element) => element?.textContent === 'Where You Teach (Optional)')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('A teaching address is required when offering lessons at your location.')
+      ).toBeInTheDocument();
+    });
+
+    it('blocks areas saves until a required teaching address is provided', async () => {
+      fetchWithAuthMock.mockImplementation((url: string, options?: { method?: string }) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ...mockInstructorProfile,
+                services: [
+                  {
+                    id: 'svc-1',
+                    service_catalog_id: 'svc-1',
+                    service_catalog_name: 'Piano Lessons',
+                    format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+                  },
+                ],
+                preferred_teaching_locations: [],
+              }),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ items: [] }),
+          });
+        }
+        if (url.includes('service-areas/me') && options?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({}),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getAllByText(
+            'A teaching address is required when offering lessons at your location.'
+          ).length
+        ).toBeGreaterThan(0);
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+      expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
+        '/api/v1/addresses/service-areas/me',
+        expect.objectContaining({ method: 'PUT' })
+      );
+      expect(
+        screen.getAllByText(
+          'A teaching address is required when offering lessons at your location.'
+        ).length
+      ).toBeGreaterThan(0);
+    });
+
+    it('clears the teaching-address error after adding a required address', async () => {
+      fetchWithAuthMock.mockImplementation((url: string) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ...mockInstructorProfile,
+                services: [
+                  {
+                    id: 'svc-1',
+                    service_catalog_id: 'svc-1',
+                    service_catalog_name: 'Piano Lessons',
+                    format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+                  },
+                ],
+                preferred_teaching_locations: [],
+              }),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ items: [] }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText('A teaching address is required when offering lessons at your location.')
+      ).toBeInTheDocument();
+
+      const user = userEvent.setup();
+      const teachingInput = screen.getAllByTestId('places-autocomplete')[0]!;
+      await user.type(teachingInput, '123 Studio Lane');
+      await user.click(screen.getByRole('button', { name: /add address/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('A teaching address is required when offering lessons at your location.')
+        ).not.toBeInTheDocument();
+      });
+      expect(screen.getByText('123 Studio Lane')).toBeInTheDocument();
+    });
+
     it('shows preferred public spaces input in areas variant', async () => {
       render(
         <EditProfileModal {...defaultProps} variant="areas" />,

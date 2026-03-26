@@ -59,8 +59,13 @@ import { toast } from 'sonner';
 import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
+import {
+  hasNonEmptyTeachingLocation,
+  TEACHING_ADDRESS_REQUIRED_MESSAGE,
+} from '@/lib/teachingLocations';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -206,6 +211,11 @@ function Step3SkillsPricingInner() {
   const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
 
   const { data: addressesDataFromHook } = useUserAddresses();
+  const {
+    data: serviceAreasDataFromHook,
+    isFetched: serviceAreasFetched,
+    isError: serviceAreasError,
+  } = useInstructorServiceAreas(isAuthenticated);
 
   const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
 
@@ -308,11 +318,12 @@ function Step3SkillsPricingInner() {
   };
 
   // Prefill service areas & preferred locations from profile
+  const profileLocationsPrefilled = useRef(false);
   const serviceAreasPrefilled = useRef(false);
   useEffect(() => {
-    if (serviceAreasPrefilled.current) return;
+    if (profileLocationsPrefilled.current) return;
     if (!isAuthenticated || !rawData.profile) return;
-    serviceAreasPrefilled.current = true;
+    profileLocationsPrefilled.current = true;
 
     // Prefill preferred teaching locations
     const teachingFromApi = Array.isArray(rawData.profile?.['preferred_teaching_locations'])
@@ -351,54 +362,78 @@ function Step3SkillsPricingInner() {
       if (publicAddresses.length === 2) break;
     }
     setNeutralPlaces(publicAddresses);
+  }, [isAuthenticated, rawData.profile]);
 
-    // Prefill service areas (neighborhoods)
-    void (async () => {
-      try {
-        const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
-        if (areasRes.ok) {
-          const areas = await areasRes.json() as { items?: ServiceAreaItem[] };
-          const items = (areas.items || []) as ServiceAreaItem[];
-          const ids = items
-            .map((a) => a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string)
-            .filter((v: string | undefined): v is string => typeof v === 'string');
-          setSelectedNeighborhoods(new Set(ids));
-          setIdToItem((prev) => {
-            const next = { ...prev } as Record<string, ServiceAreaItem>;
-            for (const a of items) {
-              const nid = a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string;
-              if (nid) next[nid] = a;
-            }
-            return next;
-          });
+  useEffect(() => {
+    if (serviceAreasPrefilled.current) return;
+    if (!isAuthenticated) return;
+    if (!serviceAreasFetched && !serviceAreasError) return;
+
+    serviceAreasPrefilled.current = true;
+
+    const serviceAreaItems = (serviceAreasDataFromHook?.items ?? []) as ServiceAreaItem[];
+    const ids = serviceAreaItems
+      .map((item) => {
+        const record = item as Record<string, unknown>;
+        return item.neighborhood_id || (typeof record['id'] === 'string' ? record['id'] : undefined);
+      })
+      .filter((value): value is string => typeof value === 'string');
+    setSelectedNeighborhoods(new Set(ids));
+    setIdToItem((prev) => {
+      const next = { ...prev } as Record<string, ServiceAreaItem>;
+      for (const item of serviceAreaItems) {
+        const record = item as Record<string, unknown>;
+        const neighborhoodId =
+          item.neighborhood_id || (typeof record['id'] === 'string' ? record['id'] : undefined);
+        if (neighborhoodId) {
+          next[neighborhoodId] = item;
         }
-      } catch (err) {
-        logger.warn('Failed to prefill service areas', err);
       }
-    })();
+      return next;
+    });
+  }, [
+    isAuthenticated,
+    serviceAreasDataFromHook,
+    serviceAreasError,
+    serviceAreasFetched,
+  ]);
 
-    // Detect NYC from default address postal code
+  useEffect(() => {
+    const defaultAddress =
+      addressesDataFromHook?.items?.find((address) => address.is_default) ??
+      addressesDataFromHook?.items?.[0];
+    const zip = defaultAddress?.postal_code;
+
+    if (!zip) {
+      return;
+    }
+
+    let cancelled = false;
+
     void (async () => {
       try {
-        if (addressesDataFromHook?.items) {
-          const items = addressesDataFromHook.items;
-          const def = items.find((a) => a.is_default) ?? items[0];
-          const zip = def?.postal_code;
-          if (zip) {
-            const nycRes = await fetchWithSessionRefresh(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
-              credentials: 'include',
-            });
-            if (nycRes.ok) {
-              const nyc = await nycRes.json() as { is_nyc?: boolean };
-              setIsNYC(!!nyc['is_nyc']);
-            }
+        const nycRes = await fetchWithSessionRefresh(
+          withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`),
+          {
+            credentials: 'include',
           }
+        );
+        if (!nycRes.ok || cancelled) {
+          return;
+        }
+        const nyc = (await nycRes.json()) as { is_nyc?: boolean };
+        if (!cancelled) {
+          setIsNYC(!!nyc['is_nyc']);
         }
       } catch (err) {
         logger.warn('Failed to check NYC zip', err);
       }
     })();
-  }, [isAuthenticated, rawData.profile, addressesDataFromHook]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addressesDataFromHook]);
 
   // Derive hasServiceAreas / hasTeachingLocations from local state too
   const hasServiceAreasLocal = selectedNeighborhoods.size > 0;
@@ -414,6 +449,10 @@ function Step3SkillsPricingInner() {
   const anyServiceUsesInstructorLocation = selected.some(
     (svc) => 'instructor_location' in svc.format_prices
   );
+  const teachingAddressError = anyServiceUsesInstructorLocation &&
+    !hasNonEmptyTeachingLocation(preferredLocations)
+    ? TEACHING_ADDRESS_REQUIRED_MESSAGE
+    : null;
 
   const servicesByCategory = useMemo(() => {
     const map: Record<string, CategoryServiceDetail[]> = {};
@@ -769,9 +808,10 @@ function Step3SkillsPricingInner() {
     user,
   ]);
 
-  // When service areas or teaching locations are removed, disable corresponding formats
+  // When service areas are removed, disable travel-based formats that the backend requires.
+  // Keep instructor_location enabled so we can show the teaching-address validation state.
   useEffect(() => {
-    if (effectiveHasServiceAreas && effectiveHasTeachingLocations) {
+    if (effectiveHasServiceAreas) {
       return;
     }
 
@@ -784,17 +824,12 @@ function Step3SkillsPricingInner() {
           updated = { ...updated, format_prices: rest };
           changed = true;
         }
-        if (!effectiveHasTeachingLocations && 'instructor_location' in updated.format_prices) {
-          const { instructor_location: _removed, ...rest } = updated.format_prices;
-          updated = { ...updated, format_prices: rest };
-          changed = true;
-        }
         return updated;
       });
 
       return changed ? next : previous;
     });
-  }, [effectiveHasServiceAreas, effectiveHasTeachingLocations]);
+  }, [effectiveHasServiceAreas]);
 
   useEffect(() => {
     if (!selected.length || !serviceCatalogById.size) {
@@ -1008,6 +1043,11 @@ function Step3SkillsPricingInner() {
         }
 
         window.location.href = nextUrl;
+        return;
+      }
+
+      if (teachingAddressError) {
+        setSaving(false);
         return;
       }
 
@@ -1827,6 +1867,8 @@ function Step3SkillsPricingInner() {
             <div className="insta-onboarding-divider" />
             <PreferredLocationsCard
               context="onboarding"
+              isTeachingAddressRequired={anyServiceUsesInstructorLocation}
+              teachingAddressError={teachingAddressError}
               preferredAddress={preferredAddress}
               setPreferredAddress={setPreferredAddress}
               preferredLocations={preferredLocations}

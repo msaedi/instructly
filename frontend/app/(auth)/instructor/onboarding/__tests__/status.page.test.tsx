@@ -183,22 +183,12 @@ const stableRawData = {
   bgcStatus: null,
 };
 
+const mockUseOnboardingStepStatus = jest.fn();
+const mockCanInstructorGoLive = jest.fn();
+
 jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
-  useOnboardingStepStatus: () => ({
-    loading: false,
-    stepStatus: {
-      'account-setup': 'done',
-      'skill-selection': 'done',
-      'verify-identity': 'pending',
-      'payment-setup': 'pending',
-    },
-    rawData: stableRawData,
-    refresh: jest.fn(),
-  }),
-  canInstructorGoLive: () => ({
-    canGoLive: mockGoLiveCheck.canGoLive,
-    missing: mockGoLiveCheck.missing,
-  }),
+  useOnboardingStepStatus: (...args: unknown[]) => mockUseOnboardingStepStatus(...args),
+  canInstructorGoLive: (...args: unknown[]) => mockCanInstructorGoLive(...args),
 }));
 
 const renderWithClient = (ui: ReactNode) => {
@@ -231,6 +221,21 @@ describe('Onboarding status page – BGC consent regression', () => {
     mockGoLiveCheck.missing = ['Phone verification', 'bgc', 'stripe'];
     stableRawData.user.phone_verified = false;
     mockConnectStatus.onboarding_completed = false;
+    mockUseOnboardingStepStatus.mockImplementation(() => ({
+      loading: false,
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'done',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: stableRawData,
+      refresh: jest.fn(),
+    }));
+    mockCanInstructorGoLive.mockImplementation(() => ({
+      canGoLive: mockGoLiveCheck.canGoLive,
+      missing: mockGoLiveCheck.missing,
+    }));
   });
 
   it('renders the BGC step component', async () => {
@@ -263,6 +268,31 @@ describe('Onboarding status page – BGC consent regression', () => {
     });
 
     expect(capturedIdentityVerified).toBe(false);
+  });
+
+  it('does not render the pending banner while onboarding status is loading', () => {
+    mockUseOnboardingStepStatus.mockReturnValue({
+      loading: true,
+      stepStatus: {
+        'account-setup': 'pending',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: stableRawData,
+      refresh: jest.fn(),
+    });
+    mockCanInstructorGoLive.mockReturnValue({
+      canGoLive: false,
+      missing: ['Class locations', 'Verify phone'],
+    });
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    expect(screen.queryByText(/you're close! finish/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /complete your class location setup/i })
+    ).not.toBeInTheDocument();
   });
 
   it('shows a go-live block message and disables the button when names mismatch', async () => {

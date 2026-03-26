@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 IGNORE_FILE="pip-audit.ignore.json"
 IGNORE_FLAGS=()
+EXTRA_ARGS=("$@")
 
 if [[ -f "$IGNORE_FILE" ]]; then
   # Build --ignore-vuln flags from ignore list
@@ -25,7 +26,15 @@ PY
 fi
 
 if ((${#IGNORE_FLAGS[@]})); then
-  exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${IGNORE_FLAGS[@]}"
+  if ((${#EXTRA_ARGS[@]})); then
+    exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${IGNORE_FLAGS[@]}" "${EXTRA_ARGS[@]}"
+  else
+    exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${IGNORE_FLAGS[@]}"
+  fi
 else
-  exec pip-audit -r requirements.txt -r requirements-dev.txt --strict
+  if ((${#EXTRA_ARGS[@]})); then
+    exec pip-audit -r requirements.txt -r requirements-dev.txt --strict "${EXTRA_ARGS[@]}"
+  else
+    exec pip-audit -r requirements.txt -r requirements-dev.txt --strict
+  fi
 fi

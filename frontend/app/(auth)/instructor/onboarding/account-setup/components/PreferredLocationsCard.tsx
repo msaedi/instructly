@@ -8,6 +8,8 @@ type PreferredLocationsCardProps = {
   context?: 'dashboard' | 'onboarding';
   isOpen?: boolean;
   onToggle?: () => void;
+  isTeachingAddressRequired?: boolean;
+  teachingAddressError?: string | null;
   preferredAddress: string;
   setPreferredAddress: (value: string) => void;
   preferredLocations: string[];
@@ -24,6 +26,8 @@ export function PreferredLocationsCard({
   context = 'dashboard',
   isOpen = true,
   onToggle,
+  isTeachingAddressRequired = false,
+  teachingAddressError = null,
   preferredAddress,
   setPreferredAddress,
   preferredLocations,
@@ -101,7 +105,9 @@ export function PreferredLocationsCard({
       {expanded && (
         <div className="space-y-6" data-testid="preferred-places-card">
           <div>
-            <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Where You Teach (Optional)</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">
+              {isTeachingAddressRequired ? 'Where You Teach' : 'Where You Teach (Optional)'}
+            </p>
             <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Have a studio, gym, or home address where you can host lessons? Add it here.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">
               <div className="flex items-center gap-2">
@@ -111,7 +117,11 @@ export function PreferredLocationsCard({
                     value={preferredAddress}
                     onValueChange={setPreferredAddress}
                     placeholder="Type address..."
-                    inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
+                    inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-purple-500 ${
+                      teachingAddressError
+                        ? 'border-red-400 focus:border-red-500'
+                        : 'border-gray-300'
+                    }`}
                   />
                   <button
                     type="button"
@@ -160,6 +170,14 @@ export function PreferredLocationsCard({
                 ))}
               </div>
             </div>
+            {teachingAddressError ? (
+              <p
+                className="mt-2 text-sm text-red-600 dark:text-red-400"
+                role="alert"
+              >
+                {teachingAddressError}
+              </p>
+            ) : null}
           </div>
 
           <div>

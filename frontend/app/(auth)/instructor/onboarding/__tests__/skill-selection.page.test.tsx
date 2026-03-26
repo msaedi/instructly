@@ -7,7 +7,9 @@ import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
 import { useServiceCategories, useCatalogBrowse } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
+import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { TEACHING_ADDRESS_REQUIRED_MESSAGE } from '@/lib/teachingLocations';
 
 const searchParamsProxy = {
   get: (_key: string) => null,
@@ -75,6 +77,10 @@ jest.mock('@/hooks/queries/useUserAddresses', () => ({
   useUserAddresses: jest.fn(),
 }));
 
+jest.mock('@/hooks/queries/useInstructorServiceAreas', () => ({
+  useInstructorServiceAreas: jest.fn(),
+}));
+
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (url: string) => url,
 }));
@@ -108,12 +114,32 @@ jest.mock('@/components/ui/ToggleSwitch', () => ({
   ),
 }));
 
+jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
+  PlacesAutocompleteInput: ({
+    value,
+    onValueChange,
+    placeholder,
+  }: {
+    value?: string;
+    onValueChange?: (value: string) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      data-testid="places-autocomplete"
+      value={value ?? ''}
+      onChange={(event) => onValueChange?.(event.target.value)}
+      placeholder={placeholder}
+    />
+  ),
+}));
+
 const useOnboardingStepStatusMock = useOnboardingStepStatus as jest.Mock;
 const useServiceCategoriesMock = useServiceCategories as jest.Mock;
 const useCatalogBrowseMock = useCatalogBrowse as jest.Mock;
 const useCategoriesWithSubcategoriesMock = useCategoriesWithSubcategories as jest.Mock;
 const useSubcategoryFiltersMock = useSubcategoryFilters as jest.Mock;
 const useUserAddressesMock = useUserAddresses as jest.Mock;
+const useInstructorServiceAreasMock = useInstructorServiceAreas as jest.Mock;
 const fetchWithAuthMock = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
 const toastErrorMock = toast.error as jest.MockedFunction<typeof toast.error>;
 
@@ -254,15 +280,14 @@ describe('Skill selection page refine header', () => {
       isLoading: false,
     });
 
-    fetchWithAuthMock.mockImplementation(async (url: string, options?: RequestInit) => {
-      if (url === '/api/v1/addresses/service-areas/me' && options?.method === undefined) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ items: [] }),
-        } as Response;
-      }
+    useInstructorServiceAreasMock.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isFetched: true,
+      isError: false,
+    });
 
+    fetchWithAuthMock.mockImplementation(async (_url: string, _options?: RequestInit) => {
       return {
         ok: true,
         status: 200,
@@ -357,15 +382,7 @@ describe('Skill selection page refine header', () => {
 
   it('does not redirect away when the backend rejects the save', async () => {
     const startingHref = window.location.href;
-    fetchWithAuthMock.mockImplementation(async (url: string, options?: RequestInit) => {
-      if (url === '/api/v1/addresses/service-areas/me' && options?.method === undefined) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ items: [] }),
-        } as Response;
-      }
-
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
       if (url === '/api/v1/instructors/me') {
         return {
           ok: false,
@@ -398,5 +415,73 @@ describe('Skill selection page refine header', () => {
     expect(await screen.findByText('Validation failed')).toBeInTheDocument();
     expect(toastErrorMock).toHaveBeenCalledWith('Validation failed');
     expect(window.location.href).toBe(startingHref);
+  });
+
+  it('removes the optional label and shows a teaching-address validation message for instructor-location services', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('preferred-places-card').length).toBeGreaterThan(0);
+    });
+
+    expect(
+      screen.getByText((_, element) => element?.textContent?.trim() === 'Where You Teach')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        (_, element) => element?.textContent?.trim() === 'Where You Teach (Optional)'
+      )
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(TEACHING_ADDRESS_REQUIRED_MESSAGE)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Type address...'), {
+      target: { value: '123 Studio Lane' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add address/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(TEACHING_ADDRESS_REQUIRED_MESSAGE)).not.toBeInTheDocument();
+    });
+  });
+
+  it('does not issue raw address or service-area GET requests on mount', async () => {
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(useInstructorServiceAreasMock).toHaveBeenCalled();
+    });
+
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/me');
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/service-areas/me');
   });
 });

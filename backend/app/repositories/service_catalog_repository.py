@@ -541,15 +541,27 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         if not service_catalog_ids:
             return {}
 
-        query = self.db.query(
-            InstructorService.service_catalog_id,
-            func.count(InstructorService.id).label("count"),
-        ).filter(InstructorService.service_catalog_id.in_(service_catalog_ids))
+        query = (
+            self.db.query(
+                InstructorService.service_catalog_id,
+                func.count(InstructorService.id).label("count"),
+            )
+            .join(
+                InstructorProfile,
+                InstructorProfile.id == InstructorService.instructor_profile_id,
+            )
+            .filter(
+                InstructorService.service_catalog_id.in_(service_catalog_ids),
+                InstructorProfile.is_live.is_(True),
+            )
+        )
         query = _apply_instructor_service_active_filter(query)
         query = query.group_by(InstructorService.service_catalog_id)
 
         results = query.all()
-        return {str(row.service_catalog_id): row.count for row in results}
+        counts = {str(service_catalog_id): 0 for service_catalog_id in service_catalog_ids}
+        counts.update({str(row.service_catalog_id): row.count for row in results})
+        return counts
 
     def get_services_needing_embedding(
         self, current_model: str, limit: int = 100

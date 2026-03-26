@@ -162,6 +162,32 @@ def test_active_services_with_categories_and_counts(db, test_instructor):
     assert empty_bulk == {}
 
 
+def test_count_active_instructors_bulk_excludes_non_live_instructors(db, test_instructor, sample_catalog_services):
+    repo = ServiceCatalogRepository(db)
+    test_instructor.instructor_profile.is_live = False
+
+    catalog_service = ServiceCatalog(
+        subcategory_id=sample_catalog_services[0].subcategory_id,
+        name="Non-live only service",
+        slug="non-live-only-service",
+        is_active=True,
+    )
+    db.add(catalog_service)
+    db.flush()
+
+    db.add(
+        InstructorService(
+            instructor_profile_id=test_instructor.instructor_profile.id,
+            service_catalog_id=catalog_service.id,
+            is_active=True,
+            format_prices=[{"format": "online", "hourly_rate": 75.0}],
+        )
+    )
+    db.commit()
+
+    assert repo.count_active_instructors_bulk([catalog_service.id]) == {catalog_service.id: 0}
+
+
 def test_embedding_and_counts(db, sample_catalog_services):
     repo = ServiceCatalogRepository(db)
 

@@ -28,10 +28,9 @@ export default function OnboardingStatusPage() {
   const router = useRouter();
   useAuth(); // Ensure auth context is available
   const goLiveMutation = useGoLiveInstructor();
-  const { stepStatus, rawData } = useOnboardingStepStatus();
+  const { stepStatus, rawData, loading: statusLoading } = useOnboardingStepStatus();
   const [connectStatus, setConnectStatus] = useState<OnboardingStatusResponse | null>(null);
   const [profile, setProfile] = useState<InstructorProfileResponse | null>(null);
-  const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   // Derive instructorProfileId from hook's rawData to avoid duplicate fetch
@@ -133,7 +132,6 @@ export default function OnboardingStatusPage() {
     if (rawData.profile) {
       setProfile(rawData.profile);
     }
-    setLoading(false);
   }, [rawData.profile, rawData.connectStatus]);
 
   // If already live, redirect to dashboard
@@ -274,7 +272,7 @@ export default function OnboardingStatusPage() {
         </div>
         <div className="insta-onboarding-divider" />
 
-        {pendingRequired.length > 0 && (
+        {!statusLoading && pendingRequired.length > 0 && (
           <div className="insta-surface-card p-4 mb-6 blink-card text-center">
             <p className="text-sm insta-onboarding-strong-text font-medium">
               {bannerMessage}
