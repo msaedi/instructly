@@ -16,6 +16,43 @@ interface UseCreateBookingReturn {
   reset: () => void;
 }
 
+type ErrorWithData = Error & {
+  data?: unknown;
+};
+
+function extractStructuredErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const errorWithData = error as ErrorWithData;
+  const data = errorWithData.data;
+
+  if (data && typeof data === 'object') {
+    if ('detail' in data) {
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === 'string' && detail.trim().length > 0) {
+        return detail.trim();
+      }
+      if (detail && typeof detail === 'object' && 'message' in detail) {
+        const message = (detail as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim().length > 0) {
+          return message.trim();
+        }
+      }
+    }
+
+    if ('message' in data) {
+      const message = (data as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * Hook for creating bookings with error handling and loading states
  *
@@ -100,28 +137,33 @@ export function useCreateBooking(): UseCreateBookingReturn {
     } catch (err) {
       // Handle API errors
       let errorMessage = 'Failed to create booking';
+      const structuredMessage = extractStructuredErrorMessage(err);
 
       if (err instanceof Error) {
-        const errMsg = err.message.toLowerCase();
-
-        if (errMsg.includes('401') || errMsg.includes('unauthorized')) {
-          errorMessage = 'You must be logged in to book lessons';
-        } else if (errMsg.includes('409') || errMsg.includes('conflict')) {
-          if (errMsg.includes('already have a booking')) {
-            errorMessage =
-              'You already have a booking scheduled at this time. Please select a different time slot.';
-          } else {
-            errorMessage = 'This time slot is no longer available. Please select another time.';
-          }
-        } else if (errMsg.includes('advance booking') || errMsg.includes('24 hours')) {
-          errorMessage =
-            'This instructor requires advance booking. Please select a time at least 24 hours in advance.';
-        } else if (errMsg.includes('outside availability')) {
-          errorMessage = "The selected time is outside the instructor's availability.";
-        } else if (errMsg.includes('404') || errMsg.includes('not found')) {
-          errorMessage = 'Instructor or service not found';
+        if (structuredMessage) {
+          errorMessage = structuredMessage;
         } else {
-          errorMessage = err.message || 'An unexpected error occurred';
+          const errMsg = err.message.toLowerCase();
+
+          if (errMsg.includes('401') || errMsg.includes('unauthorized')) {
+            errorMessage = 'You must be logged in to book lessons';
+          } else if (errMsg.includes('409') || errMsg.includes('conflict')) {
+            if (errMsg.includes('already have a booking')) {
+              errorMessage =
+                'You already have a booking scheduled at this time. Please select a different time slot.';
+            } else {
+              errorMessage = 'This time slot is no longer available. Please select another time.';
+            }
+          } else if (errMsg.includes('advance booking') || errMsg.includes('24 hours')) {
+            errorMessage =
+              'This instructor requires advance booking. Please select a time at least 24 hours in advance.';
+          } else if (errMsg.includes('outside availability')) {
+            errorMessage = "The selected time is outside the instructor's availability.";
+          } else if (errMsg.includes('404') || errMsg.includes('not found')) {
+            errorMessage = 'Instructor or service not found';
+          } else {
+            errorMessage = err.message || 'An unexpected error occurred';
+          }
         }
       }
 

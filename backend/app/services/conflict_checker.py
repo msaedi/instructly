@@ -12,8 +12,11 @@ All conflict checks now use booking's own fields (date, start_time, end_time)
 without any reference to availability slots.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 import logging
+import math
+import re
 from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
@@ -33,6 +36,20 @@ from .config_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+STUDENT_PROXIMITY_WARNING_MINUTES = 30
+SAME_LOCATION_DISTANCE_MILES = 0.1
+EARTH_RADIUS_MILES = 3958.7613
+ADDRESS_NORMALIZER_RE = re.compile(r"[^a-z0-9]+")
+
+
+@dataclass(frozen=True)
+class _LocationSnapshot:
+    location_type: str | None
+    location_address: str | None = None
+    location_place_id: str | None = None
+    location_lat: float | None = None
+    location_lng: float | None = None
 
 
 class ConflictChecker(BaseService):
@@ -121,6 +138,164 @@ class ConflictChecker(BaseService):
             getattr(instructor_profile, "non_travel_buffer_minutes", None),
             non_travel_default,
         )
+
+    @staticmethod
+    def _coerce_optional_float(value: object) -> float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return None
+        try:
+            return float(cast(Any, value))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _clean_optional_string(value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @staticmethod
+    def _normalize_address(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = ADDRESS_NORMALIZER_RE.sub(" ", value.casefold()).strip()
+        return normalized or None
+
+    def _location_snapshot_from_booking(self, booking: Any) -> _LocationSnapshot:
+        return _LocationSnapshot(
+            location_type=normalize_location_type(getattr(booking, "location_type", None)),
+            location_address=self._clean_optional_string(
+                getattr(booking, "location_address", None)
+            ),
+            location_place_id=self._clean_optional_string(
+                getattr(booking, "location_place_id", None)
+            ),
+            location_lat=self._coerce_optional_float(getattr(booking, "location_lat", None)),
+            location_lng=self._coerce_optional_float(getattr(booking, "location_lng", None)),
+        )
+
+    def _location_snapshot_from_values(
+        self,
+        *,
+        location_type: str | None,
+        location_address: str | None = None,
+        location_place_id: str | None = None,
+        location_lat: float | None = None,
+        location_lng: float | None = None,
+    ) -> _LocationSnapshot:
+        return _LocationSnapshot(
+            location_type=normalize_location_type(location_type),
+            location_address=self._clean_optional_string(location_address),
+            location_place_id=self._clean_optional_string(location_place_id),
+            location_lat=self._coerce_optional_float(location_lat),
+            location_lng=self._coerce_optional_float(location_lng),
+        )
+
+    @staticmethod
+    def _distance_miles(
+        first_lat: float,
+        first_lng: float,
+        second_lat: float,
+        second_lng: float,
+    ) -> float:
+        first_lat_rad = math.radians(first_lat)
+        second_lat_rad = math.radians(second_lat)
+        delta_lat = math.radians(second_lat - first_lat)
+        delta_lng = math.radians(second_lng - first_lng)
+
+        haversine = (
+            math.sin(delta_lat / 2) ** 2
+            + math.cos(first_lat_rad) * math.cos(second_lat_rad) * math.sin(delta_lng / 2) ** 2
+        )
+        angular_distance = 2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine))
+        return EARTH_RADIUS_MILES * angular_distance
+
+    def _same_effective_location(
+        self,
+        first_location: _LocationSnapshot,
+        second_location: _LocationSnapshot,
+    ) -> bool:
+        if first_location.location_type == "online" and second_location.location_type == "online":
+            return True
+
+        if (
+            first_location.location_type == "student_location"
+            and second_location.location_type == "student_location"
+        ):
+            return True
+
+        physical_comparison_attempted = False
+
+        if first_location.location_place_id and second_location.location_place_id:
+            physical_comparison_attempted = True
+            if first_location.location_place_id == second_location.location_place_id:
+                return True
+
+        if (
+            first_location.location_lat is not None
+            and first_location.location_lng is not None
+            and second_location.location_lat is not None
+            and second_location.location_lng is not None
+        ):
+            physical_comparison_attempted = True
+            if (
+                self._distance_miles(
+                    first_location.location_lat,
+                    first_location.location_lng,
+                    second_location.location_lat,
+                    second_location.location_lng,
+                )
+                <= SAME_LOCATION_DISTANCE_MILES
+            ):
+                return True
+
+        first_normalized_address = self._normalize_address(first_location.location_address)
+        second_normalized_address = self._normalize_address(second_location.location_address)
+        if first_normalized_address and second_normalized_address:
+            physical_comparison_attempted = True
+            if first_normalized_address == second_normalized_address:
+                return True
+
+        if physical_comparison_attempted:
+            return False
+
+        return first_location.location_type == second_location.location_type
+
+    @staticmethod
+    def _gap_between_bookings(
+        first_start: time,
+        first_end: time,
+        second_start: time,
+        second_end: time,
+    ) -> int:
+        first_start_minutes = time_to_minutes(first_start, is_end_time=False)
+        first_end_minutes = time_to_minutes(first_end, is_end_time=True)
+        second_start_minutes = time_to_minutes(second_start, is_end_time=False)
+        second_end_minutes = time_to_minutes(second_end, is_end_time=True)
+
+        if first_end_minutes <= second_start_minutes:
+            return second_start_minutes - first_end_minutes
+
+        if second_end_minutes <= first_start_minutes:
+            return first_start_minutes - second_end_minutes
+
+        overlap_minutes = min(first_end_minutes, second_end_minutes) - max(
+            first_start_minutes,
+            second_start_minutes,
+        )
+        return -overlap_minutes
+
+    @staticmethod
+    def _format_booking_time(value: time) -> str:
+        return value.strftime("%I:%M %p").lstrip("0")
 
     @staticmethod
     def _conflicts_with_buffer(
@@ -275,31 +450,15 @@ class ConflictChecker(BaseService):
         bookings = self.repository.get_student_bookings_for_conflict_check(
             student_id, check_date, exclude_id
         )
-        normalized_new_location_type = normalize_location_type(new_location_type)
-        booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
-        travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
-            booking_rules_config, "student_location"
-        )
-        non_travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
-            booking_rules_config, "online"
-        )
 
         conflicts = []
         for booking in bookings:
-            buffer_minutes = self._get_buffer_minutes(
-                self._get_booking_location_type(booking),
-                normalized_new_location_type,
-                instructor_profile,
-                travel_default=travel_default,
-                non_travel_default=non_travel_default,
-                perspective="student",
-            )
             if self._conflicts_with_buffer(
                 booking.start_time,
                 booking.end_time,
                 start_time,
                 end_time,
-                buffer_minutes,
+                0,
             ):
                 conflicts.append(
                     {
@@ -335,6 +494,67 @@ class ConflictChecker(BaseService):
             instructor_profile,
         )
         return len(conflicts) > 0
+
+    @BaseService.measure_operation("check_student_proximity_warnings")
+    def check_student_proximity_warnings(
+        self,
+        student_id: str,
+        check_date: date,
+        start_time: time,
+        end_time: time,
+        location_type: str | None = None,
+        exclude_booking_id: Optional[str] = None,
+        location_address: str | None = None,
+        location_place_id: str | None = None,
+        location_lat: float | None = None,
+        location_lng: float | None = None,
+    ) -> List[Dict[str, Any]]:
+        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
+        bookings = self.repository.get_student_bookings_for_conflict_check(
+            student_id, check_date, exclude_id
+        )
+        new_location = self._location_snapshot_from_values(
+            location_type=location_type,
+            location_address=location_address,
+            location_place_id=location_place_id,
+            location_lat=location_lat,
+            location_lng=location_lng,
+        )
+
+        warnings: List[Dict[str, Any]] = []
+        for booking in bookings:
+            gap_minutes = self._gap_between_bookings(
+                booking.start_time,
+                booking.end_time,
+                start_time,
+                end_time,
+            )
+            if gap_minutes < 0 or gap_minutes >= STUDENT_PROXIMITY_WARNING_MINUTES:
+                continue
+
+            if self._same_effective_location(
+                self._location_snapshot_from_booking(booking),
+                new_location,
+            ):
+                continue
+
+            service_name = (
+                self._clean_optional_string(getattr(booking, "service_name", None)) or "lesson"
+            )
+            warnings.append(
+                {
+                    "type": "proximity",
+                    "message": (
+                        f"You have a {service_name} lesson at "
+                        f"{self._format_booking_time(booking.start_time)} at a different location."
+                    ),
+                    "conflicting_booking_id": str(getattr(booking, "id", "")),
+                    "conflicting_service": service_name,
+                    "gap_minutes": gap_minutes,
+                }
+            )
+
+        return warnings
 
     @BaseService.measure_operation("get_booked_times_date")
     def get_booked_times_for_date(
@@ -630,7 +850,6 @@ class ConflictChecker(BaseService):
                 start_time,
                 end_time,
                 location_type,
-                instructor_profile=profile,
             )
             if student_conflicts:
                 errors.append(

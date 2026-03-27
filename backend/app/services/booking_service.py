@@ -5480,6 +5480,8 @@ class BookingService(BaseService):
         location_type: Optional[str] = None,
         student_id: Optional[str] = None,
         selected_duration: Optional[int] = None,
+        location_address: Optional[str] = None,
+        location_place_id: Optional[str] = None,
         location_lat: Optional[float] = None,
         location_lng: Optional[float] = None,
     ) -> Dict[str, Any]:
@@ -5672,8 +5674,37 @@ class BookingService(BaseService):
                 "reason": error_message,
             }
 
+        proximity_warnings: Optional[List[Dict[str, Any]]] = None
+        if student_id:
+            (
+                warning_location_address,
+                warning_location_place_id,
+                warning_location_lat,
+                warning_location_lng,
+            ) = self._resolve_availability_location_fields(
+                location_type=normalized_location_type,
+                instructor_profile=instructor_profile,
+                location_address=location_address,
+                location_place_id=location_place_id,
+                location_lat=location_lat,
+                location_lng=location_lng,
+            )
+            proximity_warnings = self.conflict_checker.check_student_proximity_warnings(
+                student_id=student_id,
+                check_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                location_type=normalized_location_type,
+                exclude_booking_id=exclude_booking_id,
+                location_address=warning_location_address,
+                location_place_id=warning_location_place_id,
+                location_lat=warning_location_lat,
+                location_lng=warning_location_lng,
+            )
+
         return {
             "available": True,
+            "warnings": proximity_warnings or None,
             "time_info": {
                 "date": booking_date.isoformat(),
                 "start_time": start_time.isoformat(),
@@ -5681,6 +5712,54 @@ class BookingService(BaseService):
                 "instructor_id": instructor_id,
             },
         }
+
+    def _get_primary_teaching_location(
+        self,
+        instructor_profile: InstructorProfile,
+    ) -> object | None:
+        user = getattr(instructor_profile, "user", None)
+        preferred_places = getattr(user, "preferred_places", None)
+        if preferred_places is None:
+            return None
+
+        for place in preferred_places:
+            if getattr(place, "kind", None) == "teaching_location":
+                return cast(object, place)
+
+        return None
+
+    def _resolve_availability_location_fields(
+        self,
+        *,
+        location_type: str | None,
+        instructor_profile: InstructorProfile,
+        location_address: str | None = None,
+        location_place_id: str | None = None,
+        location_lat: float | None = None,
+        location_lng: float | None = None,
+    ) -> Tuple[str | None, str | None, float | None, float | None]:
+        normalized_location_type = normalize_location_type(location_type)
+        if normalized_location_type == "online":
+            return None, None, None, None
+
+        if normalized_location_type == "instructor_location":
+            teaching_location = self._get_primary_teaching_location(instructor_profile)
+            if teaching_location is None:
+                return None, None, None, None
+
+            return (
+                _safe_str(getattr(teaching_location, "address", None)),
+                _safe_str(getattr(teaching_location, "place_id", None)),
+                _safe_float(getattr(teaching_location, "lat", None)),
+                _safe_float(getattr(teaching_location, "lng", None)),
+            )
+
+        return (
+            _safe_str(location_address),
+            _safe_str(location_place_id),
+            _safe_float(location_lat),
+            _safe_float(location_lng),
+        )
 
     @BaseService.measure_operation("send_booking_reminders")
     def send_booking_reminders(self) -> int:

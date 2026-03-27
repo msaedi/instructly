@@ -15,6 +15,17 @@ type BuildAvailabilityCheckRequestParams = {
   bookingData: AvailabilityCheckBooking;
 };
 
+function normalizeNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 export function buildAvailabilityCheckRequest({
   bookingCandidate,
   updatedBookingData,
@@ -104,7 +115,8 @@ export function buildAvailabilityCheckRequest({
     return null;
   }
 
-  const endTimeSource = bookingCandidate.endTime ?? updatedBookingData.endTime ?? bookingData.endTime;
+  const endTimeSource =
+    bookingCandidate.endTime ?? updatedBookingData.endTime ?? bookingData.endTime;
   let endTime24h = addMinutesHHMM(startTime24h, selectedDuration);
   if (endTimeSource) {
     try {
@@ -123,6 +135,45 @@ export function buildAvailabilityCheckRequest({
     modalityHint: metadata['modality'],
     fallbackLocation,
   });
+  const locationAddress =
+    locationType === 'online'
+      ? undefined
+      : sanitizeMeetingLocation(bookingCandidate.address?.fullAddress) ||
+        sanitizeMeetingLocation(updatedBookingData.address?.fullAddress) ||
+        sanitizeMeetingLocation(bookingData.address?.fullAddress) ||
+        sanitizeMeetingLocation(metadata['location_address']) ||
+        fallbackLocation ||
+        undefined;
+  const locationPlaceId =
+    locationType === 'online'
+      ? undefined
+      : (typeof bookingCandidate.address?.placeId === 'string'
+          ? bookingCandidate.address.placeId
+          : undefined) ||
+        (typeof updatedBookingData.address?.placeId === 'string'
+          ? updatedBookingData.address.placeId
+          : undefined) ||
+        (typeof bookingData.address?.placeId === 'string'
+          ? bookingData.address.placeId
+          : undefined) ||
+        (typeof metadata['location_place_id'] === 'string'
+          ? metadata['location_place_id']
+          : undefined) ||
+        (typeof metadata['place_id'] === 'string' ? metadata['place_id'] : undefined);
+  const locationLat =
+    locationType === 'online'
+      ? undefined
+      : (normalizeNumber(bookingCandidate.address?.lat) ??
+        normalizeNumber(updatedBookingData.address?.lat) ??
+        normalizeNumber(bookingData.address?.lat) ??
+        normalizeNumber(metadata['location_lat']));
+  const locationLng =
+    locationType === 'online'
+      ? undefined
+      : (normalizeNumber(bookingCandidate.address?.lng) ??
+        normalizeNumber(updatedBookingData.address?.lng) ??
+        normalizeNumber(bookingData.address?.lng) ??
+        normalizeNumber(metadata['location_lng']));
 
   const bookingIdCandidate =
     (typeof bookingCandidate.bookingId === 'string' && bookingCandidate.bookingId.trim()) ||
@@ -138,20 +189,10 @@ export function buildAvailabilityCheckRequest({
     end_time: endTime24h,
     location_type: locationType,
     selected_duration: selectedDuration,
-    ...(typeof bookingCandidate.address?.lat === 'number'
-      ? { location_lat: bookingCandidate.address.lat }
-      : typeof updatedBookingData.address?.lat === 'number'
-        ? { location_lat: updatedBookingData.address.lat }
-        : typeof bookingData.address?.lat === 'number'
-          ? { location_lat: bookingData.address.lat }
-          : {}),
-    ...(typeof bookingCandidate.address?.lng === 'number'
-      ? { location_lng: bookingCandidate.address.lng }
-      : typeof updatedBookingData.address?.lng === 'number'
-        ? { location_lng: updatedBookingData.address.lng }
-        : typeof bookingData.address?.lng === 'number'
-          ? { location_lng: bookingData.address.lng }
-          : {}),
+    ...(locationAddress !== undefined ? { location_address: locationAddress } : {}),
+    ...(locationPlaceId !== undefined ? { location_place_id: locationPlaceId } : {}),
+    ...(locationLat !== undefined ? { location_lat: locationLat } : {}),
+    ...(locationLng !== undefined ? { location_lng: locationLng } : {}),
     ...(bookingIdCandidate ? { exclude_booking_id: bookingIdCandidate } : {}),
   };
 }

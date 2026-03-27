@@ -113,7 +113,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            )
+        )
         db.add(profile)
         db.flush()
         add_service_areas_for_boroughs(db, user=instructor, boroughs=["Manhattan"])
@@ -125,19 +125,29 @@ class TestStudentConflictValidationIntegration:
         db.refresh(profile)
 
         # Get or create Math catalog service
-        math_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "math-tutoring").first()
+        math_catalog = (
+            db.query(ServiceCatalog).filter(ServiceCatalog.slug == "math-tutoring").first()
+        )
         if not math_catalog:
             category = db.query(ServiceCategory).first()
             if not category:
                 category = ServiceCategory(name="Academic")
                 db.add(category)
                 db.flush()
-            subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+            subcategory = (
+                db.query(ServiceSubcategory)
+                .filter(ServiceSubcategory.category_id == category.id)
+                .first()
+            )
             if not subcategory:
-                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                subcategory = ServiceSubcategory(
+                    name="General", category_id=category.id, display_order=1
+                )
                 db.add(subcategory)
                 db.flush()
-            math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", subcategory_id=subcategory.id)
+            math_catalog = ServiceCatalog(
+                name="Math Tutoring", slug="math-tutoring", subcategory_id=subcategory.id
+            )
             db.add(math_catalog)
             db.flush()
 
@@ -189,7 +199,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            )
+        )
         db.add(profile)
         db.flush()
         add_service_areas_for_boroughs(db, user=instructor, boroughs=["Brooklyn"])
@@ -201,19 +211,29 @@ class TestStudentConflictValidationIntegration:
         db.refresh(profile)
 
         # Get or create Piano catalog service
-        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano-lessons").first()
+        piano_catalog = (
+            db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano-lessons").first()
+        )
         if not piano_catalog:
             category = db.query(ServiceCategory).first()
             if not category:
                 category = ServiceCategory(name="Music & Arts")
                 db.add(category)
                 db.flush()
-            subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+            subcategory = (
+                db.query(ServiceSubcategory)
+                .filter(ServiceSubcategory.category_id == category.id)
+                .first()
+            )
             if not subcategory:
-                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                subcategory = ServiceSubcategory(
+                    name="General", category_id=category.id, display_order=1
+                )
                 db.add(subcategory)
                 db.flush()
-            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", subcategory_id=subcategory.id)
+            piano_catalog = ServiceCatalog(
+                name="Piano Lessons", slug="piano-lessons", subcategory_id=subcategory.id
+            )
             db.add(piano_catalog)
             db.flush()
 
@@ -256,8 +276,16 @@ class TestStudentConflictValidationIntegration:
         tomorrow = date.today() + timedelta(days=1)
 
         # Get instructor profiles by ID
-        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor_id).first()
-        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor_id).first()
+        math_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == math_instructor_id)
+            .first()
+        )
+        piano_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == piano_instructor_id)
+            .first()
+        )
 
         # Get services by instructor profile
         math_service = (
@@ -287,8 +315,11 @@ class TestStudentConflictValidationIntegration:
         # Refresh student_user from database to avoid session issues
         student_user = db.query(User).filter(User.id == student_id).first()
 
-        booking1 = await asyncio.to_thread(booking_service.create_booking,
-            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        booking1 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student_user,
+            booking1_data,
+            selected_duration=booking1_data.selected_duration,
         )
         assert booking1.id is not None
         assert booking1.status == BookingStatus.CONFIRMED
@@ -307,17 +338,20 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with student conflict
         with pytest.raises(ConflictException) as exc_info:
-            await asyncio.to_thread(booking_service.create_booking,
-                student_user, booking2_data, selected_duration=booking2_data.selected_duration
+            await asyncio.to_thread(
+                booking_service.create_booking,
+                student_user,
+                booking2_data,
+                selected_duration=booking2_data.selected_duration,
             )
 
         assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
-    async def test_student_cannot_book_adjacent_sessions_when_student_travel_is_required(
+    async def test_student_can_book_adjacent_sessions_when_only_student_travel_would_apply(
         self, db: Session, student_user: User, math_instructor: User, piano_instructor: User
     ):
-        """Integration test: student-side travel buffers block back-to-back sessions."""
+        """Integration test: student bookings only block on true overlap, not adjacency."""
         # Store IDs immediately to avoid session issues
         math_instructor_id = math_instructor.id
         piano_instructor_id = piano_instructor.id
@@ -327,8 +361,16 @@ class TestStudentConflictValidationIntegration:
         tomorrow = date.today() + timedelta(days=1)
 
         # Get instructor profiles by ID
-        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor_id).first()
-        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor_id).first()
+        math_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == math_instructor_id)
+            .first()
+        )
+        piano_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == piano_instructor_id)
+            .first()
+        )
 
         # Get services by instructor profile
         math_service = (
@@ -355,8 +397,11 @@ class TestStudentConflictValidationIntegration:
             **MANHATTAN_LOCATION,
         )
 
-        booking1 = await asyncio.to_thread(booking_service.create_booking,
-            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        booking1 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student_user,
+            booking1_data,
+            selected_duration=booking1_data.selected_duration,
         )
         assert booking1.status == BookingStatus.CONFIRMED
 
@@ -372,16 +417,19 @@ class TestStudentConflictValidationIntegration:
             **BROOKLYN_LOCATION,
         )
 
-        with pytest.raises(ConflictException, match="Student already has a booking"):
-            await asyncio.to_thread(
-                booking_service.create_booking,
-                student_user,
-                booking2_data,
-                selected_duration=booking2_data.selected_duration,
-            )
+        booking2 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student_user,
+            booking2_data,
+            selected_duration=booking2_data.selected_duration,
+        )
+
+        assert booking2.status == BookingStatus.CONFIRMED
 
     @pytest.mark.asyncio
-    async def test_multiple_students_same_instructor_integration(self, db: Session, math_instructor: User):
+    async def test_multiple_students_same_instructor_integration(
+        self, db: Session, math_instructor: User
+    ):
         """Integration test: Multiple students trying to book same instructor time."""
         # Create two students
         student1 = User(
@@ -420,7 +468,11 @@ class TestStudentConflictValidationIntegration:
         tomorrow = date.today() + timedelta(days=1)
 
         # Get instructor profile
-        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor.id).first()
+        math_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == math_instructor.id)
+            .first()
+        )
 
         # Get math service by instructor profile
         math_service = (
@@ -441,8 +493,11 @@ class TestStudentConflictValidationIntegration:
             **MANHATTAN_LOCATION,
         )
 
-        booking1 = await asyncio.to_thread(booking_service.create_booking,
-            student1, booking1_data, selected_duration=booking1_data.selected_duration
+        booking1 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student1,
+            booking1_data,
+            selected_duration=booking1_data.selected_duration,
         )
         assert booking1.status == BookingStatus.CONFIRMED
 
@@ -460,8 +515,11 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with instructor conflict (not student conflict)
         with pytest.raises(ConflictException) as exc_info:
-            await asyncio.to_thread(booking_service.create_booking,
-                student2, booking2_data, selected_duration=booking2_data.selected_duration
+            await asyncio.to_thread(
+                booking_service.create_booking,
+                student2,
+                booking2_data,
+                selected_duration=booking2_data.selected_duration,
             )
 
         assert str(exc_info.value) == "Instructor already has a booking that overlaps this time"
@@ -475,8 +533,16 @@ class TestStudentConflictValidationIntegration:
         tomorrow = date.today() + timedelta(days=1)
 
         # Get instructor profiles
-        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor.id).first()
-        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor.id).first()
+        math_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == math_instructor.id)
+            .first()
+        )
+        piano_profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == piano_instructor.id)
+            .first()
+        )
 
         # Get services by instructor profile
         math_service = (
@@ -503,14 +569,20 @@ class TestStudentConflictValidationIntegration:
             **MANHATTAN_LOCATION,
         )
 
-        booking1 = await asyncio.to_thread(booking_service.create_booking,
-            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        booking1 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student_user,
+            booking1_data,
+            selected_duration=booking1_data.selected_duration,
         )
         assert booking1.status == BookingStatus.CONFIRMED
 
         # Cancel the booking
-        cancelled = await asyncio.to_thread(booking_service.cancel_booking,
-            booking_id=booking1.id, user=student_user, reason="Changed my mind"
+        cancelled = await asyncio.to_thread(
+            booking_service.cancel_booking,
+            booking_id=booking1.id,
+            user=student_user,
+            reason="Changed my mind",
         )
         assert cancelled.status == BookingStatus.CANCELLED
 
@@ -527,8 +599,11 @@ class TestStudentConflictValidationIntegration:
         )
 
         # Should succeed since previous booking was cancelled
-        booking2 = await asyncio.to_thread(booking_service.create_booking,
-            student_user, booking2_data, selected_duration=booking2_data.selected_duration
+        booking2 = await asyncio.to_thread(
+            booking_service.create_booking,
+            student_user,
+            booking2_data,
+            selected_duration=booking2_data.selected_duration,
         )
         assert booking2.id is not None
         assert booking2.status == BookingStatus.CONFIRMED

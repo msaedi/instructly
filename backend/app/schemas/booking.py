@@ -58,6 +58,18 @@ class TimeSlotInfo(StrictModel):
     instructor_id: str = Field(description="Instructor ID")
 
 
+class AvailabilityWarningInfo(StrictModel):
+    """Advisory availability warning details."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    type: Literal["proximity"] = Field(description="Warning type")
+    message: str = Field(description="Human-readable advisory warning")
+    conflicting_booking_id: str = Field(description="Related booking ID")
+    conflicting_service: str = Field(description="Related service name")
+    gap_minutes: int = Field(description="Gap in minutes between bookings")
+
+
 DATE_ONLY_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -985,6 +997,14 @@ class AvailabilityCheckRequest(StrictRequestModel):
         le=720,
         description="Optional duration in minutes for parity with booking validation",
     )
+    location_address: Optional[str] = Field(
+        None,
+        description="Optional address for preflight location comparison",
+    )
+    location_place_id: Optional[str] = Field(
+        None,
+        description="Optional place ID for preflight location comparison",
+    )
     location_lat: Optional[float] = Field(
         None,
         ge=-90.0,
@@ -1048,6 +1068,10 @@ class AvailabilityCheckResponse(StrictModel):
 
     available: bool
     reason: Optional[str] = None
+    warnings: Optional[List[AvailabilityWarningInfo]] = Field(
+        default=None,
+        description="Advisory warnings that do not block booking",
+    )
     min_advance_minutes: Optional[int] = None
     conflicts_with: Optional[List[ConflictingBookingInfo]] = Field(
         default=None, description="List of conflicting bookings if any"

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info, X } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
@@ -11,6 +11,7 @@ import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import type { InstructorService } from '@/types/instructor';
 import type { LocationType } from '@/types/booking';
+import type { AvailabilityCheckResponse } from '@/features/shared/api/types';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { logger } from '@/lib/logger';
@@ -54,6 +55,7 @@ import {
 } from '../utils/locationUtils';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
+type AvailabilityWarning = NonNullable<AvailabilityCheckResponse['warnings']>[number];
 
 type ConflictKey = {
   studentId: string;
@@ -126,7 +128,9 @@ interface PaymentConfirmationProps {
   referralActive?: boolean;
   floorViolationMessage?: string | null;
   instructorAvailabilityError?: string | null;
+  availabilityWarnings?: AvailabilityWarning[] | null;
   isCheckingInstructorAvailability?: boolean;
+  onDismissAvailabilityWarnings?: () => void;
   onClearFloorViolation?: () => void;
   onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
   onTimeSelectionCommitted?: (nextBooking: BookingWithMetadata) => void | Promise<void>;
@@ -157,7 +161,9 @@ function PaymentConfirmationInner({
   referralActive: referralActiveFromParent = false,
   floorViolationMessage = null,
   instructorAvailabilityError = null,
+  availabilityWarnings = null,
   isCheckingInstructorAvailability = false,
+  onDismissAvailabilityWarnings,
   onClearFloorViolation,
   onBookingUpdate,
   onTimeSelectionCommitted,
@@ -198,14 +204,14 @@ function PaymentConfirmationInner({
   const lastLocationRef = useRef('');
   const initializedLocationSeedRef = useRef<string | null>(null);
   const isOnlineLesson = locationType === 'online';
-  const isTravelLocation = locationType === 'student_location' || locationType === 'neutral_location';
+  const isTravelLocation =
+    locationType === 'student_location' || locationType === 'neutral_location';
   const shouldCheckServiceArea = isTravelLocation;
   const hasSavedTravelLocation = Boolean(
-    selectedSavedAddress ||
-      (isTravelLocation && sanitizeMeetingLocation(booking.location))
+    selectedSavedAddress || (isTravelLocation && sanitizeMeetingLocation(booking.location))
   );
-  const serviceAreaLat = shouldCheckServiceArea ? addressCoords.lat ?? undefined : undefined;
-  const serviceAreaLng = shouldCheckServiceArea ? addressCoords.lng ?? undefined : undefined;
+  const serviceAreaLat = shouldCheckServiceArea ? (addressCoords.lat ?? undefined) : undefined;
+  const serviceAreaLng = shouldCheckServiceArea ? (addressCoords.lng ?? undefined) : undefined;
   const { data: serviceAreaCheck, isLoading: isCheckingServiceArea } = useServiceAreaCheck({
     instructorId: booking.instructorId,
     lat: serviceAreaLat,
@@ -310,7 +316,7 @@ function PaymentConfirmationInner({
     if (!selectedService) {
       return types;
     }
-    const formats = (selectedService.format_prices ?? []).map(fp => fp.format);
+    const formats = (selectedService.format_prices ?? []).map((fp) => fp.format);
     if (formats.includes('online')) {
       types.push('online');
     }
@@ -328,9 +334,12 @@ function PaymentConfirmationInner({
     return Array.from(new Set(types));
   }, [incomingLocationType, locationType, selectedService]);
 
-  useEffect(() => () => {
-    addressDetailsAbortRef.current?.abort();
-  }, []);
+  useEffect(
+    () => () => {
+      addressDetailsAbortRef.current?.abort();
+    },
+    []
+  );
 
   useEffect(() => {
     if (availableLocationTypes.length === 0) {
@@ -340,7 +349,7 @@ function PaymentConfirmationInner({
       const fallback =
         locationType === 'online'
           ? availableLocationTypes[0]
-          : availableLocationTypes.find((type) => type !== 'online') ?? availableLocationTypes[0];
+          : (availableLocationTypes.find((type) => type !== 'online') ?? availableLocationTypes[0]);
       if (fallback) {
         setLocationType(fallback);
       }
@@ -350,12 +359,19 @@ function PaymentConfirmationInner({
   const parseAddressComponents = useCallback(
     (
       details: unknown
-    ): { fields: Partial<AddressFields>; formatted?: string; lat?: number; lng?: number; placeId?: string } => {
+    ): {
+      fields: Partial<AddressFields>;
+      formatted?: string;
+      lat?: number;
+      lng?: number;
+      placeId?: string;
+    } => {
       const root = (details as Record<string, unknown>) ?? {};
       const result = (root['result'] as Record<string, unknown>) ?? root;
       const address = (result['address'] as Record<string, unknown>) ?? result;
       const sources = [address, result, root].filter(
-        (candidate): candidate is Record<string, unknown> => Boolean(candidate) && typeof candidate === 'object',
+        (candidate): candidate is Record<string, unknown> =>
+          Boolean(candidate) && typeof candidate === 'object'
       );
 
       const getValue = (...keys: string[]) => {
@@ -388,7 +404,9 @@ function PaymentConfirmationInner({
         return null;
       };
 
-      const streetNumber = getValue('line1', 'street_line1') ? '' : getValue('street_number', 'house_number');
+      const streetNumber = getValue('line1', 'street_line1')
+        ? ''
+        : getValue('street_number', 'house_number');
       const streetName = getValue('street_name', 'route', 'street');
       const explicitLine1 = getValue(
         'line1',
@@ -396,16 +414,25 @@ function PaymentConfirmationInner({
         'street_line1',
         'address_line1',
         'address1',
-        'street_address',
+        'street_address'
       );
-      const derivedLine1 = [streetNumber, streetName].filter((part) => part && part.length > 0).join(' ').trim();
-      const cityCandidate = getValue('city', 'locality', 'postal_town', 'town', 'administrative_area_level_2');
+      const derivedLine1 = [streetNumber, streetName]
+        .filter((part) => part && part.length > 0)
+        .join(' ')
+        .trim();
+      const cityCandidate = getValue(
+        'city',
+        'locality',
+        'postal_town',
+        'town',
+        'administrative_area_level_2'
+      );
       const stateCandidate = getValue(
         'state',
         'state_code',
         'region',
         'administrative_area',
-        'administrative_area_level_1',
+        'administrative_area_level_1'
       );
       const postalCandidate = getValue('postal', 'postal_code', 'postalCode', 'zip', 'zip_code');
       const countryCandidate = getValue('country', 'country_code', 'countryCode');
@@ -416,9 +443,10 @@ function PaymentConfirmationInner({
       let lng = getNumber('longitude', 'lng');
       if (lat == null || lng == null) {
         const geometry = (result['geometry'] as Record<string, unknown>) ?? root['geometry'];
-        const location = geometry && typeof geometry === 'object'
-          ? (geometry['location'] as Record<string, unknown>)
-          : null;
+        const location =
+          geometry && typeof geometry === 'object'
+            ? (geometry['location'] as Record<string, unknown>)
+            : null;
         if (location && typeof location === 'object') {
           if (lat == null) {
             const geoLat = location['lat'];
@@ -465,7 +493,7 @@ function PaymentConfirmationInner({
 
       return response;
     },
-    [],
+    []
   );
 
   const parseDescriptionFallback = useCallback((description: string): Partial<AddressFields> => {
@@ -494,207 +522,214 @@ function PaymentConfirmationInner({
     return fallback;
   }, []);
 
-  const fetchPlaceDetails = useCallback(async (
-    placeId: string,
-    signal: AbortSignal,
-    provider?: string,
-  ) => {
-    try {
-      const response = await getPlaceDetails({
-        place_id: placeId,
-        ...(provider ? { provider } : {}),
-        signal,
-      });
-
-      if (signal.aborted) {
-        return null;
-      }
-
-      if (response.error || !response.data) {
-        logger.warn('Place details request failed', {
-          placeId,
-          status: response.status,
-          error: response.error,
+  const fetchPlaceDetails = useCallback(
+    async (placeId: string, signal: AbortSignal, provider?: string) => {
+      try {
+        const response = await getPlaceDetails({
+          place_id: placeId,
+          ...(provider ? { provider } : {}),
+          signal,
         });
+
+        if (signal.aborted) {
+          return null;
+        }
+
+        if (response.error || !response.data) {
+          logger.warn('Place details request failed', {
+            placeId,
+            status: response.status,
+            error: response.error,
+          });
+          return null;
+        }
+
+        return response.data;
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          return null;
+        }
+        logger.warn('Failed to fetch place details', { placeId, error });
         return null;
       }
+    },
+    []
+  );
 
-      return response.data;
-    } catch (error) {
-      if ((error as Error).name === 'AbortError') {
-        return null;
+  const handleAddressSuggestionSelect = useCallback(
+    async (suggestion: PlaceSuggestion) => {
+      if (shouldIgnoreAddressSuggestionSelection(suggestion, isTravelLocation)) {
+        return;
       }
-      logger.warn('Failed to fetch place details', { placeId, error });
-      return null;
-    }
-  }, []);
 
-  const handleAddressSuggestionSelect = useCallback(async (suggestion: PlaceSuggestion) => {
-    if (shouldIgnoreAddressSuggestionSelection(suggestion, isTravelLocation)) {
-      return;
-    }
+      setIsEditingLocation(true);
+      setAddressDetailsError(null);
+      setSelectedSavedAddress(null);
 
-    setIsEditingLocation(true);
-    setAddressDetailsError(null);
-    setSelectedSavedAddress(null);
+      const description = (suggestion.description ?? suggestion.text ?? '').trim();
+      const fallbackFromDescription = parseDescriptionFallback(description);
 
-    const description = (suggestion.description ?? suggestion.text ?? '').trim();
-    const fallbackFromDescription = parseDescriptionFallback(description);
+      const normalizedPlaceIdRaw =
+        typeof suggestion.place_id === 'string' && suggestion.place_id.trim().length > 0
+          ? suggestion.place_id.trim()
+          : (suggestion as { id?: string }).id &&
+              typeof (suggestion as { id?: string }).id === 'string'
+            ? ((suggestion as { id?: string }).id as string).trim()
+            : '';
+      const normalizedPlaceId = normalizedPlaceIdRaw || null;
+      const suggestionProvider =
+        typeof suggestion.provider === 'string' && suggestion.provider.trim().length > 0
+          ? suggestion.provider.trim().toLowerCase()
+          : undefined;
 
-    const normalizedPlaceIdRaw =
-      typeof suggestion.place_id === 'string' && suggestion.place_id.trim().length > 0
-        ? suggestion.place_id.trim()
-        : (suggestion as { id?: string }).id && typeof (suggestion as { id?: string }).id === 'string'
-          ? ((suggestion as { id?: string }).id as string).trim()
-          : '';
-    const normalizedPlaceId = normalizedPlaceIdRaw || null;
-    const suggestionProvider =
-      typeof suggestion.provider === 'string' && suggestion.provider.trim().length > 0
-        ? suggestion.provider.trim().toLowerCase()
-        : undefined;
+      addressDetailsAbortRef.current?.abort();
 
-    addressDetailsAbortRef.current?.abort();
+      if (!normalizedPlaceId) {
+        const fallbackFields: AddressFields = {
+          line1: fallbackFromDescription.line1 ?? '',
+          city: fallbackFromDescription.city ?? '',
+          state: toStateCode(fallbackFromDescription.state),
+          postalCode: fallbackFromDescription.postalCode ?? '',
+          country: fallbackFromDescription.country ?? '',
+        };
 
-    if (!normalizedPlaceId) {
-      const fallbackFields: AddressFields = {
-        line1: fallbackFromDescription.line1 ?? '',
-        city: fallbackFromDescription.city ?? '',
-        state: toStateCode(fallbackFromDescription.state),
-        postalCode: fallbackFromDescription.postalCode ?? '',
-        country: fallbackFromDescription.country ?? '',
-      };
+        setAddressFields(fallbackFields);
+        setAddressCoords({ lat: null, lng: null, placeId: null });
+        setIsEditingLocation(false);
+        lastLocationRef.current = '';
+        addressDetailsAbortRef.current = null;
+        return;
+      }
 
-      setAddressFields(fallbackFields);
-      setAddressCoords({ lat: null, lng: null, placeId: null });
-      setIsEditingLocation(false);
-      lastLocationRef.current = '';
-      addressDetailsAbortRef.current = null;
-      return;
-    }
+      const cacheKey = `${suggestionProvider ?? 'default'}:${normalizedPlaceId}`;
+      const cached = addressDetailsCacheRef.current.get(cacheKey);
+      if (cached) {
+        setAddressFields(cached.fields);
+        setAddressCoords({
+          lat: cached.lat ?? null,
+          lng: cached.lng ?? null,
+          placeId: cached.placeId ?? null,
+        });
+        setIsEditingLocation(false);
+        lastLocationRef.current = '';
+        addressDetailsAbortRef.current = null;
+        return;
+      }
 
-    const cacheKey = `${suggestionProvider ?? 'default'}:${normalizedPlaceId}`;
-    const cached = addressDetailsCacheRef.current.get(cacheKey);
-    if (cached) {
-      setAddressFields(cached.fields);
-      setAddressCoords({
-        lat: cached.lat ?? null,
-        lng: cached.lng ?? null,
-        placeId: cached.placeId ?? null,
-      });
-      setIsEditingLocation(false);
-      lastLocationRef.current = '';
-      addressDetailsAbortRef.current = null;
-      return;
-    }
+      const controller = new AbortController();
+      addressDetailsAbortRef.current = controller;
 
-    const controller = new AbortController();
-    addressDetailsAbortRef.current = controller;
+      const details = await fetchPlaceDetails(
+        normalizedPlaceId,
+        controller.signal,
+        suggestionProvider
+      );
+      if (controller.signal.aborted) {
+        return;
+      }
 
-    const details = await fetchPlaceDetails(normalizedPlaceId, controller.signal, suggestionProvider);
-    if (controller.signal.aborted) {
-      return;
-    }
+      let parsedDetails = details ? parseAddressComponents(details) : null;
 
-    let parsedDetails = details ? parseAddressComponents(details) : null;
-
-    if (!parsedDetails && suggestionProvider) {
-      // Provider rejected; attempt a one-time retry using provider inferred from id prefix.
-      const prefixMatch = normalizedPlaceIdRaw.match(/^(google|mapbox|mock):(.+)$/i);
-      if (prefixMatch) {
-        const [, providerFragment, idFragment] = prefixMatch;
-        if (providerFragment && idFragment) {
-          const inferredProvider = providerFragment.toLowerCase();
-          const inferredId = idFragment;
-          const retryKey = `${inferredProvider}:${inferredId}`;
-          const retryCacheHit = addressDetailsCacheRef.current.get(retryKey);
-          if (retryCacheHit) {
-            parsedDetails = {
-              fields: retryCacheHit.fields,
-              ...(retryCacheHit.formatted ? { formatted: retryCacheHit.formatted } : {}),
-              ...(retryCacheHit.lat != null ? { lat: retryCacheHit.lat } : {}),
-              ...(retryCacheHit.lng != null ? { lng: retryCacheHit.lng } : {}),
-              ...(retryCacheHit.placeId ? { placeId: retryCacheHit.placeId } : {}),
-            };
-          } else {
-            const retryController = new AbortController();
-            addressDetailsAbortRef.current = retryController;
-            const retryDetails = await fetchPlaceDetails(
-              inferredId,
-              retryController.signal,
-              inferredProvider,
-            );
-            if (!retryController.signal.aborted && retryDetails) {
-              const parsedRetry = parseAddressComponents(retryDetails);
-              parsedDetails = parsedRetry;
-              const normalizedRetryFields: AddressFields = {
-                line1: parsedRetry.fields.line1 ?? '',
-                city: parsedRetry.fields.city ?? '',
-                state: toStateCode(parsedRetry.fields.state),
-                postalCode: parsedRetry.fields.postalCode ?? '',
-                country: parsedRetry.fields.country ?? '',
+      if (!parsedDetails && suggestionProvider) {
+        // Provider rejected; attempt a one-time retry using provider inferred from id prefix.
+        const prefixMatch = normalizedPlaceIdRaw.match(/^(google|mapbox|mock):(.+)$/i);
+        if (prefixMatch) {
+          const [, providerFragment, idFragment] = prefixMatch;
+          if (providerFragment && idFragment) {
+            const inferredProvider = providerFragment.toLowerCase();
+            const inferredId = idFragment;
+            const retryKey = `${inferredProvider}:${inferredId}`;
+            const retryCacheHit = addressDetailsCacheRef.current.get(retryKey);
+            if (retryCacheHit) {
+              parsedDetails = {
+                fields: retryCacheHit.fields,
+                ...(retryCacheHit.formatted ? { formatted: retryCacheHit.formatted } : {}),
+                ...(retryCacheHit.lat != null ? { lat: retryCacheHit.lat } : {}),
+                ...(retryCacheHit.lng != null ? { lng: retryCacheHit.lng } : {}),
+                ...(retryCacheHit.placeId ? { placeId: retryCacheHit.placeId } : {}),
               };
-              addressDetailsCacheRef.current.set(retryKey, {
-                fields: normalizedRetryFields,
-                ...(parsedRetry.formatted
-                  ? { formatted: parsedRetry.formatted }
-                  : { formatted: formatFullAddress(normalizedRetryFields) }),
-                ...(parsedRetry.lat != null ? { lat: parsedRetry.lat } : {}),
-                ...(parsedRetry.lng != null ? { lng: parsedRetry.lng } : {}),
-                ...(parsedRetry.placeId ? { placeId: parsedRetry.placeId } : {}),
-              });
+            } else {
+              const retryController = new AbortController();
+              addressDetailsAbortRef.current = retryController;
+              const retryDetails = await fetchPlaceDetails(
+                inferredId,
+                retryController.signal,
+                inferredProvider
+              );
+              if (!retryController.signal.aborted && retryDetails) {
+                const parsedRetry = parseAddressComponents(retryDetails);
+                parsedDetails = parsedRetry;
+                const normalizedRetryFields: AddressFields = {
+                  line1: parsedRetry.fields.line1 ?? '',
+                  city: parsedRetry.fields.city ?? '',
+                  state: toStateCode(parsedRetry.fields.state),
+                  postalCode: parsedRetry.fields.postalCode ?? '',
+                  country: parsedRetry.fields.country ?? '',
+                };
+                addressDetailsCacheRef.current.set(retryKey, {
+                  fields: normalizedRetryFields,
+                  ...(parsedRetry.formatted
+                    ? { formatted: parsedRetry.formatted }
+                    : { formatted: formatFullAddress(normalizedRetryFields) }),
+                  ...(parsedRetry.lat != null ? { lat: parsedRetry.lat } : {}),
+                  ...(parsedRetry.lng != null ? { lng: parsedRetry.lng } : {}),
+                  ...(parsedRetry.placeId ? { placeId: parsedRetry.placeId } : {}),
+                });
+              }
             }
           }
         }
       }
-    }
 
-    const fields = parsedDetails?.fields ?? {};
-    const formatted = parsedDetails?.formatted;
+      const fields = parsedDetails?.fields ?? {};
+      const formatted = parsedDetails?.formatted;
 
-    const appliedFields: AddressFields = {
-      line1: fields.line1 ?? fallbackFromDescription.line1 ?? description,
-      city: fields.city ?? fallbackFromDescription.city ?? '',
-      state: toStateCode(fields.state ?? fallbackFromDescription.state),
-      postalCode: fields.postalCode ?? fallbackFromDescription.postalCode ?? '',
-      country: fields.country ?? fallbackFromDescription.country ?? '',
-    };
+      const appliedFields: AddressFields = {
+        line1: fields.line1 ?? fallbackFromDescription.line1 ?? description,
+        city: fields.city ?? fallbackFromDescription.city ?? '',
+        state: toStateCode(fields.state ?? fallbackFromDescription.state),
+        postalCode: fields.postalCode ?? fallbackFromDescription.postalCode ?? '',
+        country: fields.country ?? fallbackFromDescription.country ?? '',
+      };
 
-    const mergedFields: AddressFields = appliedFields;
-    const normalizedMergedFields: AddressFields = {
-      ...mergedFields,
-      state: toStateCode(mergedFields.state),
-    };
+      const mergedFields: AddressFields = appliedFields;
+      const normalizedMergedFields: AddressFields = {
+        ...mergedFields,
+        state: toStateCode(mergedFields.state),
+      };
 
-    const normalizedCoords: AddressCoords = {
-      lat: parsedDetails?.lat ?? null,
-      lng: parsedDetails?.lng ?? null,
-      placeId: parsedDetails?.placeId ?? normalizedPlaceId,
-    };
+      const normalizedCoords: AddressCoords = {
+        lat: parsedDetails?.lat ?? null,
+        lng: parsedDetails?.lng ?? null,
+        placeId: parsedDetails?.placeId ?? normalizedPlaceId,
+      };
 
-    addressDetailsCacheRef.current.set(cacheKey, {
-      fields: normalizedMergedFields,
-      formatted: formatted ?? formatFullAddress(normalizedMergedFields),
-      ...(normalizedCoords.lat != null ? { lat: normalizedCoords.lat } : {}),
-      ...(normalizedCoords.lng != null ? { lng: normalizedCoords.lng } : {}),
-      ...(normalizedCoords.placeId ? { placeId: normalizedCoords.placeId } : {}),
-    });
+      addressDetailsCacheRef.current.set(cacheKey, {
+        fields: normalizedMergedFields,
+        formatted: formatted ?? formatFullAddress(normalizedMergedFields),
+        ...(normalizedCoords.lat != null ? { lat: normalizedCoords.lat } : {}),
+        ...(normalizedCoords.lng != null ? { lng: normalizedCoords.lng } : {}),
+        ...(normalizedCoords.placeId ? { placeId: normalizedCoords.placeId } : {}),
+      });
 
-    setAddressFields(normalizedMergedFields);
-    setAddressCoords(normalizedCoords);
-    const hasStructuredAddress =
-      normalizedMergedFields.city &&
-      normalizedMergedFields.state &&
-      normalizedMergedFields.postalCode;
+      setAddressFields(normalizedMergedFields);
+      setAddressCoords(normalizedCoords);
+      const hasStructuredAddress =
+        normalizedMergedFields.city &&
+        normalizedMergedFields.state &&
+        normalizedMergedFields.postalCode;
 
-    if (hasStructuredAddress) {
-      setAddressDetailsError(null);
-    } else {
-      setAddressDetailsError("Couldn't fetch address details");
-    }
-    setIsEditingLocation(false);
-    lastLocationRef.current = '';
-    addressDetailsAbortRef.current = null;
-  }, [fetchPlaceDetails, isTravelLocation, parseAddressComponents, parseDescriptionFallback]);
+      if (hasStructuredAddress) {
+        setAddressDetailsError(null);
+      } else {
+        setAddressDetailsError("Couldn't fetch address details");
+      }
+      setIsEditingLocation(false);
+      lastLocationRef.current = '';
+      addressDetailsAbortRef.current = null;
+    },
+    [fetchPlaceDetails, isTravelLocation, parseAddressComponents, parseDescriptionFallback]
+  );
 
   if (process.env.NODE_ENV !== 'production') {
     logger.info('PaymentConfirmation component rendered', {
@@ -707,15 +742,16 @@ function PaymentConfirmationInner({
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
   // Auto-collapse location if they have a saved address or it's online
-  const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedTravelLocation && !isOnlineLesson);
+  const [isLocationExpanded, setIsLocationExpanded] = useState(
+    !hasSavedTravelLocation && !isOnlineLesson
+  );
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
 
   // Server-authoritative credit value
   const serverCreditCents = pricingPreview?.credit_applied_cents ?? null;
-  const derivedAppliedCreditCents = serverCreditCents != null
-    ? Math.max(0, serverCreditCents)
-    : creditsUsedCents;
+  const derivedAppliedCreditCents =
+    serverCreditCents != null ? Math.max(0, serverCreditCents) : creditsUsedCents;
 
   // Slider drag state - only set during active drag, null otherwise
   // This eliminates the useEffect sync that caused extra renders
@@ -812,7 +848,13 @@ function PaymentConfirmationInner({
         : null,
       showFeesPlaceholder: Boolean(pricingPreviewError),
     };
-  }, [booking.basePrice, pricingPreview, pricingConfig, displayAppliedCreditCents, pricingPreviewError]);
+  }, [
+    booking.basePrice,
+    pricingPreview,
+    pricingConfig,
+    displayAppliedCreditCents,
+    pricingPreviewError,
+  ]);
 
   // Destructure to match existing JSX
   const {
@@ -939,7 +981,8 @@ function PaymentConfirmationInner({
     if (!startHHMM24) {
       return booking.startTime ? String(booking.startTime) : 'Time to be confirmed';
     }
-    const endHHMM24 = computedEndHHMM24 || (durationMinutes ? addMinutesHHMM(startHHMM24, durationMinutes) : null);
+    const endHHMM24 =
+      computedEndHHMM24 || (durationMinutes ? addMinutesHHMM(startHHMM24, durationMinutes) : null);
     if (!endHHMM24) {
       return startHHMM24;
     }
@@ -974,14 +1017,14 @@ function PaymentConfirmationInner({
         CONFLICT_RELEVANT_STATUSES,
         to24HourTime,
         minutesSinceHHMM,
-        overlapsHHMM,
-      ),
+        overlapsHHMM
+      )
     );
   }, []);
 
   const selectedModality = useMemo<NormalizedModality>(
     () => (isOnlineLesson ? 'online' : 'in_person'),
-    [isOnlineLesson],
+    [isOnlineLesson]
   );
   const inputsDisabled = hasSavedTravelLocation && !isEditingLocation;
   const instructorFirstName = useMemo(() => {
@@ -1039,11 +1082,7 @@ function PaymentConfirmationInner({
       return fallbackNonOnlineLocation;
     }
     return ADDRESS_PLACEHOLDER;
-  }, [
-    fallbackNonOnlineLocation,
-    formattedAddress,
-    locationType,
-  ]);
+  }, [fallbackNonOnlineLocation, formattedAddress, locationType]);
 
   const handleChangeLocationClick = () => {
     setIsLocationExpanded(true);
@@ -1146,7 +1185,7 @@ function PaymentConfirmationInner({
       booking.duration,
       selectedModality,
       computePriceFloorCents,
-      computeBasePriceCents,
+      computeBasePriceCents
     );
   }, [pricingFloors, hourlyRate, booking.duration, selectedModality]);
 
@@ -1183,7 +1222,9 @@ function PaymentConfirmationInner({
 
   const creditsAccordionPanelId = useId();
   const isCreditsExpandedControlled = typeof creditsAccordionExpanded === 'boolean';
-  const [internalCreditsExpanded, setInternalCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
+  const [internalCreditsExpanded, setInternalCreditsExpanded] = useState(
+    () => derivedAppliedCreditCents > 0
+  );
 
   useEffect(() => {
     if (!isCreditsExpandedControlled && derivedAppliedCreditCents > 0 && !internalCreditsExpanded) {
@@ -1202,7 +1243,10 @@ function PaymentConfirmationInner({
     }
     onCreditsAccordionToggle?.(next);
   }, [creditsAccordionIsExpanded, isCreditsExpandedControlled, onCreditsAccordionToggle]);
-  const creditsAppliedLabel = useMemo(() => `Using $${appliedCreditDollars.toFixed(2)}`, [appliedCreditDollars]);
+  const creditsAppliedLabel = useMemo(
+    () => `Using $${appliedCreditDollars.toFixed(2)}`,
+    [appliedCreditDollars]
+  );
   const previewAppliedCreditCents = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
   const collapsedHasCredits = !creditsAccordionIsExpanded && previewAppliedCreditCents > 0;
 
@@ -1235,7 +1279,10 @@ function PaymentConfirmationInner({
 
     setLocationType(nextLocationType);
 
-    if ((nextLocationType === 'student_location' || nextLocationType === 'neutral_location') && sanitizedLocation) {
+    if (
+      (nextLocationType === 'student_location' || nextLocationType === 'neutral_location') &&
+      sanitizedLocation
+    ) {
       setAddressFields((prev) => {
         if (prev.line1 || prev.city || prev.state || prev.postalCode) {
           return prev;
@@ -1405,13 +1452,18 @@ function PaymentConfirmationInner({
         }
         const services = data.services || [];
         if (services.length) {
-          setInstructorServices(services.map((service) => ({
-            ...service,
-            description: service.description ?? null
-          } as InstructorService)));
+          setInstructorServices(
+            services.map(
+              (service) =>
+                ({
+                  ...service,
+                  description: service.description ?? null,
+                }) as InstructorService
+            )
+          );
           logger.debug('Fetched instructor services', {
             services,
-            instructorId: booking.instructorId
+            instructorId: booking.instructorId,
           });
         }
       } catch (error) {
@@ -1447,9 +1499,7 @@ function PaymentConfirmationInner({
       selection.locationType === 'student_location' && locationType === 'neutral_location'
         ? 'neutral_location'
         : selection.locationType;
-    const nextBasePrice = Number(
-      ((selection.hourlyRate * selection.duration) / 60).toFixed(2),
-    );
+    const nextBasePrice = Number(((selection.hourlyRate * selection.duration) / 60).toFixed(2));
     const persistedTravelLocation =
       formattedAddress ||
       fallbackNonOnlineLocation ||
@@ -1490,12 +1540,10 @@ function PaymentConfirmationInner({
       endTime: newEndTime,
       duration: selection.duration,
       location: nextLocation,
-      basePrice: Number.isFinite(nextBasePrice) && nextBasePrice > 0
-        ? nextBasePrice
-        : booking.basePrice,
-      totalAmount: Number.isFinite(nextBasePrice) && nextBasePrice > 0
-        ? nextBasePrice
-        : booking.totalAmount,
+      basePrice:
+        Number.isFinite(nextBasePrice) && nextBasePrice > 0 ? nextBasePrice : booking.basePrice,
+      totalAmount:
+        Number.isFinite(nextBasePrice) && nextBasePrice > 0 ? nextBasePrice : booking.totalAmount,
       metadata: {
         ...((booking as BookingWithMetadata).metadata ?? {}),
         modality: nextLocationType === 'online' ? 'remote' : 'in_person',
@@ -1536,814 +1584,886 @@ function PaymentConfirmationInner({
         {/* Left Column - Confirm Details - 60% width */}
         <div className="w-[60%] bg-white/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-700/80 rounded-lg p-6 order-2 md:order-1">
           {/* Payment method slot — rendered when embedded externally (inline checkout) */}
-          {paymentMethodSlot && (
-            <div className="mb-6">{paymentMethodSlot}</div>
-          )}
+          {paymentMethodSlot && <div className="mb-6">{paymentMethodSlot}</div>}
 
-
-        {/* Payment Method — hidden when managed externally (inline checkout) */}
-        {!hidePaymentMethod && (
-        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
-          <div
-            className="flex items-center justify-between cursor-pointer"
-            onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
-          >
-            <div className="flex items-center gap-3 flex-1">
-              <h4 className="font-bold text-xl">Payment Method</h4>
-              {!isPaymentExpanded && hasSavedCard && (
-                <span className="text-sm text-gray-600 dark:text-gray-400">•••• {cardLast4}</span>
-              )}
-            </div>
-            <ChevronDown
-              className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
-                isPaymentExpanded ? 'rotate-180' : ''
-              }`}
-            />
-          </div>
-
-          {/* Credit Card Fields */}
-          {isPaymentExpanded && (
-          <div className="space-y-3 mt-3">
-            {hasSavedCard ? (
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{cardBrand} ending in {cardLast4}</span>
-                    {isDefaultCard && (
-                      <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">Default</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onChangePaymentMethod) {
-                        onChangePaymentMethod();
-                      }
-                    }}
-                    className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
-                  >
-                    Change
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Card Number
-              </label>
-              <input
-                type="text"
-                placeholder="1234 5678 9012 3456"
-                className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                style={{ outline: 'none' }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Expiry Date
-                </label>
-                <input
-                  type="text"
-                  placeholder="MM/YY"
-                  className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                  style={{ outline: 'none' }}
-                />
-              </div>
-
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Name on Card
-              </label>
-              <input
-                type="text"
-                placeholder="John Doe"
-                className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                style={{ outline: 'none' }}
-              />
-            </div>
-
-            {/* Billing Address */}
-            <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-700">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Billing Address
-              </label>
-
-              <div className="space-y-3">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Address"
-                    className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                    style={{ outline: 'none' }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-6 gap-3">
-                  <input
-                    type="text"
-                    placeholder="City"
-                    className="col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                    style={{ outline: 'none' }}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="State"
-                    className="col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                    style={{ outline: 'none' }}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="ZIP Code"
-                    className="col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                    style={{ outline: 'none' }}
-                  />
-                </div>
-
-                <div>
-                  <select
-                    className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:border-purple-500 transition-colors"
-                    style={{ outline: 'none' }}
-                    defaultValue="US"
-                  >
-                    <option value="US">United States</option>
-                    <option value="CA">Canada</option>
-                    <option value="MX">Mexico</option>
-                    <option value="GB">United Kingdom</option>
-                    <option value="FR">France</option>
-                    <option value="DE">Germany</option>
-                    <option value="IT">Italy</option>
-                    <option value="ES">Spain</option>
-                    <option value="NL">Netherlands</option>
-                    <option value="BE">Belgium</option>
-                    <option value="CH">Switzerland</option>
-                    <option value="AT">Austria</option>
-                    <option value="SE">Sweden</option>
-                    <option value="NO">Norway</option>
-                    <option value="DK">Denmark</option>
-                    <option value="FI">Finland</option>
-                    <option value="PL">Poland</option>
-                    <option value="PT">Portugal</option>
-                    <option value="IE">Ireland</option>
-                    <option value="CZ">Czech Republic</option>
-                    <option value="GR">Greece</option>
-                    <option value="RO">Romania</option>
-                    <option value="HU">Hungary</option>
-                    <option value="AU">Australia</option>
-                    <option value="NZ">New Zealand</option>
-                    <option value="JP">Japan</option>
-                    <option value="KR">South Korea</option>
-                    <option value="CN">China</option>
-                    <option value="IN">India</option>
-                    <option value="SG">Singapore</option>
-                    <option value="MY">Malaysia</option>
-                    <option value="TH">Thailand</option>
-                    <option value="ID">Indonesia</option>
-                    <option value="PH">Philippines</option>
-                    <option value="VN">Vietnam</option>
-                    <option value="BR">Brazil</option>
-                    <option value="AR">Argentina</option>
-                    <option value="CL">Chile</option>
-                    <option value="CO">Colombia</option>
-                    <option value="PE">Peru</option>
-                    <option value="VE">Venezuela</option>
-                    <option value="ZA">South Africa</option>
-                    <option value="EG">Egypt</option>
-                    <option value="NG">Nigeria</option>
-                    <option value="KE">Kenya</option>
-                    <option value="MA">Morocco</option>
-                    <option value="IL">Israel</option>
-                    <option value="AE">United Arab Emirates</option>
-                    <option value="SA">Saudi Arabia</option>
-                    <option value="TR">Turkey</option>
-                    <option value="RU">Russia</option>
-                    <option value="UA">Ukraine</option>
-                    <option value="PK">Pakistan</option>
-                    <option value="BD">Bangladesh</option>
-                    <option value="LK">Sri Lanka</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center mt-3">
-              <input
-                type="checkbox"
-                id="save-card"
-                className="w-4 h-4 text-(--color-brand-dark) border-gray-300 dark:border-gray-700 rounded focus:ring-(--color-brand-dark)"
-              />
-              <label htmlFor="save-card" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                Save card for future payments
-              </label>
-            </div>
-
-            </>
-            )}
-          </div>
-          )}
-
-          {isPaymentExpanded && (
-            <>
-            {paymentMethod === PaymentMethod.CREDITS ? (
-              <p className="text-sm mt-3">Using platform credits</p>
-            ) : paymentMethod === PaymentMethod.MIXED ? (
-              <div className="text-sm space-y-1 mt-3">
-                <p>Credits: ${appliedCreditDollars.toFixed(2)}</p>
-                <p>Card amount: ${cardCharge.toFixed(2)}</p>
-              </div>
-            ) : null}
-            </>
-          )}
-        </div>
-        )}
-
-        {/* Promo Code Section — always visible */}
-        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
-          <h4 className="font-bold text-xl mb-3">Promo Code</h4>
-          {referralActive ? (
-            <div className="flex items-start gap-2 rounded-lg border border-(--color-brand-dark)/20 bg-(--color-brand-dark)/5 dark:bg-(--color-brand-dark)/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
-              <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
-              <p>Referral credit applied — promotions can&apos;t be combined.</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter promo code"
-                  value={promoCode}
-                  onChange={(event) => handlePromoInputChange(event.target.value)}
-                  disabled={promoActive}
-                  className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-800"
-                  style={{ outline: 'none' }}
-                />
-                <button
-                  type="button"
-                  onClick={handlePromoAction}
-                  className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={promoApplyDisabled}
-                >
-                  {promoActive ? 'Remove' : 'Apply'}
-                </button>
-              </div>
-              {promoError && (
-                <p className="mt-2 text-xs text-red-600 dark:text-red-400">{promoError}</p>
-              )}
-              {promoActive && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Promo applied. Referral credit is disabled while a promo code is active.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Available Credits Section - with interactive toggle and slider */}
-        {availableCredits > 0 && (
-          <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-3 cursor-pointer select-none"
-                onClick={handleCreditsAccordionToggle}
-                aria-expanded={creditsAccordionIsExpanded}
-                aria-controls={creditsAccordionPanelId}
+          {/* Payment Method — hidden when managed externally (inline checkout) */}
+          {!hidePaymentMethod && (
+            <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
+              <div
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
               >
-                <div className="flex-1 text-left">
-                  <h4 className="font-bold text-xl">Available Credits</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Balance: ${availableCredits.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{creditsAppliedLabel}</p>
-                  {collapsedHasCredits && (
-                    <span className="sr-only">
-                      Using {formatCentsToDisplay(previewAppliedCreditCents)}
+                <div className="flex items-center gap-3 flex-1">
+                  <h4 className="font-bold text-xl">Payment Method</h4>
+                  {!isPaymentExpanded && hasSavedCard && (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      •••• {cardLast4}
                     </span>
                   )}
                 </div>
                 <ChevronDown
                   className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
-                    creditsAccordionIsExpanded ? 'rotate-180' : ''
+                    isPaymentExpanded ? 'rotate-180' : ''
                   }`}
                 />
-              </button>
-            </div>
-
-            {creditsAccordionIsExpanded && (
-              <div
-                id={creditsAccordionPanelId}
-                className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg space-y-3"
-                aria-hidden={!creditsAccordionIsExpanded}
-              >
-                <div className="flex items-center justify-between text-sm">
-                  <span>Credits to apply:</span>
-                  <span className="font-medium">${appliedCreditDollars.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max={Math.min(availableCredits, totalBeforeCreditsDollars)}
-                  step="1"
-                  value={appliedCreditDollars}
-                  onChange={(e) => {
-                    const newValue = Number(e.target.value);
-                    if (Number.isFinite(newValue)) {
-                      // Set drag value for immediate visual feedback
-                      setSliderDragCents(Math.max(0, Math.round(newValue * 100)));
-                    }
-                  }}
-                  onMouseUp={(e) => {
-                    // Commit: call API and clear drag state so display falls back to server value
-                    const newValue = Number((e.target as HTMLInputElement).value);
-                    if (Number.isFinite(newValue)) {
-                      onCreditAmountChange?.(newValue);
-                      setSliderDragCents(null);
-                    }
-                  }}
-                  onTouchEnd={(e) => {
-                    // Same for touch: commit and clear drag state
-                    const newValue = Number((e.target as HTMLInputElement).value);
-                    if (Number.isFinite(newValue)) {
-                      onCreditAmountChange?.(newValue);
-                      setSliderDragCents(null);
-                    }
-                  }}
-                  className="w-full accent-purple-700"
-                />
-                <div className="flex items-start justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>
-                    {displayAppliedCreditCents >= totalBeforeCreditsCents
-                      ? 'Entire lesson covered by credits!'
-                      : `Remaining balance: $${remainingBalanceDollars.toFixed(2)}`}
-                  </span>
-                  {onCreditToggle && (
-                    <button
-                      type="button"
-                      onClick={onCreditToggle}
-                      className="text-(--color-brand-dark) font-medium"
-                    >
-                      {displayAppliedCreditCents > 0 ? 'Remove credits' : 'Apply full balance'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {creditEarliestExpiry
-                ? `Earliest credit expiry: ${new Date(creditEarliestExpiry).toLocaleDateString()}`
-                : 'Credits expire 12 months after issue date'}
-            </p>
-          </div>
-        )}
-
-        {/* Lesson Location */}
-        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
-          <div
-            className="flex items-center justify-between cursor-pointer"
-            onClick={() => setIsLocationExpanded(!isLocationExpanded)}
-          >
-            <div className="flex items-center gap-3 flex-1">
-              <h4 className="font-bold text-xl">Lesson Location</h4>
-              {!isLocationExpanded && (
-                <span className="text-sm text-gray-600 dark:text-gray-400">{resolvedMeetingLocation}</span>
-              )}
-            </div>
-            <ChevronDown
-              className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
-                isLocationExpanded ? 'rotate-180' : ''
-              }`}
-            />
-          </div>
-
-          {isLocationExpanded && (
-            <div className="mt-4 space-y-5">
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
-                  >
-                    {formatSummary.label}
-                  </span>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {formatSummary.description}
-                  </span>
-                </div>
               </div>
 
-              {locationType === 'online' && (
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
-                  <p>This lesson will take place by video through the platform.</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    You&apos;ll receive the join details before the session starts.
-                  </p>
-                </div>
-              )}
-
-              {locationType === 'instructor_location' && (
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
-                  Instructor address is shared after booking confirmation.
-                </div>
-              )}
-
-              {isTravelLocation && (
-                <div className="space-y-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Where should {instructorFirstName} meet you?
-                  </p>
-
-                  {showCustomLocationInputs && isEditingLocation && (
-                    <AddressSelector
-                      instructorId={booking.instructorId}
-                      locationType={
-                        locationType === 'neutral_location'
-                          ? 'neutral_location'
-                          : 'student_location'
-                      }
-                      selectedAddress={selectedSavedAddress}
-                      onSelectAddress={handleSelectSavedAddress}
-                      onEnterNewAddress={handleEnterNewAddress}
-                    />
-                  )}
-
-                  {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
+              {/* Credit Card Fields */}
+              {isPaymentExpanded && (
+                <div className="space-y-3 mt-3">
+                  {hasSavedCard ? (
                     <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Saved address</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            {cardBrand} ending in {cardLast4}
+                          </span>
+                          {isDefaultCard && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">
+                              Default
+                            </span>
+                          )}
                         </div>
                         <button
-                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onChangePaymentMethod) {
+                              onChangePaymentMethod();
+                            }
+                          }}
                           className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
-                          onClick={handleChangeLocationClick}
                         >
                           Change
                         </button>
                       </div>
                     </div>
-                  )}
-
-                  {showCustomLocationInputs && (
-                    <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
-                      <PlacesAutocompleteInput
-                        ref={addressLine1Ref}
-                        value={addressFields.line1}
-                        onValueChange={(next) => {
-                          setAddressField({ line1: next });
-                          setIsEditingLocation(true);
-                          setAddressDetailsError(null);
-                        }}
-                        onSelectSuggestion={(suggestion: PlaceSuggestion) => {
-                          void handleAddressSuggestionSelect(suggestion);
-                        }}
-                        placeholder={ADDRESS_PLACEHOLDER}
-                        disabled={inputsDisabled}
-                        autoComplete="off"
-                        suggestionScope="global"
-                        containerClassName="w-full"
-                        inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
-                          inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                        }`}
-                        style={{ outline: 'none' }}
-                        inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
-                      />
-                      {addressDetailsError && (
-                        <p className="text-xs text-red-600" role="alert">
-                          {addressDetailsError}
-                        </p>
-                      )}
-
-                      <div className="grid grid-cols-6 gap-3">
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Card Number
+                        </label>
                         <input
                           type="text"
-                          placeholder="City"
-                          aria-label="City"
-                          data-testid="addr-city"
-                          disabled={inputsDisabled}
-                          value={addressFields.city}
-                          onChange={(e) => {
-                            setAddressField({ city: e.target.value });
-                            setIsEditingLocation(true);
-                            setAddressDetailsError(null);
-                          }}
-                          className={`col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
-                          }`}
-                          style={{ outline: 'none' }}
-                        />
-
-                        <input
-                          type="text"
-                          placeholder="State"
-                          aria-label="State"
-                          data-testid="addr-state"
-                          disabled={inputsDisabled}
-                          value={addressFields.state}
-                          onChange={(e) => {
-                            setAddressField({ state: e.target.value });
-                            setIsEditingLocation(true);
-                            setAddressDetailsError(null);
-                          }}
-                          className={`col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
-                          }`}
-                          style={{ outline: 'none' }}
-                        />
-
-                        <input
-                          type="text"
-                          placeholder="ZIP Code"
-                          aria-label="ZIP code"
-                          data-testid="addr-zip"
-                          disabled={inputsDisabled}
-                          value={addressFields.postalCode}
-                          onChange={(e) => {
-                            setAddressField({ postalCode: e.target.value });
-                            setIsEditingLocation(true);
-                            setAddressDetailsError(null);
-                          }}
-                          className={`col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
-                          }`}
+                          placeholder="1234 5678 9012 3456"
+                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                           style={{ outline: 'none' }}
                         />
                       </div>
-                    </div>
-                  )}
 
-                  {isOutsideServiceArea && !selectedSavedAddress && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                      <p className="font-medium">Location not covered</p>
-                      <p>
-                        This instructor doesn&#39;t serve this address. Choose a different location or
-                        use Edit lesson to switch to an online format.
-                      </p>
-                    </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Expiry Date
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="MM/YY"
+                            className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                            style={{ outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Name on Card
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="John Doe"
+                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                          style={{ outline: 'none' }}
+                        />
+                      </div>
+
+                      {/* Billing Address */}
+                      <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                          Billing Address
+                        </label>
+
+                        <div className="space-y-3">
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Address"
+                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              style={{ outline: 'none' }}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-6 gap-3">
+                            <input
+                              type="text"
+                              placeholder="City"
+                              className="col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              style={{ outline: 'none' }}
+                            />
+
+                            <input
+                              type="text"
+                              placeholder="State"
+                              className="col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              style={{ outline: 'none' }}
+                            />
+
+                            <input
+                              type="text"
+                              placeholder="ZIP Code"
+                              className="col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              style={{ outline: 'none' }}
+                            />
+                          </div>
+
+                          <div>
+                            <select
+                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:border-purple-500 transition-colors"
+                              style={{ outline: 'none' }}
+                              defaultValue="US"
+                            >
+                              <option value="US">United States</option>
+                              <option value="CA">Canada</option>
+                              <option value="MX">Mexico</option>
+                              <option value="GB">United Kingdom</option>
+                              <option value="FR">France</option>
+                              <option value="DE">Germany</option>
+                              <option value="IT">Italy</option>
+                              <option value="ES">Spain</option>
+                              <option value="NL">Netherlands</option>
+                              <option value="BE">Belgium</option>
+                              <option value="CH">Switzerland</option>
+                              <option value="AT">Austria</option>
+                              <option value="SE">Sweden</option>
+                              <option value="NO">Norway</option>
+                              <option value="DK">Denmark</option>
+                              <option value="FI">Finland</option>
+                              <option value="PL">Poland</option>
+                              <option value="PT">Portugal</option>
+                              <option value="IE">Ireland</option>
+                              <option value="CZ">Czech Republic</option>
+                              <option value="GR">Greece</option>
+                              <option value="RO">Romania</option>
+                              <option value="HU">Hungary</option>
+                              <option value="AU">Australia</option>
+                              <option value="NZ">New Zealand</option>
+                              <option value="JP">Japan</option>
+                              <option value="KR">South Korea</option>
+                              <option value="CN">China</option>
+                              <option value="IN">India</option>
+                              <option value="SG">Singapore</option>
+                              <option value="MY">Malaysia</option>
+                              <option value="TH">Thailand</option>
+                              <option value="ID">Indonesia</option>
+                              <option value="PH">Philippines</option>
+                              <option value="VN">Vietnam</option>
+                              <option value="BR">Brazil</option>
+                              <option value="AR">Argentina</option>
+                              <option value="CL">Chile</option>
+                              <option value="CO">Colombia</option>
+                              <option value="PE">Peru</option>
+                              <option value="VE">Venezuela</option>
+                              <option value="ZA">South Africa</option>
+                              <option value="EG">Egypt</option>
+                              <option value="NG">Nigeria</option>
+                              <option value="KE">Kenya</option>
+                              <option value="MA">Morocco</option>
+                              <option value="IL">Israel</option>
+                              <option value="AE">United Arab Emirates</option>
+                              <option value="SA">Saudi Arabia</option>
+                              <option value="TR">Turkey</option>
+                              <option value="RU">Russia</option>
+                              <option value="UA">Ukraine</option>
+                              <option value="PK">Pakistan</option>
+                              <option value="BD">Bangladesh</option>
+                              <option value="LK">Sri Lanka</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center mt-3">
+                        <input
+                          type="checkbox"
+                          id="save-card"
+                          className="w-4 h-4 text-(--color-brand-dark) border-gray-300 dark:border-gray-700 rounded focus:ring-(--color-brand-dark)"
+                        />
+                        <label
+                          htmlFor="save-card"
+                          className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                        >
+                          Save card for future payments
+                        </label>
+                      </div>
+                    </>
                   )}
                 </div>
+              )}
+
+              {isPaymentExpanded && (
+                <>
+                  {paymentMethod === PaymentMethod.CREDITS ? (
+                    <p className="text-sm mt-3">Using platform credits</p>
+                  ) : paymentMethod === PaymentMethod.MIXED ? (
+                    <div className="text-sm space-y-1 mt-3">
+                      <p>Credits: ${appliedCreditDollars.toFixed(2)}</p>
+                      <p>Card amount: ${cardCharge.toFixed(2)}</p>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           )}
-        </div>
 
-        {activeFloorMessage && (
-          <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-red-700 dark:text-red-300">
-                <p>{activeFloorMessage}</p>
-                <p className="mt-1">Adjust the lesson duration or choose a different modality to continue.</p>
+          {/* Promo Code Section — always visible */}
+          <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
+            <h4 className="font-bold text-xl mb-3">Promo Code</h4>
+            {referralActive ? (
+              <div className="flex items-start gap-2 rounded-lg border border-(--color-brand-dark)/20 bg-(--color-brand-dark)/5 dark:bg-(--color-brand-dark)/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
+                <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+                <p>Referral credit applied — promotions can&apos;t be combined.</p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Conflict Warning */}
-        {hasConflict && !isCheckingConflict && (
-          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-amber-800 dark:text-amber-300">
-                <p className="font-medium">Scheduling Conflict</p>
-                <p>{conflictMessage}</p>
-                <p className="mt-1">Please select a different time slot to continue.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {instructorAvailabilityError && (
-          <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-red-700 dark:text-red-300">
-                <p className="font-medium">Slot Unavailable</p>
-                <p>{instructorAvailabilityError}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Action Button */}
-        <div className="mt-6">
-          <button
-            onClick={onConfirm}
-            disabled={ctaDisabled}
-            data-testid="booking-confirm-cta"
-            className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
-              ctaDisabled
-                ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700'
-            }`}
-          >
-            {ctaLabel}
-          </button>
-        </div>
-
-        <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">
-          🔒 Secure payment • {!isLastMinute && 'Cancel free >24hrs'}
-        </p>
-      </div>
-
-      {/* Right Column - Booking Details - 40% width */}
-      <div className="w-[40%] bg-white/90 dark:bg-gray-800/70 rounded-lg p-6 border border-gray-200/80 dark:border-gray-700/80 order-1 md:order-2">
-        <h3 className="font-bold text-xl mb-4">Booking Your Lesson with</h3>
-        <div className="space-y-4">
-          <div className="flex items-start">
-            <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full mr-4"></div>
-            <div>
-              <h4 className="font-semibold">{booking.instructorName}</h4>
-              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                <span className="font-medium">4.8</span>
-                <span>·</span>
-                <span>47 reviews</span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter promo code"
+                    value={promoCode}
+                    onChange={(event) => handlePromoInputChange(event.target.value)}
+                    disabled={promoActive}
+                    className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-800"
+                    style={{ outline: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePromoAction}
+                    className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={promoApplyDisabled}
+                  >
+                    {promoActive ? 'Remove' : 'Apply'}
+                  </button>
+                </div>
+                {promoError && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400">{promoError}</p>
+                )}
+                {promoActive && (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Promo applied. Referral credit is disabled while a promo code is active.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <div className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Piano Lesson
+          {/* Available Credits Section - with interactive toggle and slider */}
+          {availableCredits > 0 && (
+            <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 cursor-pointer select-none"
+                  onClick={handleCreditsAccordionToggle}
+                  aria-expanded={creditsAccordionIsExpanded}
+                  aria-controls={creditsAccordionPanelId}
+                >
+                  <div className="flex-1 text-left">
+                    <h4 className="font-bold text-xl">Available Credits</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Balance: ${availableCredits.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {creditsAppliedLabel}
+                    </p>
+                    {collapsedHasCredits && (
+                      <span className="sr-only">
+                        Using {formatCentsToDisplay(previewAppliedCreditCents)}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown
+                    className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
+                      creditsAccordionIsExpanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {creditsAccordionIsExpanded && (
+                <div
+                  id={creditsAccordionPanelId}
+                  className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg space-y-3"
+                  aria-hidden={!creditsAccordionIsExpanded}
+                >
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Credits to apply:</span>
+                    <span className="font-medium">${appliedCreditDollars.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.min(availableCredits, totalBeforeCreditsDollars)}
+                    step="1"
+                    value={appliedCreditDollars}
+                    onChange={(e) => {
+                      const newValue = Number(e.target.value);
+                      if (Number.isFinite(newValue)) {
+                        // Set drag value for immediate visual feedback
+                        setSliderDragCents(Math.max(0, Math.round(newValue * 100)));
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      // Commit: call API and clear drag state so display falls back to server value
+                      const newValue = Number((e.target as HTMLInputElement).value);
+                      if (Number.isFinite(newValue)) {
+                        onCreditAmountChange?.(newValue);
+                        setSliderDragCents(null);
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      // Same for touch: commit and clear drag state
+                      const newValue = Number((e.target as HTMLInputElement).value);
+                      if (Number.isFinite(newValue)) {
+                        onCreditAmountChange?.(newValue);
+                        setSliderDragCents(null);
+                      }
+                    }}
+                    className="w-full accent-purple-700"
+                  />
+                  <div className="flex items-start justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {displayAppliedCreditCents >= totalBeforeCreditsCents
+                        ? 'Entire lesson covered by credits!'
+                        : `Remaining balance: $${remainingBalanceDollars.toFixed(2)}`}
+                    </span>
+                    {onCreditToggle && (
+                      <button
+                        type="button"
+                        onClick={onCreditToggle}
+                        className="text-(--color-brand-dark) font-medium"
+                      >
+                        {displayAppliedCreditCents > 0 ? 'Remove credits' : 'Apply full balance'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                {creditEarliestExpiry
+                  ? `Earliest credit expiry: ${new Date(creditEarliestExpiry).toLocaleDateString()}`
+                  : 'Credits expire 12 months after issue date'}
+              </p>
             </div>
-            <div className="flex items-center text-sm">
-              <Calendar size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
-              <span>{summaryDateLabel}</span>
+          )}
+
+          {/* Lesson Location */}
+          <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setIsLocationExpanded(!isLocationExpanded)}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                <h4 className="font-bold text-xl">Lesson Location</h4>
+                {!isLocationExpanded && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {resolvedMeetingLocation}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
+                  isLocationExpanded ? 'rotate-180' : ''
+                }`}
+              />
             </div>
-            <div className="flex items-center text-sm">
-              <Clock size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
-              <span>{summaryTimeLabel}</span>
+
+            {isLocationExpanded && (
+              <div className="mt-4 space-y-5">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
+                    >
+                      {formatSummary.label}
+                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {formatSummary.description}
+                    </span>
+                  </div>
+                </div>
+
+                {locationType === 'online' && (
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
+                    <p>This lesson will take place by video through the platform.</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      You&apos;ll receive the join details before the session starts.
+                    </p>
+                  </div>
+                )}
+
+                {locationType === 'instructor_location' && (
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
+                    Instructor address is shared after booking confirmation.
+                  </div>
+                )}
+
+                {isTravelLocation && (
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Where should {instructorFirstName} meet you?
+                    </p>
+
+                    {showCustomLocationInputs && isEditingLocation && (
+                      <AddressSelector
+                        instructorId={booking.instructorId}
+                        locationType={
+                          locationType === 'neutral_location'
+                            ? 'neutral_location'
+                            : 'student_location'
+                        }
+                        selectedAddress={selectedSavedAddress}
+                        onSelectAddress={handleSelectSavedAddress}
+                        onEnterNewAddress={handleEnterNewAddress}
+                      />
+                    )}
+
+                    {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
+                      <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Saved address
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
+                            onClick={handleChangeLocationClick}
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {showCustomLocationInputs && (
+                      <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
+                        <PlacesAutocompleteInput
+                          ref={addressLine1Ref}
+                          value={addressFields.line1}
+                          onValueChange={(next) => {
+                            setAddressField({ line1: next });
+                            setIsEditingLocation(true);
+                            setAddressDetailsError(null);
+                          }}
+                          onSelectSuggestion={(suggestion: PlaceSuggestion) => {
+                            void handleAddressSuggestionSelect(suggestion);
+                          }}
+                          placeholder={ADDRESS_PLACEHOLDER}
+                          disabled={inputsDisabled}
+                          autoComplete="off"
+                          suggestionScope="global"
+                          containerClassName="w-full"
+                          inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled
+                              ? 'bg-gray-100 cursor-not-allowed'
+                              : 'focus:border-purple-500'
+                          }`}
+                          style={{ outline: 'none' }}
+                          inputProps={{
+                            'data-testid': 'addr-street',
+                            'aria-label': 'Street address',
+                          }}
+                        />
+                        {addressDetailsError && (
+                          <p className="text-xs text-red-600" role="alert">
+                            {addressDetailsError}
+                          </p>
+                        )}
+
+                        <div className="grid grid-cols-6 gap-3">
+                          <input
+                            type="text"
+                            placeholder="City"
+                            aria-label="City"
+                            data-testid="addr-city"
+                            disabled={inputsDisabled}
+                            value={addressFields.city}
+                            onChange={(e) => {
+                              setAddressField({ city: e.target.value });
+                              setIsEditingLocation(true);
+                              setAddressDetailsError(null);
+                            }}
+                            className={`col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                              inputsDisabled
+                                ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                                : 'focus:border-purple-500'
+                            }`}
+                            style={{ outline: 'none' }}
+                          />
+
+                          <input
+                            type="text"
+                            placeholder="State"
+                            aria-label="State"
+                            data-testid="addr-state"
+                            disabled={inputsDisabled}
+                            value={addressFields.state}
+                            onChange={(e) => {
+                              setAddressField({ state: e.target.value });
+                              setIsEditingLocation(true);
+                              setAddressDetailsError(null);
+                            }}
+                            className={`col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                              inputsDisabled
+                                ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                                : 'focus:border-purple-500'
+                            }`}
+                            style={{ outline: 'none' }}
+                          />
+
+                          <input
+                            type="text"
+                            placeholder="ZIP Code"
+                            aria-label="ZIP code"
+                            data-testid="addr-zip"
+                            disabled={inputsDisabled}
+                            value={addressFields.postalCode}
+                            onChange={(e) => {
+                              setAddressField({ postalCode: e.target.value });
+                              setIsEditingLocation(true);
+                              setAddressDetailsError(null);
+                            }}
+                            className={`col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                              inputsDisabled
+                                ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                                : 'focus:border-purple-500'
+                            }`}
+                            style={{ outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {isOutsideServiceArea && !selectedSavedAddress && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        <p className="font-medium">Location not covered</p>
+                        <p>
+                          This instructor doesn&#39;t serve this address. Choose a different
+                          location or use Edit lesson to switch to an online format.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {activeFloorMessage && (
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-red-700 dark:text-red-300">
+                  <p>{activeFloorMessage}</p>
+                  <p className="mt-1">
+                    Adjust the lesson duration or choose a different modality to continue.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-start text-sm">
-              <span
-                className={`mr-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
-              >
-                {formatSummary.label}
-              </span>
-              <div className="text-gray-600 dark:text-gray-400">{formatSummary.description}</div>
+          )}
+
+          {/* Conflict Warning */}
+          {hasConflict && !isCheckingConflict && (
+            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-800 dark:text-amber-300">
+                  <p className="font-medium">Scheduling Conflict</p>
+                  <p>{conflictMessage}</p>
+                  <p className="mt-1">Please select a different time slot to continue.</p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-start text-sm">
-              <MapPin size={16} className="mr-2 text-gray-500 dark:text-gray-400 mt-0.5" />
-              <div>
-                {locationType === 'online' ? (
-                  <div>Online</div>
-                ) : (
-                  <div>{resolvedMeetingLocation}</div>
+          )}
+
+          {availabilityWarnings && availabilityWarnings.length > 0 && (
+            <div
+              className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-950/40"
+              data-testid="availability-warning-banner"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="text-sm text-amber-800 dark:text-amber-300">
+                    <p className="font-medium">Travel heads up</p>
+                    {availabilityWarnings.map((warning) => (
+                      <p
+                        key={`${warning.conflicting_booking_id}-${warning.gap_minutes}`}
+                        className="mt-1"
+                      >
+                        {warning.message}
+                      </p>
+                    ))}
+                    <p className="mt-1">You can still continue if this timing works for you.</p>
+                  </div>
+                </div>
+                {onDismissAvailabilityWarnings && (
+                  <button
+                    type="button"
+                    onClick={onDismissAvailabilityWarnings}
+                    data-testid="dismiss-availability-warning"
+                    className="rounded-full p-1 text-amber-700 transition-colors hover:bg-amber-100 hover:text-amber-900 dark:text-amber-300 dark:hover:bg-amber-900/40 dark:hover:text-amber-100"
+                    aria-label="Dismiss travel warning"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 )}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Edit Lesson Button */}
-          <div className="mt-4">
+          {instructorAvailabilityError && (
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-red-700 dark:text-red-300">
+                  <p className="font-medium">Slot Unavailable</p>
+                  <p>{instructorAvailabilityError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Button */}
+          <div className="mt-6">
             <button
-              onClick={() => {
-                // Open the calendar modal to reschedule
-                setIsModalOpen(true);
-              }}
-              className="bg-white dark:bg-gray-800 text-(--color-brand-dark) py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              onClick={onConfirm}
+              disabled={ctaDisabled}
+              data-testid="booking-confirm-cta"
+              className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
+                ctaDisabled
+                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700'
+              }`}
             >
-              Edit lesson
+              {ctaLabel}
             </button>
           </div>
 
-          {/* Message Instructor Section */}
-          <div className="mt-4">
-            <textarea
-              placeholder="What should your instructor know about this session?"
-              className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
-              style={{ outline: 'none', boxShadow: 'none' }}
-              onFocus={(e) => e.target.style.boxShadow = 'none'}
-              rows={6}
-            />
-          </div>
+          <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">
+            🔒 Secure payment • {!isLastMinute && 'Cancel free >24hrs'}
+          </p>
+        </div>
 
-          {/* Payment Details Section */}
-          <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
-            <h4 className="font-semibold mb-3">Payment details</h4>
+        {/* Right Column - Booking Details - 40% width */}
+        <div className="w-[40%] bg-white/90 dark:bg-gray-800/70 rounded-lg p-6 border border-gray-200/80 dark:border-gray-700/80 order-1 md:order-2">
+          <h3 className="font-bold text-xl mb-4">Booking Your Lesson with</h3>
+          <div className="space-y-4">
+            <div className="flex items-start">
+              <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full mr-4"></div>
+              <div>
+                <h4 className="font-semibold">{booking.instructorName}</h4>
+                <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                  <span className="font-medium">4.8</span>
+                  <span>·</span>
+                  <span>47 reviews</span>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>{lessonSummaryLabel}</span>
-                <span>
-                  {isPricingPreviewLoading ? (
-                    <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
-                  ) : (
-                    lessonAmountDisplay
-                  )}
-                </span>
+              <div className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Piano Lesson
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
-                  <span>{serviceSupportFeeLabel}</span>
-                  <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                          aria-label="Learn about the Service & Support fee"
-                        >
-                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content
-                        side="top"
-                        sideOffset={6}
-                        className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
-                      >
-                        {serviceSupportFeeTooltip}
-                        <Tooltip.Arrow className="fill-gray-900" />
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  </Tooltip.Provider>
-                </span>
-                <span>
-                  {isPricingPreviewLoading
-                    ? renderSummarySkeleton()
-                    : pricingPreview
-                      ? serviceSupportFeeAmountDisplay
-                      : pricingPreviewError
-                        ? 'Unavailable'
-                        : renderSummarySkeleton()}
-                </span>
+              <div className="flex items-center text-sm">
+                <Calendar size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
+                <span>{summaryDateLabel}</span>
               </div>
-              {previewAdditionalLineItems.map((item) => (
-                <div
-                  key={`${item.label}-${item.amount_cents}`}
-                  className={`flex justify-between text-sm ${
-                    item.amount_cents < 0 ? 'text-green-600 dark:text-green-400' : ''
-                  }`}
+              <div className="flex items-center text-sm">
+                <Clock size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
+                <span>{summaryTimeLabel}</span>
+              </div>
+              <div className="flex items-start text-sm">
+                <span
+                  className={`mr-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${formatSummary.badgeClassName}`}
                 >
-                  <span>{item.label}</span>
+                  {formatSummary.label}
+                </span>
+                <div className="text-gray-600 dark:text-gray-400">{formatSummary.description}</div>
+              </div>
+              <div className="flex items-start text-sm">
+                <MapPin size={16} className="mr-2 text-gray-500 dark:text-gray-400 mt-0.5" />
+                <div>
+                  {locationType === 'online' ? (
+                    <div>Online</div>
+                  ) : (
+                    <div>{resolvedMeetingLocation}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Lesson Button */}
+            <div className="mt-4">
+              <button
+                onClick={() => {
+                  // Open the calendar modal to reschedule
+                  setIsModalOpen(true);
+                }}
+                className="bg-white dark:bg-gray-800 text-(--color-brand-dark) py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              >
+                Edit lesson
+              </button>
+            </div>
+
+            {/* Message Instructor Section */}
+            <div className="mt-4">
+              <textarea
+                placeholder="What should your instructor know about this session?"
+                className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
+                style={{ outline: 'none', boxShadow: 'none' }}
+                onFocus={(e) => (e.target.style.boxShadow = 'none')}
+                rows={6}
+              />
+            </div>
+
+            {/* Payment Details Section */}
+            <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
+              <h4 className="font-semibold mb-3">Payment details</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>{lessonSummaryLabel}</span>
                   <span>
                     {isPricingPreviewLoading ? (
-                      <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
+                      <span
+                        className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      formatCentsToDisplay(item.amount_cents)
+                      lessonAmountDisplay
                     )}
                   </span>
                 </div>
-              ))}
-              {hasCreditsApplied && (
-                <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-                  <span>Credits applied</span>
-                  <span>
-                    {isPricingPreviewLoading ? (
-                      <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
-                    ) : (
-                      creditsAmountDisplay
-                    )}
+                <div className="flex justify-between text-sm">
+                  <span className="flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
+                    <span>{serviceSupportFeeLabel}</span>
+                    <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                            aria-label="Learn about the Service & Support fee"
+                          >
+                            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content
+                          side="top"
+                          sideOffset={6}
+                          className="max-w-xs whitespace-pre-line rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow text-left"
+                        >
+                          {serviceSupportFeeTooltip}
+                          <Tooltip.Arrow className="fill-gray-900" />
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </Tooltip.Provider>
                   </span>
-                </div>
-              )}
-              {referralCreditAmount > 0 && (
-                <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-                  <span>Referral credit</span>
-                  <span>{formatCentsToDisplay(-referralCreditCents)}</span>
-                </div>
-              )}
-              <div className="border-t border-gray-300 dark:border-gray-700 pt-2 mt-2">
-                <div className="flex justify-between font-bold text-base">
-                  <span>Total</span>
                   <span>
                     {isPricingPreviewLoading
-                      ? renderSummarySkeleton('w-20')
+                      ? renderSummarySkeleton()
                       : pricingPreview
-                        ? totalAmountDisplay
+                        ? serviceSupportFeeAmountDisplay
                         : pricingPreviewError
-                          ? `$${totalAfterCredits.toFixed(2)}`
-                          : renderSummarySkeleton('w-20')}
+                          ? 'Unavailable'
+                          : renderSummarySkeleton()}
                   </span>
                 </div>
-                {showFeesPlaceholder && (
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">{pricingPreviewError}</p>
+                {previewAdditionalLineItems.map((item) => (
+                  <div
+                    key={`${item.label}-${item.amount_cents}`}
+                    className={`flex justify-between text-sm ${
+                      item.amount_cents < 0 ? 'text-green-600 dark:text-green-400' : ''
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span>
+                      {isPricingPreviewLoading ? (
+                        <span
+                          className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        formatCentsToDisplay(item.amount_cents)
+                      )}
+                    </span>
+                  </div>
+                ))}
+                {hasCreditsApplied && (
+                  <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                    <span>Credits applied</span>
+                    <span>
+                      {isPricingPreviewLoading ? (
+                        <span
+                          className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        creditsAmountDisplay
+                      )}
+                    </span>
+                  </div>
                 )}
+                {referralCreditAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                    <span>Referral credit</span>
+                    <span>{formatCentsToDisplay(-referralCreditCents)}</span>
+                  </div>
+                )}
+                <div className="border-t border-gray-300 dark:border-gray-700 pt-2 mt-2">
+                  <div className="flex justify-between font-bold text-base">
+                    <span>Total</span>
+                    <span>
+                      {isPricingPreviewLoading
+                        ? renderSummarySkeleton('w-20')
+                        : pricingPreview
+                          ? totalAmountDisplay
+                          : pricingPreviewError
+                            ? `$${totalAfterCredits.toFixed(2)}`
+                            : renderSummarySkeleton('w-20')}
+                    </span>
+                  </div>
+                  {showFeesPlaceholder && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      {pricingPreviewError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Cancellation Policy */}
+            <div className="rounded-lg p-3 text-sm bg-purple-50/60 dark:bg-purple-950/30">
+              <h4 className="font-medium mb-2 flex items-center">
+                <AlertCircle size={16} className="mr-1" />
+                Cancellation Policy
+              </h4>
+              <div
+                className="space-y-0.5 text-gray-600 dark:text-gray-400"
+                style={{ fontSize: '11px' }}
+              >
+                <p>More than 24 hours before your lesson: Full refund</p>
+                <p>12–24 hours before your lesson: Refund issued as platform credit</p>
+                <p>Less than 12 hours before your lesson: No refund</p>
               </div>
             </div>
           </div>
-
-          {/* Cancellation Policy */}
-          <div className="rounded-lg p-3 text-sm bg-purple-50/60 dark:bg-purple-950/30">
-            <h4 className="font-medium mb-2 flex items-center">
-              <AlertCircle size={16} className="mr-1" />
-              Cancellation Policy
-            </h4>
-            <div className="space-y-0.5 text-gray-600 dark:text-gray-400" style={{ fontSize: '11px' }}>
-              <p>More than 24 hours before your lesson: Full refund</p>
-              <p>12–24 hours before your lesson: Refund issued as platform credit</p>
-              <p>Less than 12 hours before your lesson: No refund</p>
-            </div>
-          </div>
-
         </div>
-      </div>
       </div>
 
       {/* Time Selection Modal */}
@@ -2355,30 +2475,40 @@ function PaymentConfirmationInner({
             user_id: booking.instructorId,
             user: {
               first_name: booking.instructorName.split(' ')[0] || 'Instructor',
-              last_initial: booking.instructorName.split(' ')[1]?.charAt(0) || ''
+              last_initial: booking.instructorName.split(' ')[1]?.charAt(0) || '',
             },
-            services: instructorServices.length > 0
-              ? instructorServices.map((service) => ({
-                  id: service.id,
-                  skill: service.skill || '',
-                  min_hourly_rate: service.min_hourly_rate,
-                  format_prices: service.format_prices ?? [],
-                  duration_options: service.duration_options || [30, 60, 90],
-                  location_types: [
-                    ...((service.format_prices ?? []).some(fp => fp.format === 'student_location' || fp.format === 'instructor_location') ? ['in_person'] : []),
-                    ...((service.format_prices ?? []).some(fp => fp.format === 'online') ? ['online'] : []),
+            services:
+              instructorServices.length > 0
+                ? instructorServices.map((service) => ({
+                    id: service.id,
+                    skill: service.skill || '',
+                    min_hourly_rate: service.min_hourly_rate,
+                    format_prices: service.format_prices ?? [],
+                    duration_options: service.duration_options || [30, 60, 90],
+                    location_types: [
+                      ...((service.format_prices ?? []).some(
+                        (fp) =>
+                          fp.format === 'student_location' || fp.format === 'instructor_location'
+                      )
+                        ? ['in_person']
+                        : []),
+                      ...((service.format_prices ?? []).some((fp) => fp.format === 'online')
+                        ? ['online']
+                        : []),
+                    ],
+                  }))
+                : [
+                    {
+                      id: sessionStorage.getItem('serviceId') || '',
+                      skill: booking.lessonType,
+                      min_hourly_rate: booking.basePrice / (booking.duration / 60),
+                      format_prices: [],
+                      duration_options: [30, 60, 90], // fallback to standard durations
+                      location_types: [locationType === 'online' ? 'online' : 'in_person'],
+                    },
                   ],
-                }))
-              : [{
-                  id: sessionStorage.getItem('serviceId') || '',
-                  skill: booking.lessonType,
-                  min_hourly_rate: booking.basePrice / (booking.duration / 60),
-                  format_prices: [],
-                  duration_options: [30, 60, 90], // fallback to standard durations
-                  location_types: [locationType === 'online' ? 'online' : 'in_person'],
-                }]
           }}
-          initialDate={bookingDateLocal ?? (booking.date ?? null)}
+          initialDate={bookingDateLocal ?? booking.date ?? null}
           initialTimeHHMM24={startHHMM24 ?? null}
           initialDurationMinutes={
             typeof booking.duration === 'number' && Number.isFinite(booking.duration)
@@ -2387,7 +2517,9 @@ function PaymentConfirmationInner({
           }
           initialLocationType={getTimeSelectionModalLocationType(locationType)}
           lockLocationType={false}
-          {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
+          {...(sessionStorage.getItem('serviceId') && {
+            serviceId: sessionStorage.getItem('serviceId')!,
+          })}
           bookingDraftId={booking.bookingId}
           appliedCreditCents={derivedAppliedCreditCents}
           onTimeSelected={handleTimeSelected}

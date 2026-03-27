@@ -9662,6 +9662,11 @@ export type components = {
              */
             instructor_service_id: string;
             /**
+             * Location Address
+             * @description Optional address for preflight location comparison
+             */
+            location_address?: string | null;
+            /**
              * Location Lat
              * @description Optional latitude for service-area validation
              */
@@ -9671,6 +9676,11 @@ export type components = {
              * @description Optional longitude for service-area validation
              */
             location_lng?: number | null;
+            /**
+             * Location Place Id
+             * @description Optional place ID for preflight location comparison
+             */
+            location_place_id?: string | null;
             /**
              * Location Type
              * @description Requested booking format
@@ -9707,6 +9717,11 @@ export type components = {
             reason?: string | null;
             /** @description Time slot information for the availability check */
             time_info?: components["schemas"]["TimeSlotInfo"] | null;
+            /**
+             * Warnings
+             * @description Advisory warnings that do not block booking
+             */
+            warnings?: components["schemas"]["AvailabilityWarningInfo"][] | null;
         };
         /**
          * AvailabilityConflictInfo
@@ -9752,6 +9767,38 @@ export type components = {
              * @default 0
              */
             availability_total_requests: number;
+        };
+        /**
+         * AvailabilityWarningInfo
+         * @description Advisory availability warning details.
+         */
+        AvailabilityWarningInfo: {
+            /**
+             * Conflicting Booking Id
+             * @description Related booking ID
+             */
+            conflicting_booking_id: string;
+            /**
+             * Conflicting Service
+             * @description Related service name
+             */
+            conflicting_service: string;
+            /**
+             * Gap Minutes
+             * @description Gap in minutes between bookings
+             */
+            gap_minutes: number;
+            /**
+             * Message
+             * @description Human-readable advisory warning
+             */
+            message: string;
+            /**
+             * Type
+             * @description Warning type
+             * @constant
+             */
+            type: "proximity";
         };
         /**
          * AvailabilityWindowResponse

@@ -17,6 +17,42 @@ const isMessagingRequest = (url: string): boolean =>
 
 export type ErrorType<Error> = Error;
 
+const extractErrorMessage = (errorData: unknown): string | null => {
+  if (typeof errorData === 'string') {
+    const trimmed = errorData.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (!errorData || typeof errorData !== 'object') {
+    return null;
+  }
+
+  if ('detail' in errorData) {
+    const detail = (errorData as { detail?: unknown }).detail;
+    if (typeof detail === 'string') {
+      const trimmed = detail.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+    if (detail && typeof detail === 'object' && 'message' in detail) {
+      const message = (detail as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message.trim();
+      }
+    }
+  }
+
+  if ('message' in errorData) {
+    const message = (errorData as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message.trim();
+    }
+  }
+
+  return null;
+};
+
 /**
  * Custom fetch function for Orval-generated clients (orval v8.x signature).
  *
@@ -42,7 +78,7 @@ export async function customFetch<TResponse>(
 
   // Build headers
   const headers: Record<string, string> = {
-    ...(configHeaders as Record<string, string> || {}),
+    ...((configHeaders as Record<string, string>) || {}),
   };
 
   // Build fetch options - convert signal from AbortSignal | undefined to AbortSignal | null
@@ -65,7 +101,7 @@ export async function customFetch<TResponse>(
       method,
       url: fullUrl,
       hasBody: !!data,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -83,7 +119,7 @@ export async function customFetch<TResponse>(
       statusText: response.statusText,
       durationMs: duration,
       ok: response.ok,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -110,7 +146,7 @@ export async function customFetch<TResponse>(
         status: response.status,
         errorData,
         durationMs: duration,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -122,9 +158,7 @@ export async function customFetch<TResponse>(
     }
 
     const error = new Error(
-      typeof errorData === 'object' && errorData && 'detail' in errorData
-        ? String((errorData as { detail: unknown }).detail)
-        : `HTTP ${response.status}: ${response.statusText}`
+      extractErrorMessage(errorData) ?? `HTTP ${response.status}: ${response.statusText}`
     ) as FetchErrorWithContext;
     error.response = response;
     error.status = response.status;
@@ -148,7 +182,7 @@ export async function customFetch<TResponse>(
         url: fullUrl,
         hasData: !!jsonResponse,
         dataKeys: jsonResponse ? Object.keys(jsonResponse) : [],
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
     return jsonResponse;

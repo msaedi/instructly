@@ -14,18 +14,33 @@ import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
-import { getPaymentStatusFromResponse, isCheckoutSuccess } from '@/features/shared/types/paymentStatus';
+import {
+  getPaymentStatusFromResponse,
+  isCheckoutSuccess,
+} from '@/features/shared/types/paymentStatus';
 import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { queryKeys as apiQueryKeys } from '@/src/api/queryKeys';
-import { fetchBookingDetails, cancelBookingImperative, useCheckAvailability } from '@/src/api/services/bookings';
-import type { AvailabilityCheckRequest } from '@/src/api/generated/instructly.schemas';
-import type { BookingResponse } from '@/features/shared/api/types';
+import {
+  fetchBookingDetails,
+  cancelBookingImperative,
+  useCheckAvailability,
+} from '@/src/api/services/bookings';
+import type {
+  AvailabilityCheckRequest,
+  AvailabilityCheckResponse,
+  BookingResponse,
+} from '@/features/shared/api/types';
 import { ApiProblemError } from '@/lib/api/fetch';
 
 // Type alias
 type Booking = BookingResponse;
-import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
+type AvailabilityWarning = NonNullable<AvailabilityCheckResponse['warnings']>[number];
+import {
+  PricingPreviewContext,
+  usePricingPreviewController,
+  type PreviewCause,
+} from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 import { useCredits } from '@/features/shared/payment/hooks/useCredits';
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
@@ -58,7 +73,7 @@ type StoredCreditsUiState = {
 
 const getSessionStorage = (): Storage | null => {
   try {
-    return typeof window === 'undefined' ? null : window.sessionStorage ?? null;
+    return typeof window === 'undefined' ? null : (window.sessionStorage ?? null);
   } catch {
     return null;
   }
@@ -92,10 +107,7 @@ const readStoredCreditsUiState = (key: string): StoredCreditsUiState | null => {
 const writeStoredCreditsUiState = (key: string, state: StoredCreditsUiState): void => {
   const storage = getSessionStorage();
   try {
-    storage?.setItem(
-      key,
-      JSON.stringify({ creditsCollapsed: Boolean(state.creditsCollapsed) }),
-    );
+    storage?.setItem(key, JSON.stringify({ creditsCollapsed: Boolean(state.creditsCollapsed) }));
   } catch {
     // Ignore storage failures (quota, disabled storage, etc.)
   }
@@ -134,7 +146,10 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
 
 type BookingWithMetadata = AvailabilityCheckBooking;
 
-const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata): BookingWithMetadata => {
+const mergeBookingIntoPayment = (
+  booking: Booking,
+  fallback: BookingWithMetadata
+): BookingWithMetadata => {
   const durationMinutes = booking.duration_minutes ?? fallback.duration;
   const hourlyRate = normalizeCurrency(booking.hourly_rate, fallback.basePrice);
   const computedBase = durationMinutes
@@ -150,7 +165,7 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata
     ? formatDisplayName(
         booking.instructor.first_name,
         booking.instructor.last_initial,
-        fallback.instructorName || 'Instructor',
+        fallback.instructorName || 'Instructor'
       )
     : fallback.instructorName;
 
@@ -185,20 +200,27 @@ interface PaymentSectionProps {
   showPaymentMethodInline?: boolean;
 }
 
-export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPaymentMethodInline = false }: PaymentSectionProps) {
+export function PaymentSection({
+  bookingData,
+  onSuccess,
+  onError,
+  onBack,
+  showPaymentMethodInline = false,
+}: PaymentSectionProps) {
   const queryClient = useQueryClient();
-  const {
-    createBooking,
-    error: bookingError,
-    reset: resetBookingError,
-  } = useCreateBooking();
+  const { createBooking, error: bookingError, reset: resetBookingError } = useCreateBooking();
   const checkAvailability = useCheckAvailability();
 
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const [updatedBookingData, setUpdatedBookingData] = useState<BookingWithMetadata>(bookingData);
   const [localErrorMessage, setLocalErrorMessage] = useState<string>('');
   const [floorViolationMessage, setFloorViolationMessage] = useState<string | null>(null);
-  const [instructorAvailabilityError, setInstructorAvailabilityError] = useState<string | null>(null);
+  const [instructorAvailabilityError, setInstructorAvailabilityError] = useState<string | null>(
+    null
+  );
+  const [availabilityWarnings, setAvailabilityWarnings] = useState<AvailabilityWarning[] | null>(
+    null
+  );
   const [isCheckingInstructorAvailability, setIsCheckingInstructorAvailability] = useState(false);
   const [referralAppliedCents, setReferralAppliedCents] = useState(0);
   const [promoApplied, setPromoApplied] = useState(false);
@@ -206,15 +228,16 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const [lastSuccessfulCreditCents, setLastSuccessfulCreditCents] = useState(0);
   const instructorAvailabilityRequestIdRef = useRef(0);
   const resolvedInstructorId = useMemo(() => {
-    const candidate =
-      (updatedBookingData.instructorId ?? bookingData.instructorId ?? null);
+    const candidate = updatedBookingData.instructorId ?? bookingData.instructorId ?? null;
     return typeof candidate === 'string' ? candidate : candidate != null ? String(candidate) : null;
   }, [updatedBookingData.instructorId, bookingData.instructorId]);
 
   const resolvedServiceId = useMemo(() => {
     const metadataService =
-      (updatedBookingData.metadata?.['serviceId'] ?? bookingData.metadata?.['serviceId']) ??
-      bookingData.serviceId ?? null;
+      updatedBookingData.metadata?.['serviceId'] ??
+      bookingData.metadata?.['serviceId'] ??
+      bookingData.serviceId ??
+      null;
     if (metadataService === null || metadataService === undefined) {
       return null;
     }
@@ -222,11 +245,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   }, [updatedBookingData.metadata, bookingData.metadata, bookingData.serviceId]);
 
   const mergedMetadata = useMemo(
-    () => ({
-      ...(bookingData.metadata ?? {}),
-      ...(updatedBookingData.metadata ?? {}),
-    }) as Record<string, unknown>,
-    [bookingData.metadata, updatedBookingData.metadata],
+    () =>
+      ({
+        ...(bookingData.metadata ?? {}),
+        ...(updatedBookingData.metadata ?? {}),
+      }) as Record<string, unknown>,
+    [bookingData.metadata, updatedBookingData.metadata]
   );
 
   const quoteSelection = useMemo<PricingPreviewSelection | null>(() => {
@@ -308,7 +332,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       logDevInfo('[pricing-preview] Time conversion error', {
         startTimeValue,
         error,
-        expectedFormat: 'HH:MM (24hr) or H:MMam/pm'
+        expectedFormat: 'HH:MM (24hr) or H:MMam/pm',
       });
       return null;
     }
@@ -356,7 +380,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     }
 
     const sanitizedLocation = sanitizeMeetingLocation(
-      updatedBookingData.location ?? bookingData.location ?? '',
+      updatedBookingData.location ?? bookingData.location ?? ''
     );
     const resolvedLocationType = resolveLocationType({
       locationTypeHint: mergedMetadata['location_type'],
@@ -371,10 +395,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       'instructor_location',
       'neutral_location',
     ];
-    const normalizedModality = (allowedModalities.find(
-      (value) => value === resolvedLocationType,
-    ) ??
-      (resolvedLocationType === 'online' ? 'remote' : resolvedLocationType)) as PricingPreviewSelection['modality'];
+    const normalizedModality = (allowedModalities.find((value) => value === resolvedLocationType) ??
+      (resolvedLocationType === 'online'
+        ? 'remote'
+        : resolvedLocationType)) as PricingPreviewSelection['modality'];
 
     const selection = {
       instructorId: resolvedInstructorId,
@@ -383,8 +407,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       startHHMM24,
       selectedDurationMinutes: durationMinutes,
       modality: normalizedModality,
-      meetingLocation:
-        sanitizedLocation || getGenericMeetingLocationLabel(resolvedLocationType),
+      meetingLocation: sanitizedLocation || getGenericMeetingLocationLabel(resolvedLocationType),
       appliedCreditCents: Math.max(0, Math.round(creditSliderCents)),
     };
 
@@ -412,7 +435,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   const quotePayload = useMemo(
     () => (quoteSelection ? buildPricingPreviewQuotePayload(quoteSelection) : null),
-    [quoteSelection],
+    [quoteSelection]
   );
 
   const previewController = usePricingPreviewController({
@@ -428,7 +451,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   } = previewController;
   const bookingDraftId = useMemo(
     () => updatedBookingData.bookingId || bookingData.bookingId || null,
-    [updatedBookingData.bookingId, bookingData.bookingId],
+    [updatedBookingData.bookingId, bookingData.bookingId]
   );
   const creditDecisionKey = useMemo(() => {
     const normalizedBookingId = bookingDraftId?.trim() || null;
@@ -483,7 +506,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() }),
       queryClient.invalidateQueries({ queryKey: ['bookings'] }),
       queryClient.invalidateQueries({ queryKey: apiQueryKeys.bookings.student() }),
-      queryClient.invalidateQueries({ queryKey: apiQueryKeys.bookings.student({ status: 'history' }) }),
+      queryClient.invalidateQueries({
+        queryKey: apiQueryKeys.bookings.student({ status: 'history' }),
+      }),
     ];
     await Promise.allSettled(invalidations);
   }, [queryClient]);
@@ -511,145 +536,156 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   });
 
   // Get the actual selected card from userCards instead of using the mock from hook
-  const selectedCard = selectedCardId ? userCards.find(card => card.id === selectedCardId) : null;
+  const selectedCard = selectedCardId ? userCards.find((card) => card.id === selectedCardId) : null;
 
   // Wrap selectPaymentMethod to track card ID
-  const selectPaymentMethod = useCallback((method: PaymentMethod, cardId?: string, credits?: number) => {
-    setSelectedCardId(cardId);
-    setUserChangingPayment(false); // Reset flag when a new method is selected
-    selectPaymentMethodOriginal(method, cardId, credits);
-  }, [selectPaymentMethodOriginal]);
+  const selectPaymentMethod = useCallback(
+    (method: PaymentMethod, cardId?: string, credits?: number) => {
+      setSelectedCardId(cardId);
+      setUserChangingPayment(false); // Reset flag when a new method is selected
+      selectPaymentMethodOriginal(method, cardId, credits);
+    },
+    [selectPaymentMethodOriginal]
+  );
 
-  const updateCreditSelection = useCallback((creditCents: number, totalDueCents: number) => {
-    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
-    const creditDollars = Number((normalizedCreditCents / 100).toFixed(2));
-    const currentCreditCents = Math.max(0, Math.round(creditsToUse * 100));
-    const coversFullAmount = normalizedCreditCents >= totalDueCents;
+  const updateCreditSelection = useCallback(
+    (creditCents: number, totalDueCents: number) => {
+      const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+      const creditDollars = Number((normalizedCreditCents / 100).toFixed(2));
+      const currentCreditCents = Math.max(0, Math.round(creditsToUse * 100));
+      const coversFullAmount = normalizedCreditCents >= totalDueCents;
 
-    // Exit early if no change needed
-    if (currentCreditCents === normalizedCreditCents) {
-      return;
-    }
-
-    if (normalizedCreditCents === 0) {
-      if (paymentMethod !== PaymentMethod.CREDIT_CARD || currentCreditCents !== 0) {
-        const effectiveCardId = selectedCardId
-          ?? userCards.find((card) => card.isDefault)?.id
-          ?? userCards[0]?.id;
-        selectPaymentMethod(PaymentMethod.CREDIT_CARD, effectiveCardId, 0);
+      // Exit early if no change needed
+      if (currentCreditCents === normalizedCreditCents) {
+        return;
       }
-      return;
-    }
 
-    if (coversFullAmount) {
-      if (paymentMethod !== PaymentMethod.CREDITS || currentCreditCents !== normalizedCreditCents) {
-        selectPaymentMethod(PaymentMethod.CREDITS, undefined, creditDollars);
+      if (normalizedCreditCents === 0) {
+        if (paymentMethod !== PaymentMethod.CREDIT_CARD || currentCreditCents !== 0) {
+          const effectiveCardId =
+            selectedCardId ?? userCards.find((card) => card.isDefault)?.id ?? userCards[0]?.id;
+          selectPaymentMethod(PaymentMethod.CREDIT_CARD, effectiveCardId, 0);
+        }
+        return;
       }
-      return;
-    }
 
-    const effectiveCardId = selectedCardId
-      ?? userCards.find((card) => card.isDefault)?.id
-      ?? userCards[0]?.id;
-    if (paymentMethod !== PaymentMethod.MIXED || currentCreditCents !== normalizedCreditCents) {
-      selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, creditDollars);
-    }
-  }, [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]);
-
-  const determinePreviewCause = useCallback((prevBooking: BookingWithMetadata, nextBooking: BookingWithMetadata): PreviewCause | null => {
-    const normalizeDateForComparison = (value: unknown): string | null => {
-      if (!value) {
-        return null;
+      if (coversFullAmount) {
+        if (
+          paymentMethod !== PaymentMethod.CREDITS ||
+          currentCreditCents !== normalizedCreditCents
+        ) {
+          selectPaymentMethod(PaymentMethod.CREDITS, undefined, creditDollars);
+        }
+        return;
       }
-      if (value instanceof Date) {
-        if (Number.isNaN(value.getTime())) {
+
+      const effectiveCardId =
+        selectedCardId ?? userCards.find((card) => card.isDefault)?.id ?? userCards[0]?.id;
+      if (paymentMethod !== PaymentMethod.MIXED || currentCreditCents !== normalizedCreditCents) {
+        selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, creditDollars);
+      }
+    },
+    [creditsToUse, paymentMethod, selectPaymentMethod, selectedCardId, userCards]
+  );
+
+  const determinePreviewCause = useCallback(
+    (prevBooking: BookingWithMetadata, nextBooking: BookingWithMetadata): PreviewCause | null => {
+      const normalizeDateForComparison = (value: unknown): string | null => {
+        if (!value) {
           return null;
         }
-        return value.toISOString().slice(0, 10);
-      }
-      if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (!trimmed) {
+        if (value instanceof Date) {
+          if (Number.isNaN(value.getTime())) {
+            return null;
+          }
+          return value.toISOString().slice(0, 10);
+        }
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return null;
+          }
+          if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+            return trimmed.slice(0, 10);
+          }
+          const parsed = new Date(trimmed);
+          if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10);
+          }
+        }
+        return null;
+      };
+
+      const normalizeTimeForComparison = (value: unknown): string | null => {
+        if (!value) {
           return null;
         }
-        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-          return trimmed.slice(0, 10);
+        const raw = String(value).trim();
+        if (!raw) {
+          return null;
         }
-        const parsed = new Date(trimmed);
-        if (!Number.isNaN(parsed.getTime())) {
-          return parsed.toISOString().slice(0, 10);
+        try {
+          return to24HourTime(raw);
+        } catch {
+          if (/^\d{2}:\d{2}$/.test(raw)) {
+            return raw;
+          }
+          return null;
         }
-      }
-      return null;
-    };
+      };
 
-    const normalizeTimeForComparison = (value: unknown): string | null => {
-      if (!value) {
+      const normalizeDurationForComparison = (value: unknown): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return Math.round(value);
+        }
+        if (typeof value === 'string') {
+          const parsed = Number(value);
+          if (Number.isFinite(parsed)) {
+            return Math.round(parsed);
+          }
+        }
+        return null;
+      };
+
+      const prevDuration = normalizeDurationForComparison(prevBooking.duration);
+      const nextDuration = normalizeDurationForComparison(nextBooking.duration);
+      const prevDate = normalizeDateForComparison(prevBooking.date);
+      const nextDate = normalizeDateForComparison(nextBooking.date);
+      const prevTime = normalizeTimeForComparison(prevBooking.startTime);
+      const nextTime = normalizeTimeForComparison(nextBooking.startTime);
+
+      logDevInfo('[pricing-preview] Booking update comparison', {
+        prevDate,
+        nextDate,
+        prevTime,
+        nextTime,
+        prevDuration,
+        nextDuration,
+      });
+
+      const durationChanged = prevDuration !== nextDuration;
+      const dateChanged = prevDate !== nextDate;
+      const timeChanged = prevTime !== nextTime;
+      const hasDateTimeChanged = dateChanged || timeChanged;
+
+      if (!durationChanged && !hasDateTimeChanged) {
         return null;
       }
-      const raw = String(value).trim();
-      if (!raw) {
+
+      const hasRequiredFields =
+        nextDuration != null && nextDuration > 0 && Boolean(nextDate) && Boolean(nextTime);
+      if (!hasRequiredFields) {
         return null;
       }
-      try {
-        return to24HourTime(raw);
-      } catch {
-        if (/^\d{2}:\d{2}$/.test(raw)) {
-          return raw;
-        }
-        return null;
+
+      if (durationChanged) {
+        return 'duration-change';
       }
-    };
 
-    const normalizeDurationForComparison = (value: unknown): number | null => {
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return Math.round(value);
-      }
-      if (typeof value === 'string') {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) {
-          return Math.round(parsed);
-        }
-      }
-      return null;
-    };
-
-    const prevDuration = normalizeDurationForComparison(prevBooking.duration);
-    const nextDuration = normalizeDurationForComparison(nextBooking.duration);
-    const prevDate = normalizeDateForComparison(prevBooking.date);
-    const nextDate = normalizeDateForComparison(nextBooking.date);
-    const prevTime = normalizeTimeForComparison(prevBooking.startTime);
-    const nextTime = normalizeTimeForComparison(nextBooking.startTime);
-
-    logDevInfo('[pricing-preview] Booking update comparison', {
-      prevDate,
-      nextDate,
-      prevTime,
-      nextTime,
-      prevDuration,
-      nextDuration,
-    });
-
-    const durationChanged = prevDuration !== nextDuration;
-    const dateChanged = prevDate !== nextDate;
-    const timeChanged = prevTime !== nextTime;
-    const hasDateTimeChanged = dateChanged || timeChanged;
-
-    if (!durationChanged && !hasDateTimeChanged) {
-      return null;
-    }
-
-    const hasRequiredFields = nextDuration != null && nextDuration > 0 && Boolean(nextDate) && Boolean(nextTime);
-    if (!hasRequiredFields) {
-      return null;
-    }
-
-    if (durationChanged) {
-      return 'duration-change';
-    }
-
-    return 'date-time-only';
-  }, []);
+      return 'date-time-only';
+    },
+    []
+  );
 
   const handleBookingUpdate = useCallback(
     (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
@@ -672,6 +708,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           pendingPreviewCauseRef.current = cause;
           logDevInfo('[pricing-preview] Booking update cause determined', { cause });
           setInstructorAvailabilityError(null);
+          setAvailabilityWarnings(null);
         }
 
         return nextState;
@@ -687,14 +724,19 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         updatedBookingData,
         bookingData,
       }),
-    [bookingData, updatedBookingData],
+    [bookingData, updatedBookingData]
   );
+
+  const dismissAvailabilityWarnings = useCallback(() => {
+    setAvailabilityWarnings(null);
+  }, []);
 
   const runInstructorAvailabilityCheck = useCallback(
     async (bookingCandidate: BookingWithMetadata): Promise<boolean> => {
       const request = buildAvailabilityCheckRequest(bookingCandidate);
       if (!request) {
         setInstructorAvailabilityError(null);
+        setAvailabilityWarnings(null);
         setIsCheckingInstructorAvailability(false);
         return true;
       }
@@ -703,6 +745,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       instructorAvailabilityRequestIdRef.current = requestId;
       setIsCheckingInstructorAvailability(true);
       setInstructorAvailabilityError(null);
+      setAvailabilityWarnings(null);
 
       try {
         const response = await checkAvailability.mutateAsync({ data: request });
@@ -712,12 +755,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
         if (!response.available) {
           setInstructorAvailabilityError(
-            'This time slot is no longer available. Please select another time.',
+            response.reason ?? 'This time slot is no longer available. Please select another time.'
           );
+          setAvailabilityWarnings(null);
           return false;
         }
 
         setInstructorAvailabilityError(null);
+        setAvailabilityWarnings(response.warnings ?? null);
         return true;
       } catch (error) {
         if (instructorAvailabilityRequestIdRef.current === requestId) {
@@ -725,8 +770,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             bookingId: bookingCandidate.bookingId,
           });
           setInstructorAvailabilityError(
-            'Unable to verify availability right now. Please try again.',
+            'Unable to verify availability right now. Please try again.'
           );
+          setAvailabilityWarnings(null);
         }
         return false;
       } finally {
@@ -735,18 +781,22 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
       }
     },
-    [buildAvailabilityCheckRequest, checkAvailability],
+    [buildAvailabilityCheckRequest, checkAvailability]
   );
 
   const handleTimeSelectionCommitted = useCallback(
     async (nextBooking: BookingWithMetadata) => {
       setInstructorAvailabilityError(null);
+      setAvailabilityWarnings(null);
       await runInstructorAvailabilityCheck(nextBooking);
     },
-    [runInstructorAvailabilityCheck],
+    [runInstructorAvailabilityCheck]
   );
 
-  const subtotalCents = useMemo(() => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)), [updatedBookingData.totalAmount]);
+  const subtotalCents = useMemo(
+    () => Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100)),
+    [updatedBookingData.totalAmount]
+  );
   const effectiveOrderId = updatedBookingData.bookingId || bookingData.bookingId;
 
   useEffect(() => {
@@ -779,17 +829,20 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setCreditSliderCents(nextCreditCents);
   }, [creditsToUse]);
 
-  const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
-    try {
-      // Use v1 bookings service
-      const booking = await fetchBookingDetails(orderIdentifier);
-      setUpdatedBookingData(prev => mergeBookingIntoPayment(booking as Booking, prev));
-    } catch (error) {
-      logger.error('Unexpected error refreshing order summary', error as Error, {
-        orderId: orderIdentifier,
-      });
-    }
-  }, [setUpdatedBookingData]);
+  const refreshOrderSummary = useCallback(
+    async (orderIdentifier: string) => {
+      try {
+        // Use v1 bookings service
+        const booking = await fetchBookingDetails(orderIdentifier);
+        setUpdatedBookingData((prev) => mergeBookingIntoPayment(booking as Booking, prev));
+      } catch (error) {
+        logger.error('Unexpected error refreshing order summary', error as Error, {
+          orderId: orderIdentifier,
+        });
+      }
+    },
+    [setUpdatedBookingData]
+  );
 
   const refreshCurrentOrderSummary = useCallback(async () => {
     if (!effectiveOrderId) return;
@@ -818,88 +871,99 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     return Math.max(0, Math.round((updatedBookingData.totalAmount ?? 0) * 100));
   }, [pricingPreview, updatedBookingData.totalAmount]);
 
-  const commitCreditPreview = useCallback(async (
-    creditCents: number,
-    options?: { suppressLoading?: boolean },
-  ) => {
-    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+  const commitCreditPreview = useCallback(
+    async (creditCents: number, options?: { suppressLoading?: boolean }) => {
+      const normalizedCreditCents = Math.max(0, Math.round(creditCents));
 
-    try {
-      const result = await applyCreditPreview(normalizedCreditCents, options);
-      if (creditDecisionKey) {
-        const appliedCents = Math.max(0, Math.round(result?.credit_applied_cents ?? normalizedCreditCents));
-        const existingDecision = creditDecisionRef.current;
-        const nextDecision: StoredCreditDecision = normalizedCreditCents > 0
-          ? { lastCreditCents: appliedCents, explicitlyRemoved: false }
-          : {
-              lastCreditCents: appliedCents,
-              explicitlyRemoved:
-                pendingExplicitRemovalRef.current || (existingDecision?.explicitlyRemoved ?? false),
-            };
-        writeStoredCreditDecision(creditDecisionKey, nextDecision);
-        creditDecisionRef.current = nextDecision;
-        if (normalizedCreditCents === 0) {
-          pendingExplicitRemovalRef.current = false;
+      try {
+        const result = await applyCreditPreview(normalizedCreditCents, options);
+        if (creditDecisionKey) {
+          const appliedCents = Math.max(
+            0,
+            Math.round(result?.credit_applied_cents ?? normalizedCreditCents)
+          );
+          const existingDecision = creditDecisionRef.current;
+          const nextDecision: StoredCreditDecision =
+            normalizedCreditCents > 0
+              ? { lastCreditCents: appliedCents, explicitlyRemoved: false }
+              : {
+                  lastCreditCents: appliedCents,
+                  explicitlyRemoved:
+                    pendingExplicitRemovalRef.current ||
+                    (existingDecision?.explicitlyRemoved ?? false),
+                };
+          writeStoredCreditDecision(creditDecisionKey, nextDecision);
+          creditDecisionRef.current = nextDecision;
+          if (normalizedCreditCents === 0) {
+            pendingExplicitRemovalRef.current = false;
+          }
+        }
+        if (floorViolationMessage !== null) {
+          setFloorViolationMessage(null);
+        }
+      } catch (error) {
+        const maybeProblemError = error as ApiProblemError;
+        const status = maybeProblemError?.response?.status;
+
+        if (status === 422) {
+          const detail =
+            maybeProblemError?.problem?.detail ?? 'Price must meet minimum requirements.';
+          setFloorViolationMessage(detail);
+          logDevInfo('pricing-floor-violation', {
+            bookingId: bookingDraftId,
+            requestedCreditCents: normalizedCreditCents,
+          });
+        } else {
+          logger.error('Failed to fetch pricing preview', error as Error, {
+            bookingId: bookingDraftId,
+            requestedCreditCents: normalizedCreditCents,
+          });
+          setLocalErrorMessage('Unable to refresh pricing preview. Please try again.');
+        }
+
+        const fallbackCents = lastSuccessfulCreditCents;
+        setCreditSliderCents(fallbackCents);
+        updateCreditSelection(fallbackCents, getTotalDueCents());
+        lastCommittedCreditRef.current = fallbackCents;
+        if (creditDecisionKey) {
+          const nextDecision: StoredCreditDecision = {
+            lastCreditCents: fallbackCents,
+            explicitlyRemoved:
+              fallbackCents > 0
+                ? false
+                : pendingExplicitRemovalRef.current ||
+                  (creditDecisionRef.current?.explicitlyRemoved ?? false),
+          };
+          writeStoredCreditDecision(creditDecisionKey, nextDecision);
+          creditDecisionRef.current = nextDecision;
+          if (fallbackCents === 0) {
+            pendingExplicitRemovalRef.current = false;
+          }
         }
       }
-      if (floorViolationMessage !== null) {
-        setFloorViolationMessage(null);
-      }
-    } catch (error) {
-      const maybeProblemError = error as ApiProblemError;
-      const status = maybeProblemError?.response?.status;
+    },
+    [
+      applyCreditPreview,
+      bookingDraftId,
+      floorViolationMessage,
+      getTotalDueCents,
+      lastSuccessfulCreditCents,
+      updateCreditSelection,
+      creditDecisionKey,
+    ]
+  );
 
-      if (status === 422) {
-        const detail = maybeProblemError?.problem?.detail ?? 'Price must meet minimum requirements.';
-        setFloorViolationMessage(detail);
-        logDevInfo('pricing-floor-violation', {
-          bookingId: bookingDraftId,
-          requestedCreditCents: normalizedCreditCents,
-        });
-      } else {
-        logger.error('Failed to fetch pricing preview', error as Error, {
-          bookingId: bookingDraftId,
-          requestedCreditCents: normalizedCreditCents,
-        });
-        setLocalErrorMessage('Unable to refresh pricing preview. Please try again.');
+  const handleCreditCommitCents = useCallback(
+    (creditCents: number) => {
+      const normalizedCreditCents = Math.max(0, Math.round(creditCents));
+      if (normalizedCreditCents === lastCommittedCreditRef.current) {
+        return;
       }
-
-      const fallbackCents = lastSuccessfulCreditCents;
-      setCreditSliderCents(fallbackCents);
-      updateCreditSelection(fallbackCents, getTotalDueCents());
-      lastCommittedCreditRef.current = fallbackCents;
-      if (creditDecisionKey) {
-        const nextDecision: StoredCreditDecision = {
-          lastCreditCents: fallbackCents,
-          explicitlyRemoved: fallbackCents > 0
-            ? false
-            : pendingExplicitRemovalRef.current || (creditDecisionRef.current?.explicitlyRemoved ?? false),
-        };
-        writeStoredCreditDecision(creditDecisionKey, nextDecision);
-        creditDecisionRef.current = nextDecision;
-        if (fallbackCents === 0) {
-          pendingExplicitRemovalRef.current = false;
-        }
-      }
-    }
-  }, [
-    applyCreditPreview,
-    bookingDraftId,
-    floorViolationMessage,
-    getTotalDueCents,
-    lastSuccessfulCreditCents,
-    updateCreditSelection,
-    creditDecisionKey,
-  ]);
-
-  const handleCreditCommitCents = useCallback((creditCents: number) => {
-    const normalizedCreditCents = Math.max(0, Math.round(creditCents));
-    if (normalizedCreditCents === lastCommittedCreditRef.current) {
-      return;
-    }
-    lastCommittedCreditRef.current = normalizedCreditCents;
-    void commitCreditPreview(normalizedCreditCents);
-  }, [commitCreditPreview]);
+      lastCommittedCreditRef.current = normalizedCreditCents;
+      void commitCreditPreview(normalizedCreditCents);
+    },
+    [commitCreditPreview]
+  );
 
   const handleCreditToggle = useCallback(() => {
     const totalDueCents = getTotalDueCents();
@@ -930,53 +994,67 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     updateCreditSelection(targetCents, totalDueCents);
     handleCreditCommitCents(targetCents);
     if (creditDecisionKey) {
-      const decision: StoredCreditDecision = { lastCreditCents: targetCents, explicitlyRemoved: false };
+      const decision: StoredCreditDecision = {
+        lastCreditCents: targetCents,
+        explicitlyRemoved: false,
+      };
       writeStoredCreditDecision(creditDecisionKey, decision);
       creditDecisionRef.current = decision;
     }
     if (!creditsCollapsedRef.current) {
       setIsCreditsExpanded(true);
     }
-  }, [creditSliderCents, getTotalDueCents, updateCreditSelection, userCredits.totalAmount, floorViolationMessage, handleCreditCommitCents, creditDecisionKey]);
-
-  const handleCreditAmountChange = useCallback((amountDollars: number) => {
-    const totalDueCents = getTotalDueCents();
-    const requestedCents = Math.max(0, Math.round(amountDollars * 100));
-    const clampedCents = Math.min(requestedCents, totalDueCents);
-
-    // Skip if no actual change
-    if (creditSliderCents === clampedCents) {
-      return;
-    }
-
-    if (floorViolationMessage && clampedCents < lastSuccessfulCreditCents) {
-      setFloorViolationMessage(null);
-    }
-    setCreditSliderCents(clampedCents);
-    updateCreditSelection(clampedCents, totalDueCents);
-    handleCreditCommitCents(clampedCents);
-    if (creditDecisionKey) {
-      const decision: StoredCreditDecision = {
-        lastCreditCents: clampedCents,
-        explicitlyRemoved: clampedCents === 0,
-      };
-      writeStoredCreditDecision(creditDecisionKey, decision);
-      creditDecisionRef.current = decision;
-    }
-    if (clampedCents > 0) {
-      if (!creditsCollapsedRef.current) {
-        setIsCreditsExpanded(true);
-      }
-    }
   }, [
+    creditSliderCents,
     getTotalDueCents,
     updateCreditSelection,
+    userCredits.totalAmount,
     floorViolationMessage,
-    lastSuccessfulCreditCents,
-    creditSliderCents,
     handleCreditCommitCents,
     creditDecisionKey,
   ]);
+
+  const handleCreditAmountChange = useCallback(
+    (amountDollars: number) => {
+      const totalDueCents = getTotalDueCents();
+      const requestedCents = Math.max(0, Math.round(amountDollars * 100));
+      const clampedCents = Math.min(requestedCents, totalDueCents);
+
+      // Skip if no actual change
+      if (creditSliderCents === clampedCents) {
+        return;
+      }
+
+      if (floorViolationMessage && clampedCents < lastSuccessfulCreditCents) {
+        setFloorViolationMessage(null);
+      }
+      setCreditSliderCents(clampedCents);
+      updateCreditSelection(clampedCents, totalDueCents);
+      handleCreditCommitCents(clampedCents);
+      if (creditDecisionKey) {
+        const decision: StoredCreditDecision = {
+          lastCreditCents: clampedCents,
+          explicitlyRemoved: clampedCents === 0,
+        };
+        writeStoredCreditDecision(creditDecisionKey, decision);
+        creditDecisionRef.current = decision;
+      }
+      if (clampedCents > 0) {
+        if (!creditsCollapsedRef.current) {
+          setIsCreditsExpanded(true);
+        }
+      }
+    },
+    [
+      getTotalDueCents,
+      updateCreditSelection,
+      floorViolationMessage,
+      lastSuccessfulCreditCents,
+      creditSliderCents,
+      handleCreditCommitCents,
+      creditDecisionKey,
+    ]
+  );
 
   const persistCreditsCollapsedPreference = useCallback((collapsed: boolean) => {
     creditsCollapsedRef.current = collapsed;
@@ -991,7 +1069,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       setIsCreditsExpanded(expanded);
       persistCreditsCollapsedPreference(!expanded);
     },
-    [persistCreditsCollapsedPreference],
+    [persistCreditsCollapsedPreference]
   );
 
   useEffect(() => {
@@ -1041,7 +1119,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     const previewCredits = Math.max(0, pricingPreview?.credit_applied_cents ?? 0);
     const storedCredits = Math.max(0, creditDecisionRef.current?.lastCreditCents ?? 0);
     if (pricingPreview || creditDecisionRef.current) {
-      const shouldExpand = (previewCredits > 0 || storedCredits > 0) && !creditsCollapsedRef.current;
+      const shouldExpand =
+        (previewCredits > 0 || storedCredits > 0) && !creditsCollapsedRef.current;
       setIsCreditsExpanded(shouldExpand);
       expansionInitializedRef.current = true;
     }
@@ -1089,7 +1168,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               previewCredits > 0
                 ? false
                 : storedDecision
-                  ? storedDecision.explicitlyRemoved ?? (lastCommittedCreditRef.current === 0)
+                  ? (storedDecision.explicitlyRemoved ?? lastCommittedCreditRef.current === 0)
                   : false,
           };
           writeStoredCreditDecision(creditDecisionKey, nextDecision);
@@ -1124,7 +1203,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     if (Math.abs(currentCreditCents - previewCredits) > 0.01) {
       updateCreditSelection(previewCredits, totalDueCents);
     }
-  }, [pricingPreview, creditsToUse, updateCreditSelection, lastSuccessfulCreditCents, creditDecisionKey]);
+  }, [
+    pricingPreview,
+    creditsToUse,
+    updateCreditSelection,
+    lastSuccessfulCreditCents,
+    creditDecisionKey,
+  ]);
 
   useEffect(() => {
     if (!pricingPreview || !creditDecisionKey || autoAppliedOnceRef.current) {
@@ -1143,13 +1228,19 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     const previewCredits = Math.max(0, pricingPreview.credit_applied_cents);
     if (previewCredits > 0) {
       autoAppliedOnceRef.current = true;
-      const decision: StoredCreditDecision = { lastCreditCents: previewCredits, explicitlyRemoved: false };
+      const decision: StoredCreditDecision = {
+        lastCreditCents: previewCredits,
+        explicitlyRemoved: false,
+      };
       writeStoredCreditDecision(creditDecisionKey, decision);
       creditDecisionRef.current = decision;
       return;
     }
 
-    const subtotalCents = Math.max(0, pricingPreview.base_price_cents + pricingPreview.student_fee_cents);
+    const subtotalCents = Math.max(
+      0,
+      pricingPreview.base_price_cents + pricingPreview.student_fee_cents
+    );
     const maxApplicableCents = Math.min(walletBalanceCents, subtotalCents);
     if (maxApplicableCents <= 0) {
       return;
@@ -1172,7 +1263,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     }
 
     autoAppliedOnceRef.current = true;
-    const decision: StoredCreditDecision = { lastCreditCents: desiredCents, explicitlyRemoved: false };
+    const decision: StoredCreditDecision = {
+      lastCreditCents: desiredCents,
+      explicitlyRemoved: false,
+    };
     creditDecisionRef.current = decision;
     if (!creditsCollapsedRef.current) {
       setIsCreditsExpanded(true);
@@ -1206,7 +1300,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         const methods = await paymentService.listPaymentMethods();
         logDevInfo('Payment methods response', { methods });
 
-        const mappedCards: PaymentCard[] = methods.map(method => ({
+        const mappedCards: PaymentCard[] = methods.map((method) => ({
           id: method.id,
           last4: method.last4,
           brand: method.brand.charAt(0).toUpperCase() + method.brand.slice(1), // Capitalize brand
@@ -1218,13 +1312,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
         logDevInfo('Successfully loaded payment methods', {
           cardCount: mappedCards.length,
-          cards: mappedCards
+          cards: mappedCards,
         });
       } catch (error) {
         logger.error('Failed to load payment methods', {
           error: error as Error,
           message: (error as Error).message,
-          stack: (error as Error).stack
+          stack: (error as Error).stack,
         });
         setUserCards([]);
       } finally {
@@ -1240,9 +1334,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   // If inline mode, skip directly to confirmation (but not if user is changing payment)
   useEffect(() => {
-    if (showPaymentMethodInline && currentStep === PaymentStep.METHOD_SELECTION && userCards.length > 0 && !userChangingPayment) {
+    if (
+      showPaymentMethodInline &&
+      currentStep === PaymentStep.METHOD_SELECTION &&
+      userCards.length > 0 &&
+      !userChangingPayment
+    ) {
       // Auto-select credit card payment with default card
-      const defaultCard = userCards.find(card => card.isDefault) || userCards[0];
+      const defaultCard = userCards.find((card) => card.isDefault) || userCards[0];
       selectPaymentMethod(PaymentMethod.CREDIT_CARD, defaultCard?.id);
     }
   }, [showPaymentMethodInline, currentStep, selectPaymentMethod, userCards, userChangingPayment]);
@@ -1253,10 +1352,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const processPaymentImpl = async () => {
     const appliedCreditCents = Math.max(0, Math.round(creditSliderCents));
     const appliedCreditDollars = appliedCreditCents / 100;
-    const normalizedTotalAmount =
-      updatedBookingData.totalAmount ??
-      bookingData.totalAmount ??
-      0;
+    const normalizedTotalAmount = updatedBookingData.totalAmount ?? bookingData.totalAmount ?? 0;
     const referralDollars = referralAppliedCents / 100;
     const bookingForSubmit: BookingWithMetadata = {
       ...bookingData,
@@ -1279,14 +1375,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       goToStep(PaymentStep.PROCESSING);
 
       // Get instructor ID and service ID from canonical booking state
-      const instructorId = String(
-        bookingForSubmit.instructorId || resolvedInstructorId || '',
-      );
+      const instructorId = String(bookingForSubmit.instructorId || resolvedInstructorId || '');
       const serviceId = String(
         (bookingForSubmit.metadata?.['serviceId'] ||
           bookingForSubmit.serviceId ||
           resolvedServiceId) ??
-          '',
+          ''
       );
 
       // If date is missing (null/undefined), try to recover from selectedSlot in sessionStorage
@@ -1313,9 +1407,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       } else {
         // Normalize: if date is an ISO timestamp string, convert to Date first
         const rawDate: unknown = bookingForSubmit.date;
-        const dateInput = typeof rawDate === 'string' && rawDate.includes('T')
-          ? new Date(rawDate)
-          : (rawDate as Date | string);
+        const dateInput =
+          typeof rawDate === 'string' && rawDate.includes('T')
+            ? new Date(rawDate)
+            : (rawDate as Date | string);
         bookingDate = toDateOnlyString(dateInput, 'booking_date');
       }
 
@@ -1445,14 +1540,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           logger.error('Failed to cancel booking after payment failure', cancelError as Error);
         }
 
-        const errorMessage = (paymentError as Record<string, unknown>)?.['message'] || 'Payment failed';
-        if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.['client_secret']) {
+        const errorMessage =
+          (paymentError as Record<string, unknown>)?.['message'] || 'Payment failed';
+        if (
+          errorMessage === 'requires_action' &&
+          (paymentError as Record<string, unknown>)?.['client_secret']
+        ) {
           setLocalErrorMessage('Additional authentication required to complete your payment.');
           goToStep(PaymentStep.ERROR);
           throw new Error('3ds_required');
         }
-        if (typeof errorMessage === 'string' && errorMessage.includes('Instructor payment account not set up')) {
-          throw new Error('This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.');
+        if (
+          typeof errorMessage === 'string' &&
+          errorMessage.includes('Instructor payment account not set up')
+        ) {
+          throw new Error(
+            'This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.'
+          );
         }
 
         throw paymentError;
@@ -1474,7 +1578,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
       // Call success callback
       onSuccess(confirmationNum);
-
     } catch (error) {
       logger.error('Payment processing failed', error as Error);
 
@@ -1491,9 +1594,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         } else if (errorMessage.includes('expired')) {
           errorMessage = 'Your card has expired. Please use a different payment method.';
         } else if (errorMessage.includes('PaymentMethod was previously used')) {
-          errorMessage = 'This payment method cannot be reused. Please add a new card or select a different payment method.';
+          errorMessage =
+            'This payment method cannot be reused. Please add a new card or select a different payment method.';
         } else if (errorMessage.includes('Payment failed with status')) {
-          errorMessage = 'Payment could not be processed. Please try again or use a different card.';
+          errorMessage =
+            'Payment could not be processed. Please try again or use a different card.';
         }
       }
 
@@ -1555,154 +1660,170 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   return (
     <PricingPreviewContext.Provider value={previewController}>
       <div className="w-full">
-      {/* Inline checkout: payment method + confirmation in one cohesive layout */}
-      {showPaymentMethodInline && (currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) ? (
-        <PaymentConfirmation
-          booking={updatedBookingData}
-          paymentMethod={paymentMethod!}
-          {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
-          {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
-          {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-          creditsUsed={creditSliderCents / 100}
-          availableCredits={userCredits.totalAmount}
-          {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
-          promoApplied={promoApplied}
-          onPromoStatusChange={setPromoApplied}
-          referralAppliedCents={referralAppliedCents}
-          referralActive={referralAppliedCents > 0}
-          floorViolationMessage={floorViolationMessage}
-          instructorAvailabilityError={instructorAvailabilityError}
-          isCheckingInstructorAvailability={isCheckingInstructorAvailability}
-          onClearFloorViolation={handleClearFloorViolation}
-          onTimeSelectionCommitted={handleTimeSelectionCommitted}
-          onConfirm={processPayment}
-          onBack={handleBackToMethodSelection}
-          onChangePaymentMethod={handleChangePaymentMethodInline}
-          onCreditToggle={handleCreditToggle}
-          onCreditAmountChange={handleCreditAmountChange}
-          onBookingUpdate={handleBookingUpdate}
-          creditsAccordionExpanded={isCreditsExpanded}
-          onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
-          hidePaymentMethod
-          paymentMethodSlot={
-            <>
+        {/* Inline checkout: payment method + confirmation in one cohesive layout */}
+        {showPaymentMethodInline &&
+        (currentStep === PaymentStep.METHOD_SELECTION ||
+          currentStep === PaymentStep.CONFIRMATION) ? (
+          <PaymentConfirmation
+            booking={updatedBookingData}
+            paymentMethod={paymentMethod!}
+            {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+            {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
+            {...(selectedCard?.isDefault !== undefined && {
+              isDefaultCard: selectedCard.isDefault,
+            })}
+            creditsUsed={creditSliderCents / 100}
+            availableCredits={userCredits.totalAmount}
+            {...(userCredits.earliestExpiry && {
+              creditEarliestExpiry: userCredits.earliestExpiry,
+            })}
+            promoApplied={promoApplied}
+            onPromoStatusChange={setPromoApplied}
+            referralAppliedCents={referralAppliedCents}
+            referralActive={referralAppliedCents > 0}
+            floorViolationMessage={floorViolationMessage}
+            instructorAvailabilityError={instructorAvailabilityError}
+            availabilityWarnings={availabilityWarnings}
+            isCheckingInstructorAvailability={isCheckingInstructorAvailability}
+            onDismissAvailabilityWarnings={dismissAvailabilityWarnings}
+            onClearFloorViolation={handleClearFloorViolation}
+            onTimeSelectionCommitted={handleTimeSelectionCommitted}
+            onConfirm={processPayment}
+            onBack={handleBackToMethodSelection}
+            onChangePaymentMethod={handleChangePaymentMethodInline}
+            onCreditToggle={handleCreditToggle}
+            onCreditAmountChange={handleCreditAmountChange}
+            onBookingUpdate={handleBookingUpdate}
+            creditsAccordionExpanded={isCreditsExpanded}
+            onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
+            hidePaymentMethod
+            paymentMethodSlot={
+              <>
+                <PaymentMethodSelection
+                  compact
+                  booking={updatedBookingData}
+                  cards={userCards}
+                  credits={userCredits}
+                  onSelectPayment={(method, cardId, credits) => {
+                    selectPaymentMethod(method, cardId, credits);
+                    if (currentStep === PaymentStep.METHOD_SELECTION) {
+                      goToStep(PaymentStep.CONFIRMATION);
+                    }
+                  }}
+                  onCardAdded={(newCard) => {
+                    setUserCards([...userCards, newCard]);
+                    logDevInfo('New card added to list', { cardId: newCard.id });
+                  }}
+                />
+                <div className="mt-6">{referralApplyPanel}</div>
+              </>
+            }
+          />
+        ) : (
+          <>
+            {/* Original step-by-step flow for non-inline mode */}
+            {currentStep === PaymentStep.METHOD_SELECTION && (
               <PaymentMethodSelection
-                compact
                 booking={updatedBookingData}
                 cards={userCards}
                 credits={userCredits}
-                onSelectPayment={(method, cardId, credits) => {
-                  selectPaymentMethod(method, cardId, credits);
-                  if (currentStep === PaymentStep.METHOD_SELECTION) {
-                    goToStep(PaymentStep.CONFIRMATION);
-                  }
-                }}
+                onSelectPayment={selectPaymentMethod}
+                {...(onBack && { onBack })}
                 onCardAdded={(newCard) => {
+                  // Add the new card to the list
                   setUserCards([...userCards, newCard]);
                   logDevInfo('New card added to list', { cardId: newCard.id });
                 }}
               />
-              <div className="mt-6">{referralApplyPanel}</div>
-            </>
-          }
-        />
-      ) : (
-        <>
-          {/* Original step-by-step flow for non-inline mode */}
-          {currentStep === PaymentStep.METHOD_SELECTION && (
-            <PaymentMethodSelection
-              booking={updatedBookingData}
-              cards={userCards}
-              credits={userCredits}
-              onSelectPayment={selectPaymentMethod}
-              {...(onBack && { onBack })}
-              onCardAdded={(newCard) => {
-                // Add the new card to the list
-                setUserCards([...userCards, newCard]);
-                logDevInfo('New card added to list', { cardId: newCard.id });
-              }}
-            />
-          )}
+            )}
 
-          {(currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) && (
-            <div className="mt-6">
-              {referralApplyPanel}
-            </div>
-          )}
-          {currentStep === PaymentStep.CONFIRMATION && (
-            <PaymentConfirmation
-              booking={updatedBookingData}
-              paymentMethod={paymentMethod!}
-              {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
-              {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
-              {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditSliderCents / 100}
-              availableCredits={userCredits.totalAmount}
-              {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
-              promoApplied={promoApplied}
-              onPromoStatusChange={setPromoApplied}
-              referralAppliedCents={referralAppliedCents}
-              referralActive={referralAppliedCents > 0}
-              floorViolationMessage={floorViolationMessage}
-              instructorAvailabilityError={instructorAvailabilityError}
-              isCheckingInstructorAvailability={isCheckingInstructorAvailability}
-              onClearFloorViolation={handleClearFloorViolation}
-              onTimeSelectionCommitted={handleTimeSelectionCommitted}
-              onConfirm={processPayment}
-              onBack={handleBackToMethodSelection}
-              onChangePaymentMethod={handleChangePaymentMethodStepwise}
-              onCreditToggle={handleCreditToggle}
-              onCreditAmountChange={handleCreditAmountChange}
-              onBookingUpdate={handleBookingUpdate}
-              creditsAccordionExpanded={isCreditsExpanded}
-              onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
-            />
-          )}
-        </>
-      )}
-      {currentStep === PaymentStep.PROCESSING && (
-        <PaymentProcessing
-          amount={Math.max(0, (updatedBookingData.totalAmount ?? 0) - creditSliderCents / 100)}
-          bookingType={updatedBookingData.bookingType}
-        />
-      )}
-      {currentStep === PaymentStep.SUCCESS && (
-        <PaymentSuccess
-          booking={updatedBookingData}
-          confirmationNumber={confirmationNumber}
-          {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
-        />
-      )}
-      {currentStep === PaymentStep.ERROR && (
-        <div className="p-8 text-center">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">
-            {localErrorMessage?.includes('booking') || bookingError?.includes('booking')
-              ? 'Booking Failed'
-              : 'Payment Failed'}
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {localErrorMessage || paymentError || bookingError || 'An error occurred while processing your payment.'}
-          </p>
-          <button
-            onClick={handleRetry}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 mr-4"
-          >
-            Try Again
-          </button>
-          {onBack && (
+            {(currentStep === PaymentStep.METHOD_SELECTION ||
+              currentStep === PaymentStep.CONFIRMATION) && (
+              <div className="mt-6">{referralApplyPanel}</div>
+            )}
+            {currentStep === PaymentStep.CONFIRMATION && (
+              <PaymentConfirmation
+                booking={updatedBookingData}
+                paymentMethod={paymentMethod!}
+                {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+                {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
+                {...(selectedCard?.isDefault !== undefined && {
+                  isDefaultCard: selectedCard.isDefault,
+                })}
+                creditsUsed={creditSliderCents / 100}
+                availableCredits={userCredits.totalAmount}
+                {...(userCredits.earliestExpiry && {
+                  creditEarliestExpiry: userCredits.earliestExpiry,
+                })}
+                promoApplied={promoApplied}
+                onPromoStatusChange={setPromoApplied}
+                referralAppliedCents={referralAppliedCents}
+                referralActive={referralAppliedCents > 0}
+                floorViolationMessage={floorViolationMessage}
+                instructorAvailabilityError={instructorAvailabilityError}
+                availabilityWarnings={availabilityWarnings}
+                isCheckingInstructorAvailability={isCheckingInstructorAvailability}
+                onDismissAvailabilityWarnings={dismissAvailabilityWarnings}
+                onClearFloorViolation={handleClearFloorViolation}
+                onTimeSelectionCommitted={handleTimeSelectionCommitted}
+                onConfirm={processPayment}
+                onBack={handleBackToMethodSelection}
+                onChangePaymentMethod={handleChangePaymentMethodStepwise}
+                onCreditToggle={handleCreditToggle}
+                onCreditAmountChange={handleCreditAmountChange}
+                onBookingUpdate={handleBookingUpdate}
+                creditsAccordionExpanded={isCreditsExpanded}
+                onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
+              />
+            )}
+          </>
+        )}
+        {currentStep === PaymentStep.PROCESSING && (
+          <PaymentProcessing
+            amount={Math.max(0, (updatedBookingData.totalAmount ?? 0) - creditSliderCents / 100)}
+            bookingType={updatedBookingData.bookingType}
+          />
+        )}
+        {currentStep === PaymentStep.SUCCESS && (
+          <PaymentSuccess
+            booking={updatedBookingData}
+            confirmationNumber={confirmationNumber}
+            {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+          />
+        )}
+        {currentStep === PaymentStep.ERROR && (
+          <div className="p-8 text-center">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">
+              {localErrorMessage?.includes('booking') || bookingError?.includes('booking')
+                ? 'Booking Failed'
+                : 'Payment Failed'}
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {localErrorMessage ||
+                paymentError ||
+                bookingError ||
+                'An error occurred while processing your payment.'}
+            </p>
             <button
-              onClick={() => {
-                resetPayment();
-                onBack();
-              }}
-              className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              onClick={handleRetry}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 mr-4"
             >
-              Cancel
+              Try Again
             </button>
-          )}
-        </div>
-      )}
+            {onBack && (
+              <button
+                onClick={() => {
+                  resetPayment();
+                  onBack();
+                }}
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </PricingPreviewContext.Provider>
   );

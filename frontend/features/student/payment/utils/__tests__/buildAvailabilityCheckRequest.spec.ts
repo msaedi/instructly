@@ -1,4 +1,7 @@
-import { buildAvailabilityCheckRequest, type AvailabilityCheckBooking } from '../buildAvailabilityCheckRequest';
+import {
+  buildAvailabilityCheckRequest,
+  type AvailabilityCheckBooking,
+} from '../buildAvailabilityCheckRequest';
 import { PAYMENT_STATUS } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 
@@ -26,12 +29,24 @@ describe('buildAvailabilityCheckRequest', () => {
   const build = (
     overrides: Partial<AvailabilityCheckBooking> = {},
     updatedOverrides: Partial<AvailabilityCheckBooking> = {},
-    baseOverrides: Partial<AvailabilityCheckBooking> = {},
+    baseOverrides: Partial<AvailabilityCheckBooking> = {}
   ) =>
     buildAvailabilityCheckRequest({
-      bookingCandidate: { ...baseBooking, ...overrides, metadata: { ...baseBooking.metadata, ...(overrides.metadata ?? {}) } },
-      updatedBookingData: { ...baseBooking, ...updatedOverrides, metadata: { ...baseBooking.metadata, ...(updatedOverrides.metadata ?? {}) } },
-      bookingData: { ...baseBooking, ...baseOverrides, metadata: { ...baseBooking.metadata, ...(baseOverrides.metadata ?? {}) } },
+      bookingCandidate: {
+        ...baseBooking,
+        ...overrides,
+        metadata: { ...baseBooking.metadata, ...(overrides.metadata ?? {}) },
+      },
+      updatedBookingData: {
+        ...baseBooking,
+        ...updatedOverrides,
+        metadata: { ...baseBooking.metadata, ...(updatedOverrides.metadata ?? {}) },
+      },
+      bookingData: {
+        ...baseBooking,
+        ...baseOverrides,
+        metadata: { ...baseBooking.metadata, ...(baseOverrides.metadata ?? {}) },
+      },
     });
 
   it('builds a request from canonical booking data', () => {
@@ -45,7 +60,7 @@ describe('buildAvailabilityCheckRequest', () => {
         selected_duration: 60,
         location_type: 'student_location',
         exclude_booking_id: 'booking-123',
-      }),
+      })
     );
   });
 
@@ -67,7 +82,7 @@ describe('buildAvailabilityCheckRequest', () => {
       {
         bookingId: 'fallback-booking',
         metadata: { serviceId: null },
-      },
+      }
     );
 
     expect(request).toEqual(
@@ -75,11 +90,13 @@ describe('buildAvailabilityCheckRequest', () => {
         instructor_id: '99',
         instructor_service_id: '321',
         location_type: 'online',
-        location_lat: 40.7,
-        location_lng: -73.9,
         exclude_booking_id: 'updated-booking',
-      }),
+      })
     );
+    expect(request).not.toHaveProperty('location_address');
+    expect(request).not.toHaveProperty('location_place_id');
+    expect(request).not.toHaveProperty('location_lat');
+    expect(request).not.toHaveProperty('location_lng');
   });
 
   it('falls back to updated booking values when the candidate is missing identifiers, time, and location details', () => {
@@ -113,7 +130,7 @@ describe('buildAvailabilityCheckRequest', () => {
         duration: null as unknown as number,
         endTime: null as unknown as string,
         metadata: { serviceId: null, location_type: null, modality: null },
-      },
+      }
     );
 
     expect(request).toEqual(
@@ -125,11 +142,13 @@ describe('buildAvailabilityCheckRequest', () => {
         end_time: '18:00',
         selected_duration: 90,
         location_type: 'online',
-        location_lat: 40.8,
-        location_lng: -73.95,
         exclude_booking_id: 'updated-123',
-      }),
+      })
     );
+    expect(request).not.toHaveProperty('location_address');
+    expect(request).not.toHaveProperty('location_place_id');
+    expect(request).not.toHaveProperty('location_lat');
+    expect(request).not.toHaveProperty('location_lng');
   });
 
   it('falls back to base booking values and omits coords and booking ids when none are valid', () => {
@@ -173,7 +192,7 @@ describe('buildAvailabilityCheckRequest', () => {
         location: 'Library Plaza',
         bookingId: '   ',
         metadata: { serviceId: null },
-      },
+      }
     );
 
     expect(request).toEqual(
@@ -185,21 +204,150 @@ describe('buildAvailabilityCheckRequest', () => {
         end_time: '08:00',
         selected_duration: 45,
         location_type: 'student_location',
-      }),
+      })
     );
     expect(request).not.toHaveProperty('location_lat');
     expect(request).not.toHaveProperty('location_lng');
     expect(request).not.toHaveProperty('exclude_booking_id');
   });
 
+  it('includes address, place id, and coordinates for non-online availability checks', () => {
+    const request = build(
+      {
+        address: {
+          fullAddress: '500 Court St, Brooklyn, NY 11231',
+          lat: 40.6814,
+          lng: -73.9982,
+          placeId: 'place_123',
+        },
+        metadata: {
+          ...baseBooking.metadata,
+          location_type: 'student_location',
+        },
+      },
+      {},
+      {}
+    );
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        location_type: 'student_location',
+        location_address: '500 Court St, Brooklyn, NY 11231',
+        location_place_id: 'place_123',
+        location_lat: 40.6814,
+        location_lng: -73.9982,
+      })
+    );
+  });
+
+  it('falls back to metadata and sanitized location text for preflight location details', () => {
+    const request = build(
+      {
+        location: '  10 Park Ave  ',
+        metadata: {
+          ...baseBooking.metadata,
+          location_type: 'neutral_location',
+          location_address: '15 Park Ave, New York, NY',
+          location_place_id: 'place_meta',
+          location_lat: '40.745',
+          location_lng: '-73.980',
+        },
+      },
+      {},
+      {}
+    );
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        location_type: 'neutral_location',
+        location_address: '15 Park Ave, New York, NY',
+        location_place_id: 'place_meta',
+        location_lat: 40.745,
+        location_lng: -73.98,
+      })
+    );
+  });
+
+  it('handles missing candidate metadata and coerces numeric ids through fallback state', () => {
+    const { metadata: _ignored, ...bookingWithoutMetadata } = baseBooking;
+
+    const request = buildAvailabilityCheckRequest({
+      bookingCandidate: {
+        ...bookingWithoutMetadata,
+        instructorId: 123 as unknown as string,
+        serviceId: 456 as unknown as string,
+      },
+      updatedBookingData: {
+        ...baseBooking,
+        metadata: { serviceId: 'service-789', location_type: 'student_location' },
+      },
+      bookingData: baseBooking,
+    });
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        instructor_id: '123',
+        instructor_service_id: 'service-789',
+      })
+    );
+  });
+
+  it('uses updated booking address details when the candidate has no physical location yet', () => {
+    const request = build(
+      {
+        location: '',
+      },
+      {
+        address: {
+          fullAddress: 'Updated Studio, Brooklyn, NY',
+          lat: 40.7127,
+          lng: -73.9981,
+          placeId: 'updated_place',
+        },
+      },
+      {}
+    );
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        location_address: 'Updated Studio, Brooklyn, NY',
+        location_place_id: 'updated_place',
+        location_lat: 40.7127,
+        location_lng: -73.9981,
+      })
+    );
+  });
+
+  it('falls back to base booking place details when newer state has none', () => {
+    const request = build(
+      {
+        location: '',
+      },
+      {
+        location: '',
+      },
+      {
+        address: {
+          fullAddress: 'Base Studio, Brooklyn, NY',
+          lat: 40.6892,
+          lng: -73.9442,
+          placeId: 'base_place',
+        },
+      }
+    );
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        location_address: 'Base Studio, Brooklyn, NY',
+        location_place_id: 'base_place',
+        location_lat: 40.6892,
+        location_lng: -73.9442,
+      })
+    );
+  });
+
   it('returns null when the instructor id cannot be resolved', () => {
-    expect(
-      build(
-        { instructorId: '' },
-        { instructorId: '' },
-        { instructorId: '' },
-      ),
-    ).toBeNull();
+    expect(build({ instructorId: '' }, { instructorId: '' }, { instructorId: '' })).toBeNull();
   });
 
   it('returns null when the service id cannot be resolved', () => {
@@ -207,8 +355,8 @@ describe('buildAvailabilityCheckRequest', () => {
       build(
         { serviceId: null as unknown as string, metadata: { serviceId: null } },
         { serviceId: null as unknown as string, metadata: { serviceId: null } },
-        { serviceId: null as unknown as string, metadata: { serviceId: null } },
-      ),
+        { serviceId: null as unknown as string, metadata: { serviceId: null } }
+      )
     ).toBeNull();
   });
 
@@ -217,8 +365,8 @@ describe('buildAvailabilityCheckRequest', () => {
       build(
         { date: null as unknown as Date },
         { date: null as unknown as Date },
-        { date: null as unknown as Date },
-      ),
+        { date: null as unknown as Date }
+      )
     ).toBeNull();
     expect(build({ date: 'not-a-date' as unknown as Date })).toBeNull();
   });
@@ -237,7 +385,7 @@ describe('buildAvailabilityCheckRequest', () => {
       expect.objectContaining({
         selected_duration: 75,
         end_time: '16:15',
-      }),
+      })
     );
 
     const metadataDurationRequest = build(
@@ -251,13 +399,13 @@ describe('buildAvailabilityCheckRequest', () => {
       },
       {
         duration: undefined as unknown as number,
-      },
+      }
     );
     expect(metadataDurationRequest).toEqual(
       expect.objectContaining({
         selected_duration: 90,
         end_time: '16:00',
-      }),
+      })
     );
   });
 
@@ -275,8 +423,8 @@ describe('buildAvailabilityCheckRequest', () => {
         {
           duration: undefined as unknown as number,
           metadata: { serviceId: 'service-789', location_type: 'student_location' },
-        },
-      ),
+        }
+      )
     ).toBeNull();
   });
 });

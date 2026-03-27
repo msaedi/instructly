@@ -1325,10 +1325,14 @@ export interface AvailabilityCheckRequest {
   instructor_id: string;
   /** Service to book */
   instructor_service_id: string;
+  /** Optional address for preflight location comparison */
+  location_address?: string | null;
   /** Optional latitude for service-area validation */
   location_lat?: number | null;
   /** Optional longitude for service-area validation */
   location_lng?: number | null;
+  /** Optional place ID for preflight location comparison */
+  location_place_id?: string | null;
   /** Requested booking format */
   location_type: AvailabilityCheckRequestLocationType;
   /** Optional duration in minutes for parity with booking validation */
@@ -1364,6 +1368,22 @@ export interface TimeSlotInfo {
 }
 
 /**
+ * Advisory availability warning details.
+ */
+export interface AvailabilityWarningInfo {
+  /** Related booking ID */
+  conflicting_booking_id: string;
+  /** Related service name */
+  conflicting_service: string;
+  /** Gap in minutes between bookings */
+  gap_minutes: number;
+  /** Human-readable advisory warning */
+  message: string;
+  /** Warning type */
+  type: 'proximity';
+}
+
+/**
  * Response for availability check.
  */
 export interface AvailabilityCheckResponse {
@@ -1374,6 +1394,8 @@ export interface AvailabilityCheckResponse {
   reason?: string | null;
   /** Time slot information for the availability check */
   time_info?: TimeSlotInfo | null;
+  /** Advisory warnings that do not block booking */
+  warnings?: AvailabilityWarningInfo[] | null;
 }
 
 /**
