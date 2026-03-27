@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import InstructorReviewsPage from '../page';
 
@@ -127,7 +127,7 @@ describe('InstructorReviewsPage', () => {
     jest.useRealTimers();
   });
 
-  it('renders the redesigned summary, timestamps, reviewer names, and reply states', () => {
+  it('renders the redesigned summary, timestamps, reviewer names, amber stars, and reply states', () => {
     const { container } = renderPage();
 
     expect(screen.getByText('4.0')).toBeInTheDocument();
@@ -143,9 +143,19 @@ describe('InstructorReviewsPage', () => {
     expect(screen.getByText('Instructor reply')).toBeInTheDocument();
     expect(screen.getByText('Thanks for the thoughtful note.')).toBeInTheDocument();
     expect(screen.getByText('Replied')).toBeInTheDocument();
+    expect(screen.queryByText('No written feedback')).not.toBeInTheDocument();
 
-    const metadataRow = container.querySelector('article > div.flex.items-center.gap-3');
-    expect(metadataRow).toBeInTheDocument();
+    const reviewMeta = screen.getByTestId('review-meta-review-1');
+    expect(reviewMeta).toHaveClass('flex', 'flex-col', 'items-end');
+    expect(within(reviewMeta).getByText('about 4 hours ago')).toBeInTheDocument();
+    expect(within(reviewMeta).getByRole('button', { name: 'Reply' })).toBeInTheDocument();
+
+    const summaryStars = container.querySelectorAll('.text-\\[\\#FFD93D\\]');
+    expect(summaryStars.length).toBeGreaterThan(0);
+
+    const secondReviewCard = screen.getByText('Alex W.').closest('article');
+    expect(secondReviewCard).not.toBeNull();
+    expect(within(secondReviewCard as HTMLElement).queryByText('No written feedback')).not.toBeInTheDocument();
   });
 
   it('updates rating and comments-only filters through the summary controls', async () => {
@@ -160,7 +170,16 @@ describe('InstructorReviewsPage', () => {
       { rating: 4 }
     );
 
-    await user.click(screen.getByRole('checkbox', { name: 'With comments only' }));
+    const commentsToggle = screen.getByRole('switch', { name: 'With comments' });
+    const commentsPill = commentsToggle.parentElement;
+
+    expect(commentsToggle).toHaveAttribute('aria-checked', 'false');
+    expect(commentsPill).toHaveClass('border-gray-300', 'bg-white');
+
+    await user.click(commentsToggle);
+
+    expect(commentsToggle).toHaveAttribute('aria-checked', 'true');
+    expect(commentsPill).toHaveClass('border-[#7C3AED]', 'bg-[#F3E8FF]', 'text-[#7C3AED]');
     expect(mockUseInstructorReviews).toHaveBeenLastCalledWith(
       'instructor-1',
       1,

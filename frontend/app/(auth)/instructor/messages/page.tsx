@@ -33,6 +33,7 @@ import {
   type SSEMessageWithOwnership,
   type MessageWithAttachments,
   COMPOSE_THREAD_ID,
+  deriveConversationPastBookings,
 } from '@/components/instructor/messages';
 
 import {
@@ -545,6 +546,14 @@ export function MessagesPanelContent({
     });
   }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id, relativeNow]);
 
+  const derivedPastBookings = useMemo(() => {
+    if (activeConversation?.nextBooking || (activeConversation?.upcomingBookings?.length ?? 0) > 0) {
+      return [];
+    }
+
+    return deriveConversationPastBookings(threadMessages);
+  }, [activeConversation?.nextBooking, activeConversation?.upcomingBookings, threadMessages]);
+
   // Get primary booking ID for a thread
   const getPrimaryBookingId = useCallback((threadId: string | null) => {
     if (!threadId) return null;
@@ -715,8 +724,19 @@ export function MessagesPanelContent({
     ? activeConversation?.name ?? 'Someone'
     : null;
 
+  const showingTemplates = mailSection === 'templates';
+  const hiddenSectionCopy = showingTemplates
+    ? {
+        title: 'Messages',
+        subtitle: 'Stay in touch with everyone.',
+      }
+    : {
+        title: 'Communication templates',
+        subtitle: 'Access saved templates for quick replies.',
+      };
+
   return (
-    <div className="flex h-full min-h-[calc(100vh-12rem)] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
         <SectionHeroCard
           id={embedded ? 'messages-first-card' : undefined}
           icon={MessageSquare}
@@ -724,27 +744,25 @@ export function MessagesPanelContent({
           subtitle={dashboardSubtitle}
         />
 
-        <div className="mb-4 insta-surface-card p-4">
+        <div className="mb-4 insta-surface-card p-4" data-testid="messages-section-switcher">
           <button
             type="button"
-            onClick={() => setMailSection(mailSection === 'templates' ? 'inbox' : 'templates')}
-            className="flex w-full items-center justify-between text-left"
+            onClick={() => setMailSection(showingTemplates ? 'inbox' : 'templates')}
+            className="flex w-full items-center justify-between text-left transition-colors duration-200 motion-reduce:transition-none"
           >
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Communication templates
+                {hiddenSectionCopy.title}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Access saved templates for quick replies.
+                {hiddenSectionCopy.subtitle}
               </p>
             </div>
-            <ChevronDown
-              className={`h-5 w-5 text-gray-500 transition-transform dark:text-gray-400 ${mailSection === 'templates' ? 'rotate-180' : ''}`}
-            />
+            <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
           </button>
         </div>
 
-        {mailSection === 'templates' ? (
+        {showingTemplates ? (
           <TemplateEditor
             templates={templates}
             selectedTemplateId={selectedTemplateId}
@@ -764,8 +782,11 @@ export function MessagesPanelContent({
             onTemplatesUpdate={setTemplates}
           />
         ) : (
-          <div className="flex min-h-[680px] flex-1 flex-col overflow-hidden insta-surface-card">
-            <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-hidden insta-surface-card"
+            data-testid="messages-inbox-shell"
+          >
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
               {/* Sidebar */}
               <ConversationList
                 conversations={conversationSource}
@@ -787,12 +808,13 @@ export function MessagesPanelContent({
               />
 
               {/* Chat area */}
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {selectedChat ? (
                   <>
                     <ChatHeader
                       isComposeView={isComposeView}
                       activeConversation={activeConversation}
+                      fallbackBookings={derivedPastBookings}
                       composeRecipient={composeRecipient}
                       composeRecipientQuery={composeRecipientQuery}
                       composeSuggestions={composeSuggestions}
@@ -821,7 +843,10 @@ export function MessagesPanelContent({
                     )}
 
                     {/* Messages */}
-                    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+                    <div
+                      ref={messagesContainerRef}
+                      className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+                    >
                       {isComposeView && threadMessages.length === 0 && (
                         <div className="flex items-center justify-center py-12">
                           <p className="text-sm text-gray-500 dark:text-gray-400">Draft your message and choose who to send it to.</p>

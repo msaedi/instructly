@@ -5,6 +5,7 @@
 import type { Booking } from '@/features/shared/api/types';
 import type {
   ConversationEntry,
+  ConversationBooking,
   MessageDelivery,
   MessageWithAttachments,
   ReadByEntry,
@@ -12,6 +13,8 @@ import type {
 import { formatRelativeTimestamp, formatTimeLabel } from '@/components/messaging/formatters';
 
 type MessageApiLike = {
+  booking_details?: ConversationBooking | null;
+  booking_id?: string | null;
   id: string;
   content?: string | null;
   sender_id?: string | null;
@@ -46,6 +49,43 @@ export const getBookingActivityTimestamp = (booking: Booking): string | undefine
     booking.created_at ??
     booking.booking_date ??
     undefined
+  );
+};
+
+const getConversationBookingTimestamp = (booking: ConversationBooking): number => {
+  const combined = `${booking.date}T${booking.start_time}`;
+  const parsed = Date.parse(combined);
+
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+
+  const fallback = Date.parse(booking.date);
+  return Number.isFinite(fallback) ? fallback : 0;
+};
+
+export const deriveConversationPastBookings = (
+  messages: MessageWithAttachments[]
+): ConversationBooking[] => {
+  const bookingMap = new Map<string, ConversationBooking>();
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message) {
+      continue;
+    }
+    const bookingId = message.bookingId ?? message.bookingDetails?.id;
+    const bookingDetails = message.bookingDetails;
+
+    if (!bookingId || !bookingDetails || bookingMap.has(bookingId)) {
+      continue;
+    }
+
+    bookingMap.set(bookingId, bookingDetails);
+  }
+
+  return Array.from(bookingMap.values()).sort(
+    (left, right) => getConversationBookingTimestamp(right) - getConversationBookingTimestamp(left)
   );
 };
 
@@ -148,6 +188,12 @@ export const mapMessageFromResponse = (
   }
   if (message.sender_id) {
     mapped.senderId = message.sender_id;
+  }
+  if (typeof message.booking_id === 'string' || message.booking_id === null) {
+    mapped.bookingId = message.booking_id;
+  }
+  if (message.booking_details) {
+    mapped.bookingDetails = message.booking_details;
   }
   if (message.edited_at) {
     mapped.editedAt = message.edited_at;

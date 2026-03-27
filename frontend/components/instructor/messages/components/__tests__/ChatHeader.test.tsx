@@ -1,6 +1,7 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ChatHeader, type ChatHeaderProps } from '../ChatHeader';
 import type { ConversationEntry } from '../../types';
+import { shortenBookingId } from '@/lib/bookingId';
 
 describe('ChatHeader', () => {
   const mockConversation = {
@@ -21,24 +22,27 @@ describe('ChatHeader', () => {
   const mockConversationWithBooking: ConversationEntry = {
     ...mockConversation,
     nextBooking: {
-      id: 'booking-123',
+      id: '01KKQKWD9V9QF0J2T0AB3124',
       service_name: 'Piano Lesson',
       date: '2025-01-20',
       start_time: '09:00',
+      status: 'CONFIRMED',
     },
     upcomingBookingCount: 2,
     upcomingBookings: [
       {
-        id: 'booking-123',
+        id: '01KKQKWD9V9QF0J2T0AB3124',
         service_name: 'Piano Lesson',
         date: '2025-01-20',
         start_time: '09:00',
+        status: 'CONFIRMED',
       },
       {
-        id: 'booking-456',
+        id: '01JZ7AKD1234567890ABCDXYZ',
         service_name: 'Guitar Lesson',
         date: '2025-01-22',
         start_time: '14:30',
+        status: 'CONFIRMED',
       },
     ],
   };
@@ -116,7 +120,7 @@ describe('ChatHeader', () => {
       fireEvent.click(menuButton);
 
       expect(screen.getByRole('menu')).toBeInTheDocument();
-      expect(screen.getByText('Booking Info')).toBeInTheDocument();
+      expect(screen.queryByText('Booking Info')).not.toBeInTheDocument();
     });
 
     it('shows "No upcoming bookings" when no bookings exist', () => {
@@ -141,7 +145,7 @@ describe('ChatHeader', () => {
       expect(screen.getByText(/Piano Lesson/)).toBeInTheDocument();
     });
 
-    it('shows next booking in menu', () => {
+    it('shows the primary booking as an inline confirmed card in the menu', () => {
       render(
         <ChatHeader
           {...defaultProps}
@@ -152,8 +156,14 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      expect(screen.getByText('Next booking')).toBeInTheDocument();
-      expect(screen.getByText('Upcoming')).toHaveClass('bg-emerald-50', 'text-emerald-700');
+      const primaryCard = screen.getByTestId('chat-header-booking-card-01KKQKWD9V9QF0J2T0AB3124');
+      expect(primaryCard).toHaveClass('bg-[#F3E8FF]');
+      expect(within(primaryCard).getByText('Piano Lesson')).toBeInTheDocument();
+      expect(within(primaryCard).getByText('Confirmed')).toHaveClass('bg-emerald-50', 'text-emerald-700');
+      expect(within(primaryCard).getByText(`#${shortenBookingId('01KKQKWD9V9QF0J2T0AB3124')}`)).toBeInTheDocument();
+      expect(screen.queryByText('Next booking')).not.toBeInTheDocument();
+      expect(screen.queryByText('Upcoming')).not.toBeInTheDocument();
+      expect(screen.queryByText('01KKQKWD9V9QF0J2T0AB3124')).not.toBeInTheDocument();
     });
 
     it('shows expand button for multiple bookings', () => {
@@ -167,7 +177,7 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      expect(screen.getByText(/\+1 more upcoming booking/)).toBeInTheDocument();
+      expect(screen.getByText(/\+1 more booking$/)).toBeInTheDocument();
     });
 
     it('expands to show additional bookings', () => {
@@ -181,8 +191,7 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      // Click the expand button (the one with "upcoming booking" text)
-      const expandButton = screen.getByText(/\+1 more upcoming booking/);
+      const expandButton = screen.getByText(/\+1 more booking$/);
       fireEvent.click(expandButton);
 
       expect(screen.getByText('Guitar Lesson')).toBeInTheDocument();
@@ -200,15 +209,136 @@ describe('ChatHeader', () => {
 
       expect(screen.getByRole('link', { name: /piano lesson/i })).toHaveAttribute(
         'href',
-        '/instructor/bookings/booking-123'
+        '/instructor/bookings/01KKQKWD9V9QF0J2T0AB3124'
       );
 
-      fireEvent.click(screen.getByText(/\+1 more upcoming booking/));
+      fireEvent.click(screen.getByText(/\+1 more booking$/));
 
       expect(screen.getByRole('link', { name: /guitar lesson/i })).toHaveAttribute(
         'href',
-        '/instructor/bookings/booking-456'
+        '/instructor/bookings/01JZ7AKD1234567890ABCDXYZ'
       );
+    });
+
+    it('shows completed fallback bookings with gray cards when there are no upcoming bookings', () => {
+      render(
+        <ChatHeader
+          {...defaultProps}
+          activeConversation={mockConversation}
+          fallbackBookings={[
+            {
+              id: '01KZZZZZ9V9QF0J2T0AB3124',
+              service_name: 'Voice Lesson',
+              date: '2024-12-15',
+              start_time: '11:00',
+            },
+            {
+              id: '01KYYYYY1234567890ABCDXYZ',
+              service_name: 'Theory Lesson',
+              date: '2024-12-10',
+              start_time: '15:30',
+            },
+          ]}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+
+      const primaryPastCard = screen.getByTestId('chat-header-booking-card-01KZZZZZ9V9QF0J2T0AB3124');
+      expect(primaryPastCard).toHaveClass('bg-gray-100');
+      expect(within(primaryPastCard).getByText('Completed')).toHaveClass('bg-blue-50', 'text-blue-700');
+      expect(
+        within(primaryPastCard).getByText(`#${shortenBookingId('01KZZZZZ9V9QF0J2T0AB3124')}`)
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText(/\+1 more booking$/));
+      expect(screen.getByTestId('chat-header-booking-card-01KYYYYY1234567890ABCDXYZ')).toBeInTheDocument();
+    });
+
+    it('falls back to upcomingBookingCount when the detailed list is missing', () => {
+      render(
+        <ChatHeader
+          {...defaultProps}
+          activeConversation={{
+            ...mockConversation,
+            nextBooking: {
+              id: '01KCOUNT009V9QF0J2T0AB3124',
+              service_name: 'Piano Lesson',
+              date: '2025-01-20',
+              start_time: '09:00',
+              status: 'CONFIRMED',
+            },
+            upcomingBookingCount: 3,
+          }}
+        />
+      );
+
+      expect(screen.getByText(/\+2 more$/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+      expect(screen.getByText(/\+2 more bookings$/)).toBeInTheDocument();
+      expect(screen.queryByTestId('chat-header-booking-expander')).not.toBeInTheDocument();
+      expect(screen.getByTestId('chat-header-booking-summary-count')).toBeInTheDocument();
+    });
+
+    it('renders explicit booking status labels inline without renaming them to upcoming', () => {
+      render(
+        <ChatHeader
+          {...defaultProps}
+          activeConversation={{
+            ...mockConversation,
+            nextBooking: {
+              id: '01KSTATUS0000000000000001',
+              service_name: 'Cello Lesson',
+              date: '2025-02-01',
+              start_time: '10:00',
+              status: 'CANCELLED',
+            },
+            upcomingBookingCount: 4,
+            upcomingBookings: [
+              {
+                id: '01KSTATUS0000000000000001',
+                service_name: 'Cello Lesson',
+                date: '2025-02-01',
+                start_time: '10:00',
+                status: 'CANCELLED',
+              },
+              {
+                id: '01KSTATUS0000000000000002',
+                service_name: 'Percussion Lesson',
+                date: '2025-02-02',
+                start_time: '11:00',
+                status: 'NO_SHOW',
+              },
+              {
+                id: '01KSTATUS0000000000000003',
+                service_name: 'Bass Lesson',
+                date: '2025-02-03',
+                start_time: '12:00',
+                status: 'IN_PROGRESS',
+              },
+              {
+                id: '01KSTATUS0000000000000004',
+                service_name: 'Theory Intensive',
+                date: '2025-02-04',
+                start_time: '13:00',
+                status: 'PAYMENT_PENDING',
+              },
+            ],
+          }}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+
+      const primaryCard = screen.getByTestId('chat-header-booking-card-01KSTATUS0000000000000001');
+      expect(within(primaryCard).getByText('Cancelled')).toBeInTheDocument();
+      expect(screen.queryByText('Upcoming')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText(/\+3 more bookings$/));
+      expect(screen.getByText('No Show')).toBeInTheDocument();
+      expect(screen.getByText('In Progress')).toBeInTheDocument();
+      expect(screen.getByText('Payment Pending')).toBeInTheDocument();
     });
   });
 
@@ -330,8 +460,7 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      // upcomingBookingCount=2, so "+1 more upcoming booking" (singular)
-      expect(screen.getByText(/\+1 more upcoming booking$/)).toBeInTheDocument();
+      expect(screen.getByText(/\+1 more booking$/)).toBeInTheDocument();
     });
 
     it('shows plural "bookings" for +2 more', () => {
@@ -340,7 +469,13 @@ describe('ChatHeader', () => {
         upcomingBookingCount: 3,
         upcomingBookings: [
           ...mockConversationWithBooking.upcomingBookings!,
-          { id: 'booking-789', service_name: 'Vocal Lesson', date: '2025-01-25', start_time: '16:00' },
+          {
+            id: '01KKABCDE234567890ABCDXYZ',
+            service_name: 'Vocal Lesson',
+            date: '2025-01-25',
+            start_time: '16:00',
+            status: 'CONFIRMED',
+          },
         ],
       };
       render(
@@ -350,7 +485,7 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      expect(screen.getByText(/\+2 more upcoming bookings$/)).toBeInTheDocument();
+      expect(screen.getByText(/\+2 more bookings$/)).toBeInTheDocument();
     });
   });
 

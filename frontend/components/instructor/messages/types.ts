@@ -49,6 +49,8 @@ export type MessageWithAttachments = MessageItem & {
   delivery?: MessageDelivery | undefined;
   createdAt?: string | undefined;
   senderId?: string | undefined;
+  bookingId?: string | null | undefined;
+  bookingDetails?: ConversationBooking | undefined;
   isDeleted?: boolean | undefined;
   deletedAt?: string | null | undefined;
   deletedBy?: string | null | undefined;
@@ -67,7 +69,9 @@ export type MessageWithAttachments = MessageItem & {
  * Booking info for conversation context (Phase 4)
  * Re-exported from @/types/conversation
  */
-export type ConversationBooking = BookingSummary;
+export type ConversationBooking = BookingSummary & {
+  status?: string | null;
+};
 
 /**
  * Conversation entry in the sidebar list
