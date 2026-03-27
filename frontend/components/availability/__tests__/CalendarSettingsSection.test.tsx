@@ -20,6 +20,9 @@ describe('CalendarSettingsSection', () => {
   it('renders buffer cards and overnight protection', () => {
     render(<CalendarSettingsSection {...baseProps} saveState="idle" />);
 
+    expect(
+      screen.getByRole('heading', { name: 'Buffer between back-to-back lessons' })
+    ).toBeInTheDocument();
     expect(screen.getByText('Staying put')).toBeInTheDocument();
     expect(screen.getByText('Traveling to student')).toBeInTheDocument();
     expect(screen.getByText('Overnight booking protection')).toBeInTheDocument();

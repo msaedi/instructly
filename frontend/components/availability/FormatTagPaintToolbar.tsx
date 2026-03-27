@@ -27,15 +27,15 @@ function getToolbarOptionTitle(option: AvailabilityPaintMode): string {
 const pillColors: Record<number, { active: string; inactive: string }> = {
   [TAG_NONE]: {
     active: 'bg-[#7E22CE] text-white border-[#7E22CE]',
-    inactive: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700',
+    inactive: 'bg-[#F3E8FF] text-[#7E22CE] border-[#F3E8FF]',
   },
   [TAG_ONLINE_ONLY]: {
-    active: 'bg-[#2563EB] text-white border-[#2563EB]',
-    inactive: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700',
+    active: 'bg-[#059669] text-white border-[#059669]',
+    inactive: 'bg-[#D1FAE5] text-[#059669] border-[#D1FAE5]',
   },
   [TAG_NO_TRAVEL]: {
-    active: 'bg-[#059669] text-white border-[#059669]',
-    inactive: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700',
+    active: 'bg-[#FFD93D] text-[#92400E] border-[#FFD93D]',
+    inactive: 'bg-[#FFEDAF] text-[#92400E] border-[#FFEDAF]',
   },
 };
 
@@ -55,7 +55,7 @@ export default function FormatTagPaintToolbar({
   return (
     <div
       data-testid="availability-paint-toolbar"
-      className="flex items-center gap-3"
+      className="flex flex-col items-start gap-3 sm:flex-row sm:items-center"
     >
       <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
         Availability format:
@@ -63,7 +63,7 @@ export default function FormatTagPaintToolbar({
       <div
         role="radiogroup"
         aria-label="Availability format"
-        className="flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
       >
         {options.map((option) => {
           const active = value === option;
@@ -76,7 +76,7 @@ export default function FormatTagPaintToolbar({
               aria-checked={active}
               aria-label={`${getToolbarOptionTitle(option)}${active ? ' (selected)' : ''}`}
               onClick={() => onChange(option)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+              className={`inline-flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 ${
                 active ? colors.active : colors.inactive
               }`}
             >

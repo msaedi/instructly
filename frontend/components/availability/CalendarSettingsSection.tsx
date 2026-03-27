@@ -52,7 +52,7 @@ export default function CalendarSettingsSection({
           id="calendar-settings-heading"
           className="text-lg font-semibold text-gray-900 dark:text-gray-100"
         >
-          Buffer between lessons
+          Buffer between back-to-back lessons
         </h2>
         {saveLabel ? (
           <p

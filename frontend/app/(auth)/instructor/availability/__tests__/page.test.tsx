@@ -278,7 +278,9 @@ describe('InstructorAvailabilityPage', () => {
   it('renders the settings section with instructor defaults from profile', () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Buffer between lessons' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Buffer between back-to-back lessons' })
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('combobox', { name: 'Staying put buffer' })
     ).toHaveTextContent('15 min');
