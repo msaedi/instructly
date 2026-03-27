@@ -64,15 +64,16 @@ jest.mock('@/lib/logger', () => ({
 
 // Mock child components
 jest.mock('../PaymentMethodSelection', () => {
-  return function MockPaymentMethodSelection({ onSelectPayment, onCardAdded }: {
+  return function MockPaymentMethodSelection({
+    onSelectPayment,
+    onCardAdded,
+  }: {
     onSelectPayment: (method: string, cardId?: string) => void;
     onCardAdded?: (card: { id: string; last4: string; brand: string }) => void;
   }) {
     return (
       <div data-testid="payment-method-selection">
-        <button onClick={() => onSelectPayment('CREDIT_CARD', 'card-1')}>
-          Select Card
-        </button>
+        <button onClick={() => onSelectPayment('CREDIT_CARD', 'card-1')}>Select Card</button>
         <button onClick={() => onCardAdded?.({ id: 'new-card', last4: '4242', brand: 'Visa' })}>
           Add Card
         </button>
@@ -81,15 +82,14 @@ jest.mock('../PaymentMethodSelection', () => {
   };
 });
 
-let latestPaymentConfirmationProps:
-  | {
-      booking: BookingWithMetadata;
-      paymentMethod: PaymentMethod;
-      creditEarliestExpiry?: string | null | undefined;
-      instructorAvailabilityError?: string | null | undefined;
-      isCheckingInstructorAvailability?: boolean | undefined;
-    }
-  | null = null;
+let latestPaymentConfirmationProps: {
+  booking: BookingWithMetadata;
+  paymentMethod: PaymentMethod;
+  creditEarliestExpiry?: string | null | undefined;
+  instructorAvailabilityError?: string | null | undefined;
+  availabilityWarnings?: Array<{ message: string }> | null | undefined;
+  isCheckingInstructorAvailability?: boolean | undefined;
+} | null = null;
 
 type BookingWithMetadata = BookingPayment & {
   metadata?: Record<string, unknown>;
@@ -98,19 +98,15 @@ type BookingWithMetadata = BookingPayment & {
 
 let mockCommittedTimeSelectionOverride: Partial<BookingWithMetadata> | null = null;
 
-let latestPaymentProcessingProps:
-  | {
-      amount: number;
-      bookingType: BookingType;
-    }
-  | null = null;
+let latestPaymentProcessingProps: {
+  amount: number;
+  bookingType: BookingType;
+} | null = null;
 
-let latestPaymentSuccessProps:
-  | {
-      confirmationNumber: string;
-      cardLast4?: string;
-    }
-  | null = null;
+let latestPaymentSuccessProps: {
+  confirmationNumber: string;
+  cardLast4?: string;
+} | null = null;
 
 jest.mock('../PaymentConfirmation', () => {
   return function MockPaymentConfirmation({
@@ -126,7 +122,9 @@ jest.mock('../PaymentConfirmation', () => {
     onCreditsAccordionToggle,
     onClearFloorViolation,
     onTimeSelectionCommitted,
+    onDismissAvailabilityWarnings,
     instructorAvailabilityError,
+    availabilityWarnings,
     isCheckingInstructorAvailability,
     paymentMethodSlot,
   }: {
@@ -142,7 +140,9 @@ jest.mock('../PaymentConfirmation', () => {
     onCreditsAccordionToggle?: (expanded: boolean) => void;
     onClearFloorViolation?: () => void;
     onTimeSelectionCommitted?: (nextBooking: BookingWithMetadata) => void | Promise<void>;
+    onDismissAvailabilityWarnings?: () => void;
     instructorAvailabilityError?: string | null;
+    availabilityWarnings?: Array<{ message: string }> | null;
     isCheckingInstructorAvailability?: boolean;
     paymentMethodSlot?: React.ReactNode;
   }) {
@@ -151,6 +151,7 @@ jest.mock('../PaymentConfirmation', () => {
       paymentMethod,
       creditEarliestExpiry,
       instructorAvailabilityError,
+      availabilityWarnings,
       isCheckingInstructorAvailability,
     };
     return (
@@ -159,11 +160,33 @@ jest.mock('../PaymentConfirmation', () => {
         <button onClick={onConfirm}>Confirm Payment</button>
         <button onClick={onBack}>Back</button>
         {onCreditToggle && <button onClick={onCreditToggle}>Toggle Credits</button>}
-        {onCreditAmountChange && <button onClick={() => onCreditAmountChange(25)}>Change Credit Amount</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90 }))}>Update Booking</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, date: new Date('2025-06-15T00:00:00Z') }))}>Update Date</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, startTime: '14:00' }))}>Update Time</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, location: 'New Address' }))}>Update Location</button>}
+        {onCreditAmountChange && (
+          <button onClick={() => onCreditAmountChange(25)}>Change Credit Amount</button>
+        )}
+        {onBookingUpdate && (
+          <button onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90 }))}>
+            Update Booking
+          </button>
+        )}
+        {onBookingUpdate && (
+          <button
+            onClick={() =>
+              onBookingUpdate((prev) => ({ ...prev, date: new Date('2025-06-15T00:00:00Z') }))
+            }
+          >
+            Update Date
+          </button>
+        )}
+        {onBookingUpdate && (
+          <button onClick={() => onBookingUpdate((prev) => ({ ...prev, startTime: '14:00' }))}>
+            Update Time
+          </button>
+        )}
+        {onBookingUpdate && (
+          <button onClick={() => onBookingUpdate((prev) => ({ ...prev, location: 'New Address' }))}>
+            Update Location
+          </button>
+        )}
         {onBookingUpdate && (
           <button
             onClick={() =>
@@ -200,14 +223,42 @@ jest.mock('../PaymentConfirmation', () => {
             Clear Location
           </button>
         )}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate(() => null as unknown as Record<string, unknown>)}>Null Update</button>}
-        {onCreditAmountChange && <button onClick={() => onCreditAmountChange(5)}>Decrease Credit Amount</button>}
-        {onChangePaymentMethod && <button onClick={onChangePaymentMethod}>Change Payment Method</button>}
-        {onCreditsAccordionToggle && <button onClick={() => onCreditsAccordionToggle(true)}>Expand Credits</button>}
-        {onCreditsAccordionToggle && <button onClick={() => onCreditsAccordionToggle(false)}>Collapse Credits</button>}
-        {onClearFloorViolation && <button onClick={onClearFloorViolation}>Clear Floor Violation</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90, instructorId: '' }))}>Update Booking Clear Instructor</button>}
-        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, bookingId: '', instructorId: '' }))}>Clear Booking Identity</button>}
+        {onBookingUpdate && (
+          <button onClick={() => onBookingUpdate(() => null as unknown as Record<string, unknown>)}>
+            Null Update
+          </button>
+        )}
+        {onCreditAmountChange && (
+          <button onClick={() => onCreditAmountChange(5)}>Decrease Credit Amount</button>
+        )}
+        {onChangePaymentMethod && (
+          <button onClick={onChangePaymentMethod}>Change Payment Method</button>
+        )}
+        {onCreditsAccordionToggle && (
+          <button onClick={() => onCreditsAccordionToggle(true)}>Expand Credits</button>
+        )}
+        {onCreditsAccordionToggle && (
+          <button onClick={() => onCreditsAccordionToggle(false)}>Collapse Credits</button>
+        )}
+        {onClearFloorViolation && (
+          <button onClick={onClearFloorViolation}>Clear Floor Violation</button>
+        )}
+        {onBookingUpdate && (
+          <button
+            onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90, instructorId: '' }))}
+          >
+            Update Booking Clear Instructor
+          </button>
+        )}
+        {onBookingUpdate && (
+          <button
+            onClick={() =>
+              onBookingUpdate((prev) => ({ ...prev, bookingId: '', instructorId: '' }))
+            }
+          >
+            Clear Booking Identity
+          </button>
+        )}
         {onBookingUpdate && (
           <button
             onClick={() =>
@@ -255,6 +306,14 @@ jest.mock('../PaymentConfirmation', () => {
         {instructorAvailabilityError && (
           <div data-testid="instructor-availability-error">{instructorAvailabilityError}</div>
         )}
+        {availabilityWarnings && availabilityWarnings.length > 0 && (
+          <div data-testid="availability-warning-prop">
+            {availabilityWarnings.map((warning) => warning.message).join(' | ')}
+          </div>
+        )}
+        {onDismissAvailabilityWarnings && (
+          <button onClick={onDismissAvailabilityWarnings}>Dismiss Availability Warning</button>
+        )}
         {isCheckingInstructorAvailability && (
           <div data-testid="instructor-availability-loading">Checking availability</div>
         )}
@@ -290,7 +349,13 @@ jest.mock('../PaymentSuccess', () => {
 });
 
 jest.mock('@/components/referrals/CheckoutApplyReferral', () => {
-  return function MockCheckoutApplyReferral({ onApplied, onRefreshOrderSummary }: { onApplied?: (cents: number) => void; onRefreshOrderSummary?: () => void }) {
+  return function MockCheckoutApplyReferral({
+    onApplied,
+    onRefreshOrderSummary,
+  }: {
+    onApplied?: (cents: number) => void;
+    onRefreshOrderSummary?: () => void;
+  }) {
     return (
       <div data-testid="checkout-apply-referral">
         {onApplied && <button onClick={() => onApplied(500)}>Apply Referral</button>}
@@ -304,7 +369,8 @@ const useCreateBookingMock = useCreateBooking as jest.Mock;
 const usePaymentFlowMock = usePaymentFlow as jest.Mock;
 const usePricingPreviewControllerMock = usePricingPreviewController as jest.Mock;
 const useCreditsMock = useCredits as jest.Mock;
-const useCheckAvailabilityMock = jest.requireMock('@/src/api/services/bookings').useCheckAvailability as jest.Mock;
+const useCheckAvailabilityMock = jest.requireMock('@/src/api/services/bookings')
+  .useCheckAvailability as jest.Mock;
 const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
 
 const createWrapper = () => {
@@ -395,7 +461,13 @@ describe('PaymentSection', () => {
     });
 
     paymentServiceMock.listPaymentMethods.mockResolvedValue([
-      { id: 'pm-1', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
+      {
+        id: 'pm-1',
+        last4: '4242',
+        brand: 'visa',
+        is_default: true,
+        created_at: '2025-01-01T00:00:00Z',
+      },
     ]);
   });
 
@@ -496,7 +568,9 @@ describe('PaymentSection', () => {
     };
 
     it('checks availability before submit and forwards exclude_booking_id for reschedules', async () => {
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
       const mutateAsync = jest.fn().mockResolvedValue({ available: true });
 
       usePaymentFlowMock.mockReturnValue(confirmationFlowState);
@@ -546,7 +620,7 @@ describe('PaymentSection', () => {
             metadata: { serviceId: 'service-789', location_type: 'student_location' },
           }}
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createWrapper() }
       );
 
       await waitFor(() => {
@@ -572,9 +646,12 @@ describe('PaymentSection', () => {
       expect(request['exclude_booking_id']).toBeUndefined();
     });
 
-    it('blocks submit and surfaces an inline error when the slot is no longer available', async () => {
+    it('blocks submit and surfaces the backend reason when the slot is no longer available', async () => {
       const createBookingMock = jest.fn();
-      const mutateAsync = jest.fn().mockResolvedValue({ available: false });
+      const mutateAsync = jest.fn().mockResolvedValue({
+        available: false,
+        reason: 'Time slot conflicts with one of your existing bookings',
+      });
 
       usePaymentFlowMock.mockReturnValue(confirmationFlowState);
       useCreateBookingMock.mockReturnValue({
@@ -599,8 +676,49 @@ describe('PaymentSection', () => {
       await waitFor(() => {
         expect(createBookingMock).not.toHaveBeenCalled();
         expect(screen.getByTestId('instructor-availability-error')).toHaveTextContent(
-          'This time slot is no longer available. Please select another time.',
+          'Time slot conflicts with one of your existing bookings'
         );
+      });
+    });
+
+    it('passes advisory availability warnings through without blocking booking', async () => {
+      const mutateAsync = jest.fn().mockResolvedValue({
+        available: true,
+        warnings: [
+          {
+            type: 'proximity',
+            message: 'You have a Basketball lesson at 2:30 PM at a different location.',
+            conflicting_booking_id: 'booking-999',
+            conflicting_service: 'Basketball',
+            gap_minutes: 0,
+          },
+        ],
+      });
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('availability-warning-prop')).toHaveTextContent(
+          'You have a Basketball lesson at 2:30 PM at a different location.'
+        );
+      });
+
+      expect(latestPaymentConfirmationProps?.availabilityWarnings).toHaveLength(1);
+      expect(latestPaymentConfirmationProps?.instructorAvailabilityError).toBeNull();
+
+      fireEvent.click(screen.getByText('Dismiss Availability Warning'));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('availability-warning-prop')).not.toBeInTheDocument();
       });
     });
 
@@ -619,7 +737,7 @@ describe('PaymentSection', () => {
             instructorId: '',
           }}
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createWrapper() }
       );
 
       await waitFor(() => {
@@ -740,7 +858,7 @@ describe('PaymentSection', () => {
             },
           }}
         />,
-        { wrapper: createWrapper() },
+        { wrapper: createWrapper() }
       );
 
       await waitFor(() => {
@@ -763,13 +881,13 @@ describe('PaymentSection', () => {
           () =>
             new Promise<{ available: boolean }>((resolve) => {
               resolveFirst = resolve;
-            }),
+            })
         )
         .mockImplementationOnce(
           () =>
             new Promise<{ available: boolean }>((resolve) => {
               resolveSecond = resolve;
-            }),
+            })
         );
 
       usePaymentFlowMock.mockReturnValue(confirmationFlowState);
@@ -960,10 +1078,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -996,7 +1113,7 @@ describe('PaymentSection', () => {
   describe('credits', () => {
     it('uses credits data from hook', async () => {
       useCreditsMock.mockReturnValue({
-        data: { available: 25.50, expires_at: '2025-12-31' },
+        data: { available: 25.5, expires_at: '2025-12-31' },
         isLoading: false,
         refetch: jest.fn(),
       });
@@ -1069,10 +1186,9 @@ describe('PaymentSection', () => {
     it('handles booking data without metadata', async () => {
       const { metadata: _metadata, ...bookingWithoutMetadata } = mockBookingData;
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutMetadata} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutMetadata} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1086,10 +1202,9 @@ describe('PaymentSection', () => {
         serviceId: 'service-direct',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithServiceId} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithServiceId} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1102,10 +1217,9 @@ describe('PaymentSection', () => {
         date: undefined as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1152,24 +1266,24 @@ describe('PaymentSection', () => {
 
       await user.click(screen.getByText('Select Card'));
 
-      expect(selectPaymentMethod).toHaveBeenCalledWith(
-        expect.any(String),
-        'card-1',
-        undefined
-      );
+      expect(selectPaymentMethod).toHaveBeenCalledWith(expect.any(String), 'card-1', undefined);
     });
   });
 
   describe('accessibility', () => {
     it('renders without accessibility violations', async () => {
-      const { container } = render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      const { container } = render(<PaymentSection {...defaultProps} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
       });
 
       // Basic accessibility check - ensure main content is present
-      expect(container.querySelector('[data-testid="pricing-preview-context"]')).toBeInTheDocument();
+      expect(
+        container.querySelector('[data-testid="pricing-preview-context"]')
+      ).toBeInTheDocument();
     });
   });
 
@@ -1177,7 +1291,9 @@ describe('PaymentSection', () => {
     it('processes payment successfully with credits', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1205,7 +1321,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -1220,7 +1338,9 @@ describe('PaymentSection', () => {
 
     it('handles insufficient funds error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1257,7 +1377,9 @@ describe('PaymentSection', () => {
 
     it('handles card declined error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1275,9 +1397,7 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      paymentServiceMock.createCheckout.mockRejectedValue(
-        new Error('Your card was declined')
-      );
+      paymentServiceMock.createCheckout.mockRejectedValue(new Error('Your card was declined'));
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
@@ -1294,7 +1414,9 @@ describe('PaymentSection', () => {
 
     it('handles expired card error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1312,9 +1434,7 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      paymentServiceMock.createCheckout.mockRejectedValue(
-        new Error('Your card has expired')
-      );
+      paymentServiceMock.createCheckout.mockRejectedValue(new Error('Your card has expired'));
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
@@ -1331,7 +1451,9 @@ describe('PaymentSection', () => {
 
     it('handles payment method reuse error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1368,7 +1490,9 @@ describe('PaymentSection', () => {
 
     it('handles requires_action payment status', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1411,7 +1535,9 @@ describe('PaymentSection', () => {
 
     it('handles instructor payment account not set up error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1482,7 +1608,9 @@ describe('PaymentSection', () => {
     it('handles payment with requires_capture status', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1510,7 +1638,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -1526,7 +1656,9 @@ describe('PaymentSection', () => {
 
     it('handles payment failure status', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1707,14 +1839,25 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm-default', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
-        { id: 'pm-second', last4: '1234', brand: 'mastercard', is_default: false, created_at: '2025-01-02T00:00:00Z' },
+        {
+          id: 'pm-default',
+          last4: '4242',
+          brand: 'visa',
+          is_default: true,
+          created_at: '2025-01-01T00:00:00Z',
+        },
+        {
+          id: 'pm-second',
+          last4: '1234',
+          brand: 'mastercard',
+          is_default: false,
+          created_at: '2025-01-02T00:00:00Z',
+        },
       ]);
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(selectPaymentMethod).toHaveBeenCalledWith(
@@ -1738,10 +1881,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -1756,10 +1898,9 @@ describe('PaymentSection', () => {
         date: '2025-02-01' as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1773,10 +1914,9 @@ describe('PaymentSection', () => {
         endTime: '11:00:00',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithFullTime} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithFullTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1789,10 +1929,9 @@ describe('PaymentSection', () => {
         location: 'Online',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithOnline} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithOnline} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1808,10 +1947,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithRemote} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithRemote} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1828,10 +1966,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithDurationMetadata} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithDurationMetadata} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1869,7 +2006,9 @@ describe('PaymentSection', () => {
     it('processes payment with credits only (no card needed)', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -1912,7 +2051,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -1974,10 +2115,9 @@ describe('PaymentSection', () => {
         endTime: '11:00am',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWith12HourTime} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWith12HourTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -1991,10 +2131,9 @@ describe('PaymentSection', () => {
         endTime: '3:00pm',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithPMTime} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithPMTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2012,10 +2151,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithZeroDuration} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithZeroDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2032,10 +2170,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2049,10 +2186,9 @@ describe('PaymentSection', () => {
         endTime: 'also-invalid',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInvalidTime} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInvalidTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2067,10 +2203,9 @@ describe('PaymentSection', () => {
         totalAmount: '115.50' as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringAmount} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringAmount} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2083,10 +2218,9 @@ describe('PaymentSection', () => {
         basePrice: '100.00' as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringBase} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringBase} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2100,10 +2234,9 @@ describe('PaymentSection', () => {
         basePrice: NaN,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithNaN} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNaN} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2116,10 +2249,9 @@ describe('PaymentSection', () => {
         totalAmount: Infinity,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2139,14 +2271,19 @@ describe('PaymentSection', () => {
       };
 
       // Store a selected slot in sessionStorage
-      sessionStorage.setItem('selectedSlot', JSON.stringify({
-        date: '2025-02-15',
-        startTime: '10:00',
-        endTime: '11:00',
-      }));
+      sessionStorage.setItem(
+        'selectedSlot',
+        JSON.stringify({
+          date: '2025-02-15',
+          startTime: '10:00',
+          endTime: '11:00',
+        })
+      );
 
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2174,10 +2311,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2198,7 +2334,9 @@ describe('PaymentSection', () => {
       };
 
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2216,10 +2354,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2254,10 +2391,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2278,10 +2414,13 @@ describe('PaymentSection', () => {
       };
 
       // Store slot without date
-      sessionStorage.setItem('selectedSlot', JSON.stringify({
-        startTime: '10:00',
-        endTime: '11:00',
-      }));
+      sessionStorage.setItem(
+        'selectedSlot',
+        JSON.stringify({
+          startTime: '10:00',
+          endTime: '11:00',
+        })
+      );
 
       const goToStep = jest.fn();
 
@@ -2295,10 +2434,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2317,7 +2455,9 @@ describe('PaymentSection', () => {
     it('transforms "Payment failed with status" error message', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2339,10 +2479,7 @@ describe('PaymentSection', () => {
         new Error('Payment failed with status: canceled')
       );
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2357,7 +2494,9 @@ describe('PaymentSection', () => {
 
     it('handles 3DS authentication required error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2395,7 +2534,9 @@ describe('PaymentSection', () => {
 
     it('handles non-Error exceptions during payment', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2437,7 +2578,9 @@ describe('PaymentSection', () => {
       cancelBookingImperative.mockImplementation(cancelBookingMock);
 
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-to-cancel', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-to-cancel', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2481,7 +2624,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2509,10 +2654,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2534,7 +2678,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2562,10 +2708,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithLessonTimezone} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithLessonTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2587,7 +2732,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2615,10 +2762,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInstructorTimezone} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInstructorTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2635,7 +2781,9 @@ describe('PaymentSection', () => {
   describe('payment without card when amount is due', () => {
     it('throws error when payment required but no card selected', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2674,7 +2822,9 @@ describe('PaymentSection', () => {
     it('accepts processing status as valid', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2702,7 +2852,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2718,7 +2870,9 @@ describe('PaymentSection', () => {
     it('accepts authorized status as valid', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2746,7 +2900,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2762,7 +2918,9 @@ describe('PaymentSection', () => {
     it('accepts scheduled status as valid', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2790,7 +2948,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2811,7 +2971,9 @@ describe('PaymentSection', () => {
         totalAmount: '115.50' as unknown as number,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringPrice} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringPrice} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2824,7 +2986,9 @@ describe('PaymentSection', () => {
         totalAmount: NaN,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNaN} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNaN} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2837,7 +3001,9 @@ describe('PaymentSection', () => {
         totalAmount: Infinity,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2853,7 +3019,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2870,7 +3038,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2884,7 +3054,9 @@ describe('PaymentSection', () => {
         endTime: '11:00:00',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithHHMMSS} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithHHMMSS} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2909,7 +3081,10 @@ describe('PaymentSection', () => {
     });
 
     it('reads credits UI state from sessionStorage', async () => {
-      window.sessionStorage.setItem('credits-ui-state-booking-123', JSON.stringify({ creditsCollapsed: true }));
+      window.sessionStorage.setItem(
+        'credits-ui-state-booking-123',
+        JSON.stringify({ creditsCollapsed: true })
+      );
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
@@ -2936,7 +3111,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('bookingData', JSON.stringify({ date: '2025-02-01' }));
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDate} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2951,7 +3128,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('serviceId', 'fallback-service-123');
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2966,7 +3145,9 @@ describe('PaymentSection', () => {
         instructorId: '',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoInstructor} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoInstructor} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2979,7 +3160,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -2992,7 +3175,9 @@ describe('PaymentSection', () => {
         date: 'not-a-date' as unknown as Date,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithInvalidDate} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInvalidDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3005,7 +3190,9 @@ describe('PaymentSection', () => {
         startTime: '',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoStartTime} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoStartTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3022,7 +3209,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithRemoteModality} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithRemoteModality} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3035,7 +3224,9 @@ describe('PaymentSection', () => {
         location: 'Virtual Meeting',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithVirtualLocation} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithVirtualLocation} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3051,7 +3242,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithStudentHome} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStudentHome} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3071,7 +3264,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3088,7 +3283,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithMetadataDuration} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithMetadataDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3106,7 +3303,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithNegativeDuration} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNegativeDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3116,10 +3315,7 @@ describe('PaymentSection', () => {
 
   describe('compact rendering', () => {
     it('renders payment section correctly', async () => {
-      render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3129,7 +3325,9 @@ describe('PaymentSection', () => {
 
   describe('payment methods loading fallback', () => {
     it('uses empty array when payment methods API returns null', async () => {
-      paymentServiceMock.listPaymentMethods.mockResolvedValue(null as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>);
+      paymentServiceMock.listPaymentMethods.mockResolvedValue(
+        null as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>
+      );
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
@@ -3139,7 +3337,9 @@ describe('PaymentSection', () => {
     });
 
     it('uses empty array when payment methods API returns undefined', async () => {
-      paymentServiceMock.listPaymentMethods.mockResolvedValue(undefined as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>);
+      paymentServiceMock.listPaymentMethods.mockResolvedValue(
+        undefined as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>
+      );
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
@@ -3282,7 +3482,9 @@ describe('PaymentSection', () => {
         date: new Date('2025-02-15T00:00:00Z'),
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithDateObject} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithDateObject} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3295,7 +3497,9 @@ describe('PaymentSection', () => {
         date: '2025-02-15T10:00:00Z' as unknown as Date,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithISODate} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithISODate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3308,7 +3512,9 @@ describe('PaymentSection', () => {
         date: '2025-02-15' as unknown as Date,
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithYYYYMMDD} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithYYYYMMDD} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3322,7 +3528,9 @@ describe('PaymentSection', () => {
         endTime: '11:00am',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithAMPM} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithAMPM} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3336,7 +3544,9 @@ describe('PaymentSection', () => {
         endTime: '16:00',
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWith24Hour} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWith24Hour} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3493,7 +3703,9 @@ describe('PaymentSection', () => {
 
     it('handles requires_action response correctly', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -3615,7 +3827,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3630,7 +3844,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutTimezone} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3819,7 +4035,9 @@ describe('PaymentSection', () => {
       });
 
       useCreateBookingMock.mockReturnValue({
-        createBooking: jest.fn().mockRejectedValue(new Error('Instructor payment account not set up')),
+        createBooking: jest
+          .fn()
+          .mockRejectedValue(new Error('Instructor payment account not set up')),
         error: null,
         reset: jest.fn(),
       });
@@ -3888,10 +4106,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -3943,10 +4160,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // Both selection and confirmation should be visible in inline mode
@@ -3966,10 +4182,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4115,10 +4330,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={stringPriceBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={stringPriceBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -4143,10 +4357,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={invalidPriceBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={invalidPriceBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -4172,10 +4385,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={invalidDateBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={invalidDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -4190,10 +4402,9 @@ describe('PaymentSection', () => {
         endTime: '',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={emptyTimeBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={emptyTimeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4207,10 +4418,9 @@ describe('PaymentSection', () => {
         duration: '60' as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={stringDurationBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={stringDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4224,10 +4434,9 @@ describe('PaymentSection', () => {
         date: '2025-03-15T10:00:00Z' as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={isoDateBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={isoDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4306,7 +4515,8 @@ describe('PaymentSection', () => {
         currentStep: PaymentStep.ERROR,
         paymentMethod: PaymentMethod.CREDIT_CARD,
         creditsToUse: 0,
-        error: 'This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.',
+        error:
+          'This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.',
         goToStep: jest.fn(),
         selectPaymentMethod: jest.fn(),
         reset: jest.fn(),
@@ -4329,10 +4539,9 @@ describe('PaymentSection', () => {
         duration: undefined as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDurationBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4346,10 +4555,9 @@ describe('PaymentSection', () => {
         date: '2025-02-20' as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={dateStringBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={dateStringBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4364,10 +4572,9 @@ describe('PaymentSection', () => {
         endTime: '15:30',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={time24Booking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={time24Booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4435,7 +4642,13 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm_default', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
+        {
+          id: 'pm_default',
+          last4: '4242',
+          brand: 'visa',
+          is_default: true,
+          created_at: '2025-01-01T00:00:00Z',
+        },
       ]);
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
@@ -4498,10 +4711,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInstructor} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInstructor} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4514,10 +4726,9 @@ describe('PaymentSection', () => {
         instructorName: 'Sarah',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoLastInitial} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoLastInitial} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4532,10 +4743,9 @@ describe('PaymentSection', () => {
         date: null as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={nullDateBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={nullDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4549,10 +4759,9 @@ describe('PaymentSection', () => {
         endTime: '   ',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={whitespaceTimeBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={whitespaceTimeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4565,10 +4774,9 @@ describe('PaymentSection', () => {
         duration: -30,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={negativeDurationBooking} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} bookingData={negativeDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4619,10 +4827,7 @@ describe('PaymentSection', () => {
         reset,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onBack={onBack} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} onBack={onBack} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByText('Payment Failed')).toBeInTheDocument();
@@ -4711,7 +4916,9 @@ describe('PaymentSection', () => {
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByText('An error occurred while processing your payment.')).toBeInTheDocument();
+        expect(
+          screen.getByText('An error occurred while processing your payment.')
+        ).toBeInTheDocument();
       });
     });
   });
@@ -4723,10 +4930,9 @@ describe('PaymentSection', () => {
         instructorId: 42 as unknown as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={numericIdBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={numericIdBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4738,10 +4944,9 @@ describe('PaymentSection', () => {
     it('handles booking without metadata property', async () => {
       const { metadata: _metadata, ...noMetaBooking } = mockBookingData;
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noMetaBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noMetaBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4757,10 +4962,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noServiceIdBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noServiceIdBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4775,10 +4979,9 @@ describe('PaymentSection', () => {
         instructorId: null as unknown as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={nullInstructorBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={nullInstructorBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4793,10 +4996,9 @@ describe('PaymentSection', () => {
         date: null as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4814,10 +5016,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={studentHomeBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={studentHomeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4835,10 +5036,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={neutralBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={neutralBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4874,10 +5074,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4929,10 +5128,9 @@ describe('PaymentSection', () => {
         endTime: '15:30:00',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={hmsBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={hmsBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4950,10 +5148,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={onlineBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={onlineBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4968,10 +5165,9 @@ describe('PaymentSection', () => {
         location: '',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={emptyLocBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={emptyLocBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -4991,10 +5187,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5036,10 +5231,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoSvc} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoSvc} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5054,10 +5248,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoSvc} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoSvc} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // Should still render since quote selection returns null for missing serviceId
@@ -5078,10 +5271,9 @@ describe('PaymentSection', () => {
         date: null as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5095,10 +5287,9 @@ describe('PaymentSection', () => {
         date: undefined as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // quoteSelection returns null when date is missing, but component still renders
@@ -5113,10 +5304,9 @@ describe('PaymentSection', () => {
         date: null as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5134,10 +5324,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5153,10 +5342,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5172,10 +5360,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5191,10 +5378,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5210,10 +5396,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5233,10 +5418,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5254,10 +5438,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // quoteSelection returns null for duration <= 0 but component still renders
@@ -5276,10 +5459,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5302,7 +5484,13 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm-default', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
+        {
+          id: 'pm-default',
+          last4: '4242',
+          brand: 'visa',
+          is_default: true,
+          created_at: '2025-01-01T00:00:00Z',
+        },
       ]);
 
       usePricingPreviewControllerMock.mockReturnValue({
@@ -5380,7 +5568,7 @@ describe('PaymentSection', () => {
         expect(selectPaymentMethod).toHaveBeenCalledWith(
           PaymentMethod.CREDITS,
           undefined,
-          expect.any(Number),
+          expect.any(Number)
         );
       });
     });
@@ -5396,7 +5584,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5424,10 +5614,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithLessonTimezone} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithLessonTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -5449,7 +5638,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-123', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5477,10 +5668,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInstructorTimezone} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInstructorTimezone} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -5496,7 +5686,9 @@ describe('PaymentSection', () => {
 
   describe('mergeBookingIntoPayment via refreshOrderSummary', () => {
     it('merges booking response into payment data when order is refreshed', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails;
+      const fetchBookingDetailsMock = jest.requireMock(
+        '@/src/api/services/bookings'
+      ).fetchBookingDetails;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-999',
         instructor_id: 'inst-abc',
@@ -5533,7 +5725,9 @@ describe('PaymentSection', () => {
     });
 
     it('handles fetchBookingDetails error gracefully', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails;
+      const fetchBookingDetailsMock = jest.requireMock(
+        '@/src/api/services/bookings'
+      ).fetchBookingDetails;
       fetchBookingDetailsMock.mockRejectedValue(new Error('Network error'));
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
@@ -5546,7 +5740,9 @@ describe('PaymentSection', () => {
 
   describe('mergeBookingIntoPayment field mapping', () => {
     it('handles booking response with null duration_minutes', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails;
+      const fetchBookingDetailsMock = jest.requireMock(
+        '@/src/api/services/bookings'
+      ).fetchBookingDetails;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-888',
         instructor_id: 'inst-xyz',
@@ -5572,7 +5768,9 @@ describe('PaymentSection', () => {
   describe('booking error with localErrorMessage containing booking', () => {
     it('shows Booking Failed when localErrorMessage includes "booking"', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockRejectedValue(new Error('booking slot is no longer available'));
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('booking slot is no longer available'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5619,19 +5817,24 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm-no-default', last4: '1234', brand: 'mastercard', is_default: false, created_at: '2025-01-01T00:00:00Z' },
+        {
+          id: 'pm-no-default',
+          last4: '1234',
+          brand: 'mastercard',
+          is_default: false,
+          created_at: '2025-01-01T00:00:00Z',
+        },
       ]);
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(selectPaymentMethod).toHaveBeenCalledWith(
           PaymentMethod.CREDIT_CARD,
           'pm-no-default',
-          undefined,
+          undefined
         );
       });
     });
@@ -5647,10 +5850,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5662,7 +5864,9 @@ describe('PaymentSection', () => {
     it('skips checkout when no amount due and no credits', async () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-free', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-free', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5696,10 +5900,9 @@ describe('PaymentSection', () => {
         basePrice: 0,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingFree} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingFree} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -5717,7 +5920,9 @@ describe('PaymentSection', () => {
   describe('payment processing with referral discount', () => {
     it('subtracts referral amount from total during checkout', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-ref', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-ref', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5835,10 +6040,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5854,10 +6058,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5872,10 +6075,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -5890,7 +6092,9 @@ describe('PaymentSection', () => {
 
       const goToStep = jest.fn();
       const onError = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-cancel-fail', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-cancel-fail', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5910,10 +6114,7 @@ describe('PaymentSection', () => {
 
       paymentServiceMock.createCheckout.mockRejectedValue(new Error('Payment gateway timeout'));
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -5933,7 +6134,9 @@ describe('PaymentSection', () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
       const refetchCredits = jest.fn().mockResolvedValue({});
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-with-credits', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-with-credits', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -5985,10 +6188,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -6017,8 +6219,20 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm-1', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
-        { id: 'pm-2', last4: '5555', brand: 'mastercard', is_default: false, created_at: '2025-01-02T00:00:00Z' },
+        {
+          id: 'pm-1',
+          last4: '4242',
+          brand: 'visa',
+          is_default: true,
+          created_at: '2025-01-01T00:00:00Z',
+        },
+        {
+          id: 'pm-2',
+          last4: '5555',
+          brand: 'mastercard',
+          is_default: false,
+          created_at: '2025-01-02T00:00:00Z',
+        },
       ]);
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
@@ -6048,10 +6262,7 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} onBack={onBack} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onBack={onBack} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6071,10 +6282,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} onBack={onBack} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onBack={onBack} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6116,10 +6326,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-processing')).toBeInTheDocument();
@@ -6140,10 +6349,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-success')).toBeInTheDocument();
@@ -6161,10 +6369,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Payment Failed')).toBeInTheDocument();
@@ -6175,10 +6382,9 @@ describe('PaymentSection', () => {
 
   describe('credit decision key lifecycle', () => {
     it('resets credit state when creditDecisionKey changes', async () => {
-      const { rerender } = render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() },
-      );
+      const { rerender } = render(<PaymentSection {...defaultProps} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6190,9 +6396,7 @@ describe('PaymentSection', () => {
         bookingId: 'booking-new-456',
       };
 
-      rerender(
-        <PaymentSection {...defaultProps} bookingData={updatedBooking} />,
-      );
+      rerender(<PaymentSection {...defaultProps} bookingData={updatedBooking} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6207,10 +6411,9 @@ describe('PaymentSection', () => {
         startTime: '09:30:00',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6223,10 +6426,9 @@ describe('PaymentSection', () => {
         startTime: '9:30am',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6239,10 +6441,9 @@ describe('PaymentSection', () => {
         startTime: '1:00pm',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6257,10 +6458,9 @@ describe('PaymentSection', () => {
         instructorId: 12345 as unknown as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -6273,10 +6473,9 @@ describe('PaymentSection', () => {
         instructorId: undefined as unknown as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // quoteSelection returns null for missing instructorId but component still renders
@@ -6289,7 +6488,9 @@ describe('PaymentSection', () => {
     it('throws Payment method required when shouldProcessCheckout but no card selected', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-no-card', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-no-card', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -6310,10 +6511,7 @@ describe('PaymentSection', () => {
       // No payment methods -> no card will be selected
       paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -6370,7 +6568,13 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.listPaymentMethods.mockResolvedValue([
-        { id: 'pm-1', last4: '4242', brand: 'visa', is_default: true, created_at: '2025-01-01T00:00:00Z' },
+        {
+          id: 'pm-1',
+          last4: '4242',
+          brand: 'visa',
+          is_default: true,
+          created_at: '2025-01-01T00:00:00Z',
+        },
       ]);
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
@@ -6596,10 +6800,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -6855,7 +7058,9 @@ describe('PaymentSection', () => {
     it('handles edge case where amount due is positive but no checkout needed', async () => {
       // This exercises the `else if (amountDue > 0)` branch at line 1347-1348
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-edge', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-edge', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -6890,10 +7095,9 @@ describe('PaymentSection', () => {
         totalAmount: 0,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={zeroBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={zeroBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -6910,7 +7114,8 @@ describe('PaymentSection', () => {
 
   describe('refreshOrderSummary via referral panel', () => {
     it('calls fetchBookingDetails and merges result into payment data', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-refreshed',
         instructor_id: 'inst-refreshed',
@@ -6951,7 +7156,8 @@ describe('PaymentSection', () => {
     });
 
     it('handles fetchBookingDetails error in refreshOrderSummary', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockRejectedValue(new Error('Network timeout'));
 
       usePaymentFlowMock.mockReturnValue({
@@ -6980,7 +7186,8 @@ describe('PaymentSection', () => {
     });
 
     it('merges booking with null instructor into payment data', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-no-instructor',
         instructor_id: null,
@@ -7020,7 +7227,8 @@ describe('PaymentSection', () => {
     });
 
     it('merges booking with string total_price (normalizeCurrency string path)', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-string-price',
         instructor_id: 'inst-1',
@@ -7059,7 +7267,8 @@ describe('PaymentSection', () => {
     });
 
     it('merges booking with NaN total_price (normalizeCurrency fallback path)', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-nan-price',
         instructor_id: 'inst-2',
@@ -7239,7 +7448,9 @@ describe('PaymentSection', () => {
   describe('payment processing with checkout payload construction', () => {
     it('includes requested_credit_cents in checkout payload when credits applied', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-cc', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-cc', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -7290,7 +7501,7 @@ describe('PaymentSection', () => {
           expect.objectContaining({
             booking_id: 'booking-cc',
             requested_credit_cents: expect.any(Number),
-          }),
+          })
         );
       });
     });
@@ -7300,7 +7511,9 @@ describe('PaymentSection', () => {
     it('throws PaymentActionError when checkout requires action', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-3ds', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-3ds', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -7337,10 +7550,7 @@ describe('PaymentSection', () => {
         requires_action: true,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7358,7 +7568,9 @@ describe('PaymentSection', () => {
     it('rethrows with user-friendly message for instructor setup error', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-inst', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-inst', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -7386,13 +7598,10 @@ describe('PaymentSection', () => {
       });
 
       paymentServiceMock.createCheckout.mockRejectedValue(
-        new Error('Instructor payment account not set up'),
+        new Error('Instructor payment account not set up')
       );
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7409,7 +7618,8 @@ describe('PaymentSection', () => {
 
   describe('refreshCurrentOrderSummary with no effectiveOrderId', () => {
     it('does nothing when effectiveOrderId is empty', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockClear();
 
       const bookingNoId = {
@@ -7427,10 +7637,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoId} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoId} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Refresh Order')).toBeInTheDocument();
@@ -7610,10 +7819,9 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringDate} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7660,10 +7868,9 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithInvalidDate} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInvalidDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7694,10 +7901,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithEmptyDate} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithEmptyDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7744,10 +7950,9 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7877,10 +8082,9 @@ describe('PaymentSection', () => {
         basePrice: 50,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={smallBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={smallBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -7899,7 +8103,9 @@ describe('PaymentSection', () => {
     it('includes payment_method_id when amountDue > 0 and card is selected', async () => {
       const goToStep = jest.fn();
       const onSuccess = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-with-card', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-with-card', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -7936,10 +8142,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -8123,7 +8328,7 @@ describe('PaymentSection', () => {
       const creditKey = 'insta:credits:last:booking-123';
       window.sessionStorage.setItem(
         creditKey,
-        JSON.stringify({ lastCreditCents: 0, explicitlyRemoved: true }),
+        JSON.stringify({ lastCreditCents: 0, explicitlyRemoved: true })
       );
 
       usePricingPreviewControllerMock.mockReturnValue({
@@ -8176,7 +8381,7 @@ describe('PaymentSection', () => {
       const creditKey = 'insta:credits:last:booking-123';
       window.sessionStorage.setItem(
         creditKey,
-        JSON.stringify({ lastCreditCents: 0, explicitlyRemoved: false }),
+        JSON.stringify({ lastCreditCents: 0, explicitlyRemoved: false })
       );
 
       usePricingPreviewControllerMock.mockReturnValue({
@@ -8242,13 +8447,11 @@ describe('PaymentSection', () => {
 
       const { rerender } = render(
         <PaymentSection {...defaultProps} bookingData={bookingWithNoIds} />,
-        { wrapper: createWrapper() },
+        { wrapper: createWrapper() }
       );
 
       // Re-render to trigger the creditDecisionKey effect
-      rerender(
-        <PaymentSection {...defaultProps} bookingData={bookingWithNoIds} />,
-      );
+      rerender(<PaymentSection {...defaultProps} bookingData={bookingWithNoIds} />);
 
       await waitFor(() => {
         // Component should still render (doesn't crash when key is null)
@@ -8283,10 +8486,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -8376,9 +8578,15 @@ describe('PaymentSection', () => {
             }
             storage.set(key, value);
           },
-          removeItem: (key: string) => { storage.delete(key); },
-          clear: () => { storage.clear(); },
-          get length() { return storage.size; },
+          removeItem: (key: string) => {
+            storage.delete(key);
+          },
+          clear: () => {
+            storage.clear();
+          },
+          get length() {
+            return storage.size;
+          },
           key: (_i: number) => null,
         },
         writable: true,
@@ -8423,7 +8631,7 @@ describe('PaymentSection', () => {
       const creditKey = 'insta:credits:last:booking-123';
       window.sessionStorage.setItem(
         creditKey,
-        JSON.stringify({ lastCreditCents: 1000, explicitlyRemoved: false }),
+        JSON.stringify({ lastCreditCents: 1000, explicitlyRemoved: false })
       );
 
       usePricingPreviewControllerMock.mockReturnValue({
@@ -8530,7 +8738,9 @@ describe('PaymentSection', () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
       const selectPaymentMethodFn = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-bad-status', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-bad-status', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -8568,10 +8778,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} showPaymentMethodInline />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} showPaymentMethodInline />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // Inline mode renders both selection and confirmation
@@ -8877,7 +9086,9 @@ describe('PaymentSection', () => {
       const goToStep = jest.fn();
       const onSuccess = jest.fn();
       const selectPaymentMethodFn = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-mixed', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-mixed', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -8927,10 +9138,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} showPaymentMethodInline />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} showPaymentMethodInline />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // Inline mode renders both selection and confirmation
@@ -8949,7 +9159,7 @@ describe('PaymentSection', () => {
             booking_id: 'booking-mixed',
             payment_method_id: 'card-1',
             requested_credit_cents: 2500,
-          }),
+          })
         );
       });
 
@@ -9016,7 +9226,7 @@ describe('PaymentSection', () => {
       const creditKey = 'insta:credits:last:booking-123';
       window.sessionStorage.setItem(
         creditKey,
-        JSON.stringify({ lastCreditCents: 5000, explicitlyRemoved: false }),
+        JSON.stringify({ lastCreditCents: 5000, explicitlyRemoved: false })
       );
 
       usePricingPreviewControllerMock.mockReturnValue({
@@ -9101,7 +9311,8 @@ describe('PaymentSection', () => {
 
   describe('handleCreditAmountChange clears floor violation on decrease', () => {
     it('clears floorViolationMessage when credit amount decreases below lastSuccessful', async () => {
-      const applyCredit = jest.fn()
+      const applyCredit = jest
+        .fn()
         .mockRejectedValueOnce({
           response: { status: 422 },
           problem: { detail: 'Below price floor' },
@@ -9172,7 +9383,8 @@ describe('PaymentSection', () => {
   describe('commitCreditPreview success clears floor violation', () => {
     it('clears existing floor violation on successful credit commit', async () => {
       // Provide enough mock results for auto-apply + manual interactions
-      const applyCredit = jest.fn()
+      const applyCredit = jest
+        .fn()
         .mockRejectedValueOnce({
           response: { status: 422 },
           problem: { detail: 'Below price floor' },
@@ -9245,7 +9457,8 @@ describe('PaymentSection', () => {
 
   describe('handleCreditToggle clears floor violation when disabling credits', () => {
     it('clears floor violation message when toggling credits off', async () => {
-      const applyCredit = jest.fn()
+      const applyCredit = jest
+        .fn()
         .mockRejectedValueOnce({
           response: { status: 422 },
           problem: { detail: 'Price floor violation' },
@@ -9337,7 +9550,9 @@ describe('PaymentSection', () => {
       const goToStep = jest.fn();
       const onSuccess = jest.fn();
       const selectPaymentMethodFn = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-partial', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-partial', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -9381,10 +9596,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} showPaymentMethodInline />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} showPaymentMethodInline />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         // Inline mode renders both selection and confirmation
@@ -9511,10 +9725,9 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoInstructor} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoInstructor} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9549,10 +9762,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithBadTime} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithBadTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9582,10 +9794,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithTextDate} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithTextDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9616,10 +9827,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithGarbage} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithGarbage} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9650,10 +9860,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithEmptyTime} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithEmptyTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9684,10 +9893,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithWeirdTime} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithWeirdTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9728,10 +9936,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      const { rerender } = render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() },
-      );
+      const { rerender } = render(<PaymentSection {...defaultProps} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -9753,9 +9960,7 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      rerender(
-        <PaymentSection {...defaultProps} />,
-      );
+      rerender(<PaymentSection {...defaultProps} />);
 
       // After expansion was initialized, the early return at line 960 should fire
       expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -9777,7 +9982,9 @@ describe('PaymentSection', () => {
       // So line 1347 can only be reached if amountDue > 0 AND shouldProcessCheckout was false,
       // which means this branch is unreachable. It's dead code.
       // Still, let's verify the component handles the error step correctly.
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-no-card', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-no-card', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -9805,10 +10012,7 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9884,10 +10088,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingWithZeroDuration} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithZeroDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -9937,11 +10140,8 @@ describe('PaymentSection', () => {
       const Wrapper = createWrapper();
       const { unmount } = render(
         <Wrapper>
-          <PaymentSection
-            {...defaultProps}
-            bookingData={bookingWithNullKey}
-          />
-        </Wrapper>,
+          <PaymentSection {...defaultProps} bookingData={bookingWithNullKey} />
+        </Wrapper>
       );
 
       await waitFor(() => {
@@ -9962,7 +10162,8 @@ describe('PaymentSection', () => {
   describe('floorViolationMessage cleared on successful commitCreditPreview', () => {
     it('clears floor violation when commitCreditPreview succeeds after prior violation', async () => {
       // First call rejects with 422, subsequent calls succeed
-      const applyCredit = jest.fn()
+      const applyCredit = jest
+        .fn()
         .mockRejectedValueOnce({
           response: { status: 422 },
           problem: { detail: 'Price floor violation' },
@@ -10199,10 +10400,7 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} onError={onError} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -10391,10 +10589,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -10479,10 +10676,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline={false} />,
-        { wrapper: createWrapper() }
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={false} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -10529,7 +10725,10 @@ describe('PaymentSection', () => {
       window.sessionStorage.removeItem(uiKey);
 
       // But store a credit decision so the key gets computed
-      window.sessionStorage.setItem(creditKey, JSON.stringify({ lastCreditCents: 500, explicitlyRemoved: false }));
+      window.sessionStorage.setItem(
+        creditKey,
+        JSON.stringify({ lastCreditCents: 500, explicitlyRemoved: false })
+      );
 
       usePaymentFlowMock.mockReturnValue({
         currentStep: PaymentStep.CONFIRMATION,
@@ -10563,7 +10762,10 @@ describe('PaymentSection', () => {
 
       // Store creditsCollapsed as string "false" — Boolean("false") is TRUE
       window.sessionStorage.setItem(uiKey, JSON.stringify({ creditsCollapsed: 'false' }));
-      window.sessionStorage.setItem(creditKey, JSON.stringify({ lastCreditCents: 1000, explicitlyRemoved: false }));
+      window.sessionStorage.setItem(
+        creditKey,
+        JSON.stringify({ lastCreditCents: 1000, explicitlyRemoved: false })
+      );
 
       usePaymentFlowMock.mockReturnValue({
         currentStep: PaymentStep.CONFIRMATION,
@@ -10704,10 +10906,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={numericIdBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={numericIdBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -10721,10 +10922,9 @@ describe('PaymentSection', () => {
         instructorId: null as unknown as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noIdBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noIdBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -10748,10 +10948,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={numericServiceBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={numericServiceBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -10792,10 +10991,9 @@ describe('PaymentSection', () => {
         metadata: {},
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noIdBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noIdBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -10817,7 +11015,9 @@ describe('PaymentSection', () => {
       // the branch still needs coverage to confirm the guard works.
       // Let's test by ensuring no selectedCard and credits cover partial amount.
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-999', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-999', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -10841,10 +11041,9 @@ describe('PaymentSection', () => {
         totalAmount: 50,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={lowAmountBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={lowAmountBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11000,10 +11199,9 @@ describe('PaymentSection', () => {
       // Clear sessionStorage serviceId to ensure fallback fails
       window.sessionStorage.removeItem('serviceId');
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noServiceBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noServiceBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11177,13 +11375,17 @@ describe('PaymentSection', () => {
         expect(screen.getByText('Payment Failed')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('An error occurred while processing your payment.')).toBeInTheDocument();
+      expect(
+        screen.getByText('An error occurred while processing your payment.')
+      ).toBeInTheDocument();
     });
 
     it('processPayment recovers booking date from sessionStorage selectedSlot', async () => {
       // Lines 1206-1224: bookingData.date is null → recover from sessionStorage
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-recovered', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-recovered', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -11219,10 +11421,9 @@ describe('PaymentSection', () => {
       // Put a valid selectedSlot in sessionStorage for recovery
       window.sessionStorage.setItem('selectedSlot', JSON.stringify({ date: '2025-06-20' }));
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11259,10 +11460,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.removeItem('selectedSlot');
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} onError={onError} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11297,10 +11497,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('selectedSlot', 'not-valid-json');
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} onError={onError} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} onError={onError} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11336,10 +11535,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('selectedSlot', JSON.stringify({ time: '10:00' }));
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11372,10 +11570,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('bookingData', JSON.stringify({ date: '2025-08-01' }));
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11393,10 +11590,9 @@ describe('PaymentSection', () => {
 
       window.sessionStorage.setItem('bookingData', 'not-json');
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDateBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11412,10 +11608,9 @@ describe('PaymentSection', () => {
         startTime: '' as string,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noStartTimeBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noStartTimeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11429,10 +11624,9 @@ describe('PaymentSection', () => {
         startTime: '14:30:00',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={hhmmssBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={hhmmssBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11446,10 +11640,9 @@ describe('PaymentSection', () => {
         startTime: 'not-a-time',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={badTimeBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={badTimeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11463,10 +11656,9 @@ describe('PaymentSection', () => {
         duration: '45' as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={stringDurationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={stringDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11483,10 +11675,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDurationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11502,10 +11693,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noDurationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11519,10 +11709,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', location_type: '', modality: '' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={emptyLocationTypeBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={emptyLocationTypeBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11536,10 +11725,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', modality: 'instructor_location' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={directModalityBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={directModalityBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11554,10 +11742,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={onlineLocationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={onlineLocationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11571,10 +11758,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', modality: 'remote' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={remoteModalityBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={remoteModalityBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11588,10 +11774,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', modality: 'online' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={onlineModalityBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={onlineModalityBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11606,10 +11791,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={noLocationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={noLocationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
@@ -11801,7 +11985,9 @@ describe('PaymentSection', () => {
     it('processPayment uses timezone from metadata', async () => {
       // Lines 1246-1257: various timezone metadata keys
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-tz', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-tz', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -11834,10 +12020,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', timezone: 'America/New_York' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={tzBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={tzBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -11852,7 +12037,9 @@ describe('PaymentSection', () => {
 
     it('processPayment uses lesson_timezone fallback from metadata', async () => {
       // Line 1249: lesson_timezone key
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-ltz', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-ltz', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -11885,10 +12072,9 @@ describe('PaymentSection', () => {
         metadata: { serviceId: 'service-789', lesson_timezone: 'America/Los_Angeles' },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={tzBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={tzBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12043,7 +12229,9 @@ describe('PaymentSection', () => {
       // Use credits to cover full amount so no card is needed (amountDue = 0)
       const goToStep = jest.fn();
       const onSuccess = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-rc', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-rc', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -12094,10 +12282,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12116,7 +12303,9 @@ describe('PaymentSection', () => {
       // Use credits to cover full amount so no card is needed
       const goToStep = jest.fn();
       const onSuccess = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-proc', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-proc', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -12165,10 +12354,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12233,10 +12421,7 @@ describe('PaymentSection', () => {
         reset: resetPayment,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onBack={onBack} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onBack={onBack} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByText('Payment Failed')).toBeInTheDocument();
@@ -12260,10 +12445,7 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByText('Payment Failed')).toBeInTheDocument();
@@ -12275,13 +12457,12 @@ describe('PaymentSection', () => {
 
   describe('usePaymentFlow onSuccess/onError callbacks (covers lines 485, 488)', () => {
     it('onSuccess callback logs payment details without throwing', () => {
-      render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       // Capture the callbacks passed to usePaymentFlow
-      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }] | undefined;
+      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as
+        | [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }]
+        | undefined;
       expect(lastCall).toBeDefined();
       const { onSuccess } = lastCall![0];
 
@@ -12291,12 +12472,11 @@ describe('PaymentSection', () => {
     });
 
     it('onError callback logs the error without throwing', () => {
-      render(
-        <PaymentSection {...defaultProps} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
-      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }] | undefined;
+      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as
+        | [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }]
+        | undefined;
       expect(lastCall).toBeDefined();
       const { onError } = lastCall![0];
 
@@ -12312,7 +12492,9 @@ describe('PaymentSection', () => {
       const onSuccess = jest.fn();
       const goToStep = jest.fn();
       const refetchMock = jest.fn().mockRejectedValue(new Error('Refetch failed'));
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-credits-err', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-credits-err', status: 'pending' });
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -12362,10 +12544,9 @@ describe('PaymentSection', () => {
         requires_action: false,
       });
 
-      render(
-        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12399,10 +12580,9 @@ describe('PaymentSection', () => {
         date: '   ' as unknown as Date,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingEmptyDate} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingEmptyDate} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12434,10 +12614,9 @@ describe('PaymentSection', () => {
         startTime: '',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoStartTime} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoStartTime} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12468,10 +12647,9 @@ describe('PaymentSection', () => {
         duration: true as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingBadDuration} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingBadDuration} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12700,10 +12878,9 @@ describe('PaymentSection', () => {
         bookingId: '',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={bookingNoId} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={bookingNoId} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -12723,7 +12900,8 @@ describe('PaymentSection', () => {
 
   describe('targeted merge and quote fallbacks', () => {
     it('keeps existing booking fields when refreshed order data is blank or invalid', async () => {
-      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings').fetchBookingDetails as jest.Mock;
+      const fetchBookingDetailsMock = jest.requireMock('@/src/api/services/bookings')
+        .fetchBookingDetails as jest.Mock;
       fetchBookingDetailsMock.mockResolvedValue({
         id: '',
         instructor_id: '',
@@ -12809,10 +12987,9 @@ describe('PaymentSection', () => {
         },
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={booking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={booking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(capturedQuotePayload).toMatchObject({
@@ -12865,10 +13042,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(
-        <PaymentSection {...defaultProps} showPaymentMethodInline />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(latestPaymentConfirmationProps?.creditEarliestExpiry).toBe('2027-01-15T00:00:00Z');
@@ -12900,10 +13076,9 @@ describe('PaymentSection', () => {
         totalAmount: undefined as unknown as number,
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={malformedBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={malformedBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(latestPaymentProcessingProps).toMatchObject({
@@ -12914,7 +13089,9 @@ describe('PaymentSection', () => {
     });
 
     it('skips checkout entirely when booking totals are missing and no preview is available', async () => {
-      const createBookingMock = jest.fn().mockResolvedValue({ id: 'credits-only-booking', status: 'pending' });
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'credits-only-booking', status: 'pending' });
       const onSuccess = jest.fn();
 
       useCreateBookingMock.mockReturnValue({
@@ -12949,7 +13126,7 @@ describe('PaymentSection', () => {
 
       render(
         <PaymentSection {...defaultProps} bookingData={malformedBooking} onSuccess={onSuccess} />,
-        { wrapper: createWrapper() },
+        { wrapper: createWrapper() }
       );
 
       await waitFor(() => {
@@ -13055,10 +13232,9 @@ describe('PaymentSection', () => {
         endTime: '11:30',
       };
 
-      render(
-        <PaymentSection {...defaultProps} bookingData={zeroDurationBooking} />,
-        { wrapper: createWrapper() },
-      );
+      render(<PaymentSection {...defaultProps} bookingData={zeroDurationBooking} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();

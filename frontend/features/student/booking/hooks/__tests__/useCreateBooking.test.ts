@@ -63,6 +63,80 @@ describe('useCreateBooking', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    it('should prefer structured backend detail messages when available', async () => {
+      const structuredError = Object.assign(new Error('409: Conflict'), {
+        data: {
+          detail: {
+            message: 'Time slot conflicts with one of your existing bookings',
+          },
+        },
+      });
+      mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral_location',
+        });
+      });
+
+      expect(result.current.error).toBe('Time slot conflicts with one of your existing bookings');
+    });
+
+    it('should surface string detail messages from structured backend errors', async () => {
+      const structuredError = Object.assign(new Error('409: Conflict'), {
+        data: {
+          detail: 'Bookings must be made at least 24 hours in advance',
+        },
+      });
+      mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral_location',
+        });
+      });
+
+      expect(result.current.error).toBe('Bookings must be made at least 24 hours in advance');
+    });
+
+    it('should surface top-level structured messages from backend errors', async () => {
+      const structuredError = Object.assign(new Error('409: Conflict'), {
+        data: {
+          message: 'Instructor profile not found',
+        },
+      });
+      mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral_location',
+        });
+      });
+
+      expect(result.current.error).toBe('Instructor profile not found');
+    });
+
     it('should handle 401 unauthorized error', async () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error('401: Unauthorized'));
 
@@ -236,7 +310,11 @@ describe('useCreateBooking', () => {
       const booking = {
         id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
         status: 'CONFIRMED',
-      } as unknown as Parameters<ReturnType<typeof useCreateBooking>['createBooking']>[0] extends infer T ? T : never;
+      } as unknown as Parameters<
+        ReturnType<typeof useCreateBooking>['createBooking']
+      >[0] extends infer T
+        ? T
+        : never;
 
       mockCreateBookingImperative.mockResolvedValueOnce(booking);
 
@@ -506,9 +584,7 @@ describe('useCreateBooking', () => {
 
   describe('Additional Error Scenarios', () => {
     it('should handle 404 not found error', async () => {
-      mockCreateBookingImperative.mockRejectedValueOnce(
-        new Error('404: Instructor not found')
-      );
+      mockCreateBookingImperative.mockRejectedValueOnce(new Error('404: Instructor not found'));
 
       const { result } = renderHook(() => useCreateBooking());
 
@@ -587,7 +663,6 @@ describe('useCreateBooking', () => {
       expect(result.current.error).toBe('An unexpected error occurred');
     });
   });
-
 });
 
 describe('calculateEndTime', () => {

@@ -69,7 +69,10 @@ class TestConflictCheckerDataTransformation:
 
         # Test the formatting logic
         conflicts = service.check_booking_conflicts(
-            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 30),
+            end_time=time(10, 30),
         )
 
         # Should format the conflict properly
@@ -99,7 +102,9 @@ class TestConflictCheckerDataTransformation:
         service.repository.get_bookings_for_date.return_value = [mock_booking]
 
         # Test the formatting
-        booked_times = service.get_booked_times_for_date(instructor_id=generate_ulid(), target_date=date.today())
+        booked_times = service.get_booked_times_for_date(
+            instructor_id=generate_ulid(), target_date=date.today()
+        )
 
         assert len(booked_times) == 1
         time_info = booked_times[0]
@@ -124,7 +129,10 @@ class TestConflictCheckerDataTransformation:
         service.repository.get_bookings_for_conflict_check.return_value = [mock_booking]
 
         conflicts = service.check_booking_conflicts(
-            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 30),
+            end_time=time(10, 30),
         )
 
         # Verify conflict format
@@ -160,7 +168,9 @@ class TestConflictCheckerDataTransformation:
 
         service.repository.get_bookings_for_week.return_value = mock_bookings
 
-        result = service.get_booked_times_for_week(instructor_id=generate_ulid(), week_start=base_date)
+        result = service.get_booked_times_for_week(
+            instructor_id=generate_ulid(), week_start=base_date
+        )
 
         # Should be grouped by date
         assert len(result) == 3  # 3 days with bookings
@@ -183,13 +193,18 @@ class TestConflictCheckerDataTransformation:
 
         # Test empty conflicts
         conflicts = service.check_booking_conflicts(
-            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(10, 0), end_time=time(11, 0)
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
 
         assert conflicts == []
 
         # Test empty week data
-        week_data = service.get_booked_times_for_week(instructor_id=generate_ulid(), week_start=date.today())
+        week_data = service.get_booked_times_for_week(
+            instructor_id=generate_ulid(), week_start=date.today()
+        )
 
         assert week_data == {}
 
@@ -469,7 +484,10 @@ class TestConflictCheckerValidationRules:
 
         # Call the method
         conflicts = service.check_booking_conflicts(
-            instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=check_start,
+            end_time=check_end,
         )
 
         # Should detect exactly 4 conflicts
@@ -509,7 +527,10 @@ class TestConflictCheckerValidationRules:
         )
 
         conflicts = service.check_booking_conflicts(
-            instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=check_start,
+            end_time=check_end,
         )
 
         # Adjacent slots should not conflict, only exact overlap
@@ -519,7 +540,9 @@ class TestConflictCheckerValidationRules:
     def test_validate_time_range_business_rules(self, service):
         """Test time range validation business logic."""
         # Test valid range
-        result = service.validate_time_range(start_time=time(9, 0), end_time=time(10, 30), min_duration_minutes=30)
+        result = service.validate_time_range(
+            start_time=time(9, 0), end_time=time(10, 30), min_duration_minutes=30
+        )
 
         assert result["valid"] == True
         assert result["duration_minutes"] == 90
@@ -531,7 +554,9 @@ class TestConflictCheckerValidationRules:
         assert "after start time" in result["reason"]
 
         # Test invalid: too short
-        result = service.validate_time_range(start_time=time(9, 0), end_time=time(9, 15), min_duration_minutes=30)
+        result = service.validate_time_range(
+            start_time=time(9, 0), end_time=time(9, 15), min_duration_minutes=30
+        )
 
         assert result["valid"] == False
         assert "at least 30 minutes" in result["reason"]
@@ -539,7 +564,9 @@ class TestConflictCheckerValidationRules:
 
         # Test invalid: too long
         result = service.validate_time_range(
-            start_time=time(9, 0), end_time=time(18, 0), max_duration_minutes=480  # 8 hours
+            start_time=time(9, 0),
+            end_time=time(18, 0),
+            max_duration_minutes=480,  # 8 hours
         )
 
         assert result["valid"] == False
@@ -570,11 +597,14 @@ class TestConflictCheckerValidationRules:
             mock_get_user_now.return_value = nyc_now
 
             # Also need to mock datetime.combine for the test
-            with patch.object(
-                ConfigService,
-                "get_advance_notice_minutes",
-                return_value=60,
-            ), patch("app.services.conflict_checker.datetime") as mock_datetime:
+            with (
+                patch.object(
+                    ConfigService,
+                    "get_advance_notice_minutes",
+                    return_value=60,
+                ),
+                patch("app.services.conflict_checker.datetime") as mock_datetime,
+            ):
                 mock_datetime.combine = datetime.combine
 
                 # Test booking exactly 24 hours and 1 minute in advance
@@ -598,7 +628,9 @@ class TestConflictCheckerValidationRules:
                 assert result["valid"] == False, f"Expected False but got {result}"
                 assert "at least 60 minutes in advance" in result["reason"]
 
-    def test_instructor_conflicts_use_travel_buffer_when_either_booking_requires_travel(self, service):
+    def test_instructor_conflicts_use_travel_buffer_when_either_booking_requires_travel(
+        self, service
+    ):
         service.repository.get_instructor_profile.return_value = SimpleNamespace(
             travel_buffer_minutes=60,
             non_travel_buffer_minutes=15,
@@ -664,7 +696,9 @@ class TestConflictCheckerValidationRules:
         assert len(conflicts) == 1
         service.repository.get_instructor_profile.assert_called_once()
 
-    def test_instructor_conflicts_use_non_travel_buffer_when_both_bookings_are_non_travel(self, service):
+    def test_instructor_conflicts_use_non_travel_buffer_when_both_bookings_are_non_travel(
+        self, service
+    ):
         service.repository.get_instructor_profile.return_value = SimpleNamespace(
             travel_buffer_minutes=60,
             non_travel_buffer_minutes=15,
@@ -713,8 +747,8 @@ class TestConflictCheckerValidationRules:
         conflicts = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
-            start_time=time(11, 30),
-            end_time=time(12, 30),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
             new_location_type="instructor_location",
             instructor_profile=instructor_profile,
         )
@@ -723,8 +757,8 @@ class TestConflictCheckerValidationRules:
         no_conflict = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
-            start_time=time(12, 0),
-            end_time=time(13, 0),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
             new_location_type="neutral_location",
             instructor_profile=instructor_profile,
         )
@@ -763,7 +797,9 @@ class TestConflictCheckerValidationRules:
         instructor_id = generate_ulid()
         service.check_booking_conflicts(instructor_id, date.today(), time(10, 0), time(11, 0))
 
-        service.repository.get_bookings_for_conflict_check.assert_called_once_with(instructor_id, date.today(), None)
+        service.repository.get_bookings_for_conflict_check.assert_called_once_with(
+            instructor_id, date.today(), None
+        )
 
         # Test get_booked_times_for_date uses correct repository method
         service.repository.get_bookings_for_date.return_value = []
@@ -771,7 +807,9 @@ class TestConflictCheckerValidationRules:
         instructor_id2 = generate_ulid()
         service.get_booked_times_for_date(instructor_id2, date.today())
 
-        service.repository.get_bookings_for_date.assert_called_once_with(instructor_id2, date.today())
+        service.repository.get_bookings_for_date.assert_called_once_with(
+            instructor_id2, date.today()
+        )
 
     # Helper methods
     def _create_mock_booking(self, booking_id: str, start: time, end: time) -> Mock:
@@ -812,7 +850,9 @@ class TestConflictCheckerEdgeCases:
     def test_midnight_boundary_handling(self, service):
         """Test handling of times near midnight."""
         # Test late night booking
-        result = service.validate_time_range(start_time=time(23, 30), end_time=time(0, 30))  # After midnight
+        result = service.validate_time_range(
+            start_time=time(23, 30), end_time=time(0, 30)
+        )  # After midnight
 
         # Should be invalid as it crosses midnight
         assert result["valid"] == False
@@ -827,13 +867,17 @@ class TestConflictCheckerEdgeCases:
     def test_maximum_duration_boundary(self, service):
         """Test maximum duration validation."""
         # Test exactly at limit (8 hours)
-        result = service.validate_time_range(start_time=time(9, 0), end_time=time(17, 0), max_duration_minutes=480)
+        result = service.validate_time_range(
+            start_time=time(9, 0), end_time=time(17, 0), max_duration_minutes=480
+        )
 
         assert result["valid"] == True
         assert result["duration_minutes"] == 480
 
         # Test 1 minute over limit
-        result = service.validate_time_range(start_time=time(9, 0), end_time=time(17, 1), max_duration_minutes=480)
+        result = service.validate_time_range(
+            start_time=time(9, 0), end_time=time(17, 1), max_duration_minutes=480
+        )
 
         assert result["valid"] == False
         assert result["duration_minutes"] == 481
@@ -844,7 +888,9 @@ class TestConflictCheckerEdgeCases:
         service.repository.get_instructor_profile.return_value = None
 
         result = service.check_minimum_advance_booking(
-            instructor_id=generate_ulid(), booking_date=date.today() + timedelta(days=1), booking_time=time(10, 0)
+            instructor_id=generate_ulid(),
+            booking_date=date.today() + timedelta(days=1),
+            booking_time=time(10, 0),
         )
 
         assert result["valid"] == False
@@ -880,9 +926,7 @@ class TestConflictCheckerEdgeCases:
         assert any("not found or no longer available" in error for error in result["errors"])
 
     @patch("app.services.conflict_checker.get_user_today_by_id")
-    def test_validate_booking_constraints_surfaces_student_conflicts(
-        self, mock_get_today, service
-    ):
+    def test_validate_booking_constraints_surfaces_student_conflicts(self, mock_get_today, service):
         instructor = self._setup_user_mock(service)
         today = date(2024, 1, 15)
         mock_get_today.return_value = today
@@ -920,14 +964,23 @@ def _make_booking_for_conflict(
     start_time: time,
     end_time: time,
     location_type: str,
+    location_address: str | None = None,
+    location_place_id: str | None = None,
+    location_lat: float | None = None,
+    location_lng: float | None = None,
+    service_name: str = "Lesson",
 ) -> Mock:
     booking = Mock(spec=Booking)
     booking.id = generate_ulid()
-    booking.service_name = "Lesson"
+    booking.service_name = service_name
     booking.status = BookingStatus.CONFIRMED
     booking.start_time = start_time
     booking.end_time = end_time
     booking.location_type = location_type
+    booking.location_address = location_address
+    booking.location_place_id = location_place_id
+    booking.location_lat = location_lat
+    booking.location_lng = location_lng
     booking.instructor_id = generate_ulid()
     booking.student = Mock(first_name="Test", last_name="Student")
     return booking
@@ -1022,8 +1075,8 @@ class TestConflictCheckerFormatAwareBuffers:
         travel_conflicts = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
-            start_time=time(11, 30),
-            end_time=time(12, 30),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
             new_location_type="instructor_location",
             instructor_profile=profile,
         )
@@ -1032,8 +1085,8 @@ class TestConflictCheckerFormatAwareBuffers:
         non_travel_conflicts = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
-            start_time=time(11, 10),
-            end_time=time(12, 10),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
             new_location_type="student_location",
             instructor_profile=profile,
         )
@@ -1042,9 +1095,156 @@ class TestConflictCheckerFormatAwareBuffers:
         non_travel_clear = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
-            start_time=time(11, 15),
-            end_time=time(12, 15),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
             new_location_type="student_location",
             instructor_profile=profile,
         )
         assert non_travel_clear == []
+
+    def test_student_proximity_warnings_for_different_effective_locations(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(14, 0),
+            end_time=time(14, 30),
+            location_type="instructor_location",
+            location_place_id="place_a",
+            location_address="123 Teacher Ave",
+            location_lat=40.7501,
+            location_lng=-73.9901,
+            service_name="Basketball",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+
+        warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(14, 30),
+            end_time=time(15, 0),
+            location_type="student_location",
+            location_address="987 Student Rd",
+            location_place_id="place_b",
+            location_lat=40.7306,
+            location_lng=-73.9352,
+        )
+
+        assert warnings == [
+            {
+                "type": "proximity",
+                "message": "You have a Basketball lesson at 2:00 PM at a different location.",
+                "conflicting_booking_id": existing_booking.id,
+                "conflicting_service": "Basketball",
+                "gap_minutes": 0,
+            }
+        ]
+
+    def test_student_proximity_warnings_skip_same_effective_location(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(14, 0),
+            end_time=time(14, 30),
+            location_type="instructor_location",
+            location_place_id="shared_place",
+            location_address="123 Teacher Ave",
+            location_lat=40.7501,
+            location_lng=-73.9901,
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+
+        warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(14, 30),
+            end_time=time(15, 0),
+            location_type="instructor_location",
+            location_address="123 Teacher Ave",
+            location_place_id="shared_place",
+            location_lat=40.7502,
+            location_lng=-73.9902,
+        )
+
+        assert warnings == []
+
+    def test_student_proximity_warnings_skip_online_and_student_location_pairs(self, service):
+        online_booking = _make_booking_for_conflict(
+            start_time=time(9, 0),
+            end_time=time(9, 30),
+            location_type="online",
+        )
+        student_location_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(10, 30),
+            location_type="student_location",
+            location_address="456 Home St",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [
+            online_booking,
+        ]
+
+        online_warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 30),
+            end_time=time(10, 0),
+            location_type="online",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [
+            student_location_booking,
+        ]
+        student_location_warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(10, 30),
+            end_time=time(11, 0),
+            location_type="student_location",
+            location_address="789 Home St",
+        )
+
+        assert online_warnings == []
+        assert student_location_warnings == []
+
+    def test_student_proximity_warnings_require_gap_below_threshold(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(12, 0),
+            end_time=time(12, 30),
+            location_type="instructor_location",
+            location_address="123 Teacher Ave",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+
+        warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(13, 0),
+            end_time=time(13, 30),
+            location_type="neutral_location",
+            location_address="999 Park Ave",
+        )
+
+        assert warnings == []
+
+    def test_student_proximity_warnings_fall_back_to_location_type_when_data_is_asymmetric(
+        self, service
+    ):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(16, 0),
+            end_time=time(16, 30),
+            location_type="instructor_location",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+
+        same_type_warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(16, 30),
+            end_time=time(17, 0),
+            location_type="instructor_location",
+        )
+        different_type_warnings = service.check_student_proximity_warnings(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(16, 30),
+            end_time=time(17, 0),
+            location_type="neutral_location",
+        )
+
+        assert same_type_warnings == []
+        assert len(different_type_warnings) == 1

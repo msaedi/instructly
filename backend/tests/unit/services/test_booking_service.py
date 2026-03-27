@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 
@@ -174,10 +174,13 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
 
 # --- check_availability ---
 
+
 def test_check_availability_conflict_returns_unavailable(booking_service: BookingService) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service.conflict_checker.check_time_conflicts.return_value = True
     booking_service._resolve_booking_times_utc = Mock(
@@ -234,6 +237,117 @@ def test_check_availability_instructor_profile_missing(booking_service: BookingS
     assert "profile" in result["reason"].lower()
 
 
+def test_check_availability_returns_student_proximity_warnings(
+    booking_service: BookingService,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC", preferred_places=[]),
+        )
+    )
+    booking_service.conflict_checker.check_student_proximity_warnings.return_value = [
+        {
+            "type": "proximity",
+            "message": "You have a Piano lesson at 2:00 PM at a different location.",
+            "conflicting_booking_id": generate_ulid(),
+            "conflicting_service": "Piano",
+            "gap_minutes": 0,
+        }
+    ]
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        student_id=generate_ulid(),
+        location_type="student_location",
+        location_address="123 Student Ave",
+        location_place_id="student_place",
+        location_lat=40.7128,
+        location_lng=-74.0060,
+    )
+
+    assert result["available"] is True
+    assert (
+        result["warnings"]
+        == booking_service.conflict_checker.check_student_proximity_warnings.return_value
+    )
+    booking_service.conflict_checker.check_student_proximity_warnings.assert_called_once_with(
+        student_id=ANY,
+        check_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        location_type="student_location",
+        exclude_booking_id=None,
+        location_address="123 Student Ave",
+        location_place_id="student_place",
+        location_lat=40.7128,
+        location_lng=-74.006,
+    )
+
+
+def test_check_availability_derives_instructor_location_warning_fields_from_profile(
+    booking_service: BookingService,
+) -> None:
+    teaching_place = SimpleNamespace(
+        kind="teaching_location",
+        address="456 Teacher Blvd",
+        place_id="teacher_place",
+        lat=40.7505,
+        lng=-73.9934,
+    )
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC", preferred_places=[teaching_place]),
+        )
+    )
+    booking_service.conflict_checker.check_student_proximity_warnings.return_value = []
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        service_id=generate_ulid(),
+        student_id=generate_ulid(),
+        location_type="instructor_location",
+        location_address="Ignored request address",
+        location_place_id="ignored_place",
+        location_lat=1.0,
+        location_lng=2.0,
+    )
+
+    assert result["available"] is True
+    booking_service.conflict_checker.check_student_proximity_warnings.assert_called_once_with(
+        student_id=ANY,
+        check_date=date(2030, 1, 1),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        location_type="instructor_location",
+        exclude_booking_id=None,
+        location_address="456 Teacher Blvd",
+        location_place_id="teacher_place",
+        location_lat=40.7505,
+        location_lng=-73.9934,
+    )
+
+
 def test_check_availability_rejects_unsupported_location_capability(
     booking_service: BookingService,
 ) -> None:
@@ -243,8 +357,10 @@ def test_check_availability_rejects_unsupported_location_capability(
         offers_travel=False,
         offers_at_location=False,
     )
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
 
     result = booking_service.check_availability(
@@ -266,8 +382,10 @@ def test_check_availability_rejects_invalid_duration_before_preflight_passes(
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service(
         duration_options=[30, 60]
     )
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
 
     result = booking_service.check_availability(
@@ -291,8 +409,10 @@ def test_check_availability_rejects_outside_service_area_when_coordinates_provid
         offers_travel=True,
         offers_at_location=False,
     )
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service.filter_repository.is_location_in_service_area.return_value = False
 
@@ -321,8 +441,10 @@ def test_check_availability_booking_time_validation_error(
 ) -> None:
     booking_service.repository.check_time_conflict.return_value = False
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._resolve_booking_times_utc = Mock(
         side_effect=BusinessRuleException("invalid time")
@@ -340,11 +462,15 @@ def test_check_availability_booking_time_validation_error(
     assert result["reason"] == "invalid time"
 
 
-def test_check_availability_min_advance_over_24(booking_service: BookingService, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_check_availability_min_advance_over_24(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
     booking_service.repository.check_time_conflict.return_value = False
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=24 * 60)
 
@@ -370,8 +496,10 @@ def test_check_availability_min_advance_under_24(
 ) -> None:
     booking_service.repository.check_time_conflict.return_value = False
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=120)
     fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
@@ -399,8 +527,10 @@ def test_check_availability_online_notice_rejects_45_minutes(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(
         side_effect=lambda location_type=None: 60 if location_type == "online" else 180
@@ -431,8 +561,10 @@ def test_check_availability_travel_notice_rejects_2_hours_for_student_location(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(
         side_effect=lambda location_type=None: 60 if location_type == "online" else 180
@@ -463,8 +595,10 @@ def test_check_availability_neutral_location_uses_travel_notice(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(
         side_effect=lambda location_type=None: 180 if location_type == "neutral_location" else 60
@@ -491,10 +625,14 @@ def test_check_availability_neutral_location_uses_travel_notice(
     assert "3 hours" in result["reason"].lower()
 
 
-def test_check_availability_student_conflict_returns_unavailable(booking_service: BookingService) -> None:
+def test_check_availability_student_conflict_returns_unavailable(
+    booking_service: BookingService,
+) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._resolve_booking_times_utc = Mock(
         return_value=(
@@ -521,24 +659,132 @@ def test_check_availability_student_conflict_returns_unavailable(booking_service
 @pytest.mark.parametrize(
     ("location_type", "request_time", "lesson_start", "protection_enabled", "expected_available"),
     [
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, True),
-        ("instructor_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
-        ("instructor_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, True),
-        ("instructor_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
-        ("instructor_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, True),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, False),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, True),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc), True, True),
-        ("student_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, False),
-        ("student_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 1, 20, 1, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, True),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 20, 1, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            False,
+            True,
+        ),
     ],
 )
 def test_check_availability_uses_overnight_protection(
@@ -553,9 +799,11 @@ def test_check_availability_uses_overnight_protection(
     _enable_default_overnight_rules(monkeypatch)
     _freeze_time(monkeypatch, request_time)
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
-        overnight_protection_enabled=protection_enabled,
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+            overnight_protection_enabled=protection_enabled,
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=0)
     booking_service._resolve_booking_times_utc = Mock(
@@ -585,9 +833,11 @@ def test_check_availability_overnight_protection_uses_instructor_timezone(
     lesson_start = datetime(2030, 1, 2, 13, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="America/New_York"),
-        overnight_protection_enabled=True,
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="America/New_York"),
+            overnight_protection_enabled=True,
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=0)
     booking_service._resolve_booking_times_utc = Mock(
@@ -611,11 +861,16 @@ def test_check_availability_overnight_protection_uses_instructor_timezone(
 def test_check_availability_available_true(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._resolve_booking_times_utc = Mock(
-        return_value=(datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc))
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
     )
     booking_service._check_bits_coverage = Mock(return_value=True)
 
@@ -647,8 +902,10 @@ def test_check_availability_respects_format_tags(
     expected_available: bool,
 ) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=0)
     booking_service._resolve_booking_times_utc = Mock(
@@ -680,8 +937,10 @@ def test_check_availability_rejects_mixed_tagged_range(
     booking_service: BookingService,
 ) -> None:
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(return_value=0)
     booking_service._resolve_booking_times_utc = Mock(
@@ -730,8 +989,10 @@ def test_check_availability_uses_format_aware_advance_notice(
     fixed_now = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
     booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
-    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        user=SimpleNamespace(timezone="UTC"),
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC"),
+        )
     )
     booking_service._get_advance_notice_minutes = Mock(
         side_effect=lambda requested_location_type: {
@@ -825,29 +1086,117 @@ def test_check_conflicts_and_rules_matches_format_aware_advance_notice(
             )
         return
 
-    booking_service._check_conflicts_and_rules(
-        booking_data, service, instructor_profile, student
-    )
+    booking_service._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
 
 @pytest.mark.parametrize(
     ("location_type", "request_time", "lesson_start", "protection_enabled", "should_raise"),
     [
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
-        ("online", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, False),
-        ("instructor_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
-        ("instructor_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, False),
-        ("instructor_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
-        ("instructor_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc), True, False),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, True),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, False),
-        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc), True, False),
-        ("student_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, True),
-        ("student_location", datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc), datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc), True, False),
-        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, False),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "instructor_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 8, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+            True,
+            True,
+        ),
+        (
+            "student_location",
+            datetime(2030, 1, 2, 0, 27, tzinfo=timezone.utc),
+            datetime(2030, 1, 3, 10, 0, tzinfo=timezone.utc),
+            True,
+            False,
+        ),
+        (
+            "online",
+            datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc),
+            False,
+            False,
+        ),
     ],
 )
 def test_check_conflicts_and_rules_matches_overnight_protection(
@@ -895,18 +1244,21 @@ def test_check_conflicts_and_rules_matches_overnight_protection(
         assert exc_info.value.code == "OVERNIGHT_PROTECTION"
         return
 
-    booking_service._check_conflicts_and_rules(
-        booking_data, service, instructor_profile, student
-    )
+    booking_service._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
 
 # --- location capability ---
+
 
 @pytest.mark.parametrize(
     ("location_type", "flags", "code"),
     [
         ("student_location", {"offers_travel": False}, "TRAVEL_NOT_OFFERED"),
-        ("neutral_location", {"offers_travel": False, "offers_at_location": False}, "IN_PERSON_NOT_OFFERED"),
+        (
+            "neutral_location",
+            {"offers_travel": False, "offers_at_location": False},
+            "IN_PERSON_NOT_OFFERED",
+        ),
         ("instructor_location", {"offers_at_location": False}, "AT_LOCATION_NOT_OFFERED"),
         (None, {"offers_online": False}, "ONLINE_NOT_OFFERED"),
     ],
@@ -1010,11 +1362,10 @@ def test_check_conflicts_and_rules_min_advance_under_24(
 def test_get_instructor_availability_windows_filters_by_range(
     booking_service: BookingService,
 ) -> None:
-    with patch(
-        "app.repositories.availability_day_repository.AvailabilityDayRepository"
-    ) as repo_cls, patch(
-        "app.utils.bitset.windows_from_bits"
-    ) as windows_from_bits:
+    with (
+        patch("app.repositories.availability_day_repository.AvailabilityDayRepository") as repo_cls,
+        patch("app.utils.bitset.windows_from_bits") as windows_from_bits,
+    ):
         repo_cls.return_value.get_day_bits.return_value = b"\xff"
         windows_from_bits.return_value = [
             ("06:00:00", "08:00:00"),
@@ -1078,14 +1429,16 @@ def test_find_opportunities_in_slot_advances_after_conflict(
 
 def test_determine_service_area_summary_formats_boroughs(booking_service: BookingService) -> None:
     areas = [
+        SimpleNamespace(neighborhood=SimpleNamespace(parent_region="Queens", region_metadata={})),
         SimpleNamespace(
-            neighborhood=SimpleNamespace(parent_region="Queens", region_metadata={})
+            neighborhood=SimpleNamespace(
+                parent_region="Brooklyn", region_metadata={"borough": "Brooklyn"}
+            )
         ),
         SimpleNamespace(
-            neighborhood=SimpleNamespace(parent_region="Brooklyn", region_metadata={"borough": "Brooklyn"})
-        ),
-        SimpleNamespace(
-            neighborhood=SimpleNamespace(parent_region="Manhattan", region_metadata={"borough": "Manhattan"})
+            neighborhood=SimpleNamespace(
+                parent_region="Manhattan", region_metadata={"borough": "Manhattan"}
+            )
         ),
     ]
     booking_service.service_area_repository.list_for_instructor.return_value = areas
@@ -1160,7 +1513,9 @@ def test_send_booking_notifications_after_confirmation_handles_errors(
     booking_service._send_booking_notifications.assert_called_once_with(booking, False)
 
 
-def test_send_booking_notifications_after_confirmation_no_service(booking_service: BookingService) -> None:
+def test_send_booking_notifications_after_confirmation_no_service(
+    booking_service: BookingService,
+) -> None:
     booking_service.notification_service = None
 
     booking_service.send_booking_notifications_after_confirmation(generate_ulid())
@@ -1225,9 +1580,7 @@ def test_handle_post_booking_tasks_reschedule_path(booking_service: BookingServi
     booking_service._send_booking_notifications = Mock()
     booking_service._invalidate_booking_caches = Mock()
 
-    booking_service._handle_post_booking_tasks(
-        booking, is_reschedule=True, old_booking=old_booking
-    )
+    booking_service._handle_post_booking_tasks(booking, is_reschedule=True, old_booking=old_booking)
 
     booking_service.system_message_service.create_booking_rescheduled_message.assert_called_once()
     booking_service.system_message_service.create_booking_created_message.assert_not_called()
@@ -1270,7 +1623,9 @@ def test_invalidate_booking_caches_also_invalidates_search_cache(
     cache = MagicMock()
     booking_service.cache_service = cache
 
-    with patch("app.services.booking_service.invalidate_on_availability_change") as invalidate_search:
+    with patch(
+        "app.services.booking_service.invalidate_on_availability_change"
+    ) as invalidate_search:
         booking_service._invalidate_booking_caches(booking)
 
     cache.invalidate_instructor_availability.assert_called_once_with(
@@ -1298,7 +1653,9 @@ def test_create_booking_with_payment_setup_invalidates_caches_after_commit(
         total_price=100.0,
     )
 
-    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._validate_booking_prerequisites = Mock(
+        return_value=(service, instructor_profile)
+    )
     booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
     booking_service._validate_against_availability_bits = Mock()
     booking_service._check_conflicts_and_rules = Mock()
@@ -1310,11 +1667,11 @@ def test_create_booking_with_payment_setup_invalidates_caches_after_commit(
     mock_repository.transaction.return_value = _transaction_cm()
     mock_repository.get_by_id.return_value = booking
 
-    with patch("app.services.stripe_service.StripeService") as stripe_service_cls, patch(
-        "app.services.booking_service.stripe.SetupIntent.create"
-    ) as setup_intent_create, patch(
-        "app.repositories.payment_repository.PaymentRepository"
-    ) as payment_repo_cls:
+    with (
+        patch("app.services.stripe_service.StripeService") as stripe_service_cls,
+        patch("app.services.booking_service.stripe.SetupIntent.create") as setup_intent_create,
+        patch("app.repositories.payment_repository.PaymentRepository") as payment_repo_cls,
+    ):
         stripe_service_cls.return_value.get_or_create_customer.return_value = SimpleNamespace(
             stripe_customer_id="cus_123"
         )
@@ -1360,9 +1717,7 @@ def test_invalidate_booking_cache_object(booking_service: BookingService) -> Non
 def test_get_booking_pricing_preview_missing_booking(booking_service: BookingService) -> None:
     booking_service.repository.get_booking_for_participant.return_value = None
 
-    assert (
-        booking_service.get_booking_pricing_preview(generate_ulid(), generate_ulid()) is None
-    )
+    assert booking_service.get_booking_pricing_preview(generate_ulid(), generate_ulid()) is None
 
 
 def test_get_booking_pricing_preview_non_participant_returns_none(
@@ -1410,11 +1765,13 @@ def test_get_booking_with_payment_summary_student(booking_service: BookingServic
     user = SimpleNamespace(id="student")
     booking_service.config_service = MagicMock()
 
-    with patch("app.repositories.factory.RepositoryFactory") as repo_factory, patch(
-        "app.repositories.review_repository.ReviewTipRepository"
-    ) as tip_repo_cls, patch(
-        "app.services.payment_summary_service.build_student_payment_summary"
-    ) as build_summary:
+    with (
+        patch("app.repositories.factory.RepositoryFactory") as repo_factory,
+        patch("app.repositories.review_repository.ReviewTipRepository") as tip_repo_cls,
+        patch(
+            "app.services.payment_summary_service.build_student_payment_summary"
+        ) as build_summary,
+    ):
         booking_service.config_service.get_pricing_config.return_value = ({"fees": True}, None)
         repo_factory.create_payment_repository.return_value = MagicMock()
         tip_repo_cls.return_value = MagicMock()
@@ -1453,9 +1810,10 @@ def test_validate_reschedule_payment_method_uses_injected_config_service(
 ) -> None:
     booking_service.config_service = MagicMock()
 
-    with patch("app.services.booking_service.PricingService") as pricing_cls, patch(
-        "app.services.booking_service.StripeService"
-    ) as stripe_cls:
+    with (
+        patch("app.services.booking_service.PricingService") as pricing_cls,
+        patch("app.services.booking_service.StripeService") as stripe_cls,
+    ):
         stripe_cls.return_value.payment_repository.get_default_payment_method.return_value = (
             SimpleNamespace(stripe_payment_method_id="pm_123")
         )
@@ -1525,7 +1883,9 @@ def test_create_rescheduled_booking_with_existing_payment_skips_non_str_fields(
     booking = make_booking(payment_method_id=None, payment_status=None)
     old_booking = make_booking(instructor_id=booking_data.instructor_id)
 
-    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._validate_booking_prerequisites = Mock(
+        return_value=(service, instructor_profile)
+    )
     booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
     booking_service._validate_against_availability_bits = Mock()
     booking_service._check_conflicts_and_rules = Mock()
@@ -1544,9 +1904,12 @@ def test_create_rescheduled_booking_with_existing_payment_skips_non_str_fields(
 
     mock_repository.get_by_id.side_effect = _get_by_id
 
-    with patch(
-        "app.services.booking_service.RepositoryFactory.create_credit_repository"
-    ) as credit_repo, patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+    with (
+        patch(
+            "app.services.booking_service.RepositoryFactory.create_credit_repository"
+        ) as credit_repo,
+        patch("app.repositories.payment_repository.PaymentRepository") as payment_repo,
+    ):
         credit_repo.return_value.get_reserved_credits_for_booking.return_value = []
         payment_repo.return_value.get_payment_by_intent_id.return_value = None
 
@@ -1608,9 +1971,12 @@ def test_confirm_booking_payment_gaming_reschedule_success_fallback_message(
     booking_service.system_message_service.create_booking_rescheduled_message = Mock()
     booking_service._invalidate_booking_caches = Mock()
 
-    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo, patch(
-        "app.tasks.payment_tasks._process_authorization_for_booking",
-        return_value={"success": True},
+    with (
+        patch("app.repositories.payment_repository.PaymentRepository") as payment_repo,
+        patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            return_value={"success": True},
+        ),
     ):
         payment_repo.return_value.create_payment_event = Mock()
         booking_service.confirm_booking_payment(
@@ -1728,22 +2094,18 @@ def test_instructor_mark_complete_sets_notes_and_category_name(
 
     fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
-    booking_service._get_booking_end_utc = Mock(
-        return_value=fixed_now - timedelta(hours=1)
-    )
+    booking_service._get_booking_end_utc = Mock(return_value=fixed_now - timedelta(hours=1))
 
-    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo, patch(
-        "app.services.badge_award_service.BadgeAwardService"
-    ) as badge_service, patch(
-        "app.services.referral_service.ReferralService"
-    ) as referral_service:
+    with (
+        patch("app.repositories.payment_repository.PaymentRepository") as payment_repo,
+        patch("app.services.badge_award_service.BadgeAwardService") as badge_service,
+        patch("app.services.referral_service.ReferralService") as referral_service,
+    ):
         payment_repo.return_value.create_payment_event = Mock()
         badge_service.return_value.check_and_award_on_lesson_completed = Mock()
         referral_service.return_value.on_instructor_lesson_completed.side_effect = Exception("boom")
 
-        result = booking_service.instructor_mark_complete(
-            booking.id, instructor, notes="Great job"
-        )
+        result = booking_service.instructor_mark_complete(booking.id, instructor, notes="Great job")
 
     assert result.status == BookingStatus.COMPLETED
     assert result.instructor_note == "Great job"

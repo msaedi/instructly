@@ -354,6 +354,8 @@ async def check_availability(
             location_type=check_data.location_type,
             student_id=current_user.id,
             selected_duration=check_data.selected_duration,
+            location_address=check_data.location_address,
+            location_place_id=check_data.location_place_id,
             location_lat=check_data.location_lat,
             location_lng=check_data.location_lng,
         )

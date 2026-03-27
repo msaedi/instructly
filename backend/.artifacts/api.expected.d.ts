@@ -6523,8 +6523,10 @@ export type components = {
  exclude_booking_id?: string | null;
  instructor_id: string;
  instructor_service_id: string;
+ location_address?: string | null;
  location_lat?: number | null;
  location_lng?: number | null;
+ location_place_id?: string | null;
  location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
  selected_duration?: number | null;
  start_time: string;
@@ -6535,6 +6537,7 @@ export type components = {
  min_advance_minutes?: number | null;
  reason?: string | null;
  time_info?: components["schemas"]["TimeSlotInfo"] | null;
+ warnings?: components["schemas"]["AvailabilityWarningInfo"][] | null;
  };
  AvailabilityConflictInfo: {
  booking_id?: string | null;
@@ -6545,6 +6548,13 @@ export type components = {
  availability_hit_rate: string;
  availability_invalidations: number;
  availability_total_requests: number;
+ };
+ AvailabilityWarningInfo: {
+ conflicting_booking_id: string;
+ conflicting_service: string;
+ gap_minutes: number;
+ message: string;
+ type: "proximity";
  };
  AvailabilityWindowResponse: {
  end_time: string;

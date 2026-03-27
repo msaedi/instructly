@@ -83,33 +83,37 @@ jest.mock('@/components/booking/AddressSelector', () => ({
       <div data-testid="address-selector">
         <button
           data-testid="select-saved-address-btn"
-          onClick={() => props.onSelectAddress?.({
-            street_line1: '42 Saved St',
-            street_line2: 'Apt 7',
-            locality: 'Brooklyn',
-            administrative_area: 'NY',
-            postal_code: '11201',
-            country_code: 'US',
-            latitude: 40.69,
-            longitude: -73.98,
-            place_id: 'place_saved_1',
-          })}
+          onClick={() =>
+            props.onSelectAddress?.({
+              street_line1: '42 Saved St',
+              street_line2: 'Apt 7',
+              locality: 'Brooklyn',
+              administrative_area: 'NY',
+              postal_code: '11201',
+              country_code: 'US',
+              latitude: 40.69,
+              longitude: -73.98,
+              place_id: 'place_saved_1',
+            })
+          }
         >
           Select Saved Address
         </button>
         <button
           data-testid="select-saved-address-sparse-btn"
-          onClick={() => props.onSelectAddress?.({
-            street_line1: undefined,
-            street_line2: undefined,
-            locality: undefined,
-            administrative_area: undefined,
-            postal_code: undefined,
-            country_code: undefined,
-            latitude: '40.69',
-            longitude: null,
-            place_id: 1234,
-          })}
+          onClick={() =>
+            props.onSelectAddress?.({
+              street_line1: undefined,
+              street_line2: undefined,
+              locality: undefined,
+              administrative_area: undefined,
+              postal_code: undefined,
+              country_code: undefined,
+              latitude: '40.69',
+              longitude: null,
+              place_id: 1234,
+            })
+          }
         >
           Select Sparse Saved Address
         </button>
@@ -119,10 +123,7 @@ jest.mock('@/components/booking/AddressSelector', () => ({
         >
           Deselect Saved Address
         </button>
-        <button
-          data-testid="enter-new-address-btn"
-          onClick={() => props.onEnterNewAddress?.()}
-        >
+        <button data-testid="enter-new-address-btn" onClick={() => props.onEnterNewAddress?.()}>
           Enter New Address
         </button>
       </div>
@@ -132,10 +133,23 @@ jest.mock('@/components/booking/AddressSelector', () => ({
 
 jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   PlacesAutocompleteInput: React.forwardRef(function MockPlacesAutocompleteInput(
-    { value, onValueChange, onSelectSuggestion, placeholder, disabled, inputProps }: {
+    {
+      value,
+      onValueChange,
+      onSelectSuggestion,
+      placeholder,
+      disabled,
+      inputProps,
+    }: {
       value: string;
       onValueChange: (value: string) => void;
-      onSelectSuggestion?: (suggestion: { description: string; place_id: string; text?: string; id?: string; provider?: string }) => void;
+      onSelectSuggestion?: (suggestion: {
+        description: string;
+        place_id: string;
+        text?: string;
+        id?: string;
+        provider?: string;
+      }) => void;
       placeholder: string;
       disabled: boolean;
       inputProps?: { 'data-testid'?: string };
@@ -156,97 +170,117 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
           <>
             <button
               data-testid="select-suggestion-with-placeid"
-              onClick={() => onSelectSuggestion({
-                description: '100 Broadway, New York, NY 10005, USA',
-                place_id: 'test_place_id_123',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '100 Broadway, New York, NY 10005, USA',
+                  place_id: 'test_place_id_123',
+                })
+              }
             >
               Select Suggestion With PlaceId
             </button>
             <button
               data-testid="select-suggestion-no-placeid"
-              onClick={() => onSelectSuggestion({
-                description: '200 Park Ave, New York, NY 10010',
-                place_id: '',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '200 Park Ave, New York, NY 10010',
+                  place_id: '',
+                })
+              }
             >
               Select Suggestion No PlaceId
             </button>
             <button
               data-testid="select-suggestion-id-only"
-              onClick={() => onSelectSuggestion({
-                description: '500 Id Only Ave, Queens, NY 11101',
-                place_id: '',
-                id: 'id_only_456',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '500 Id Only Ave, Queens, NY 11101',
+                  place_id: '',
+                  id: 'id_only_456',
+                })
+              }
             >
               Select Suggestion Id Only
             </button>
             <button
               data-testid="select-suggestion-cached"
-              onClick={() => onSelectSuggestion({
-                description: '100 Broadway, New York, NY 10005, USA',
-                place_id: 'test_place_id_123',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '100 Broadway, New York, NY 10005, USA',
+                  place_id: 'test_place_id_123',
+                })
+              }
             >
               Select Cached Suggestion
             </button>
             <button
               data-testid="select-suggestion-text-only"
-              onClick={() => onSelectSuggestion({
-                description: '10 Text Ave, Brooklyn, NY 11201',
-                text: '10 Text Ave, Brooklyn, NY 11201',
-                place_id: 'text_only_1',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '10 Text Ave, Brooklyn, NY 11201',
+                  text: '10 Text Ave, Brooklyn, NY 11201',
+                  place_id: 'text_only_1',
+                })
+              }
             >
               Select Suggestion Text Only
             </button>
             <button
               data-testid="select-suggestion-provider-prefix"
-              onClick={() => onSelectSuggestion({
-                description: '300 Retry Rd, Brooklyn, NY 11201',
-                place_id: 'google:ChIJ_retry_123',
-                provider: 'google',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '300 Retry Rd, Brooklyn, NY 11201',
+                  place_id: 'google:ChIJ_retry_123',
+                  provider: 'google',
+                })
+              }
             >
               Select Provider Prefix Suggestion
             </button>
             <button
               data-testid="select-suggestion-provider-prefix-mismatch"
-              onClick={() => onSelectSuggestion({
-                description: '300 Retry Rd, Brooklyn, NY 11201',
-                place_id: 'google:ChIJ_retry_123',
-                provider: 'mapbox',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '300 Retry Rd, Brooklyn, NY 11201',
+                  place_id: 'google:ChIJ_retry_123',
+                  provider: 'mapbox',
+                })
+              }
             >
               Select Provider Prefix Mismatch Suggestion
             </button>
             <button
               data-testid="select-suggestion-provider-prefix-text-only"
-              onClick={() => onSelectSuggestion({
-                description: '300 Retry Rd, Brooklyn, NY 11201',
-                text: '300 Retry Rd, Brooklyn, NY 11201',
-                place_id: 'google:ChIJ_retry_text_1',
-                provider: 'mapbox',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '300 Retry Rd, Brooklyn, NY 11201',
+                  text: '300 Retry Rd, Brooklyn, NY 11201',
+                  place_id: 'google:ChIJ_retry_text_1',
+                  provider: 'mapbox',
+                })
+              }
             >
               Select Provider Prefix Text Only
             </button>
             <button
               data-testid="select-suggestion-incomplete"
-              onClick={() => onSelectSuggestion({
-                description: 'Incomplete Address',
-                place_id: 'test_incomplete_id',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: 'Incomplete Address',
+                  place_id: 'test_incomplete_id',
+                })
+              }
             >
               Select Incomplete Suggestion
             </button>
             <button
               data-testid="select-suggestion-empty-no-placeid"
-              onClick={() => onSelectSuggestion({
-                description: '',
-                place_id: '',
-              })}
+              onClick={() =>
+                onSelectSuggestion({
+                  description: '',
+                  place_id: '',
+                })
+              }
             >
               Select Empty Suggestion No PlaceId
             </button>
@@ -273,36 +307,32 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   }),
 }));
 
-let latestTimeSelectionModalProps:
-  | {
-      instructor: {
-        user: { first_name: string; last_initial?: string };
-        services: Array<{
-          id: string;
-          skill: string;
-          duration_options: number[];
-          location_types: string[];
-        }>;
-      };
-      serviceId: string | undefined;
-      initialDate: unknown;
-      initialTimeHHMM24: string | null | undefined;
-      initialDurationMinutes: number | null | undefined;
-      initialLocationType?: string | null | undefined;
-      lockLocationType?: boolean | undefined;
-    }
-  | null = null;
+let latestTimeSelectionModalProps: {
+  instructor: {
+    user: { first_name: string; last_initial?: string };
+    services: Array<{
+      id: string;
+      skill: string;
+      duration_options: number[];
+      location_types: string[];
+    }>;
+  };
+  serviceId: string | undefined;
+  initialDate: unknown;
+  initialTimeHHMM24: string | null | undefined;
+  initialDurationMinutes: number | null | undefined;
+  initialLocationType?: string | null | undefined;
+  lockLocationType?: boolean | undefined;
+} | null = null;
 
-let mockTimeSelectionModalSelectionOverride:
-  | Partial<{
-      date: string;
-      time: string;
-      duration: number;
-      locationType: 'online' | 'student_location' | 'instructor_location';
-      serviceId?: string;
-      hourlyRate: number;
-    }>
-  | null = null;
+let mockTimeSelectionModalSelectionOverride: Partial<{
+  date: string;
+  time: string;
+  duration: number;
+  locationType: 'online' | 'student_location' | 'instructor_location';
+  serviceId?: string;
+  hourlyRate: number;
+}> | null = null;
 
 jest.mock('@/features/student/booking/components/TimeSelectionModal', () => {
   return function MockTimeSelectionModal({
@@ -396,20 +426,24 @@ const fetchInstructorProfileMock = fetchInstructorProfile as jest.Mock;
 const getPlaceDetailsMock = getPlaceDetails as jest.Mock;
 const loggerErrorMock = logger.error as jest.MockedFunction<typeof logger.error>;
 const formatMock = dateFns.format as jest.MockedFunction<typeof dateFns.format>;
-const addMinutesHHMMMock = timeLib.addMinutesHHMM as jest.MockedFunction<typeof timeLib.addMinutesHHMM>;
+const addMinutesHHMMMock = timeLib.addMinutesHHMM as jest.MockedFunction<
+  typeof timeLib.addMinutesHHMM
+>;
 const actualDateFns = jest.requireActual('date-fns') as typeof import('date-fns');
 const actualTimeLib = jest.requireActual('@/lib/time') as typeof import('@/lib/time');
 type InstructorProfileResponse = Awaited<ReturnType<typeof fetchInstructorProfile>>;
 
-const originalFetchInstructorProfileMockResolvedValue = fetchInstructorProfileMock.mockResolvedValue;
-const originalFetchInstructorProfileMockRejectedValue = fetchInstructorProfileMock.mockRejectedValue;
+const originalFetchInstructorProfileMockResolvedValue =
+  fetchInstructorProfileMock.mockResolvedValue;
+const originalFetchInstructorProfileMockRejectedValue =
+  fetchInstructorProfileMock.mockRejectedValue;
 
 const queueInstructorProfileResolution = (value: InstructorProfileResponse) => {
   fetchInstructorProfileMock.mockImplementation(
     () =>
       new Promise<InstructorProfileResponse>((resolve) => {
         setTimeout(() => resolve(value), 0);
-      }),
+      })
   );
 
   return fetchInstructorProfileMock;
@@ -420,7 +454,7 @@ const queueInstructorProfileRejection = (error: unknown) => {
     () =>
       new Promise<never>((_, reject) => {
         setTimeout(() => reject(error), 0);
-      }),
+      })
   );
 
   return fetchInstructorProfileMock;
@@ -473,9 +507,13 @@ describe('PaymentConfirmation', () => {
 
   beforeAll(() => {
     fetchInstructorProfileMock.mockResolvedValue = ((value: InstructorProfileResponse) =>
-      queueInstructorProfileResolution(value)) as typeof fetchInstructorProfileMock.mockResolvedValue;
+      queueInstructorProfileResolution(
+        value
+      )) as typeof fetchInstructorProfileMock.mockResolvedValue;
     fetchInstructorProfileMock.mockRejectedValue = ((error: unknown) =>
-      queueInstructorProfileRejection(error)) as typeof fetchInstructorProfileMock.mockRejectedValue;
+      queueInstructorProfileRejection(
+        error
+      )) as typeof fetchInstructorProfileMock.mockRejectedValue;
   });
 
   beforeEach(() => {
@@ -546,7 +584,6 @@ describe('PaymentConfirmation', () => {
   describe('rendering', () => {
     it('renders booking details', async () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
 
       expect(screen.getByText('Booking Your Lesson with')).toBeInTheDocument();
       expect(screen.getByText('John Doe')).toBeInTheDocument();
@@ -673,24 +710,14 @@ describe('PaymentConfirmation', () => {
 
   describe('credits section', () => {
     it('renders credits section when user has credits', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} availableCredits={50} />);
 
       expect(screen.getByText('Available Credits')).toBeInTheDocument();
       expect(screen.getByText('Balance: $50.00')).toBeInTheDocument();
     });
 
     it('does not render credits section when no credits available', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={0}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} availableCredits={0} />);
 
       expect(screen.queryByText('Available Credits')).not.toBeInTheDocument();
     });
@@ -698,13 +725,7 @@ describe('PaymentConfirmation', () => {
     it('expands credits accordion on click', async () => {
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={10}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} availableCredits={50} creditsUsed={10} />);
 
       // Click to expand credits section
       await user.click(screen.getByText('Available Credits'));
@@ -761,12 +782,7 @@ describe('PaymentConfirmation', () => {
     });
 
     it('displays default expiry message when no expiry provided', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} availableCredits={50} />);
 
       expect(screen.getByText(/Credits expire 12 months/)).toBeInTheDocument();
     });
@@ -845,11 +861,7 @@ describe('PaymentConfirmation', () => {
 
     it('shows referral message when referral is active', async () => {
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={2000} />
       );
 
       // Payment section starts expanded when no card saved
@@ -859,12 +871,7 @@ describe('PaymentConfirmation', () => {
     });
 
     it('disables promo input when promo is active', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          promoApplied={true}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} promoApplied={true} />);
 
       // Payment section starts expanded when no card saved
       await waitFor(() => {
@@ -906,23 +913,13 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          creditsUsed={25}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} creditsUsed={25} />);
 
       expect(screen.getByText('Credits applied')).toBeInTheDocument();
     });
 
     it('displays referral credit when applicable', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralAppliedCents={2000}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} referralAppliedCents={2000} />);
 
       expect(screen.getByText('Referral credit')).toBeInTheDocument();
       expect(screen.getByText('-$20.00')).toBeInTheDocument();
@@ -1014,10 +1011,7 @@ describe('PaymentConfirmation', () => {
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          floorViolationMessage="Price too low"
-        />
+        <PaymentConfirmation {...defaultProps} floorViolationMessage="Price too low" />
       );
 
       await waitFor(() => {
@@ -1036,7 +1030,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           floorViolationMessage="Price too low"
           onClearFloorViolation={onClearFloorViolation}
-        />,
+        />
       );
 
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -1062,7 +1056,9 @@ describe('PaymentConfirmation', () => {
       const onConfirm = jest.fn();
       const user = setupUser();
 
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
@@ -1081,7 +1077,9 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Checking availability...');
+      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent(
+        'Checking availability...'
+      );
     });
 
     it('shows updating total during pricing preview load', async () => {
@@ -1104,14 +1102,65 @@ describe('PaymentConfirmation', () => {
         <PaymentConfirmation
           {...defaultProps}
           instructorAvailabilityError="This time slot is no longer available. Please select another time."
-        />,
+        />
       );
 
       expect(screen.getByText('Slot Unavailable')).toBeInTheDocument();
       expect(
-        screen.getByText('This time slot is no longer available. Please select another time.'),
+        screen.getByText('This time slot is no longer available. Please select another time.')
       ).toBeInTheDocument();
       expect(screen.getByTestId('booking-confirm-cta')).toBeDisabled();
+    });
+
+    it('shows advisory availability warnings without disabling the CTA', async () => {
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          availabilityWarnings={[
+            {
+              type: 'proximity',
+              message: 'You have a Basketball lesson at 2:30 PM at a different location.',
+              conflicting_booking_id: 'booking-999',
+              conflicting_service: 'Basketball',
+              gap_minutes: 0,
+            },
+          ]}
+        />
+      );
+
+      expect(screen.getByTestId('availability-warning-banner')).toHaveTextContent(
+        'You have a Basketball lesson at 2:30 PM at a different location.'
+      );
+      expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
+      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Book now!');
+    });
+
+    it('calls the dismiss handler for advisory availability warnings', async () => {
+      const onDismissAvailabilityWarnings = jest.fn();
+      const user = setupUser();
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          availabilityWarnings={[
+            {
+              type: 'proximity',
+              message: 'You have a Basketball lesson at 2:30 PM at a different location.',
+              conflicting_booking_id: 'booking-999',
+              conflicting_service: 'Basketball',
+              gap_minutes: 0,
+            },
+          ]}
+          onDismissAvailabilityWarnings={onDismissAvailabilityWarnings}
+        />
+      );
+
+      await user.click(screen.getByTestId('dismiss-availability-warning'));
+
+      expect(onDismissAvailabilityWarnings).toHaveBeenCalled();
     });
   });
 
@@ -1129,9 +1178,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           },
         ],
       });
@@ -1178,9 +1225,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           },
         ],
       });
@@ -1215,12 +1260,7 @@ describe('PaymentConfirmation', () => {
 
   describe('accordion behavior', () => {
     it('payment section starts collapsed when saved card exists', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          cardLast4="4242"
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} cardLast4="4242" />);
 
       // Card number input should not be visible initially
       expect(screen.queryByPlaceholderText('1234 5678 9012 3456')).not.toBeInTheDocument();
@@ -1229,13 +1269,7 @@ describe('PaymentConfirmation', () => {
     it('expands and collapses payment section', async () => {
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          cardLast4="4242"
-          cardBrand="Visa"
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} cardLast4="4242" cardBrand="Visa" />);
 
       // Click to expand
       await user.click(screen.getByText('Payment Method'));
@@ -1273,9 +1307,12 @@ describe('PaymentConfirmation', () => {
 
       await user.click(await screen.findByTestId('select-saved-address-btn'));
 
-      await waitFor(() => {
-        expect(onBookingUpdate).toHaveBeenCalled();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expect(onBookingUpdate).toHaveBeenCalled();
+        },
+        { timeout: 2000 }
+      );
     });
 
     it('calls onCreditsAccordionToggle when credits accordion toggled', async () => {
@@ -1340,10 +1377,13 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
 
-      await waitFor(() => {
-        expectFormatSummary('Online', 'Video lesson through the platform');
-        expectNoCheckoutFormatToggle();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expectFormatSummary('Online', 'Video lesson through the platform');
+          expectNoCheckoutFormatToggle();
+        },
+        { timeout: 2000 }
+      );
     });
 
     it('handles remote location string', async () => {
@@ -1354,10 +1394,13 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
 
-      await waitFor(() => {
-        expectFormatSummary('Online', 'Video lesson through the platform');
-        expectNoCheckoutFormatToggle();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expectFormatSummary('Online', 'Video lesson through the platform');
+          expectNoCheckoutFormatToggle();
+        },
+        { timeout: 2000 }
+      );
     });
 
     it('handles video_call location string', async () => {
@@ -1451,12 +1494,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithPlaceId}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithPlaceId} />);
 
       // Component renders location section
       await waitFor(() => {
@@ -1475,12 +1513,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       // Component renders location section with input fields
       await waitFor(() => {
@@ -1633,11 +1666,7 @@ describe('PaymentConfirmation', () => {
     it('handles promo code submission via form', async () => {
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Enter promo code')).toBeInTheDocument();
@@ -1651,12 +1680,7 @@ describe('PaymentConfirmation', () => {
     });
 
     it('shows promo input disabled when promo already applied', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          promoApplied={true}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} promoApplied={true} />);
 
       await waitFor(() => {
         const promoInput = screen.getByPlaceholderText('Enter promo code');
@@ -1866,7 +1890,8 @@ describe('PaymentConfirmation', () => {
       });
 
       // Look for apt field - it might be labeled differently
-      const aptInput = screen.queryByTestId('addr-apt') || screen.queryByPlaceholderText(/apt|unit|suite/i);
+      const aptInput =
+        screen.queryByTestId('addr-apt') || screen.queryByPlaceholderText(/apt|unit|suite/i);
       if (aptInput) {
         await user.type(aptInput, '4B');
         expect(aptInput).toHaveValue('4B');
@@ -1902,9 +1927,7 @@ describe('PaymentConfirmation', () => {
           student_fee_cents: 1500,
           student_pay_cents: 11500,
           credit_applied_cents: 0,
-          line_items: [
-            { label: 'Premium Service', amount_cents: 2000, type: 'fee' },
-          ],
+          line_items: [{ label: 'Premium Service', amount_cents: 2000, type: 'fee' }],
         },
         loading: false,
         error: null,
@@ -1922,7 +1945,9 @@ describe('PaymentConfirmation', () => {
       const onConfirm = jest.fn();
       const user = setupUser();
 
-      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
@@ -1940,15 +1965,10 @@ describe('PaymentConfirmation', () => {
     it('shows booking confirmation for users with no previous bookings', async () => {
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         // Check if there's confirmation UI
-
       });
     });
   });
@@ -1961,11 +1981,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} />);
 
       // The CTA button should reflect loading state
       const ctaButton = screen.getByTestId('booking-confirm-cta');
@@ -1975,11 +1991,7 @@ describe('PaymentConfirmation', () => {
 
   describe('instructor display', () => {
     it('displays instructor name', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} />);
 
       // Instructor name is displayed in the component
       expect(screen.getByText('John Doe')).toBeInTheDocument();
@@ -2034,12 +2046,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByText('Lesson Location')).toBeInTheDocument();
@@ -2064,12 +2071,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2093,12 +2095,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByText('Lesson Location')).toBeInTheDocument();
@@ -2122,12 +2119,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2150,12 +2142,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByText('Lesson Location')).toBeInTheDocument();
@@ -2178,12 +2165,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2202,12 +2184,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       // Component should still render despite abort
       await waitFor(() => {
@@ -2223,12 +2200,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       // Component should still render despite error
       await waitFor(() => {
@@ -2248,12 +2220,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2279,12 +2246,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2307,12 +2269,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByText('Lesson Location')).toBeInTheDocument();
@@ -2335,12 +2292,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2358,12 +2310,7 @@ describe('PaymentConfirmation', () => {
         location: '',
       };
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingWithoutLocation}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
@@ -2490,8 +2437,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={inPersonBooking} />);
-
-
     });
 
     it('computes price floor for online modality', () => {
@@ -2509,8 +2454,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
-
-
     });
 
     it('handles missing price floors config', () => {
@@ -2520,8 +2463,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
   });
 
@@ -2539,9 +2480,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
-      await waitFor(() => {
-
-      });
+      await waitFor(() => {});
     });
 
     it('handles booking with metadata containing online modality', async () => {
@@ -2556,9 +2495,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
-      await waitFor(() => {
-
-      });
+      await waitFor(() => {});
     });
   });
 
@@ -2603,12 +2540,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={0}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} availableCredits={0} />);
 
       // Credits section should not be visible
       expect(screen.queryByText('Available Credits')).not.toBeInTheDocument();
@@ -2629,9 +2561,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           },
           {
             id: 'svc-2',
@@ -2641,9 +2571,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 80 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 80 }],
           },
         ],
       });
@@ -2677,9 +2605,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // Component should still render
-      await waitFor(() => {
-
-      });
+      await waitFor(() => {});
     });
 
     it('ignores instructor profile fetch failures that arrive after unmount', async () => {
@@ -2689,7 +2615,7 @@ describe('PaymentConfirmation', () => {
         () =>
           new Promise((_, reject) => {
             rejectProfile = reject;
-          }),
+          })
       );
 
       const { unmount } = render(<PaymentConfirmation {...defaultProps} />);
@@ -2703,7 +2629,7 @@ describe('PaymentConfirmation', () => {
 
       expect(loggerErrorMock).not.toHaveBeenCalledWith(
         'Failed to fetch instructor profile',
-        expect.objectContaining({ message: 'late failure' }),
+        expect.objectContaining({ message: 'late failure' })
       );
     });
   });
@@ -2717,7 +2643,9 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // Initially shows checking availability
-      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Checking availability...');
+      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent(
+        'Checking availability...'
+      );
     });
 
     it('shows correct CTA after availability check with no conflicts', async () => {
@@ -2808,11 +2736,7 @@ describe('PaymentConfirmation', () => {
 
     it('shows error when trying to apply promo with referral active', async () => {
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={2000} />
       );
 
       // With referral active, promo section shows different message
@@ -2825,12 +2749,7 @@ describe('PaymentConfirmation', () => {
       const onPromoStatusChange = jest.fn();
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onPromoStatusChange={onPromoStatusChange}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} onPromoStatusChange={onPromoStatusChange} />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Enter promo code')).toBeInTheDocument();
@@ -2979,11 +2898,7 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByText('Enter a promo code to apply.')).toBeInTheDocument();
 
       rerender(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={500}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={500} />
       );
 
       await act(async () => {
@@ -3016,10 +2931,7 @@ describe('PaymentConfirmation', () => {
 
       // Wait for conflict check to complete
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={bookingLowPrice}
-        />
+        <PaymentConfirmation {...defaultProps} booking={bookingLowPrice} />
       );
 
       // CTA should be disabled due to floor violation
@@ -3136,9 +3048,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // Should handle gracefully
-      await waitFor(() => {
-
-      });
+      await waitFor(() => {});
     });
 
     it('handles booking with zero duration and no end_time in conflict list', async () => {
@@ -3178,9 +3088,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // Should handle gracefully
-      await waitFor(() => {
-
-      });
+      await waitFor(() => {});
     });
   });
 
@@ -3242,7 +3150,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component should render without error
-
     });
   });
 
@@ -3346,11 +3253,7 @@ describe('PaymentConfirmation', () => {
       usePricingPreviewMock.mockImplementation(() => previewState);
 
       const { rerender } = render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={0}
-        />
+        <PaymentConfirmation {...defaultProps} availableCredits={50} creditsUsed={0} />
       );
 
       expect(screen.queryByText('Credits to apply:')).not.toBeInTheDocument();
@@ -3363,13 +3266,7 @@ describe('PaymentConfirmation', () => {
         },
       };
 
-      rerender(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={10}
-        />
-      );
+      rerender(<PaymentConfirmation {...defaultProps} availableCredits={50} creditsUsed={10} />);
 
       await waitFor(() => {
         expect(screen.getByText('Credits to apply:')).toBeInTheDocument();
@@ -3403,7 +3300,12 @@ describe('PaymentConfirmation', () => {
         },
       };
 
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithRemoteMetadata as BookingPayment} />);
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithRemoteMetadata as BookingPayment}
+        />
+      );
 
       await waitFor(() => {
         expectFormatSummary('Online', 'Video lesson through the platform');
@@ -3419,7 +3321,12 @@ describe('PaymentConfirmation', () => {
         },
       };
 
-      render(<PaymentConfirmation {...defaultProps} booking={bookingWithInPersonMetadata as BookingPayment} />);
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithInPersonMetadata as BookingPayment}
+        />
+      );
 
       await waitFor(() => {
         expectFormatSummary('At your location', 'Confirm where your instructor should meet you');
@@ -3519,8 +3426,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithInfinitePrice} />);
-
-
     });
 
     it('handles NaN base price', async () => {
@@ -3530,8 +3435,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithNaNPrice} />);
-
-
     });
 
     it('handles pricing preview with line items', async () => {
@@ -3554,8 +3457,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
 
     it('handles pricing preview error state', async () => {
@@ -3566,8 +3467,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
 
     it('shows skeleton during pricing preview loading', async () => {
@@ -3578,7 +3477,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
 
       expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
     });
@@ -3594,8 +3492,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoDuration} />);
-
-
     });
 
     it('handles booking with zero duration', async () => {
@@ -3607,8 +3503,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingZeroDuration} />);
-
-
     });
 
     it('handles booking with negative duration calculation', async () => {
@@ -3620,8 +3514,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNegativeDuration} />);
-
-
     });
 
     it('handles booking with invalid time formats', async () => {
@@ -3633,8 +3525,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingInvalidTime} />);
-
-
     });
   });
 
@@ -3646,8 +3536,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoStartTime} />);
-
-
     });
 
     it('handles missing end time', async () => {
@@ -3657,8 +3545,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoEndTime} />);
-
-
     });
 
     it('handles time with HH:MM:SS format', async () => {
@@ -3669,8 +3555,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithSeconds} />);
-
-
     });
 
     it('handles AM/PM time format', async () => {
@@ -3681,34 +3565,16 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithAMPM} />);
-
-
     });
   });
 
   describe('credits slider edge cases', () => {
     it('handles credits slider with zero available credits', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={0}
-          creditsUsed={0}
-        />
-      );
-
-
+      render(<PaymentConfirmation {...defaultProps} availableCredits={0} creditsUsed={0} />);
     });
 
     it('handles credits slider with credits exceeding total', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={500}
-          creditsUsed={200}
-        />
-      );
-
-
+      render(<PaymentConfirmation {...defaultProps} availableCredits={500} creditsUsed={200} />);
     });
 
     it('handles credits slider with negative applied cents from preview', async () => {
@@ -3724,15 +3590,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={50}
-          creditsUsed={0}
-        />
-      );
-
-
+      render(<PaymentConfirmation {...defaultProps} availableCredits={50} creditsUsed={0} />);
     });
   });
 
@@ -3760,7 +3618,6 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={virtualBooking} />);
 
       // Component should render without errors
-
     });
 
     it('handles remote keyword in location', async () => {
@@ -3780,26 +3637,13 @@ describe('PaymentConfirmation', () => {
 
   describe('promo code handling', () => {
     it('disables promo apply when referral is active', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} referralActive={true} />);
 
       // Component should still render
-
     });
 
     it('handles promo code with empty string', async () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          promoApplied={false}
-        />
-      );
-
-
+      render(<PaymentConfirmation {...defaultProps} promoApplied={false} />);
     });
   });
 
@@ -3813,8 +3657,6 @@ describe('PaymentConfirmation', () => {
           creditsUsed={115}
         />
       );
-
-
     });
 
     it('displays MIXED payment method correctly', async () => {
@@ -3827,8 +3669,6 @@ describe('PaymentConfirmation', () => {
           cardLast4="4242"
         />
       );
-
-
     });
   });
 
@@ -3842,8 +3682,6 @@ describe('PaymentConfirmation', () => {
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoInstructor} />);
-
-
     });
 
     it('handles undefined instructor id', async () => {
@@ -3855,8 +3693,6 @@ describe('PaymentConfirmation', () => {
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingUndefinedInstructor} />);
-
-
     });
   });
 
@@ -3868,8 +3704,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={lastMinuteBooking} />);
-
-
     });
   });
 
@@ -3896,9 +3730,7 @@ describe('PaymentConfirmation', () => {
           student_fee_cents: 1500,
           student_pay_cents: 11500,
           credit_applied_cents: 0,
-          line_items: [
-            { label: 'Booking Protection Fee', amount_cents: 100 },
-          ],
+          line_items: [{ label: 'Booking Protection Fee', amount_cents: 100 }],
         },
         loading: false,
         error: null,
@@ -3916,9 +3748,7 @@ describe('PaymentConfirmation', () => {
           student_fee_cents: 1500,
           student_pay_cents: 11500,
           credit_applied_cents: 0,
-          line_items: [
-            { label: 'Service & Support (15%)', amount_cents: 1500 },
-          ],
+          line_items: [{ label: 'Service & Support (15%)', amount_cents: 1500 }],
         },
         loading: false,
         error: null,
@@ -3927,7 +3757,6 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // The line item with matching amount should be filtered
-
     });
 
     it('filters out credit line items', async () => {
@@ -3937,17 +3766,13 @@ describe('PaymentConfirmation', () => {
           student_fee_cents: 1500,
           student_pay_cents: 11500,
           credit_applied_cents: 500,
-          line_items: [
-            { label: 'Credits Applied', amount_cents: -500 },
-          ],
+          line_items: [{ label: 'Credits Applied', amount_cents: -500 }],
         },
         loading: false,
         error: null,
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
   });
 
@@ -3976,8 +3801,6 @@ describe('PaymentConfirmation', () => {
       };
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWhitespaceLocation} />);
-
-
     });
   });
 
@@ -3989,8 +3812,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
 
     it('displays service support fee with zero percentage', async () => {
@@ -4000,8 +3821,6 @@ describe('PaymentConfirmation', () => {
       });
 
       render(<PaymentConfirmation {...defaultProps} />);
-
-
     });
   });
 
@@ -4071,11 +3890,7 @@ describe('PaymentConfirmation', () => {
     it('shows message when referral is active instead of promo input', async () => {
       // Lines 1978-1982: When referralActive, show notification instead of promo input
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={2000} />
       );
 
       // Advance timers for conflict check
@@ -4272,9 +4087,10 @@ describe('PaymentConfirmation', () => {
       // Simulate the component unmounting during conflict check
 
       fetchBookingsListMock.mockImplementation(
-        () => new Promise((resolve) => {
-          setTimeout(() => resolve({ items: [] }), 500);
-        })
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({ items: [] }), 500);
+          })
       );
 
       const { unmount } = render(<PaymentConfirmation {...defaultProps} />);
@@ -4317,7 +4133,6 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-
   describe('enter new address flow', () => {
     it('allows entering a new address', async () => {
       // Lines 275-281: handleEnterNewAddress
@@ -4331,9 +4146,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -4401,9 +4214,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -4413,9 +4224,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} onBookingUpdate={onBookingUpdate} />
-      );
+      render(<PaymentConfirmation {...defaultProps} onBookingUpdate={onBookingUpdate} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -4653,9 +4462,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [
@@ -4778,9 +4585,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [
@@ -4816,9 +4621,7 @@ describe('PaymentConfirmation', () => {
         duration: 0,
       };
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       // Component still renders; hourlyRate will be 0
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
@@ -4830,9 +4633,7 @@ describe('PaymentConfirmation', () => {
         duration: -30,
       };
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
@@ -4885,9 +4686,7 @@ describe('PaymentConfirmation', () => {
             ],
           },
         ],
-        preferred_teaching_locations: [
-          { address: 'Studio A', lat: 40.7, lng: -73.9 },
-        ],
+        preferred_teaching_locations: [{ address: 'Studio A', lat: 40.7, lng: -73.9 }],
         preferred_public_spaces: [],
       });
 
@@ -5074,13 +4873,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          creditsUsed={50}
-          availableCredits={100}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} creditsUsed={50} availableCredits={100} />);
 
       // Should auto-expand when credits are applied (uncontrolled mode)
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
@@ -5125,14 +4918,10 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
-        preferred_teaching_locations: [
-          { address: 'Studio Room 5, 100 Broadway', id: 'loc-1' },
-        ],
+        preferred_teaching_locations: [{ address: 'Studio Room 5, 100 Broadway', id: 'loc-1' }],
         preferred_public_spaces: [],
       });
 
@@ -5165,9 +4954,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -5285,9 +5072,7 @@ describe('PaymentConfirmation', () => {
             ],
           },
         ],
-        preferred_teaching_locations: [
-          { address: '100 Studio Ln', label: 'Main Studio' },
-        ],
+        preferred_teaching_locations: [{ address: '100 Studio Ln', label: 'Main Studio' }],
       });
 
       const booking: BookingPayment = {
@@ -5296,9 +5081,7 @@ describe('PaymentConfirmation', () => {
         metadata: { modality: 'studio' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expectFormatSummary("At instructor's location", "You'll travel to the instructor");
     });
@@ -5321,9 +5104,7 @@ describe('PaymentConfirmation', () => {
           },
         ],
         preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          { address: 'Central Park', label: 'Park' },
-        ],
+        preferred_public_spaces: [{ address: 'Central Park', label: 'Park' }],
       });
 
       const booking: BookingPayment = {
@@ -5332,9 +5113,7 @@ describe('PaymentConfirmation', () => {
         metadata: { location_type: 'public' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expectFormatSummary('At a meeting point', 'Choose or confirm the meeting address below');
     });
@@ -5346,9 +5125,7 @@ describe('PaymentConfirmation', () => {
         metadata: { modality: 'home' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       await waitFor(() => {
         expectFormatSummary('At your location', 'Confirm where your instructor should meet you');
@@ -5363,9 +5140,7 @@ describe('PaymentConfirmation', () => {
         metadata: { location_type: 42, modality: null },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       await waitFor(() => {
         expectFormatSummary('At your location', 'Confirm where your instructor should meet you');
@@ -5416,9 +5191,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -5439,9 +5212,7 @@ describe('PaymentConfirmation', () => {
         metadata: { modality: 'neutral' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
@@ -5457,9 +5228,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -5480,9 +5249,7 @@ describe('PaymentConfirmation', () => {
     it('uses cached conflict data within 60s window', async () => {
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
-      const { unmount } = await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      const { unmount } = await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // First render should have called fetchBookingsList
       await waitFor(() => {
@@ -5497,9 +5264,7 @@ describe('PaymentConfirmation', () => {
       // However, the cache ref is per-component instance, so this tests the
       // re-mount scenario (new instance => new cache). A rerender is needed instead.
       // Let's test via rerender pattern.
-      const { rerender } = render(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      const { rerender } = render(<PaymentConfirmation {...defaultProps} />);
 
       await act(async () => {
         jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
@@ -5513,10 +5278,7 @@ describe('PaymentConfirmation', () => {
       // Now rerender with same booking -- conflict key unchanged, cache should be used
       fetchBookingsListMock.mockClear();
       rerender(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={{ ...mockBooking, totalAmount: 120 }}
-        />
+        <PaymentConfirmation {...defaultProps} booking={{ ...mockBooking, totalAmount: 120 }} />
       );
 
       await act(async () => {
@@ -5654,9 +5416,7 @@ describe('PaymentConfirmation', () => {
         metadata: { serviceId: 'svc-meta-1' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
@@ -5672,9 +5432,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 90 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 90 }],
           },
           {
             id: 'svc-2',
@@ -5699,9 +5457,7 @@ describe('PaymentConfirmation', () => {
         serviceId: 'svc-booking-1',
       } as BookingPayment & { serviceId: string };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
@@ -5742,9 +5498,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
 
@@ -5842,9 +5596,7 @@ describe('PaymentConfirmation', () => {
           student_fee_cents: 1500,
           student_pay_cents: 11700,
           credit_applied_cents: 0,
-          line_items: [
-            { label: 'Extra Charge', amount_cents: 200, type: 'fee' },
-          ],
+          line_items: [{ label: 'Extra Charge', amount_cents: 200, type: 'fee' }],
         },
         loading: false,
         error: null,
@@ -5936,7 +5688,9 @@ describe('PaymentConfirmation', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Server-side floor violation: minimum is $50.00')).toBeInTheDocument();
+        expect(
+          screen.getByText('Server-side floor violation: minimum is $50.00')
+        ).toBeInTheDocument();
       });
 
       expect(screen.getByTestId('booking-confirm-cta')).toBeDisabled();
@@ -5946,11 +5700,7 @@ describe('PaymentConfirmation', () => {
   describe('referral credit display in pricing', () => {
     it('shows referral credit line when referral is active', async () => {
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={1500}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={1500} />
       );
 
       await waitFor(() => {
@@ -6008,11 +5758,7 @@ describe('PaymentConfirmation', () => {
       // referralActive to be true internally (line 775). The UI shows the
       // referral message instead of the promo input (line 1978 conditional).
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={false}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={false} referralAppliedCents={2000} />
       );
 
       await waitFor(() => {
@@ -6027,11 +5773,7 @@ describe('PaymentConfirmation', () => {
       const user = setupUser();
 
       const { rerender } = render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={false}
-          referralAppliedCents={0}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={false} referralAppliedCents={0} />
       );
 
       await waitFor(() => {
@@ -6043,11 +5785,7 @@ describe('PaymentConfirmation', () => {
 
       // Rerender with referralAppliedCents > 0 to make internal referralActive=true
       rerender(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={2000} />
       );
 
       await waitFor(() => {
@@ -6062,12 +5800,7 @@ describe('PaymentConfirmation', () => {
       const onPromoStatusChange = jest.fn();
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onPromoStatusChange={onPromoStatusChange}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} onPromoStatusChange={onPromoStatusChange} />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Enter promo code')).toBeInTheDocument();
@@ -6095,12 +5828,7 @@ describe('PaymentConfirmation', () => {
       const onPromoStatusChange = jest.fn();
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onPromoStatusChange={onPromoStatusChange}
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} onPromoStatusChange={onPromoStatusChange} />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText('Enter promo code')).toBeInTheDocument();
@@ -6198,7 +5926,7 @@ describe('PaymentConfirmation', () => {
       expect(screen.queryByText(/can't be combined/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Enter a promo code/i)).not.toBeInTheDocument();
     });
-  });;
+  });
 
   describe('handleAddressSuggestionSelect via PlacesAutocompleteInput', () => {
     const bookingNoLocation: BookingPayment = {
@@ -6228,9 +5956,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-no-placeid')).toBeInTheDocument();
@@ -6282,9 +6008,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-with-placeid')).toBeInTheDocument();
@@ -6318,9 +6042,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-id-only')).toBeInTheDocument();
@@ -6357,9 +6079,7 @@ describe('PaymentConfirmation', () => {
         error: null,
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-with-placeid')).toBeInTheDocument();
@@ -6406,9 +6126,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-with-placeid')).toBeInTheDocument();
@@ -6460,9 +6178,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-incomplete')).toBeInTheDocument();
@@ -6513,9 +6229,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
@@ -6565,13 +6279,13 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
-        expect(screen.getByTestId('select-suggestion-provider-prefix-mismatch')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('select-suggestion-provider-prefix-mismatch')
+        ).toBeInTheDocument();
       });
 
       await user.click(screen.getByTestId('select-suggestion-provider-prefix'));
@@ -6665,9 +6379,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('deselect-saved-address-btn')).toBeInTheDocument();
@@ -6753,9 +6465,7 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      render(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />
-      );
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('enter-new-address-btn')).toBeInTheDocument();
@@ -6768,7 +6478,7 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByTestId('addr-street')).toBeInTheDocument();
       });
     });
-  });;
+  });
 
   describe('handleChangeLocationClick', () => {
     it('expands location section and enters edit mode', async () => {
@@ -6795,10 +6505,7 @@ describe('PaymentConfirmation', () => {
       });
 
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          onClearFloorViolation={onClearFloorViolation}
-        />
+        <PaymentConfirmation {...defaultProps} onClearFloorViolation={onClearFloorViolation} />
       );
 
       // Expand location section
@@ -6837,9 +6544,7 @@ describe('PaymentConfirmation', () => {
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
-            format_prices: [
-              { format: 'online', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -6905,7 +6610,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={travelBooking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await user.click(screen.getByText('Edit lesson'));
@@ -6999,12 +6704,12 @@ describe('PaymentConfirmation', () => {
       const resolvedUpdates = onBookingUpdate.mock.calls
         .map((call) => call[0])
         .filter(
-          (update): update is (
-            prev: BookingPayment
-          ) => BookingPayment & {
+          (
+            update
+          ): update is (prev: BookingPayment) => BookingPayment & {
             metadata?: Record<string, unknown>;
             address?: { fullAddress: string; lat: number; lng: number; placeId: string };
-          } => typeof update === 'function',
+          } => typeof update === 'function'
         )
         .map((update) => update(meetingPointBooking));
 
@@ -7023,7 +6728,7 @@ describe('PaymentConfirmation', () => {
               lng: -74.006,
             }),
           }),
-        ]),
+        ])
       );
 
       expect(onTimeSelectionCommitted).toHaveBeenLastCalledWith(
@@ -7035,7 +6740,7 @@ describe('PaymentConfirmation', () => {
           address: expect.objectContaining({
             placeId: 'place_library_1',
           }),
-        }),
+        })
       );
     });
   });
@@ -7059,7 +6764,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={bookingNoLocation}
           onBookingUpdate={initialUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -7071,7 +6776,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={bookingNoLocation}
           onBookingUpdate={repeatUpdate}
-        />,
+        />
       );
 
       await act(async () => {
@@ -7116,7 +6821,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={booking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -7136,7 +6841,7 @@ describe('PaymentConfirmation', () => {
       });
       expect(screen.queryByText('Empty Studio')).not.toBeInTheDocument();
     });
-  });;
+  });
 
   describe('credit slider onChange handler', () => {
     it('updates display value during slider drag', async () => {
@@ -7175,7 +6880,7 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByText('$25.00')).toBeInTheDocument();
       });
     });
-  });;;
+  });
 
   describe('conflict key null with abort controller cleanup', () => {
     it('aborts existing conflict check when conflict key becomes null', async () => {
@@ -7212,11 +6917,7 @@ describe('PaymentConfirmation', () => {
       // referralActive=false but referralAppliedCents>0 makes internal referralActive=true
       // This means the promo area shows the referral message, not the input
       render(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={false}
-          referralAppliedCents={500}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={false} referralAppliedCents={500} />
       );
 
       // The referral message should be shown instead of promo input
@@ -7291,7 +6992,7 @@ describe('PaymentConfirmation', () => {
         expect(onBookingUpdate).toHaveBeenCalled();
       });
     });
-  });;
+  });
 
   describe('credits accordion toggle in uncontrolled mode', () => {
     it('toggles uncontrolled credits accordion and calls callback', async () => {
@@ -7426,13 +7127,7 @@ describe('PaymentConfirmation', () => {
 
   describe('payment section collapsed state with last4', () => {
     it('shows card last4 inline when payment section is collapsed', () => {
-      render(
-        <PaymentConfirmation
-          {...defaultProps}
-          cardLast4="1234"
-          cardBrand="Amex"
-        />
-      );
+      render(<PaymentConfirmation {...defaultProps} cardLast4="1234" cardBrand="Amex" />);
 
       // Payment section starts collapsed when hasSavedCard is true
       // Should show last4 inline
@@ -7541,10 +7236,7 @@ describe('PaymentConfirmation', () => {
       });
 
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={{ ...mockBooking, location: '' }}
-        />
+        <PaymentConfirmation {...defaultProps} booking={{ ...mockBooking, location: '' }} />
       );
 
       // First click starts a fetch, second click should abort the first
@@ -7563,10 +7255,7 @@ describe('PaymentConfirmation', () => {
       getPlaceDetailsMock.mockRejectedValue(new Error('Network error'));
 
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          booking={{ ...mockBooking, location: '' }}
-        />
+        <PaymentConfirmation {...defaultProps} booking={{ ...mockBooking, location: '' }} />
       );
 
       await user.click(screen.getByTestId('select-suggestion-with-placeid'));
@@ -7579,7 +7268,6 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
   });
-
 
   describe('summaryDateLabel error branch', () => {
     it('shows fallback when date parsing throws', async () => {
@@ -7642,13 +7330,13 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // The existing booking is on 2025-03-01 but our booking is 2025-02-01
       // Should NOT show conflict
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
 
     it('returns false when existing has irrelevant status', async () => {
@@ -7663,11 +7351,11 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
 
     it('returns false when existing has no start_time', async () => {
@@ -7682,11 +7370,11 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
 
     it('returns false when existing has invalid start_time', async () => {
@@ -7701,12 +7389,12 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Invalid time throws in to24HourTime, caught and returns false
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
 
     it('derives duration from end_time when duration_minutes is missing', async () => {
@@ -7722,13 +7410,13 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Should detect overlap since it derives 60min from 10:00-11:00
       await waitFor(() => {
-        expect(screen.getByText('You already have a booking scheduled at this time.')).toBeInTheDocument();
+        expect(
+          screen.getByText('You already have a booking scheduled at this time.')
+        ).toBeInTheDocument();
       });
     });
 
@@ -7745,12 +7433,12 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Can't determine duration, so no conflict
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
 
     it('returns false when end_time parse fails', async () => {
@@ -7766,15 +7454,14 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // end_time parse fails, existingDuration stays null, returns false
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
     });
   });
-
 
   describe('onBookingUpdate removes address when no payload', () => {
     it('strips address field when location has no address payload', async () => {
@@ -7784,11 +7471,13 @@ describe('PaymentConfirmation', () => {
         <PaymentConfirmation
           {...defaultProps}
           onBookingUpdate={onBookingUpdate}
-          booking={{
-            ...mockBooking,
-            location: 'Online',
-            metadata: { modality: 'remote', location_type: 'online' },
-          } as BookingPayment}
+          booking={
+            {
+              ...mockBooking,
+              location: 'Online',
+              metadata: { modality: 'remote', location_type: 'online' },
+            } as BookingPayment
+          }
         />
       );
 
@@ -7813,7 +7502,6 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('location init normalizeLocationHint unknown value', () => {
-
     it('preserves existing address fields when re-initializing', async () => {
       // When location is a non-online string and address fields already have data,
       // the init effect should NOT overwrite them
@@ -7870,9 +7558,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      const { rerender } = render(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      const { rerender } = render(<PaymentConfirmation {...defaultProps} />);
 
       // First check - triggers fetch
       await act(async () => {
@@ -7909,28 +7595,27 @@ describe('PaymentConfirmation', () => {
       abortError.name = 'AbortError';
       fetchBookingsListMock.mockRejectedValue(abortError);
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Should not show conflict and not crash
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
 
     it('handles generic error during conflict fetch', async () => {
       fetchBookingsListMock.mockRejectedValue(new Error('Network failure'));
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Should clear conflict state on error
-      expect(screen.queryByText('You already have a booking scheduled at this time.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.')
+      ).not.toBeInTheDocument();
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
   });
-
 
   describe('handlePromoAction referral blocking on non-empty promo', () => {
     it('blocks promo apply when referral is active with non-empty code', async () => {
@@ -7964,10 +7649,7 @@ describe('PaymentConfirmation', () => {
       });
 
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          availableCredits={5000}
-        />
+        <PaymentConfirmation {...defaultProps} availableCredits={5000} />
       );
 
       // Credits accordion should auto-expand since credit_applied_cents > 0
@@ -7975,7 +7657,6 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByTestId('booking-confirm-cta')).toBeInTheDocument();
     });
   });
-
 
   describe('computedEndHHMM24 error branch', () => {
     it('returns null when endTime parsing throws', async () => {
@@ -8010,7 +7691,7 @@ describe('PaymentConfirmation', () => {
       // Should derive 90 minutes from 14:00-15:30
       expect(screen.getByText('Lesson (90 min)')).toBeInTheDocument();
     });
-  });;
+  });
 
   describe('normalizedLessonDuration fallback from booking.duration (line 959)', () => {
     it('falls back to booking.duration when durationMinutes rounds to 0', async () => {
@@ -8027,7 +7708,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component renders without crashing
-
     });
   });
 
@@ -8037,7 +7717,7 @@ describe('PaymentConfirmation', () => {
         ...mockBooking,
         location: '',
         metadata: {
-          location_type: 'gymnasium',  // Does not match any known keyword
+          location_type: 'gymnasium', // Does not match any known keyword
           serviceId: 'svc-1',
         },
       } as BookingPayment & { metadata: Record<string, unknown> };
@@ -8047,7 +7727,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // Should fall through to the default student_location path
-
     });
   });
 
@@ -8067,7 +7746,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // The address should be pre-filled from booking.location
-
     });
   });
 
@@ -8077,10 +7755,7 @@ describe('PaymentConfirmation', () => {
       const onClearFloorViolation = jest.fn();
 
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          onClearFloorViolation={onClearFloorViolation}
-        />
+        <PaymentConfirmation {...defaultProps} onClearFloorViolation={onClearFloorViolation} />
       );
 
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -8112,10 +7787,7 @@ describe('PaymentConfirmation', () => {
 
       try {
         await renderWithConflictCheck(
-          <PaymentConfirmation
-            {...defaultProps}
-            onClearFloorViolation={onClearFloorViolation}
-          />
+          <PaymentConfirmation {...defaultProps} onClearFloorViolation={onClearFloorViolation} />
         );
 
         fireEvent.click(screen.getByText('Lesson Location'));
@@ -8151,14 +7823,13 @@ describe('PaymentConfirmation', () => {
   describe('conflict check controller.signal.aborted (line 1566)', () => {
     it('handles rapid unmount during conflict check', async () => {
       fetchBookingsListMock.mockImplementation(
-        () => new Promise((resolve) => {
-          setTimeout(() => resolve({ items: [] }), 1000);
-        })
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({ items: [] }), 1000);
+          })
       );
 
-      const { unmount } = render(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      const { unmount } = render(<PaymentConfirmation {...defaultProps} />);
 
       // Advance just past the debounce delay
       await act(async () => {
@@ -8189,7 +7860,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component renders without crashing despite malformed time
-
     });
   });
 
@@ -8205,7 +7875,6 @@ describe('PaymentConfirmation', () => {
       );
 
       // Should show fallback text since date parsing fails
-
     });
   });
 
@@ -8250,8 +7919,6 @@ describe('PaymentConfirmation', () => {
           await user.click(applyButton);
         }
       }
-
-
     });
   });
 
@@ -8343,7 +8010,6 @@ describe('PaymentConfirmation', () => {
       });
 
       // Component should still be rendered without crashing
-
     });
 
     it('returns null when signal is already aborted after API resolves (line 547)', async () => {
@@ -8351,9 +8017,12 @@ describe('PaymentConfirmation', () => {
       // This is a race condition guard. We simulate by making getPlaceDetails slow
       // and unmounting the component before it resolves.
       let resolveDetails: ((value: unknown) => void) | null = null;
-      getPlaceDetailsMock.mockImplementation(() => new Promise(resolve => {
-        resolveDetails = resolve;
-      }));
+      getPlaceDetailsMock.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveDetails = resolve;
+          })
+      );
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
@@ -8443,8 +8112,6 @@ describe('PaymentConfirmation', () => {
       await act(async () => {
         jest.advanceTimersByTime(50);
       });
-
-
     });
   });
 
@@ -8471,11 +8138,7 @@ describe('PaymentConfirmation', () => {
       // This is defensive code — lines 1583-1584 and 1600-1601 are unreachable via UI.
       // Verify the UI behavior:
       await renderWithConflictCheck(
-        <PaymentConfirmation
-          {...defaultProps}
-          referralActive={true}
-          referralAppliedCents={2000}
-        />
+        <PaymentConfirmation {...defaultProps} referralActive={true} referralAppliedCents={2000} />
       );
 
       expect(screen.getByText(/referral credit applied/i)).toBeInTheDocument();
@@ -8492,9 +8155,7 @@ describe('PaymentConfirmation', () => {
       // then switch to non-referral to get the input back.
       const user = setupUser();
 
-      render(
-        <PaymentConfirmation {...defaultProps} />
-      );
+      render(<PaymentConfirmation {...defaultProps} />);
 
       await act(async () => {
         jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
@@ -8630,9 +8291,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -8641,7 +8300,6 @@ describe('PaymentConfirmation', () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // When isTravelLocation is true, location editing shows
-
     });
   });
 
@@ -8670,9 +8328,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -8693,16 +8349,13 @@ describe('PaymentConfirmation', () => {
         bookingId: 'booking-999',
       };
 
-      rerender(
-        <PaymentConfirmation {...defaultProps} booking={bookingNewId} />
-      );
+      rerender(<PaymentConfirmation {...defaultProps} booking={bookingNewId} />);
 
       await act(async () => {
         jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
       });
 
       // addressFields.line1 was already set from first render → updater returns prev (line 1461).
-
     });
   });
 
@@ -8717,9 +8370,12 @@ describe('PaymentConfirmation', () => {
       };
 
       let resolveDetails: ((value: unknown) => void) | null = null;
-      getPlaceDetailsMock.mockImplementation(() => new Promise(resolve => {
-        resolveDetails = resolve;
-      }));
+      getPlaceDetailsMock.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveDetails = resolve;
+          })
+      );
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
@@ -8788,7 +8444,7 @@ describe('PaymentConfirmation', () => {
       };
 
       await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />,
+        <PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />
       );
 
       fireEvent.click(screen.getByTestId('select-suggestion-empty-no-placeid'));
@@ -8814,9 +8470,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -8833,7 +8487,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={booking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -8866,9 +8520,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [
@@ -8888,7 +8540,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={booking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -8923,16 +8575,11 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
-        preferred_public_spaces: [
-          { address: 'Library Plaza' },
-          { address: 'Riverside Park' },
-        ],
+        preferred_public_spaces: [{ address: 'Library Plaza' }, { address: 'Riverside Park' }],
       });
 
       const booking = {
@@ -8946,7 +8593,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={booking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -8980,27 +8627,27 @@ describe('PaymentConfirmation', () => {
         preferred_teaching_locations: [],
       });
 
-      getPlaceDetailsMock
-        .mockResolvedValueOnce({ data: null, error: null })
-        .mockResolvedValueOnce({
-          data: {
-            result: {
-              address: {
-                city: 'Brooklyn',
-                state: 'NY',
-                postal_code: '11201',
-              },
+      getPlaceDetailsMock.mockResolvedValueOnce({ data: null, error: null }).mockResolvedValueOnce({
+        data: {
+          result: {
+            address: {
+              city: 'Brooklyn',
+              state: 'NY',
+              postal_code: '11201',
             },
           },
-          error: null,
-        });
+        },
+        error: null,
+      });
 
       await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />,
+        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('select-suggestion-provider-prefix-text-only')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('select-suggestion-provider-prefix-text-only')
+        ).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByTestId('select-suggestion-provider-prefix-text-only'));
@@ -9017,14 +8664,14 @@ describe('PaymentConfirmation', () => {
         expect.objectContaining({
           place_id: 'google:ChIJ_retry_text_1',
           provider: 'mapbox',
-        }),
+        })
       );
       expect(getPlaceDetailsMock).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
           place_id: 'ChIJ_retry_text_1',
           provider: 'google',
-        }),
+        })
       );
     });
 
@@ -9042,9 +8689,7 @@ describe('PaymentConfirmation', () => {
         location: 'Online',
       };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />,
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       fireEvent.click(screen.getByText('Edit lesson'));
 
@@ -9097,9 +8742,7 @@ describe('PaymentConfirmation', () => {
         metadata: { serviceId: 'svc-malformed' },
       };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />,
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       fireEvent.click(screen.getByText('Edit lesson'));
 
@@ -9170,12 +8813,18 @@ describe('PaymentConfirmation', () => {
           availableCredits={50}
           creditsAccordionExpanded={true}
           onCreditAmountChange={onCreditAmountChange}
-        />,
+        />
       );
 
       const slider = screen.getByRole('slider');
-      const handleMouseUp = getReactEventHandler<(event: { target: { value: string } }) => void>(slider, 'onMouseUp');
-      const handleTouchEnd = getReactEventHandler<(event: { target: { value: string } }) => void>(slider, 'onTouchEnd');
+      const handleMouseUp = getReactEventHandler<(event: { target: { value: string } }) => void>(
+        slider,
+        'onMouseUp'
+      );
+      const handleTouchEnd = getReactEventHandler<(event: { target: { value: string } }) => void>(
+        slider,
+        'onTouchEnd'
+      );
 
       handleMouseUp({ target: { value: 'not-a-number' } });
       handleTouchEnd({ target: { value: 'not-a-number' } });
@@ -9201,9 +8850,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -9225,7 +8872,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={bookingWithoutLocation}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -9241,7 +8888,11 @@ describe('PaymentConfirmation', () => {
       });
 
       const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
-        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string; lat: number; lng: number; placeId: string } })
+        | ((
+            prev: BookingPayment
+          ) => BookingPayment & {
+            address?: { fullAddress: string; lat: number; lng: number; placeId: string };
+          })
         | undefined;
       const next = updater?.(bookingWithoutLocation);
 
@@ -9297,7 +8948,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={bookingWithoutLocation}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -9336,15 +8987,10 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
-        preferred_teaching_locations: [
-          { address: 'Studio West' },
-          { address: 'Annex East' },
-        ],
+        preferred_teaching_locations: [{ address: 'Studio West' }, { address: 'Annex East' }],
       });
 
       const bookingWithoutMetadata = {
@@ -9357,7 +9003,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={bookingWithoutMetadata}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -9395,9 +9041,7 @@ describe('PaymentConfirmation', () => {
         location: '123 Main St, New York, NY 10001',
       };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />,
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       fireEvent.click(screen.getByText('Edit lesson'));
 
@@ -9417,7 +9061,7 @@ describe('PaymentConfirmation', () => {
         },
       });
       expect(
-        screen.queryByText('You already have a booking scheduled at this time.'),
+        screen.queryByText('You already have a booking scheduled at this time.')
       ).not.toBeInTheDocument();
     });
 
@@ -9434,9 +9078,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
-            format_prices: [
-              { format: 'instructor_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [
@@ -9459,7 +9101,7 @@ describe('PaymentConfirmation', () => {
           {...defaultProps}
           booking={booking}
           onBookingUpdate={onBookingUpdate}
-        />,
+        />
       );
 
       await waitFor(() => {
@@ -9469,12 +9111,10 @@ describe('PaymentConfirmation', () => {
       const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
         | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string } })
         | undefined;
-      const next = updater?.(
-        {
-          ...booking,
-          metadata: undefined as unknown as Record<string, unknown>,
-        } as BookingPayment & { metadata?: Record<string, unknown> }
-      );
+      const next = updater?.({
+        ...booking,
+        metadata: undefined as unknown as Record<string, unknown>,
+      } as BookingPayment & { metadata?: Record<string, unknown> });
 
       expect(next).toMatchObject({
         location: "At instructor's location",
@@ -9492,7 +9132,6 @@ describe('PaymentConfirmation', () => {
 
       try {
         await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
-
 
         expect(screen.getByText('Book now!')).toBeInTheDocument();
       } finally {
@@ -9519,9 +9158,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -9555,9 +9192,7 @@ describe('PaymentConfirmation', () => {
         metadata: undefined as unknown as Record<string, unknown>,
       };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />,
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       fireEvent.click(screen.getByText('Edit lesson'));
 
@@ -9588,9 +9223,7 @@ describe('PaymentConfirmation', () => {
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
-            format_prices: [
-              { format: 'student_location', hourly_rate: 100 },
-            ],
+            format_prices: [{ format: 'student_location', hourly_rate: 100 }],
           },
         ],
         preferred_teaching_locations: [],
@@ -9621,7 +9254,9 @@ describe('PaymentConfirmation', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
-        expect(screen.getByTestId('select-suggestion-provider-prefix-mismatch')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('select-suggestion-provider-prefix-mismatch')
+        ).toBeInTheDocument();
       });
 
       await user.click(screen.getByTestId('select-suggestion-provider-prefix'));
@@ -9663,9 +9298,7 @@ describe('PaymentConfirmation', () => {
         metadata: { serviceId: 'svc-bare' },
       } as BookingPayment & { metadata: Record<string, unknown> };
 
-      await renderWithConflictCheck(
-        <PaymentConfirmation {...defaultProps} booking={booking} />,
-      );
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
 
       fireEvent.click(screen.getByText('Edit lesson'));
 
