@@ -115,7 +115,7 @@ function LadderCircle({
     return (
       <div
         aria-current="step"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#7C3AED] bg-[#7C3AED] text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)]"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-(--color-brand) bg-(--color-brand) text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)]"
         data-tier-state="active"
         data-testid={testId}
       >
@@ -128,8 +128,8 @@ function LadderCircle({
     <div
       className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold ${
         state === 'met'
-          ? 'border-[#E9D5FF] bg-[#F3E8FF] text-[#7E22CE]'
-          : 'border-[#D8B4FE] bg-transparent text-[#7E22CE]'
+          ? 'border-[#E9D5FF] bg-(--color-brand-lavender) text-(--color-brand-dark)'
+          : 'border-[#D8B4FE] bg-transparent text-(--color-brand-dark)'
       }`}
       data-tier-state={state}
       data-testid={testId}
@@ -164,7 +164,7 @@ export default function CommissionTierCard() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <Star className="h-5 w-5 text-[#7C3AED]" aria-hidden="true" />
+              <Star className="h-5 w-5 text-(--color-brand)" aria-hidden="true" />
               <h2 className="text-sm font-semibold leading-tight sm:text-lg">
                 Founding Instructor
               </h2>
@@ -174,7 +174,7 @@ export default function CommissionTierCard() {
             </p>
           </div>
           <div
-            className="inline-flex w-fit items-center rounded-full bg-[#F3E8FF] px-3 py-1 text-sm font-semibold text-[#7E22CE]"
+            className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand-dark)"
             data-testid="commission-rate-pill"
           >
             {currentRateLabel}% · locked
@@ -203,7 +203,7 @@ export default function CommissionTierCard() {
           </p>
         </div>
         <div
-          className="inline-flex w-fit items-center rounded-full bg-[#F3E8FF] px-3 py-1 text-sm font-semibold text-[#7E22CE]"
+          className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand-dark)"
           data-testid="commission-rate-pill"
         >
           {currentRateLabel}%
@@ -213,7 +213,7 @@ export default function CommissionTierCard() {
       <div className="relative mt-6 space-y-5">
         {tiers.length > 1 ? (
           <span
-            className="pointer-events-none absolute left-5 top-[3.125rem] bottom-[3.125rem] w-px -translate-x-1/2 bg-[#F3E8FF]"
+            className="pointer-events-none absolute left-5 top-[3.125rem] bottom-[3.125rem] w-px -translate-x-1/2 bg-(--color-brand-lavender)"
             data-testid="commission-tier-connector"
           />
         ) : null}
@@ -263,10 +263,10 @@ export default function CommissionTierCard() {
                   data-testid={`commission-tier-track-${tier.name}`}
                 >
                   <div className="absolute left-1.5 right-1.5 top-1/2 h-px -translate-y-1/2">
-                    <span className="absolute inset-0 bg-[#F3E8FF]" />
+                    <span className="absolute inset-0 bg-(--color-brand-lavender)" />
                     {filledDots > 0 ? (
                       <span
-                        className="absolute left-0 top-0 h-full bg-[#7E22CE]"
+                        className="absolute left-0 top-0 h-full bg-(--color-brand-dark)"
                         data-testid={`commission-tier-fill-${tier.name}`}
                         style={{ width: dotCount > 1 ? `${filledTrackPercent}%` : '0%' }}
                       />
@@ -282,8 +282,8 @@ export default function CommissionTierCard() {
                           key={`${tier.name}-dot-${dotIndex + 1}`}
                           className={`h-3 w-3 rounded-full border ${
                             filled
-                              ? 'border-[#7E22CE] bg-[#7E22CE]'
-                              : 'border-[#F3E8FF] bg-transparent'
+                              ? 'border-(--color-brand-dark) bg-(--color-brand-dark)'
+                              : 'border-(--color-brand-lavender) bg-transparent'
                           }`}
                           data-dot-state={filled ? 'filled' : 'unfilled'}
                           data-testid={`commission-tier-dot-${tier.name}-${dotIndex + 1}`}

@@ -366,7 +366,7 @@ export default function Calendar({
                     ${
                       isSelectable
                         ? cell.isSelected
-                          ? 'cursor-pointer bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
+                          ? 'cursor-pointer bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
                           : 'cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/20'
                         : 'cursor-not-allowed'
                     }

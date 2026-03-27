@@ -104,7 +104,7 @@ function JoinInner() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 py-8 px-4 sm:px-10 transition-colors duration-200">
           <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
+            <h1 className="text-4xl font-bold text-(--color-brand-dark) transition-colors">
               {BRAND.name}
             </h1>
             <h2 className="text-2xl font-bold mb-2 insta-onboarding-strong-text mt-3">
@@ -116,7 +116,7 @@ function JoinInner() {
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex justify-center items-center">
-              <div className="h-px w-48 bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
+              <div className="h-px w-48 bg-gradient-to-r from-transparent via-(--color-brand-dark)/40 to-transparent" />
             </div>
             <div>
               <label htmlFor="invite" className="block text-sm font-medium">Enter your founding instructor code</label>
@@ -156,7 +156,7 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
+              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
             >
               {submitting ? 'Verifying…' : 'Join!'}
             </button>
@@ -165,18 +165,18 @@ function JoinInner() {
             <div className="mt-4 rounded-lg px-4 py-5 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3 insta-empty-state-note">
               <p>
                 By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
-                <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
+                <a href="/legal#terms" className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300">
                   Terms of Service
                 </a>{' '}
                 and{' '}
-                <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
+                <a href="/legal#privacy" className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300">
                   Privacy Policy
                 </a>.
               </p>
               <p>
                 Don’t have a code? We’re hand-selecting our founding instructors.{' '}
                 <a
-                  className="focus-link text-[#7E22CE] hover:underline"
+                  className="focus-link text-(--color-brand-dark) hover:underline"
                   href="/instructor/apply"
                   onClick={() => trackInviteEvent('apply_access_click')}
                 >
@@ -188,7 +188,7 @@ function JoinInner() {
           </div>
           <p className="mt-6 text-xs text-gray-500 dark:text-gray-400 text-center">
             Already have an account?{' '}
-            <a href="/login" className="focus-link text-[#7E22CE] hover:underline">Sign in</a>
+            <a href="/login" className="focus-link text-(--color-brand-dark) hover:underline">Sign in</a>
           </p>
         </div>
       </div>

@@ -70,7 +70,7 @@ export function ServiceAreasCard({
   const header = (
     <div className="insta-dashboard-accordion-leading">
       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-        <MapPin className="w-6 h-6 text-[#7E22CE]" />
+        <MapPin className="w-6 h-6 text-(--color-brand-dark)" />
       </div>
       <div className="flex flex-col text-left">
         <span className="insta-dashboard-accordion-title">{resolvedTitle}</span>
@@ -143,9 +143,9 @@ export function ServiceAreasCard({
                       type="button"
                       onClick={() => onToggleNeighborhood(nid)}
                       aria-pressed={checked}
-                      className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                      className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                         checked
-                          ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
+                          ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                           : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                       }`}
                     >
@@ -171,7 +171,7 @@ export function ServiceAreasCard({
                     <button
                       type="button"
                       aria-label={`Remove ${name}`}
-                      className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-500/10 no-hover-shadow shrink-0"
+                      className="ml-auto text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-500/10 no-hover-shadow shrink-0"
                       onClick={() => onToggleNeighborhood(nid)}
                     >
                       &times;
@@ -216,7 +216,7 @@ export function ServiceAreasCard({
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200 dark:bg-purple-500/20 dark:text-purple-200 dark:hover:bg-purple-500/30"
+                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-(--color-brand-dark) hover:bg-purple-200 dark:bg-purple-500/20 dark:text-purple-200 dark:hover:bg-purple-500/30"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -255,9 +255,9 @@ export function ServiceAreasCard({
                                 aria-pressed={checked}
                                 data-testid={`service-area-chip-${regionCode}`}
                                 data-state={checked ? 'selected' : 'idle'}
-                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                   checked
-                                    ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
+                                    ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                                     : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                                 }`}
                               >

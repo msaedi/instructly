@@ -5,6 +5,9 @@
 export { ChatHeader } from './ChatHeader';
 export type { ChatHeaderProps } from './ChatHeader';
 
+export { ConversationBookingCard } from './ConversationBookingCard';
+export type { ConversationBookingCardProps } from './ConversationBookingCard';
+
 export { ConversationItem } from './ConversationItem';
 export type { ConversationItemProps } from './ConversationItem';
 

@@ -772,7 +772,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
           <div className="p-4 mb-6 rounded-lg insta-surface-card">
             <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900 dark:text-gray-100 mb-2">
               <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" /></svg>
+                <svg className="w-5 h-5 text-(--color-brand-dark)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" /></svg>
               </div>
               <span>Service categories</span>
             </div>
@@ -799,7 +799,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                       className={`ml-auto rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center ${
                         !canRemoveSkill()
                           ? 'text-gray-300 cursor-not-allowed'
-                          : 'text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30'
                       }`}
                       onClick={() => removeService(s.catalog_service_id)}
                     >
@@ -831,8 +831,8 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                             <button
                               key={svc.id}
                               onClick={() => toggleServiceSelection(svc)}
-                              className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                                isSel ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                               type="button"
                             >
@@ -938,7 +938,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                             !isEligible
                               ? 'bg-gray-50 dark:bg-gray-900 text-gray-300 cursor-not-allowed'
                               : isSelected
-                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                              ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                           type="button"
@@ -974,7 +974,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                               };
                             }))}
                             className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              isLvlSelected ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                             }`}
                             type="button"
                           >
@@ -997,7 +997,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                             return { ...x, duration_options: has ? x.duration_options.filter((v) => v !== d) : [...x.duration_options, d] };
                           }))}
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.duration_options.includes(d) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            s.duration_options.includes(d) ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                           type="button"
                         >
@@ -1013,7 +1013,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Description (optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                       placeholder="Brief description of your teaching style..."
                       value={s.description || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, description: e.target.value } : x))}
@@ -1023,7 +1023,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Equipment (optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                       placeholder="Yoga mat, tennis racket..."
                       value={s.equipment || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, equipment: e.target.value } : x))}
@@ -1051,7 +1051,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 dark:bg-gray-800 text-[#7E22CE]">
+              <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 dark:bg-gray-800 text-(--color-brand-dark)">
                 <Lightbulb className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
@@ -1068,13 +1068,13 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                   if (requestSuccess) setRequestSuccess(null);
                 }}
                 placeholder="Request a new skill"
-                className="w-full min-w-[220px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/30 focus:border-[#7E22CE]"
+                className="w-full min-w-[220px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/30 focus:border-(--color-brand-dark)"
               />
               <button
                 type="button"
                 onClick={() => { void handleRequestSkill(); }}
                 disabled={!requestedSkill.trim() || requestSubmitting}
-                className="inline-flex items-center justify-center rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d1fc3] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d1fc3] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {requestSubmitting ? 'Sending\u2026' : 'Submit'}
               </button>

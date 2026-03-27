@@ -97,11 +97,11 @@ function SimpleDropdown({
                 onMouseLeave={() => setHovered((current) => (current === option.value ? null : current))}
                 className={`block w-full text-left px-3 py-2 rounded-md cursor-pointer transition-colors ${
                   hovered === option.value && option.value !== ''
-                    ? 'bg-purple-50 text-[#7E22CE]'
+                    ? 'bg-purple-50 text-(--color-brand-dark)'
                     : ''
                 } ${
                   value === option.value && option.value !== ''
-                    ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
+                    ? 'bg-purple-100 text-(--color-brand-dark) ring-1 ring-inset ring-[#D4B5F0] font-semibold'
                     : 'text-gray-800 dark:text-gray-200'
                 }`}
               >
@@ -278,7 +278,7 @@ function EarningsPageImpl() {
         <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-0 sm:pr-4">
               <UserProfileDropdown />
@@ -286,7 +286,7 @@ function EarningsPageImpl() {
           </div>
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden sm:block">
             <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
-              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE] pointer-events-auto">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark) pointer-events-auto">
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back to dashboard</span>
               </Link>
@@ -298,7 +298,7 @@ function EarningsPageImpl() {
       <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
         {!embedded && (
           <div className="sm:hidden mb-2">
-            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark)">
               <ArrowLeft className="w-5 h-5" />
               <span className="sr-only">Back to dashboard</span>
             </Link>
@@ -314,7 +314,7 @@ function EarningsPageImpl() {
               type="button"
               aria-label="How payouts work"
               onClick={() => setInfoOpen(true)}
-              className="inline-flex items-center gap-1 p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              className="inline-flex items-center gap-1 p-2 rounded-md text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             >
               <Info className="w-5 h-5" />
               <span className="hidden sm:inline">More info</span>
@@ -335,7 +335,7 @@ function EarningsPageImpl() {
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)" />
               </div>
             </div>
           </div>
@@ -350,7 +350,7 @@ function EarningsPageImpl() {
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)" />
               </div>
             </div>
           </div>
@@ -368,7 +368,7 @@ function EarningsPageImpl() {
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)" />
               </div>
             </div>
           </div>
@@ -408,7 +408,7 @@ function EarningsPageImpl() {
                 <button
                   onClick={() => setExportOpen(true)}
                   aria-label="Export transactions"
-                  className="p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                  className="p-2 rounded-md text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   <Download className="w-5 h-5" />
                 </button>
@@ -470,7 +470,7 @@ function EarningsPageImpl() {
                               {formatCents(invoice.platform_fee_cents)}
                               <span className="text-gray-400 dark:text-gray-300 text-xs ml-1">({platformFeePct}%)</span>
                             </td>
-                            <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(invoice.instructor_share_cents)}</td>
+                            <td className="py-3 pr-4 font-semibold text-(--color-brand-dark)">{formatCents(invoice.instructor_share_cents)}</td>
                             <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatCents(invoice.tip_cents)}</td>
                             <td className="py-3 pr-4">
                               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
@@ -535,7 +535,7 @@ function EarningsPageImpl() {
                           <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">
                             {createdDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </td>
-                          <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(payout.amount_cents)}</td>
+                          <td className="py-3 pr-4 font-semibold text-(--color-brand-dark)">{formatCents(payout.amount_cents)}</td>
                           <td className="py-3 pr-4">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
                               {formatStatusLabel(payout.status)}
@@ -674,7 +674,7 @@ function EarningsPageImpl() {
             <button
               disabled={!resolvedExportYear || !exportType || exportMutation.isPending}
               onClick={handleExport}
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white font-semibold disabled:opacity-50 insta-primary-btn"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-(--color-brand-dark) text-white font-semibold disabled:opacity-50 insta-primary-btn"
             >
               {exportMutation.isPending ? 'Exporting…' : 'Download Report'}
             </button>

@@ -120,7 +120,7 @@ export function FormatPricingCards({
                   disabled={!enabled || disabled}
                   aria-invalid={error ? 'true' : 'false'}
                   onChange={(e) => handleRateChange(config.format, e.target.value)}
-                  className={`w-20 rounded-md border px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 ${
+                  className={`w-20 rounded-md border px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 ${
                     error
                       ? 'border-red-500'
                       : 'border-gray-300 dark:border-gray-600'
@@ -133,7 +133,7 @@ export function FormatPricingCards({
               {showTakeHome && (
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                   You&apos;ll earn{' '}
-                  <span className="font-semibold text-[#7E22CE]">
+                  <span className="font-semibold text-(--color-brand-dark)">
                     ${(rateNum * takeHomePct).toFixed(2)}
                   </span>{' '}
                   after the {platformFeeLabel} platform fee

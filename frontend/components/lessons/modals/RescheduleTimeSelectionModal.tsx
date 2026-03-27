@@ -474,7 +474,7 @@ export default function RescheduleTimeSelectionModal({
 
   const loadingView = (
     <div className="text-center py-8">
-      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]" />
+      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark)" />
       <p className="mt-2 text-gray-600 dark:text-gray-400">Loading availability...</p>
     </div>
   );
@@ -483,7 +483,7 @@ export default function RescheduleTimeSelectionModal({
     <div className="text-center py-8">
       <p className="text-gray-600 dark:text-gray-400 mb-4">{availabilityError || 'Couldn’t load availability. Please try again.'}</p>
       <button
-        className="px-4 py-2 rounded-lg bg-[#7E22CE] text-white hover:bg-[#6b1cb0] transition-colors font-semibold"
+        className="px-4 py-2 rounded-lg bg-(--color-brand-dark) text-white hover:bg-[#6b1cb0] transition-colors font-semibold"
         onClick={() => {
           if (!loadingAvailability) {
             void fetchAvailability();
@@ -523,7 +523,7 @@ export default function RescheduleTimeSelectionModal({
                     onClose();
                     onOpenChat();
                   }}
-                  className="flex-1 py-2 px-4 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
+                  className="flex-1 py-2 px-4 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
                 >
                   Chat with Instructor
                 </button>
@@ -558,8 +558,8 @@ export default function RescheduleTimeSelectionModal({
                 user={instructorAvatarUser}
                 size={32}
                 className="w-8 h-8 rounded-full ring-1 ring-gray-200"
-                fallbackBgColor="#F3E8FF"
-                fallbackTextColor="#7E22CE"
+                fallbackBgColor="var(--color-brand-lavender)"
+                fallbackTextColor="var(--color-brand-dark)"
               />
               <p className="text-base font-bold text-black dark:text-white">{getInstructorDisplayName()}&apos;s availability</p>
             </div>
@@ -628,11 +628,11 @@ export default function RescheduleTimeSelectionModal({
             <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
               Prefer to discuss?{' '}
               {onOpenChat ? (
-                <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">
+                <button type="button" onClick={onOpenChat} className="text-(--color-brand-dark) font-medium hover:underline">
                   Chat to reschedule
                 </button>
               ) : (
-                <span className="text-[#7E22CE] font-medium">Chat to reschedule</span>
+                <span className="text-(--color-brand-dark) font-medium">Chat to reschedule</span>
               )}
             </p>
           </div>
@@ -651,7 +651,7 @@ export default function RescheduleTimeSelectionModal({
           >
             <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-gray-700">
               <div>
-                <p className="text-sm font-medium text-[#7E22CE] uppercase tracking-wide">Manage booking</p>
+                <p className="text-sm font-medium text-(--color-brand-dark) uppercase tracking-wide">Manage booking</p>
                 <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Need to reschedule?</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Choose a new lesson date & time below.</p>
               </div>
@@ -670,8 +670,8 @@ export default function RescheduleTimeSelectionModal({
                   user={instructorAvatarUser}
                   size={40}
                   className="w-10 h-10 rounded-full ring-1 ring-gray-200"
-                  fallbackBgColor="#F3E8FF"
-                  fallbackTextColor="#7E22CE"
+                  fallbackBgColor="var(--color-brand-lavender)"
+                  fallbackTextColor="var(--color-brand-dark)"
                 />
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{getInstructorDisplayName()}&apos;s availability</p>
               </div>
@@ -743,11 +743,11 @@ export default function RescheduleTimeSelectionModal({
                       <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                         Prefer to discuss?{' '}
                         {onOpenChat ? (
-                          <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">
+                          <button type="button" onClick={onOpenChat} className="text-(--color-brand-dark) font-medium hover:underline">
                             Chat to reschedule
                           </button>
                         ) : (
-                          <span className="text-[#7E22CE] font-medium">Chat to reschedule</span>
+                          <span className="text-(--color-brand-dark) font-medium">Chat to reschedule</span>
                         )}
                       </div>
                     </div>

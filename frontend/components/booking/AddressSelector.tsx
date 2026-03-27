@@ -67,7 +67,7 @@ export function AddressSelector({
           <button
             type="button"
             onClick={onEnterNewAddress}
-            className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
+            className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
           >
             + Use a different address
           </button>
@@ -80,7 +80,7 @@ export function AddressSelector({
           <button
             type="button"
             onClick={onEnterNewAddress}
-            className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
+            className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
           >
             Enter address
           </button>
@@ -123,7 +123,7 @@ function AddressOption({ address, isSelected, onSelect, instructorId }: AddressO
       onClick={onSelect}
       disabled={isDisabled}
       className={`w-full p-3 text-left border rounded-lg transition-colors ${
-        isSelected ? 'border-[#7E22CE] bg-purple-50' : 'border-gray-200 dark:border-gray-700'
+        isSelected ? 'border-(--color-brand-dark) bg-purple-50' : 'border-gray-200 dark:border-gray-700'
       } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300 dark:hover:border-gray-600'}`}
     >
       <div className="flex items-center justify-between">

@@ -222,7 +222,7 @@ const BillingTab: React.FC = () => {
         ) : creditBalance && creditBalance.available > 0 ? (
           <div className="rounded-xl border p-6" style={creditCardStyle}>
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-[#7E22CE]">
+              <p className="text-2xl font-bold text-(--color-brand-dark)">
                 {formatCurrency(creditBalance.available)}
               </p>
               <p className="text-sm text-purple-600 dark:text-purple-200">Available balance</p>
@@ -255,7 +255,7 @@ const BillingTab: React.FC = () => {
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Enter code"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   void handleApplyPromoCode();
@@ -265,7 +265,7 @@ const BillingTab: React.FC = () => {
             <Button
               onClick={() => void handleApplyPromoCode()}
               disabled={isApplyingPromo || !promoCode.trim()}
-              className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
+              className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               {isApplyingPromo ? (
                 <>
@@ -291,7 +291,7 @@ const BillingTab: React.FC = () => {
                 boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
               },
             })}
-            className="w-full sm:w-auto border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
+            className="w-full sm:w-auto border-(--color-brand-dark) text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             Purchase Credit Package
           </Button>
@@ -308,7 +308,7 @@ const BillingTab: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
-            className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+            className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History

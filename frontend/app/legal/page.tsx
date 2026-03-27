@@ -1035,7 +1035,7 @@ export default function LegalResourceCenter() {
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-40">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#5f1aa4] transition-colors cursor-pointer">
+            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-[#5f1aa4] transition-colors cursor-pointer">
               {BRAND.name}
             </h1>
           </Link>
@@ -1055,7 +1055,7 @@ export default function LegalResourceCenter() {
             ) : (
               <Link
                 href="/login"
-                className="px-4 py-2 bg-[#7E22CE] text-white rounded-lg hover:bg-[#5f1aa4] transition-colors font-medium"
+                className="px-4 py-2 bg-(--color-brand-dark) text-white rounded-lg hover:bg-[#5f1aa4] transition-colors font-medium"
               >
                 Sign up / Log in
               </Link>
@@ -1092,8 +1092,8 @@ export default function LegalResourceCenter() {
                         }
                       }}
                       className={cn(
-                        'text-left px-5 py-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE]',
-                        isActive ? 'bg-[#7E22CE]/10 text-[#4a1a85]' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        'text-left px-5 py-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark)',
+                        isActive ? 'bg-(--color-brand-dark)/10 text-[#4a1a85]' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                       )}
                       aria-current={isActive ? 'page' : undefined}
                     >

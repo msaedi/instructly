@@ -147,7 +147,7 @@ export default function ForgotPasswordPage() {
             <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
               <div className="text-center mb-6">
                 <Link href="/">
-                  <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
+                  <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
                 </Link>
               </div>
               <div className="text-center">
@@ -159,7 +159,7 @@ export default function ForgotPasswordPage() {
                   We&apos;ve sent a password reset link to <strong className="text-gray-900 dark:text-gray-100">{email}</strong>
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">The link will expire in 1 hour.</p>
-                <Link href="/login" className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+                <Link href="/login" className="font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                   Back to sign in
                 </Link>
               </div>
@@ -178,7 +178,7 @@ export default function ForgotPasswordPage() {
           <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
             <div className="text-center mb-6">
               <Link href="/">
-                <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
+                <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
               </Link>
               <h2 className="mt-3 text-3xl font-extrabold text-gray-900 dark:text-gray-100">Forgot your password?</h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Enter your email and we&apos;ll send you a reset link</p>
@@ -188,7 +188,7 @@ export default function ForgotPasswordPage() {
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
                 <div className="mt-1">
                   <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={handleEmailChange} disabled={isLoading}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Enter your email" aria-invalid={!!error} aria-describedby={error ? 'email-error' : undefined} />
                 </div>
               </div>
@@ -199,7 +199,7 @@ export default function ForgotPasswordPage() {
               )}
               <div>
                 <button type="submit" disabled={isLoading}
-                  className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">
+                  className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed">
                   {isLoading ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">

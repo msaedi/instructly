@@ -109,7 +109,7 @@ export default function Step3PaymentSetup() {
               <div className="p-0 sm:p-6">
                 <div className="grid grid-cols-[3rem_1fr] gap-4">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 text-(--color-brand-dark)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                   </div>
@@ -220,7 +220,7 @@ export default function Step3PaymentSetup() {
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+          className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 justify-center"
         >
           Skip for now
         </button>

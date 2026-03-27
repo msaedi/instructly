@@ -31,7 +31,7 @@ export function ReviewsStatCardValue({
       <PhosphorStar
         data-testid="reviews-rating-star"
         weight="regular"
-        className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]"
+        className="h-5 w-5 sm:h-6 sm:w-6 text-(--color-brand-dark)"
         aria-hidden="true"
       />
       <span data-testid="reviews-rating-count">({reviewCount})</span>
@@ -44,7 +44,7 @@ export function ReviewsStatCardIcon() {
     <PhosphorStar
       data-testid="reviews-card-icon"
       weight="regular"
-      className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]"
+      className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)"
       aria-hidden="true"
     />
   );

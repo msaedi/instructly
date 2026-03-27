@@ -152,9 +152,6 @@ def test_active_services_with_categories_and_counts(db, test_instructor):
     )
     db.commit()
 
-    count = repo.count_active_instructors(service.id)
-    assert count >= 0
-
     bulk = repo.count_active_instructors_bulk([service.id])
     assert service.id in bulk
 

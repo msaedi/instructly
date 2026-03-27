@@ -63,13 +63,13 @@ export function ConversationList({
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search conversations"
-            className="w-full rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-[#7E22CE]"
+            className="w-full rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-(--color-brand-dark)"
           />
         </div>
         <button
           type="button"
           onClick={() => onConversationSelect(COMPOSE_THREAD_ID)}
-          className="inline-flex items-center justify-center rounded-full bg-purple-100 p-2 text-[#7E22CE] transition-colors hover:bg-purple-200 dark:hover:bg-purple-800/40"
+          className="inline-flex items-center justify-center rounded-full bg-purple-100 p-2 text-(--color-brand-dark) transition-colors hover:bg-purple-200 dark:hover:bg-purple-800/40"
           aria-label="Compose message"
         >
           <Pencil className="w-4 h-4" />
@@ -89,7 +89,7 @@ export function ConversationList({
                 onMessageDisplayChange('inbox');
               }}
               className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
-                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                isActive ? 'bg-(--color-brand-dark) text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {option.label}
@@ -101,7 +101,7 @@ export function ConversationList({
           onClick={() => onMessageDisplayChange('archived')}
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'archived'
-              ? 'bg-[#7E22CE] text-white'
+              ? 'bg-(--color-brand-dark) text-white'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
@@ -112,7 +112,7 @@ export function ConversationList({
           onClick={() => onMessageDisplayChange('trash')}
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'trash'
-              ? 'bg-[#7E22CE] text-white'
+              ? 'bg-(--color-brand-dark) text-white'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >

@@ -282,7 +282,7 @@ export function VerifyEmailPageContent() {
         <div className="w-full sm:max-w-md sm:mx-auto">
           <div className="insta-surface-card py-8 px-6 sm:px-10 sm:shadow">
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-[#7E22CE]">{BRAND.name}</h1>
+              <h1 className="text-4xl font-bold text-(--color-brand-dark)">{BRAND.name}</h1>
               <h2 className="mt-6 text-2xl font-bold text-gray-900 dark:text-gray-100">
                 Start again
               </h2>
@@ -291,7 +291,7 @@ export function VerifyEmailPageContent() {
               </p>
               <Link
                 href="/signup"
-                className="mt-6 inline-flex items-center justify-center rounded-md bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
+                className="mt-6 inline-flex items-center justify-center rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2"
               >
                 Back to signup
               </Link>
@@ -308,7 +308,7 @@ export function VerifyEmailPageContent() {
         <div className="insta-surface-card py-8 px-6 sm:px-10 sm:shadow">
           <div className="text-center">
             <Link href="/">
-              <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+              <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                 {BRAND.name}
               </h1>
             </Link>
@@ -359,7 +359,7 @@ export function VerifyEmailPageContent() {
                   setCode(event.target.value.replace(/\D/g, ''));
                   setErrorMessage(null);
                 }}
-                className="mx-auto mt-2 block w-full max-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-center tracking-[0.35em] text-2xl font-semibold text-gray-900 shadow-sm focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/30 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="mx-auto mt-2 block w-full max-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-center tracking-[0.35em] text-2xl font-semibold text-gray-900 shadow-sm focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/30 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 aria-invalid={Boolean(errorMessage)}
               />
             </div>
@@ -367,7 +367,7 @@ export function VerifyEmailPageContent() {
             <button
               type="submit"
               disabled={submitting}
-              className="insta-primary-btn flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? 'Verifying…' : 'Verify and continue'}
             </button>
@@ -380,7 +380,7 @@ export function VerifyEmailPageContent() {
                 className={`font-medium ${
                   resending || resendCooldown > 0
                     ? 'text-gray-400 dark:text-gray-500'
-                    : 'text-[#7E22CE] hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
+                    : 'text-(--color-brand-dark) hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
                 }`}
               >
                 {resending

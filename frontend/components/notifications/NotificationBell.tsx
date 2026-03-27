@@ -135,14 +135,14 @@ export function NotificationBell({
         aria-haspopup="menu"
         aria-label={unreadCount > 0 ? `Notifications (${badgeLabel} unread)` : 'Notifications'}
         title="Notifications"
-        className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full text-[#7E22CE] transition-colors duration-150"
+        className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full text-(--color-brand-dark) transition-colors duration-150"
       >
         <Bell
           className="h-6 w-6 transition-colors group-hover:fill-current"
           style={{ fill: open ? 'currentColor' : undefined }}
         />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-(--color-brand-dark) px-1 text-[10px] font-semibold leading-none text-white">
             {badgeLabel}
           </span>
         )}
@@ -164,7 +164,7 @@ export function NotificationBell({
                 type="button"
                 onClick={() => markAllAsRead.mutate()}
                 disabled={markAllAsRead.isPending}
-                className="text-xs text-[#7E22CE] hover:text-[#6B21A8] disabled:opacity-60"
+                className="text-xs text-(--color-brand-dark) hover:text-[#6B21A8] disabled:opacity-60"
               >
                 Mark all read
               </button>

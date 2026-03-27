@@ -1945,7 +1945,7 @@ function SearchPageInner() {
       <header ref={headerRef} className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 md:px-6 md:py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <span className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
+            <span className="text-2xl md:text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="pr-2 md:pr-4">
             <UserProfileDropdown />
@@ -2050,7 +2050,7 @@ function SearchPageInner() {
                                   onClick={() => selectSortOptionAtIndex(index)}
                                   className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
                                     sortOption === option.value
-                                      ? 'bg-purple-50 text-[#7E22CE] font-medium'
+                                      ? 'bg-purple-50 text-(--color-brand-dark) font-medium'
                                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                   }`}
                                 >
@@ -2099,17 +2099,17 @@ function SearchPageInner() {
 
             {loading ? (
               <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7E22CE]"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-(--color-brand-dark)"></div>
               </div>
             ) : errorMessage ? (
               <div className="text-center py-12">
                 <p className="text-red-600">{errorMessage}</p>
-                <Link href="/" className="text-[#7E22CE] hover:underline mt-4 inline-block">Return to Home</Link>
+                <Link href="/" className="text-(--color-brand-dark) hover:underline mt-4 inline-block">Return to Home</Link>
               </div>
             ) : sortedInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
                 <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No instructors found matching your search.</p>
-                <Link href="/" className="text-[#7E22CE] hover:underline">Try a different search</Link>
+                <Link href="/" className="text-(--color-brand-dark) hover:underline">Try a different search</Link>
               </div>
             ) : (
               <>
@@ -2176,7 +2176,7 @@ function SearchPageInner() {
                   <div ref={loadMoreRef} className="mt-4 md:mt-8 flex justify-center py-4">
                     {loadingMore && (
                       <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark)"></div>
                         <span className="text-gray-600 dark:text-gray-400">Loading more instructors...</span>
                       </div>
                     )}

@@ -26,16 +26,16 @@ function getToolbarOptionTitle(option: AvailabilityPaintMode): string {
 
 const pillColors: Record<number, { active: string; inactive: string }> = {
   [TAG_NONE]: {
-    active: 'bg-[#7E22CE] text-white border-[#7E22CE]',
-    inactive: 'bg-[#F3E8FF] text-[#7E22CE] border-[#F3E8FF]',
+    active: 'bg-(--color-brand-dark) text-white border-(--color-brand-dark)',
+    inactive: 'bg-(--color-brand-lavender) text-(--color-brand-dark) border-(--color-brand-lavender) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   },
   [TAG_ONLINE_ONLY]: {
-    active: 'bg-[#059669] text-white border-[#059669]',
-    inactive: 'bg-[#D1FAE5] text-[#059669] border-[#D1FAE5]',
+    active: 'bg-(--color-online-green) text-white border-(--color-online-green)',
+    inactive: 'bg-(--color-online-green-light) text-(--color-online-green) border-(--color-online-green-light) dark:border-emerald-700/60 dark:bg-[#064E3B]/30 dark:text-emerald-300',
   },
   [TAG_NO_TRAVEL]: {
-    active: 'bg-[#FFD93D] text-[#92400E] border-[#FFD93D]',
-    inactive: 'bg-[#FFEDAF] text-[#92400E] border-[#FFEDAF]',
+    active: 'bg-(--color-notravel-yellow) text-(--color-notravel-brown) border-(--color-notravel-yellow)',
+    inactive: 'bg-(--color-notravel-yellow-light) text-(--color-notravel-brown) border-(--color-notravel-yellow-light) dark:border-amber-700/60 dark:bg-[#78350F]/30 dark:text-amber-300',
   },
 };
 
@@ -76,7 +76,7 @@ export default function FormatTagPaintToolbar({
               aria-checked={active}
               aria-label={`${getToolbarOptionTitle(option)}${active ? ' (selected)' : ''}`}
               onClick={() => onChange(option)}
-              className={`inline-flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 ${
+              className={`inline-flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand) focus-visible:ring-offset-2 ${
                 active ? colors.active : colors.inactive
               }`}
             >

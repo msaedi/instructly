@@ -243,7 +243,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 active:bg-purple-900'}`}
+                className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 active:bg-purple-900'}`}
                 onClick={verify}
                 disabled={loading}
               >
@@ -293,7 +293,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 </p>
                 <button
                   type="button"
-                  className="insta-primary-btn inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="insta-primary-btn inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={acknowledgeBackupCodes}
                   disabled={loading}
                 >

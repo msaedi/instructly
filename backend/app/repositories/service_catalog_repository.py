@@ -506,26 +506,6 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return cast(List[ServiceCatalog], query.limit(limit).all())
 
-    def count_active_instructors(self, service_catalog_id: str) -> int:
-        """
-        Count the number of active instructors offering a specific service.
-
-        Args:
-            service_catalog_id: The service catalog ID to count instructors for
-
-        Returns:
-            Number of active instructors offering this service
-        """
-        from sqlalchemy import func
-
-        query = self.db.query(func.count(InstructorService.id)).filter(
-            InstructorService.service_catalog_id == service_catalog_id
-        )
-        query = _apply_instructor_service_active_filter(query)
-        count = query.scalar()
-
-        return count or 0
-
     def count_active_instructors_bulk(self, service_catalog_ids: List[str]) -> Dict[str, int]:
         """
         Count active instructors for multiple services in a single query.

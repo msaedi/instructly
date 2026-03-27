@@ -62,7 +62,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
       return (
         <span>
           You don’t have unlocked referral credit yet.{' '}
-          <Link href="/student/dashboard?tab=rewards" className="font-semibold text-[#7E22CE] underline-offset-2 hover:underline">
+          <Link href="/student/dashboard?tab=rewards" className="font-semibold text-(--color-brand-dark) underline-offset-2 hover:underline">
             Invite friends
           </Link>{' '}
           to earn rewards.
@@ -124,7 +124,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
   return (
     <section className="rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-(--color-brand-dark)/10 text-(--color-brand-dark)">
           <Gift className="h-5 w-5" aria-hidden="true" />
         </span>
         <div>
@@ -146,7 +146,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
               </div>
             </div>
             {bannerMessage && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
+              <div className="flex items-start gap-2 rounded-lg border border-(--color-brand-dark)/20 bg-(--color-brand-dark)/5 dark:bg-(--color-brand-dark)/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
                 <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
                 <p>{bannerMessage}</p>
               </div>
@@ -165,7 +165,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
                   onClick={handleApply}
                   disabled={!canApply}
                   aria-label="Apply referral credit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isLoading ? (
                     <>
@@ -179,7 +179,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
               )}
             </div>
             {bannerMessage && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
+              <div className="flex items-start gap-2 rounded-lg border border-(--color-brand-dark)/20 bg-(--color-brand-dark)/5 dark:bg-(--color-brand-dark)/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
                 <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
                 <p>{bannerMessage}</p>
               </div>

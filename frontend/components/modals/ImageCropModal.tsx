@@ -162,7 +162,7 @@ export default function ImageCropModal({
           <button
             type="button"
             onClick={handleSave}
-            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer font-semibold"
+            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 bg-(--color-brand-dark) text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer font-semibold"
           >
             Save
           </button>
@@ -182,7 +182,7 @@ export default function ImageCropModal({
               const t = parseFloat(e.target.value);
               setScale(minScale + t * (maxScale - minScale));
             }}
-            className="w-64 accent-[#7E22CE]"
+            className="w-64 accent-(--color-brand-dark)"
           />
           <span className="text-xs text-gray-500 dark:text-gray-400 w-14 text-right">{Math.round((currentScale / minScale) * 100)}%</span>
         </div>

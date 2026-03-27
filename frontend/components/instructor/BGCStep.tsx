@@ -616,7 +616,7 @@ export function BGCStep({
             onClick={() => void handleStart()}
             disabled={disabled}
             aria-disabled={disabled}
-            className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm"
+            className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm"
           >
             {inviteLoading ? 'Starting…' : 'Start background check'}
           </Button>
@@ -654,7 +654,7 @@ export function BGCStep({
       >
         <div className="flex flex-col items-center text-center gap-4">
           <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-            <Mail className="w-6 h-6 text-[#7E22CE]" />
+            <Mail className="w-6 h-6 text-(--color-brand-dark)" />
           </div>
           <div className="space-y-2">
             <p className="text-sm text-gray-700 dark:text-gray-300">Thanks for authorizing your background check.</p>

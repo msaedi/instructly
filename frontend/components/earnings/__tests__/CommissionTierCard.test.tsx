@@ -122,8 +122,8 @@ describe('CommissionTierCard', () => {
     expect(screen.getByText('Founding Instructor')).toBeInTheDocument();
     expect(screen.getByText('8% · locked')).toBeInTheDocument();
     expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
-      'bg-[#F3E8FF]',
-      'text-[#7E22CE]'
+      'bg-(--color-brand-lavender)',
+      'text-(--color-brand-dark)'
     );
     expect(
       screen.getByText(
@@ -207,8 +207,8 @@ describe('CommissionTierCard', () => {
       screen.getByText('3 lessons completed · in the last 45 days')
     ).toBeInTheDocument();
     expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
-      'bg-[#F3E8FF]',
-      'text-[#7E22CE]'
+      'bg-(--color-brand-lavender)',
+      'text-(--color-brand-dark)'
     );
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByTestId('commission-tier-connector')).toBeInTheDocument();
@@ -217,8 +217,8 @@ describe('CommissionTierCard', () => {
       'active'
     );
     expect(screen.getByTestId('commission-tier-step-entry')).toHaveClass(
-      'bg-[#7C3AED]',
-      'border-[#7C3AED]'
+      'bg-(--color-brand)',
+      'border-(--color-brand)'
     );
     expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute('data-dot-count', '4');
     expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(
@@ -300,8 +300,8 @@ describe('CommissionTierCard', () => {
       'met'
     );
     expect(screen.getByTestId('commission-tier-step-entry')).toHaveClass(
-      'bg-[#F3E8FF]',
-      'text-[#7E22CE]'
+      'bg-(--color-brand-lavender)',
+      'text-(--color-brand-dark)'
     );
     expect(screen.getByTestId('commission-tier-step-entry')).toHaveTextContent('1');
     expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(

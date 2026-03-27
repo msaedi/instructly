@@ -165,7 +165,7 @@ export default function CodebaseMetricsPage() {
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
                         <Line type="monotone" dataKey="total_lines" name="Total" stroke="#4f46e5" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="backend_lines" name="Backend" stroke="#059669" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="backend_lines" name="Backend" stroke="var(--color-online-green)" strokeWidth={2} dot={false} />
                         <Line type="monotone" dataKey="frontend_lines" name="Frontend" stroke="#f59e0b" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>

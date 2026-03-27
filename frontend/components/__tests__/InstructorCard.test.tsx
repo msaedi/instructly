@@ -763,7 +763,7 @@ describe('InstructorCard', () => {
 
       await waitFor(() => {
         const pill = screen.getByText('Piano');
-        expect(pill).toHaveClass('bg-[#7E22CE]/15');
+        expect(pill).toHaveClass('bg-(--color-brand-dark)/15');
       });
     });
 
@@ -2119,7 +2119,7 @@ describe('InstructorCard', () => {
 
       await waitFor(() => {
         const pill = screen.getByText('Piano');
-        expect(pill).toHaveClass('bg-[#7E22CE]/15');
+        expect(pill).toHaveClass('bg-(--color-brand-dark)/15');
       });
     });
 

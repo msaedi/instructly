@@ -12,8 +12,8 @@ export default function ReferralTermsPage() {
       <section className="space-y-6 text-sm leading-6 text-gray-700 dark:text-gray-300">
         <p>
           These Referral Program Terms (&ldquo;Terms&rdquo;) govern participation in the iNSTAiNSTRU &ldquo;Give $20 / Get $20&rdquo; referral offer. They work together with our
-          <a href="/legal/terms" className="text-[#7E22CE] underline"> Terms of Service</a> and
-          <a href="/legal/privacy" className="text-[#7E22CE] underline"> Privacy Notice</a>. By sharing a referral link or redeeming a referral reward, you agree to these Terms.
+          <a href="/legal/terms" className="text-(--color-brand-dark) underline"> Terms of Service</a> and
+          <a href="/legal/privacy" className="text-(--color-brand-dark) underline"> Privacy Notice</a>. By sharing a referral link or redeeming a referral reward, you agree to these Terms.
         </p>
 
         <article>

@@ -6,12 +6,11 @@
  */
 
 import { useRef, useState, useEffect } from 'react';
-import Link from 'next/link';
 import { MoreVertical, X, Calendar } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
 import type { ConversationEntry, ConversationBooking } from '../types';
+import { ConversationBookingCard } from './ConversationBookingCard';
+import { formatBookingInfo, getBookingStatus, getBookingStatusLabel } from '../utils';
 import { shortenBookingId } from '@/lib/bookingId';
-import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 export type ChatHeaderProps = {
   isComposeView: boolean;
@@ -26,97 +25,6 @@ export type ChatHeaderProps = {
   onComposeRecipientSelect: (conversation: ConversationEntry) => void;
   onComposeRecipientClear: () => void;
 };
-
-/**
- * Format a date string (YYYY-MM-DD) to "Dec 8" format
- */
-function formatDateShort(dateStr: string): string {
-  try {
-    const date = parseISO(dateStr);
-    return format(date, 'MMM d');
-  } catch {
-    return dateStr;
-  }
-}
-
-/**
- * Format a 24-hour time string (HH:MM) to 12-hour format (e.g., "9am", "5:30pm")
- */
-function formatTime12h(timeStr: string): string {
-  const [hoursStr, minutesStr] = timeStr.split(':');
-  const hours = parseInt(hoursStr ?? '0', 10);
-  const minutes = parseInt(minutesStr ?? '0', 10);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !minutesStr) {
-    return timeStr;
-  }
-
-  const period = hours < 12 ? 'am' : 'pm';
-  let hour12 = hours % 12;
-  if (hour12 === 0) hour12 = 12;
-
-  if (minutes === 0) {
-    return `${hour12}${period}`;
-  }
-  return `${hour12}:${minutesStr}${period}`;
-}
-
-/**
- * Format booking info for display
- */
-function formatBookingInfo(booking: ConversationBooking): string {
-  const formattedDate = formatDateShort(booking.date);
-  const formattedTime = formatTime12h(booking.start_time);
-  return formattedDate === booking.date && formattedTime === booking.start_time
-    ? `${booking.service_name} - ${booking.date}`
-    : `${booking.service_name} on ${formattedDate}, ${formattedTime}`;
-}
-
-function getBookingTimestamp(booking: ConversationBooking): number {
-  const parsed = Date.parse(`${booking.date}T${booking.start_time}`);
-  if (Number.isFinite(parsed)) {
-    return parsed;
-  }
-
-  const fallback = Date.parse(booking.date);
-  return Number.isFinite(fallback) ? fallback : Number.POSITIVE_INFINITY;
-}
-
-function getExplicitBookingStatus(booking: ConversationBooking): string | null {
-  return typeof booking.status === 'string' && booking.status.trim()
-    ? booking.status.trim().toUpperCase()
-    : null;
-}
-
-function getBookingStatus(booking: ConversationBooking): string {
-  const explicitStatus = getExplicitBookingStatus(booking);
-  if (explicitStatus) {
-    return explicitStatus;
-  }
-
-  return getBookingTimestamp(booking) < Date.now() ? 'COMPLETED' : 'CONFIRMED';
-}
-
-function getBookingStatusLabel(status: string): string {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'Confirmed';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'CANCELLED':
-      return 'Cancelled';
-    case 'NO_SHOW':
-      return 'No Show';
-    case 'IN_PROGRESS':
-      return 'In Progress';
-    default:
-      return status
-        .toLowerCase()
-        .split('_')
-        .filter(Boolean)
-        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-        .join(' ');
-  }
-}
 
 export function ChatHeader({
   isComposeView,
@@ -134,6 +42,43 @@ export function ChatHeader({
   const [showThreadMenu, setShowThreadMenu] = useState(false);
   const [showUpcomingBookings, setShowUpcomingBookings] = useState(false);
   const threadMenuRef = useRef<HTMLDivElement | null>(null);
+  const bookingSnapshotRef = useRef('');
+  const nowTimestampRef = useRef(Date.now());
+  const nextBooking = activeConversation?.nextBooking;
+  const upcomingCount = activeConversation?.upcomingBookingCount ?? 0;
+  const upcomingBookings = activeConversation?.upcomingBookings ?? [];
+  const hasUpcomingBookings = Boolean(nextBooking || upcomingBookings.length > 0);
+  const primaryUpcomingBooking = nextBooking ?? upcomingBookings[0] ?? null;
+  const primaryBooking = hasUpcomingBookings
+    ? primaryUpcomingBooking
+    : fallbackBookings[0] ?? null;
+  const remainingBookings = hasUpcomingBookings
+    ? upcomingBookings.filter((booking) => booking.id !== primaryUpcomingBooking?.id)
+    : fallbackBookings.slice(1);
+  const remainingBookingCount = hasUpcomingBookings
+    ? remainingBookings.length > 0
+      ? remainingBookings.length
+      : primaryBooking && upcomingCount > 0
+        ? Math.max(upcomingCount - 1, 0)
+        : 0
+    : remainingBookings.length;
+  const hasExpandableBookingDetails = remainingBookings.length > 0;
+  const remainingBookingsLabel = `+${remainingBookingCount} more ${remainingBookingCount === 1 ? 'booking' : 'bookings'}`;
+  const bookingStatusSnapshot = [
+    activeConversation?.id ?? '',
+    primaryBooking ? `${primaryBooking.id}:${primaryBooking.status ?? ''}:${primaryBooking.date}:${primaryBooking.start_time}` : '',
+    ...remainingBookings.map(
+      (booking) => `${booking.id}:${booking.status ?? ''}:${booking.date}:${booking.start_time}`
+    ),
+  ].join('|');
+  if (bookingSnapshotRef.current !== bookingStatusSnapshot) {
+    bookingSnapshotRef.current = bookingStatusSnapshot;
+    nowTimestampRef.current = Date.now();
+  }
+  const nowTimestamp = nowTimestampRef.current;
+  const primaryBookingStatus = primaryBooking
+    ? getBookingStatus(primaryBooking, nowTimestamp)
+    : 'CONFIRMED';
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -152,11 +97,11 @@ export function ChatHeader({
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">To:</span>
             {composeRecipient ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-[#7E22CE]">
+              <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-(--color-brand-dark)">
                 {composeRecipient.name}
                 <button
                   type="button"
-                  className="text-[#7E22CE] hover:text-purple-800 dark:hover:text-purple-200"
+                  className="text-(--color-brand-dark) hover:text-purple-800 dark:hover:text-purple-200"
                   aria-label="Remove recipient"
                   onClick={onComposeRecipientClear}
                 >
@@ -170,7 +115,7 @@ export function ChatHeader({
                   value={composeRecipientQuery}
                   onChange={(event) => onComposeRecipientQueryChange(event.target.value)}
                   placeholder="Search contacts..."
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-[#7E22CE]"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-(--color-brand-dark)"
                 />
                 {composeRecipientQuery && (
                   <ul className="absolute z-40 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
@@ -201,65 +146,6 @@ export function ChatHeader({
       </div>
     );
   }
-
-  // Get booking context from conversation
-  const nextBooking = activeConversation?.nextBooking;
-  const upcomingCount = activeConversation?.upcomingBookingCount ?? 0;
-  const upcomingBookings = activeConversation?.upcomingBookings ?? [];
-  const hasUpcomingBookings = Boolean(nextBooking || upcomingBookings.length > 0);
-  const primaryBooking = hasUpcomingBookings
-    ? nextBooking ?? upcomingBookings[0] ?? null
-    : fallbackBookings[0] ?? null;
-  const remainingBookings = hasUpcomingBookings
-    ? (primaryBooking
-        ? upcomingBookings.filter((booking) => booking.id !== primaryBooking.id)
-        : upcomingBookings)
-    : fallbackBookings.slice(1);
-  const remainingBookingCount = hasUpcomingBookings
-    ? remainingBookings.length > 0
-      ? remainingBookings.length
-      : primaryBooking && upcomingCount > 0
-        ? Math.max(upcomingCount - 1, 0)
-        : 0
-    : remainingBookings.length;
-  const hasExpandableBookingDetails = remainingBookings.length > 0;
-  const remainingBookingsLabel = `+${remainingBookingCount} more ${remainingBookingCount === 1 ? 'booking' : 'bookings'}`;
-
-  const renderBookingCard = (booking: ConversationBooking, isPrimary: boolean) => {
-    const status = getBookingStatus(booking);
-    const statusLabel = getBookingStatusLabel(status);
-    const statusClassName = getBookingStatusBadgeClasses(status);
-    const isCompletedBooking = status === 'COMPLETED';
-    const cardClassName = isPrimary && !isCompletedBooking
-      ? 'border-[#E5D7FE] bg-[#F3E8FF] hover:bg-[#EEE4FE] dark:border-[#5B21B6] dark:bg-[#2A114A] dark:hover:bg-[#34145B]'
-      : isCompletedBooking
-        ? 'border-gray-200 bg-gray-100 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
-        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800';
-
-    return (
-      <Link
-        key={booking.id}
-        href={bookingHrefForId(booking.id)}
-        data-testid={`chat-header-booking-card-${booking.id}`}
-        className={`block rounded-xl border p-3 transition-colors ${cardClassName}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClassName}`}
-          >
-            {statusLabel}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}
-        </p>
-        <p className="mt-2 text-[10px] font-mono uppercase tracking-[0.18em] text-gray-400 dark:text-gray-300">
-          #{shortenBookingId(booking.id)}
-        </p>
-      </Link>
-    );
-  };
 
   return (
     <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
@@ -313,7 +199,13 @@ export function ChatHeader({
                   <div className="p-3">
                     {primaryBooking ? (
                       <div className="space-y-3">
-                        {renderBookingCard(primaryBooking, true)}
+                        <ConversationBookingCard
+                          booking={primaryBooking}
+                          href={bookingHrefForId(primaryBooking.id)}
+                          status={primaryBookingStatus}
+                          statusLabel={getBookingStatusLabel(primaryBookingStatus)}
+                          variant={primaryBookingStatus === 'COMPLETED' ? 'completed' : 'primary'}
+                        />
 
                         {/* Expand/collapse for more bookings */}
                         {remainingBookingCount > 0 && (
@@ -323,7 +215,7 @@ export function ChatHeader({
                               onClick={() => {
                                 setShowUpcomingBookings((v) => !v);
                               }}
-                              className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
+                              className="text-xs text-(--color-brand-dark) flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
                               data-testid="chat-header-booking-expander"
                             >
                               <span>{remainingBookingsLabel}</span>
@@ -331,7 +223,7 @@ export function ChatHeader({
                             </button>
                           ) : (
                             <span
-                              className="block w-full pt-1 text-xs text-[#7E22CE]"
+                              className="block w-full pt-1 text-xs text-(--color-brand-dark)"
                               data-testid="chat-header-booking-summary-count"
                             >
                               {remainingBookingsLabel}
@@ -342,7 +234,19 @@ export function ChatHeader({
                         {/* Expanded upcoming bookings */}
                         {showUpcomingBookings && hasExpandableBookingDetails && (
                           <div className="space-y-2 pt-2">
-                            {remainingBookings.map((booking) => renderBookingCard(booking, false))}
+                            {remainingBookings.map((booking) => {
+                              const status = getBookingStatus(booking, nowTimestamp);
+                              return (
+                                <ConversationBookingCard
+                                  key={booking.id}
+                                  booking={booking}
+                                  href={bookingHrefForId(booking.id)}
+                                  status={status}
+                                  statusLabel={getBookingStatusLabel(status)}
+                                  variant={status === 'COMPLETED' ? 'completed' : 'default'}
+                                />
+                              );
+                            })}
                           </div>
                         )}
                       </div>

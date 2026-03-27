@@ -11,5 +11,6 @@ export {
   formatStudentName,
 } from '@/components/messaging/formatters';
 
+export * from './bookings';
 export * from './messages';
 export * from './templates';

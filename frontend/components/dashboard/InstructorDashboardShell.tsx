@@ -60,7 +60,7 @@ function DashboardHeaderPopover({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={computedLabel}
-        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none"
+        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-(--color-brand-dark) transition-colors duration-150 focus:outline-none"
         title={label}
       >
         <Icon
@@ -68,7 +68,7 @@ function DashboardHeaderPopover({
           style={{ fill: isOpen ? 'currentColor' : undefined }}
         />
         {hasBadge ? (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-(--color-brand-dark) px-1 text-[10px] font-semibold leading-none text-white">
             {badgeLabel}
           </span>
         ) : null}
@@ -165,7 +165,7 @@ export function InstructorDashboardShell({
       <header className="insta-dashboard-header px-4 py-4 sm:px-6">
         <div className="flex max-w-full items-center justify-between">
           <Link href="/instructor/dashboard" className="inline-block">
-            <span className="cursor-pointer pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
+            <span className="cursor-pointer pl-0 text-3xl font-bold text-(--color-brand-dark) transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
               iNSTAiNSTRU
             </span>
           </Link>
@@ -273,7 +273,7 @@ export function InstructorDashboardShell({
                           className={cn(
                             'block rounded-md px-3 py-2 text-left transition-transform transition-colors duration-150',
                             isActive
-                              ? 'border border-purple-200 bg-purple-50 font-semibold text-[#7E22CE] dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                              ? 'border border-purple-200 bg-purple-50 font-semibold text-(--color-brand-dark) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
                               : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-purple-900 dark:text-gray-200 dark:hover:bg-purple-900/20 dark:hover:text-purple-300'
                           )}
                         >

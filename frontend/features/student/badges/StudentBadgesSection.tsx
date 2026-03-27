@@ -209,7 +209,7 @@ export function StudentBadgesPanel({
         <button
           type="button"
           onClick={() => onModalChange(true)}
-          className="text-sm font-medium text-[#7E22CE] hover:text-[#5b1898] transition-colors"
+          className="text-sm font-medium text-(--color-brand-dark) hover:text-[#5b1898] transition-colors"
         >
           Explore
         </button>
@@ -397,7 +397,7 @@ function BadgeTile({
             style={{ backgroundColor: isDarkMode ? 'rgba(51, 65, 85, 0.78)' : 'rgba(255, 255, 255, 0.7)' }}
           >
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-[#7E22CE] to-[#A855F7]"
+              className="h-2 rounded-full bg-gradient-to-r from-(--color-brand-dark) to-[#A855F7]"
               style={{ width: `${progressPercent}%` }}
             />
           </div>

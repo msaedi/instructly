@@ -313,10 +313,10 @@ describe('Instructor Booking Details Page', () => {
       screen.getByText('This lesson time has passed. Did it take place?')
     ).toBeInTheDocument();
     expect(screen.getByTestId('booking-action-banner')).toHaveClass(
-      'bg-[#F3E8FF]',
-      'border-[#7C3AED]/20'
+      'bg-(--color-brand-lavender)',
+      'border-(--color-brand)/20'
     );
-    expect(screen.getByRole('button', { name: 'Mark Complete' })).toHaveClass('bg-[#7C3AED]');
+    expect(screen.getByRole('button', { name: 'Mark Complete' })).toHaveClass('bg-(--color-brand)');
     expect(screen.getByRole('button', { name: 'Mark Complete' }).querySelector('svg')).toBeNull();
     expect(screen.getByRole('button', { name: 'Report No-Show' }).querySelector('svg')).toBeNull();
 

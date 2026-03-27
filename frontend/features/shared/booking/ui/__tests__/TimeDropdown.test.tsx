@@ -499,7 +499,7 @@ describe('TimeDropdown', () => {
       render(<TimeDropdown {...defaultProps} />);
       fireEvent.click(screen.getByText('Select time'));
       const button = screen.getByText('Select time').closest('button');
-      expect(button).toHaveClass('ring-2', 'ring-[#7E22CE]');
+      expect(button).toHaveClass('ring-2', 'ring-(--color-brand-dark)');
     });
 
     it('toggles closed when the trigger is clicked while the dropdown is already open', () => {

@@ -270,7 +270,7 @@ function StudentDashboardContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand-dark)"></div>
       </div>
     );
   }
@@ -298,7 +298,7 @@ function StudentDashboardContent() {
       <header className="insta-dashboard-header px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
+            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
@@ -378,7 +378,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Information</h2>
                       <button
-                        className="text-sm font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
+                        className="text-sm font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => {
                           logger.debug('Edit profile clicked');
                           setShowEditProfile(true);
@@ -419,7 +419,7 @@ function StudentDashboardContent() {
                         )}
                       </div>
                       <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
-                        <p className="text-2xl font-bold text-[#7E22CE]">{userData?.first_name} {userData?.last_name}</p>
+                        <p className="text-2xl font-bold text-(--color-brand-dark)">{userData?.first_name} {userData?.last_name}</p>
                         <p>{userData?.email}</p>
                         <p>{formatPhoneReadable(userData?.phone)}</p>
                         <p>
@@ -429,7 +429,7 @@ function StudentDashboardContent() {
                             return info ? `${info.city}, ${info.state}, ${z}` : z || '—';
                           })()}
                         </p>
-                        <p className="text-[#7E22CE]/90">
+                        <p className="text-(--color-brand-dark)/90">
                           Member since: {memberSince ? memberSince.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
                         </p>
                       </div>
@@ -446,7 +446,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Addresses</h2>
                       <button
-                        className="text-sm font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
+                        className="text-sm font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
                       >
                         + Add
@@ -471,7 +471,7 @@ function StudentDashboardContent() {
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
                             <button
-                              className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                              className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
                               onClick={() => setShowAddressModal({ mode: 'edit', address: a })}
                             >
                               Edit
@@ -1032,7 +1032,7 @@ function NotificationsTab() {
                         key={h}
                         onClick={() => handleTimeChange(h, minute, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                          displayHour === h ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
+                          displayHour === h ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
                         }`}
                       >
                         {h}
@@ -1050,7 +1050,7 @@ function NotificationsTab() {
                         key={m}
                         onClick={() => handleTimeChange(displayHour, m, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                          minute === m ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
+                          minute === m ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
                         }`}
                       >
                         {m}
@@ -1066,7 +1066,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                        period === 'AM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
+                        period === 'AM' ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
                       }`}
                     >
                       AM
@@ -1074,7 +1074,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'PM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 border-t border-gray-200 dark:border-gray-700 ${
-                        period === 'PM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
+                        period === 'PM' ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
                       }`}
                     >
                       PM
@@ -1122,7 +1122,7 @@ function NotificationsTab() {
             type="button"
             onClick={handleUpdatePhone}
             disabled={updatePhone.isPending}
-            className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {updatePhone.isPending ? 'Saving…' : 'Save'}
           </button>
@@ -1144,7 +1144,7 @@ function NotificationsTab() {
               type="button"
               onClick={handleConfirmVerification}
               disabled={confirmVerification.isPending}
-              className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
             </button>
@@ -1812,7 +1812,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -1937,7 +1937,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               }}
               onFocus={() => logger.debug('First name input focused')}
               placeholder="Enter first name"
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current value: {firstName || '(empty)'}</p>
           </div>
@@ -1948,7 +1948,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
             />
           </div>
 
@@ -1959,7 +1959,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(555) 123-4567"
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
             />
           </div>
 
@@ -1971,7 +1971,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               onChange={(e) => setZipCode(e.target.value)}
               placeholder="10001"
               maxLength={5}
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
             />
           </div>
 
@@ -2053,7 +2053,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >
