@@ -19,14 +19,6 @@ jest.mock('@/hooks/queries/useInstructorReferrals', () => ({
     lastInitial ? `${firstName} ${lastInitial}.` : firstName,
   getReferralRewardTypeLabel: (referralType: string) =>
     referralType === 'instructor' ? 'Instructor referral' : 'Student referral',
-  getEmptyRewardMessage: (tab: string) => {
-    const messages: Record<string, string> = {
-      unlocked: 'No unlocked rewards yet. Rewards appear here once earned.',
-      pending: 'No pending rewards yet. Rewards appear here once a referral signs up.',
-      redeemed: 'No redeemed rewards yet. Rewards appear here after a payout completes.',
-    };
-    return messages[tab];
-  },
 }));
 
 jest.mock('@/lib/copy', () => ({
@@ -122,19 +114,21 @@ describe('InstructorReferralsPage', () => {
     expect(screen.getByRole('heading', { name: 'Referrals' })).toBeInTheDocument();
     expect(screen.getByText('Refer an instructor')).toBeInTheDocument();
     expect(screen.getByText('Refer a student')).toBeInTheDocument();
-    expect(screen.getByText('$50 cash')).toBeInTheDocument();
-    expect(screen.getByText('$20 cash')).toBeInTheDocument();
+    expect(screen.getByText('$50 cash')).toHaveClass('bg-[#F3E8FF]', 'text-[#7E22CE]');
+    expect(screen.getByText('$20 cash')).toHaveClass('bg-[#F3E8FF]', 'text-[#7E22CE]');
     expect(screen.getByDisplayValue('https://beta.instainstru.com/r/FNVC6KDW')).toBeInTheDocument();
-    expect(screen.getByText('Total referred')).toBeInTheDocument();
-    expect(screen.getByText('Pending payouts')).toBeInTheDocument();
-    expect(screen.getByText('Total earned')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Unlocked' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Pending' })).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getAllByText('Redeemed').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getAllByText('$50').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('$90')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your Referrals' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'In Progress' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Earned' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Redeemed' })).toBeInTheDocument();
-    expect(
-      screen.getByText('Share your unique referral link with students or fellow instructors.')
-    ).toBeInTheDocument();
-    expect(screen.getByText('They sign up and join iNSTAiNSTRU.')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Pending' })).not.toBeInTheDocument();
+    expect(screen.queryByText('How it works')).not.toBeInTheDocument();
     expect(screen.queryByText(/founding/i)).not.toBeInTheDocument();
   });
 
@@ -155,12 +149,16 @@ describe('InstructorReferralsPage', () => {
 
     render(<InstructorReferralsPage />);
 
-    expect(screen.getByText('Mina T.')).toBeInTheDocument();
-    expect(screen.getByText('Transfer pending')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('tab', { name: 'Pending' }));
     expect(screen.getByText('Arlo J.')).toBeInTheDocument();
     expect(screen.getByText('Student referral')).toBeInTheDocument();
+    const pendingAmountPill = screen.getAllByText('$20').find((element) => element.tagName === 'SPAN');
+    expect(pendingAmountPill).toHaveClass('bg-[#F3E8FF]', 'text-[#7E22CE]');
+
+    await user.click(screen.getByRole('tab', { name: 'Earned' }));
+    expect(screen.getByText('Mina T.')).toBeInTheDocument();
+    expect(screen.getByText('Transfer pending')).toBeInTheDocument();
+    const earnedAmountPill = screen.getAllByText('$50').find((element) => element.tagName === 'SPAN');
+    expect(earnedAmountPill).toHaveClass('bg-[#F3E8FF]', 'text-[#7E22CE]');
 
     await user.click(screen.getByRole('tab', { name: 'Redeemed' }));
     expect(screen.getByText('Nora L.')).toBeInTheDocument();

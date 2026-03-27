@@ -1,17 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   ArrowLeft,
   Check,
   Copy,
   Gift,
+  LaptopMinimalCheck,
   Share2,
-  UserRoundPlus,
   Users,
-  Wallet,
 } from 'lucide-react';
+import { Cardholder } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -26,7 +26,6 @@ import {
   formatCents,
   formatReferralDisplayName,
   formatReferralRewardDate,
-  getEmptyRewardMessage,
   getReferralRewardTypeLabel,
   type InstructorReferralReward,
   type ReferralRewardTab,
@@ -38,13 +37,21 @@ import { cn } from '@/lib/utils';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
-const REWARD_TABS: ReferralRewardTab[] = ['unlocked', 'pending', 'redeemed'];
+const REWARD_TABS: ReferralRewardTab[] = ['pending', 'unlocked', 'redeemed'];
+const REWARD_TAB_LABELS: Record<ReferralRewardTab, string> = {
+  pending: 'In Progress',
+  unlocked: 'Earned',
+  redeemed: 'Redeemed',
+};
+const REWARD_EMPTY_MESSAGES: Record<ReferralRewardTab, string> = {
+  pending: 'No in-progress referrals yet. Referrals appear here once someone signs up.',
+  unlocked: 'No earned rewards yet. Earned rewards appear here when a referral completes a first lesson.',
+  redeemed: 'No redeemed rewards yet. Rewards appear here after payout completes.',
+};
 
-const HOW_IT_WORKS_STEPS = [
-  'Share your unique referral link with students or fellow instructors.',
-  'They sign up and join iNSTAiNSTRU.',
-  'When they complete their first lesson, you earn your reward.',
-];
+function sumRewardAmountCents(rewards: InstructorReferralReward[]): number {
+  return rewards.reduce((total, reward) => total + reward.amountCents, 0);
+}
 
 function InsetDivider() {
   return (
@@ -70,9 +77,9 @@ function RewardOfferCard({
             Paid via Stripe when they complete their first lesson.
           </p>
         </div>
-        <Badge variant="success" className="shrink-0 px-3 py-1 text-sm font-semibold">
+        <span className="inline-flex shrink-0 items-center rounded-full bg-[#F3E8FF] px-3 py-1 text-sm font-semibold text-[#7E22CE]">
           {amount} cash
-        </Badge>
+        </span>
       </CardContent>
     </Card>
   );
@@ -85,7 +92,7 @@ function StatTile({
 }: {
   label: string;
   value: string;
-  icon: typeof Users;
+  icon: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
 }) {
   return (
     <Card className="insta-surface-card border-gray-200/80 shadow-none">
@@ -96,8 +103,8 @@ function StatTile({
           </p>
           <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-[#7E22CE] dark:bg-gray-800">
-          <Icon className="h-5 w-5" aria-hidden="true" />
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F3E8FF] text-[#7C3AED]">
+          <Icon className="h-5 w-5" aria-hidden />
         </div>
       </CardContent>
     </Card>
@@ -148,9 +155,9 @@ function RewardRow({ reward }: { reward: InstructorReferralReward }) {
               {payoutStatus}
             </Badge>
           ) : null}
-          <Badge variant="outline" className="border-gray-200 px-2.5 py-1 text-sm font-semibold dark:border-gray-700">
+          <span className="inline-flex items-center rounded-full bg-[#F3E8FF] px-2.5 py-1 text-sm font-semibold text-[#7E22CE]">
             {formatCents(reward.amountCents)}
-          </Badge>
+          </span>
         </div>
       </div>
     </li>
@@ -170,7 +177,7 @@ function RewardsSection({
     <Card className="insta-surface-card border-gray-200/80 shadow-none">
       <div className="px-6 py-6 sm:px-8">
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your rewards</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your Referrals</h2>
           <div
             role="tablist"
             aria-label="Referral reward tabs"
@@ -186,7 +193,7 @@ function RewardsSection({
                 onClick={() => onTabChange(tab)}
               >
                 <span className={getTextWidthTabLabelClasses(activeTab === tab)}>
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {REWARD_TAB_LABELS[tab]}
                 </span>
               </button>
             ))}
@@ -202,29 +209,11 @@ function RewardsSection({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-600 dark:text-gray-400">{getEmptyRewardMessage(activeTab)}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {REWARD_EMPTY_MESSAGES[activeTab]}
+          </p>
         )}
       </div>
-    </Card>
-  );
-}
-
-function HowItWorksSection() {
-  return (
-    <Card className="insta-surface-card border-gray-200/80 shadow-none">
-      <CardContent className="space-y-5 p-6 sm:p-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">How it works</h2>
-        <ol className="space-y-4">
-          {HOW_IT_WORKS_STEPS.map((step, index) => (
-            <li key={step} className="flex items-start gap-4">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-[#7E22CE] dark:bg-gray-800">
-                {index + 1}
-              </span>
-              <p className="pt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">{step}</p>
-            </li>
-          ))}
-        </ol>
-      </CardContent>
     </Card>
   );
 }
@@ -243,7 +232,6 @@ function LoadingState() {
         <div className="h-32 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
       </div>
       <div className="h-64 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
-      <div className="h-56 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
     </div>
   );
 }
@@ -251,7 +239,7 @@ function LoadingState() {
 export default function InstructorReferralsPage() {
   const embedded = useEmbedded();
   const { data: dashboard, isLoading, isError } = useInstructorReferralDashboard();
-  const [activeTab, setActiveTab] = useState<ReferralRewardTab>('unlocked');
+  const [activeTab, setActiveTab] = useState<ReferralRewardTab>('pending');
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const referralLink = dashboard?.referralLink ?? null;
@@ -259,6 +247,15 @@ export default function InstructorReferralsPage() {
   const activeRewards = useMemo(
     () => dashboard?.rewards[activeTab] ?? [],
     [activeTab, dashboard]
+  );
+  const inProgressCount = dashboard?.rewards.pending.length ?? 0;
+  const pendingAmount = useMemo(
+    () => formatCents(sumRewardAmountCents(dashboard?.rewards.unlocked ?? [])),
+    [dashboard]
+  );
+  const redeemedAmount = useMemo(
+    () => formatCents(dashboard?.totalEarnedCents ?? 0),
+    [dashboard]
   );
 
   const triggerCopied = useCallback(() => {
@@ -437,9 +434,9 @@ export default function InstructorReferralsPage() {
             </Card>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <StatTile label="Total referred" value={String(dashboard.totalReferred)} icon={Users} />
-              <StatTile label="Pending payouts" value={String(dashboard.pendingPayouts)} icon={Wallet} />
-              <StatTile label="Total earned" value={formatCents(dashboard.totalEarnedCents)} icon={UserRoundPlus} />
+              <StatTile label="In progress" value={String(inProgressCount)} icon={Users} />
+              <StatTile label="Pending" value={pendingAmount} icon={LaptopMinimalCheck} />
+              <StatTile label="Redeemed" value={redeemedAmount} icon={Cardholder} />
             </div>
 
             <RewardsSection
@@ -447,8 +444,6 @@ export default function InstructorReferralsPage() {
               onTabChange={setActiveTab}
               rewards={activeRewards}
             />
-
-            <HowItWorksSection />
           </div>
         )}
       </div>

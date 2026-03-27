@@ -7,9 +7,10 @@ import {
   getBookingActivityTimestamp,
   mapMessageFromResponse,
   computeUnreadFromMessages,
+  deriveConversationPastBookings,
 } from '../messages';
 import type { Booking } from '@/features/shared/api/types';
-import type { ConversationEntry } from '../../types';
+import type { ConversationBooking, ConversationEntry, MessageWithAttachments } from '../../types';
 
 jest.mock('@/components/messaging/formatters', () => ({
   formatRelativeTimestamp: jest.fn((input: string) => `relative(${input})`),
@@ -253,6 +254,27 @@ describe('messages', () => {
       expect(result.read_by).toEqual([{ user_id: 'user-1', read_at: '2025-01-01T10:05:00Z' }]);
     });
 
+    it('preserves booking metadata from the API response', () => {
+      const bookingDetails = {
+        id: '01KKQKWD9V9QF0J2T0AB3124',
+        service_name: 'Piano Lesson',
+        date: '2025-01-20',
+        start_time: '09:00',
+      } as ConversationBooking;
+      const msg = {
+        id: 'm1',
+        content: 'msg',
+        sender_id: 'student-1',
+        booking_id: '01KKQKWD9V9QF0J2T0AB3124',
+        booking_details: bookingDetails,
+      };
+
+      const result = mapMessageFromResponse(msg, makeConversation(), currentUserId);
+
+      expect(result.bookingId).toBe('01KKQKWD9V9QF0J2T0AB3124');
+      expect(result.bookingDetails).toEqual(bookingDetails);
+    });
+
     it('handles reactions as array of objects', () => {
       const msg = {
         id: 'm1',
@@ -466,6 +488,89 @@ describe('messages', () => {
       ];
       // read_at is null, so !!null is false -> hasRead is false -> counted as unread
       expect(computeUnreadFromMessages(messages, makeConversation(), 'user-1')).toBe(1);
+    });
+  });
+
+  describe('deriveConversationPastBookings', () => {
+    it('dedupes booking summaries by id and sorts them newest-first', () => {
+      const latestBooking = {
+        id: 'booking-latest',
+        service_name: 'Voice Lesson',
+        date: '2025-01-22',
+        start_time: '15:30',
+      } as ConversationBooking;
+      const olderBooking = {
+        id: 'booking-older',
+        service_name: 'Theory Lesson',
+        date: '2025-01-15',
+        start_time: '11:00',
+      } as ConversationBooking;
+
+      const messages = [
+        {
+          id: 'm1',
+          text: 'first',
+          sender: 'student' as const,
+          timestamp: 'relative(2025-01-15T11:00:00Z)',
+          bookingId: 'booking-older',
+          bookingDetails: olderBooking,
+        },
+        {
+          id: 'm2',
+          text: 'second',
+          sender: 'student' as const,
+          timestamp: 'relative(2025-01-22T15:30:00Z)',
+          bookingId: 'booking-latest',
+          bookingDetails: latestBooking,
+        },
+        {
+          id: 'm3',
+          text: 'duplicate',
+          sender: 'student' as const,
+          timestamp: 'relative(2025-01-22T16:00:00Z)',
+          bookingId: 'booking-latest',
+          bookingDetails: latestBooking,
+        },
+      ];
+
+      expect(deriveConversationPastBookings(messages)).toEqual([latestBooking, olderBooking]);
+    });
+
+    it('falls back to parsing the booking date and skips sparse message slots', () => {
+      const fallbackParsedBooking = {
+        id: 'booking-fallback-date',
+        service_name: 'Voice Lesson',
+        date: '2025-01-22',
+        start_time: '',
+      } as ConversationBooking;
+      const olderBooking = {
+        id: 'booking-older-date',
+        service_name: 'Theory Lesson',
+        date: '2025-01-10',
+        start_time: '09:00',
+      } as ConversationBooking;
+      const sparseMessages = new Array<MessageWithAttachments>(3);
+      sparseMessages[0] = {
+        id: 'm1',
+        text: 'first',
+        sender: 'student',
+        timestamp: 'relative(2025-01-10T09:00:00Z)',
+        bookingId: 'booking-older-date',
+        bookingDetails: olderBooking,
+      };
+      sparseMessages[2] = {
+        id: 'm2',
+        text: 'second',
+        sender: 'student',
+        timestamp: 'relative(2025-01-22T15:30:00Z)',
+        bookingId: 'booking-fallback-date',
+        bookingDetails: fallbackParsedBooking,
+      };
+
+      expect(deriveConversationPastBookings(sparseMessages)).toEqual([
+        fallbackParsedBooking,
+        olderBooking,
+      ]);
     });
   });
 });

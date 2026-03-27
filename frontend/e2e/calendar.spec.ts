@@ -801,7 +801,9 @@ test.describe('Instructor availability calendar', () => {
     await initialWeekResponse;
     await alignCalendarToWeek(page, week.iso.base);
 
-    await expect(page.getByRole('heading', { name: 'Buffer between lessons' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Buffer between back-to-back lessons' })
+    ).toBeVisible();
     await expect(
       page.getByRole('switch', { name: 'Overnight Booking Protection' })
     ).toHaveAttribute('aria-checked', 'true');

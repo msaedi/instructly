@@ -8,6 +8,7 @@ import { Star as PhosphorStar } from '@phosphor-icons/react';
 import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
@@ -27,10 +28,10 @@ function SummaryRatingStar({ rating }: { rating?: number | null }) {
     <div className="relative h-10 w-10 shrink-0" aria-hidden="true">
       <PhosphorStar
         weight="regular"
-        className="absolute inset-0 h-full w-full text-amber-300"
+        className="absolute inset-0 h-full w-full text-[#FFD93D]"
       />
       <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
-        <PhosphorStar weight="fill" className="h-full w-full text-amber-500" />
+        <PhosphorStar weight="fill" className="h-full w-full text-[#FFD93D]" />
       </div>
     </div>
   );
@@ -43,7 +44,7 @@ function ReviewStars({ rating }: { rating: number }) {
         <PhosphorStar
           key={value}
           weight={value <= rating ? 'fill' : 'regular'}
-          className={value <= rating ? 'h-4 w-4 text-amber-500' : 'h-4 w-4 text-gray-300'}
+          className="h-4 w-4 text-[#FFD93D]"
         />
       ))}
     </div>
@@ -215,8 +216,8 @@ function ReviewsPageImpl() {
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
-              <label className="relative inline-flex min-w-[220px] items-center sm:min-w-[240px]">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-stretch lg:w-[32rem]">
+              <label className="relative inline-flex min-w-0 flex-1 items-center">
                 <span className="sr-only">Filter reviews by rating</span>
                 <select
                   aria-label="All reviews filter"
@@ -240,18 +241,23 @@ function ReviewsPageImpl() {
                 <ChevronDown className="pointer-events-none absolute right-4 h-5 w-5 text-gray-500" />
               </label>
 
-              <label className="flex min-h-12 cursor-pointer items-center gap-4 rounded-2xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors focus-within:border-[#7E22CE] focus-within:ring-2 focus-within:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                <input
-                  type="checkbox"
+              <div
+                className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:ring-2 focus-within:ring-[#7E22CE]/20 ${
+                  withCommentsOnly
+                    ? 'border-[#7C3AED] bg-[#F3E8FF] text-[#7C3AED]'
+                    : 'border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                }`}
+              >
+                <span>With comments</span>
+                <ToggleSwitch
                   checked={withCommentsOnly}
-                  onChange={(event) => {
-                    setWithCommentsOnly(event.target.checked);
+                  onChange={() => {
+                    setWithCommentsOnly((current) => !current);
                     setPage(1);
                   }}
-                  className="h-5 w-5 rounded border-gray-300 text-[#7E22CE] focus:ring-[#7E22CE]"
+                  ariaLabel="With comments"
                 />
-                <span>With comments only</span>
-              </label>
+              </div>
             </div>
           </div>
 
@@ -287,36 +293,25 @@ function ReviewsPageImpl() {
                 const replyError = replyErrorByReviewId[review.id];
                 const hasResponse = review.response != null;
                 const isReplyOpen = activeReplyId === review.id;
+                const reviewTimestamp = formatReviewTimestamp(review.created_at);
 
                 return (
                   <article key={review.id} className="insta-surface-card p-5">
-                    <div className="flex items-center gap-3">
-                      <ReviewStars rating={review.rating} />
-                      <span className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {reviewerName}
-                      </span>
-                      <span className="ml-auto shrink-0 text-sm text-gray-500 dark:text-gray-400">
-                        {formatReviewTimestamp(review.created_at)}
-                      </span>
-                    </div>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 space-y-2">
+                        <ReviewStars rating={review.rating} />
+                        <span className="block min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {reviewerName}
+                        </span>
+                      </div>
 
-                    <div className="mt-3 space-y-3">
-                      <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                        {review.review_text || 'No written feedback'}
-                      </p>
-
-                      {hasResponse ? (
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/70">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                            Instructor reply
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                            {review.response?.response_text}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      <div className="flex items-center gap-3">
+                      <div
+                        className="flex shrink-0 flex-col items-end gap-2 text-right"
+                        data-testid={`review-meta-${review.id}`}
+                      >
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {reviewTimestamp}
+                        </span>
                         {hasResponse ? (
                           <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
                             Replied
@@ -338,6 +333,25 @@ function ReviewsPageImpl() {
                           </button>
                         )}
                       </div>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      {review.review_text ? (
+                        <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                          {review.review_text}
+                        </p>
+                      ) : null}
+
+                      {hasResponse ? (
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/70">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                            Instructor reply
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+                            {review.response?.response_text}
+                          </p>
+                        </div>
+                      ) : null}
 
                       {!hasResponse && isReplyOpen ? (
                         <form

@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import MessagesPage from '../page';
 import { EmbeddedContext } from '../../_embedded/EmbeddedContext';
 
@@ -44,6 +44,7 @@ jest.mock('@/src/api/services/conversations', () => ({
 
 jest.mock('@/components/instructor/messages', () => ({
   COMPOSE_THREAD_ID: '__compose__',
+  deriveConversationPastBookings: jest.fn(() => []),
 }));
 
 jest.mock('@/components/instructor/messages/hooks', () => ({
@@ -172,5 +173,35 @@ describe('MessagesPage layout', () => {
     expect(screen.getByRole('heading', { name: 'Messages' })).toBeInTheDocument();
     expect(screen.getByText('Conversation list')).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('shows the hidden section copy and toggles to templates view', () => {
+    render(
+      <EmbeddedContext.Provider value={true}>
+        <MessagesPage />
+      </EmbeddedContext.Provider>
+    );
+
+    const switcher = screen.getByTestId('messages-section-switcher');
+    expect(within(switcher).getByRole('heading', { name: 'Communication templates' })).toBeInTheDocument();
+    expect(within(switcher).getByText('Access saved templates for quick replies.')).toBeInTheDocument();
+
+    fireEvent.click(within(switcher).getByRole('button'));
+
+    expect(within(switcher).getByRole('heading', { name: 'Messages' })).toBeInTheDocument();
+    expect(within(switcher).getByText('Stay in touch with everyone.')).toBeInTheDocument();
+    expect(screen.getByText('Template editor')).toBeInTheDocument();
+  });
+
+  it('uses the reduced whitespace inbox shell classes', () => {
+    render(
+      <EmbeddedContext.Provider value={true}>
+        <MessagesPage />
+      </EmbeddedContext.Provider>
+    );
+
+    const inboxShell = screen.getByTestId('messages-inbox-shell');
+    expect(inboxShell).toHaveClass('min-h-0', 'flex-1');
+    expect(inboxShell).not.toHaveClass('min-h-[680px]');
   });
 });

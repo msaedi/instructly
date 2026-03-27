@@ -10,11 +10,13 @@ import Link from 'next/link';
 import { MoreVertical, X, Calendar } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { ConversationEntry, ConversationBooking } from '../types';
-import { CONFIRMED_BOOKING_BADGE_CLASSES } from '@/lib/bookingStatus';
+import { shortenBookingId } from '@/lib/bookingId';
+import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 export type ChatHeaderProps = {
   isComposeView: boolean;
   activeConversation: ConversationEntry | null;
+  fallbackBookings?: ConversationBooking[] | undefined;
   composeRecipient: ConversationEntry | null;
   composeRecipientQuery: string;
   composeSuggestions: ConversationEntry[];
@@ -69,9 +71,57 @@ function formatBookingInfo(booking: ConversationBooking): string {
     : `${booking.service_name} on ${formattedDate}, ${formattedTime}`;
 }
 
+function getBookingTimestamp(booking: ConversationBooking): number {
+  const parsed = Date.parse(`${booking.date}T${booking.start_time}`);
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+
+  const fallback = Date.parse(booking.date);
+  return Number.isFinite(fallback) ? fallback : Number.POSITIVE_INFINITY;
+}
+
+function getExplicitBookingStatus(booking: ConversationBooking): string | null {
+  return typeof booking.status === 'string' && booking.status.trim()
+    ? booking.status.trim().toUpperCase()
+    : null;
+}
+
+function getBookingStatus(booking: ConversationBooking): string {
+  const explicitStatus = getExplicitBookingStatus(booking);
+  if (explicitStatus) {
+    return explicitStatus;
+  }
+
+  return getBookingTimestamp(booking) < Date.now() ? 'COMPLETED' : 'CONFIRMED';
+}
+
+function getBookingStatusLabel(status: string): string {
+  switch (status) {
+    case 'CONFIRMED':
+      return 'Confirmed';
+    case 'COMPLETED':
+      return 'Completed';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'NO_SHOW':
+      return 'No Show';
+    case 'IN_PROGRESS':
+      return 'In Progress';
+    default:
+      return status
+        .toLowerCase()
+        .split('_')
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
+  }
+}
+
 export function ChatHeader({
   isComposeView,
   activeConversation,
+  fallbackBookings = [],
   composeRecipient,
   composeRecipientQuery,
   composeSuggestions,
@@ -156,10 +206,60 @@ export function ChatHeader({
   const nextBooking = activeConversation?.nextBooking;
   const upcomingCount = activeConversation?.upcomingBookingCount ?? 0;
   const upcomingBookings = activeConversation?.upcomingBookings ?? [];
-  // Get all bookings except the next one for the expandable list
-  const remainingBookings = nextBooking
-    ? upcomingBookings.filter((b) => b.id !== nextBooking.id)
-    : upcomingBookings;
+  const hasUpcomingBookings = Boolean(nextBooking || upcomingBookings.length > 0);
+  const primaryBooking = hasUpcomingBookings
+    ? nextBooking ?? upcomingBookings[0] ?? null
+    : fallbackBookings[0] ?? null;
+  const remainingBookings = hasUpcomingBookings
+    ? (primaryBooking
+        ? upcomingBookings.filter((booking) => booking.id !== primaryBooking.id)
+        : upcomingBookings)
+    : fallbackBookings.slice(1);
+  const remainingBookingCount = hasUpcomingBookings
+    ? remainingBookings.length > 0
+      ? remainingBookings.length
+      : primaryBooking && upcomingCount > 0
+        ? Math.max(upcomingCount - 1, 0)
+        : 0
+    : remainingBookings.length;
+  const hasExpandableBookingDetails = remainingBookings.length > 0;
+  const remainingBookingsLabel = `+${remainingBookingCount} more ${remainingBookingCount === 1 ? 'booking' : 'bookings'}`;
+
+  const renderBookingCard = (booking: ConversationBooking, isPrimary: boolean) => {
+    const status = getBookingStatus(booking);
+    const statusLabel = getBookingStatusLabel(status);
+    const statusClassName = getBookingStatusBadgeClasses(status);
+    const isCompletedBooking = status === 'COMPLETED';
+    const cardClassName = isPrimary && !isCompletedBooking
+      ? 'border-[#E5D7FE] bg-[#F3E8FF] hover:bg-[#EEE4FE] dark:border-[#5B21B6] dark:bg-[#2A114A] dark:hover:bg-[#34145B]'
+      : isCompletedBooking
+        ? 'border-gray-200 bg-gray-100 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
+        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800';
+
+    return (
+      <Link
+        key={booking.id}
+        href={bookingHrefForId(booking.id)}
+        data-testid={`chat-header-booking-card-${booking.id}`}
+        className={`block rounded-xl border p-3 transition-colors ${cardClassName}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClassName}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}
+        </p>
+        <p className="mt-2 text-[10px] font-mono uppercase tracking-[0.18em] text-gray-400 dark:text-gray-300">
+          #{shortenBookingId(booking.id)}
+        </p>
+      </Link>
+    );
+  };
 
   return (
     <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
@@ -183,12 +283,14 @@ export function ChatHeader({
         </div>
         <div className="flex items-center gap-2">
           {/* Booking context badge */}
-          {nextBooking && (
+          {primaryBooking && (
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-700">
               <Calendar className="w-3 h-3" />
-              <span className="truncate max-w-[220px]">{formatBookingInfo(nextBooking)}</span>
-              {upcomingCount > 1 && (
-                <span className="text-purple-500">+{upcomingCount - 1} more</span>
+              <span className="truncate max-w-[220px]">
+                {formatBookingInfo(primaryBooking)} · #{shortenBookingId(primaryBooking.id)}
+              </span>
+              {remainingBookingCount > 0 && (
+                <span className="text-purple-500">+{remainingBookingCount} more</span>
               )}
             </div>
           )}
@@ -208,58 +310,39 @@ export function ChatHeader({
                   role="menu"
                   className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-40"
                 >
-                  <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Booking Info</p>
-                  </div>
                   <div className="p-3">
-                    {nextBooking ? (
+                    {primaryBooking ? (
                       <div className="space-y-3">
-                        {/* Header row with NEXT BOOKING label and Upcoming tag */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#7E22CE]">Next booking</span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONFIRMED_BOOKING_BADGE_CLASSES}`}>
-                            Upcoming
-                          </span>
-                        </div>
-
-                        {/* Next booking details in purple container */}
-                        <Link
-                          href={bookingHrefForId(nextBooking.id)}
-                          className="block rounded-lg border border-purple-200 bg-purple-50 p-3 transition-colors hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                        >
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nextBooking.service_name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(nextBooking.date)}, {formatTime12h(nextBooking.start_time)}</p>
-                          <p className="text-[10px] text-gray-400 dark:text-gray-300 font-mono mt-1 truncate">{nextBooking.id}</p>
-                        </Link>
+                        {renderBookingCard(primaryBooking, true)}
 
                         {/* Expand/collapse for more bookings */}
-                        {upcomingCount > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => setShowUpcomingBookings((v) => !v)}
-                            className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
-                          >
-                            <span>
-                              +{upcomingCount - 1} more upcoming {upcomingCount - 1 === 1 ? 'booking' : 'bookings'}
+                        {remainingBookingCount > 0 && (
+                          hasExpandableBookingDetails ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowUpcomingBookings((v) => !v);
+                              }}
+                              className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
+                              data-testid="chat-header-booking-expander"
+                            >
+                              <span>{remainingBookingsLabel}</span>
+                              <span aria-hidden="true" className={`transition-transform ${showUpcomingBookings ? 'rotate-180' : ''}`}>^</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="block w-full pt-1 text-xs text-[#7E22CE]"
+                              data-testid="chat-header-booking-summary-count"
+                            >
+                              {remainingBookingsLabel}
                             </span>
-                            <span aria-hidden="true" className={`transition-transform ${showUpcomingBookings ? 'rotate-180' : ''}`}>^</span>
-                          </button>
+                          )
                         )}
 
                         {/* Expanded upcoming bookings */}
-                        {showUpcomingBookings && remainingBookings.length > 0 && (
+                        {showUpcomingBookings && hasExpandableBookingDetails && (
                           <div className="space-y-2 pt-2">
-                            {remainingBookings.map((booking) => (
-                              <Link
-                                key={booking.id}
-                                href={bookingHrefForId(booking.id)}
-                                className="block rounded-lg border border-gray-200 bg-gray-50 p-2.5 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
-                              >
-                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}</p>
-                                <p className="text-[10px] text-gray-400 dark:text-gray-300 font-mono mt-1 truncate">{booking.id}</p>
-                              </Link>
-                            ))}
+                            {remainingBookings.map((booking) => renderBookingCard(booking, false))}
                           </div>
                         )}
                       </div>
