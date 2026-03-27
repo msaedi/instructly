@@ -29,14 +29,14 @@ describe('FormatTagPaintToolbar', () => {
     screen.getAllByRole('radio').forEach((item) => {
       expect(item).toHaveClass('w-28');
     });
-    expect(screen.getByRole('radio', { name: /All/i })).toHaveClass('bg-[#7E22CE]', 'text-white');
+    expect(screen.getByRole('radio', { name: /All/i })).toHaveClass('bg-(--color-brand-dark)', 'text-white');
     expect(screen.getByRole('radio', { name: /Online/i })).toHaveClass(
-      'bg-[#D1FAE5]',
-      'text-[#059669]'
+      'bg-(--color-online-green-light)',
+      'text-(--color-online-green)'
     );
     expect(screen.getByRole('radio', { name: /No Travel/i })).toHaveClass(
-      'bg-[#FFEDAF]',
-      'text-[#92400E]'
+      'bg-(--color-notravel-yellow-light)',
+      'text-(--color-notravel-brown)'
     );
 
     rerender(
@@ -48,12 +48,12 @@ describe('FormatTagPaintToolbar', () => {
     );
 
     expect(screen.getByRole('radio', { name: /Online/i })).toHaveClass(
-      'bg-[#059669]',
+      'bg-(--color-online-green)',
       'text-white'
     );
     expect(screen.getByRole('radio', { name: /All/i })).toHaveClass(
-      'bg-[#F3E8FF]',
-      'text-[#7E22CE]'
+      'bg-(--color-brand-lavender)',
+      'text-(--color-brand-dark)'
     );
 
     rerender(
@@ -65,8 +65,8 @@ describe('FormatTagPaintToolbar', () => {
     );
 
     expect(screen.getByRole('radio', { name: /No Travel/i })).toHaveClass(
-      'bg-[#FFD93D]',
-      'text-[#92400E]'
+      'bg-(--color-notravel-yellow)',
+      'text-(--color-notravel-brown)'
     );
   });
 

@@ -51,7 +51,7 @@ describe('OnboardingProgressHeader', () => {
 
     expect(screen.getByTestId('onboarding-header')).toBeInTheDocument();
     const step1 = screen.getByTitle('Step 1: Account Setup');
-    expect(step1.className).toContain('bg-[#7E22CE]');
+    expect(step1.className).toContain('bg-(--color-brand-dark)');
     expect(step1.querySelector('.icon-check')).toBeInTheDocument();
 
     const art = screen.getByTestId('onboarding-header-art');
@@ -77,7 +77,7 @@ describe('OnboardingProgressHeader', () => {
     );
 
     const step2 = screen.getByTitle('Step 2: Add Skills');
-    expect(step2.className).toContain('bg-[#7E22CE]');
+    expect(step2.className).toContain('bg-(--color-brand-dark)');
     expect(step2.querySelector('.icon-check')).toBeInTheDocument();
   });
 

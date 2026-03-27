@@ -111,7 +111,7 @@ export default function LessonDetailsPage() {
         <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -123,7 +123,7 @@ export default function LessonDetailsPage() {
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
-              className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
+              className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               Back to My Lessons
             </Button>
@@ -228,7 +228,7 @@ export default function LessonDetailsPage() {
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />
@@ -253,7 +253,7 @@ export default function LessonDetailsPage() {
           {/* Lesson Title and Status */}
           <div className="mb-6">
             <div className="flex items-start justify-between">
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#7E22CE]">
+              <h1 className="text-2xl sm:text-3xl font-bold text-(--color-brand-dark)">
                 {lesson.service_name}
               </h1>
               {isInProgress && (
@@ -318,7 +318,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -329,7 +329,7 @@ export default function LessonDetailsPage() {
               ) : (
                 <Button
                   onClick={() => router.push(`/student/review/${lesson.id}`)}
-                  className="bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
+                  className="bg-white dark:bg-gray-800 text-(--color-brand-dark) border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
                 >
                   Review & tip
                 </Button>
@@ -347,7 +347,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -380,7 +380,7 @@ export default function LessonDetailsPage() {
                       href={mapHref}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center px-0 h-auto text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                      className="inline-flex items-center px-0 h-auto text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
                     >
                       <MapPin className="h-4 w-4 mr-1" />
                       View map
@@ -444,7 +444,7 @@ export default function LessonDetailsPage() {
                     disabled={!canReschedule}
                     className={`flex-1 sm:flex-initial rounded-lg py-2.5 px-6 text-sm font-medium ${
                       canReschedule
-                        ? 'bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent'
+                        ? 'bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent'
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed border-transparent'
                     }`}
                   >
@@ -453,7 +453,7 @@ export default function LessonDetailsPage() {
                   <Button
                     onClick={() => setShowCancelModal(true)}
                     variant="outline"
-                    className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
+                    className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-(--color-brand-dark) border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
                   >
                     Cancel lesson
                   </Button>
@@ -585,7 +585,7 @@ function LessonDetailsLoading() {
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <div className="animate-pulse">

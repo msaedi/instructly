@@ -147,7 +147,7 @@ describe('Calendar', () => {
     it('highlights selected date', () => {
       render(<Calendar {...defaultProps} selectedDate="2024-01-15" />);
       const selectedDate = screen.getByTestId('cal-day-2024-01-15');
-      expect(selectedDate).toHaveClass('bg-[#7E22CE]');
+      expect(selectedDate).toHaveClass('bg-(--color-brand-dark)');
       expect(selectedDate).toHaveAttribute('aria-selected', 'true');
     });
 

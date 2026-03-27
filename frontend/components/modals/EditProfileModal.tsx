@@ -813,10 +813,10 @@ export default function EditProfileModal({
             <button
               onClick={handleSubmit}
               disabled={loading || !canSubmit}
-              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
+              className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
                        duration-150 font-medium focus:outline-none focus:ring-2
-                       focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center gap-2"
+                       focus:ring-offset-2 focus:ring-(--color-brand-dark) flex items-center gap-2"
             >
               {loading ? (
                 <>
@@ -981,10 +981,10 @@ export default function EditProfileModal({
                 type="button"
                 onClick={handleSaveBioExperience}
                 disabled={savingAbout}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
+                className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                          disabled:opacity-50 disabled:cursor-not-allowed transition-all
                          duration-150 font-medium focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-[#7E22CE]"
+                         focus:ring-offset-2 focus:ring-(--color-brand-dark)"
               >
                 {savingAbout ? 'Saving…' : 'Save'}
               </button>
@@ -1000,7 +1000,7 @@ export default function EditProfileModal({
               <>
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <MapPin className="w-6 h-6 text-[#7E22CE]" />
+                    <MapPin className="w-6 h-6 text-(--color-brand-dark)" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Service Areas</h3>
@@ -1045,8 +1045,8 @@ export default function EditProfileModal({
                               type="button"
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
-                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                                checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
                               <span className="truncate text-left">{n.name || nid}</span>
@@ -1084,7 +1084,7 @@ export default function EditProfileModal({
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200 dark:hover:bg-purple-800/40"
+                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-(--color-brand-dark) hover:bg-purple-200 dark:hover:bg-purple-800/40"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -1125,8 +1125,8 @@ export default function EditProfileModal({
                                   type="button"
                                   onClick={() => toggleNeighborhood(nid)}
                                   aria-pressed={checked}
-                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                    checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                                    checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                   }`}
                                 >
                                   <span className="truncate text-left">{label}</span>
@@ -1169,7 +1169,7 @@ export default function EditProfileModal({
                           onClick={addTeachingPlace}
                           aria-label="Add address"
                           disabled={teachingPlaces.length >= 2}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
@@ -1183,14 +1183,14 @@ export default function EditProfileModal({
                             value={place.label ?? ''}
                             onChange={(e) => updateTeachingLabel(index, e.target.value)}
                             placeholder="..."
-                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none focus:ring-0"
                           />
                           <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
                             <button
                               type="button"
                               aria-label={`Remove ${place.address}`}
-                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
                               onClick={() => removeTeachingPlace(index)}
                             >
                               &times;
@@ -1230,7 +1230,7 @@ export default function EditProfileModal({
                           onClick={addPublicPlace}
                           aria-label="Add public space"
                           disabled={publicPlaces.length >= 2}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
@@ -1244,14 +1244,14 @@ export default function EditProfileModal({
                             value={place.label ?? ''}
                             onChange={(e) => updatePublicLabel(index, e.target.value)}
                             placeholder="Name this spot"
-                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none focus:ring-0"
                           />
                           <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
                             <button
                               type="button"
                               aria-label={`Remove ${place.address}`}
-                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
                               onClick={() => removePublicPlace(index)}
                             >
                               &times;
@@ -1311,7 +1311,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={() => { void handleAreasSave(); }}
                 disabled={savingAreas}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
+                className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark)"
               >
                 {savingAreas ? 'Saving…' : 'Save'}
               </button>

@@ -1580,7 +1580,7 @@ function PaymentConfirmationInner({
                         onChangePaymentMethod();
                       }
                     }}
-                    className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                    className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Change
                   </button>
@@ -1736,7 +1736,7 @@ function PaymentConfirmationInner({
               <input
                 type="checkbox"
                 id="save-card"
-                className="w-4 h-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 rounded focus:ring-[#7E22CE]"
+                className="w-4 h-4 text-(--color-brand-dark) border-gray-300 dark:border-gray-700 rounded focus:ring-(--color-brand-dark)"
               />
               <label htmlFor="save-card" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                 Save card for future payments
@@ -1767,7 +1767,7 @@ function PaymentConfirmationInner({
         <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
           <h4 className="font-bold text-xl mb-3">Promo Code</h4>
           {referralActive ? (
-            <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
+            <div className="flex items-start gap-2 rounded-lg border border-(--color-brand-dark)/20 bg-(--color-brand-dark)/5 dark:bg-(--color-brand-dark)/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
               <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
               <p>Referral credit applied — promotions can&apos;t be combined.</p>
             </div>
@@ -1786,7 +1786,7 @@ function PaymentConfirmationInner({
                 <button
                   type="button"
                   onClick={handlePromoAction}
-                  className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                  className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={promoApplyDisabled}
                 >
                   {promoActive ? 'Remove' : 'Apply'}
@@ -1886,7 +1886,7 @@ function PaymentConfirmationInner({
                     <button
                       type="button"
                       onClick={onCreditToggle}
-                      className="text-[#7E22CE] font-medium"
+                      className="text-(--color-brand-dark) font-medium"
                     >
                       {displayAppliedCreditCents > 0 ? 'Remove credits' : 'Apply full balance'}
                     </button>
@@ -1981,7 +1981,7 @@ function PaymentConfirmationInner({
                         </div>
                         <button
                           type="button"
-                          className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                          className="text-sm text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
                           onClick={handleChangeLocationClick}
                         >
                           Change
@@ -2140,7 +2140,7 @@ function PaymentConfirmationInner({
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               ctaDisabled
                 ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700'
+                : 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700'
             }`}
           >
             {ctaLabel}
@@ -2208,7 +2208,7 @@ function PaymentConfirmationInner({
                 // Open the calendar modal to reschedule
                 setIsModalOpen(true);
               }}
-              className="bg-white dark:bg-gray-800 text-[#7E22CE] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              className="bg-white dark:bg-gray-800 text-(--color-brand-dark) py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             >
               Edit lesson
             </button>

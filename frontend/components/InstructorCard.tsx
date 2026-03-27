@@ -377,7 +377,7 @@ const findNextAvailableSlot = (
                 e.preventDefault();
                 onViewProfile?.();
               }}
-              className={`text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
+              className={`text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
               data-testid="instructor-link"
             >
               <div>View Profile</div>
@@ -394,7 +394,7 @@ const findNextAvailableSlot = (
               {/* Name with verification badge and rating */}
               <div className={`flex flex-wrap items-center ${compact ? 'gap-2' : 'gap-3'}`}>
                 <h2
-                  className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`}
+                  className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-(--color-brand-dark)`}
                   data-testid="instructor-name"
                 >
                   {formatDisplayName(
@@ -449,7 +449,7 @@ const findNextAvailableSlot = (
                     <span
                       key={`${service.service_catalog_id || service.id || idx}-${serviceName}`}
                       className={`${compact ? 'px-3 py-0.5 text-sm' : 'px-6 py-1 text-lg'} rounded-full font-bold ${
-                        isHighlighted ? 'bg-[#7E22CE]/15 text-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        isHighlighted ? 'bg-(--color-brand-dark)/15 text-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                       }`}
                     >
                       {serviceName}
@@ -514,9 +514,9 @@ const findNextAvailableSlot = (
                 if (levelLabel) {
                   highlightRows.push(
                     <div className="flex items-center gap-2">
-                      <Layers className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <Layers className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
                       <div>
-                        <span className="font-semibold text-[#7E22CE]">Levels:</span>{' '}
+                        <span className="font-semibold text-(--color-brand-dark)">Levels:</span>{' '}
                         <span>{levelLabel}</span>
                       </div>
                     </div>
@@ -525,9 +525,9 @@ const findNextAvailableSlot = (
                 if (hasFormat) {
                   highlightRows.push(
                     <div className="flex items-center gap-2">
-                      <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <MonitorSmartphone className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
                       <div>
-                        <span className="font-semibold text-[#7E22CE]">Format:</span>{' '}
+                        <span className="font-semibold text-(--color-brand-dark)">Format:</span>{' '}
                         <span className="inline-flex items-center gap-1.5">
                           {offersTravel && (
                             <span role="img" aria-label="Travels to you" title="Travels to you" className="cursor-help">
@@ -541,7 +541,7 @@ const findNextAvailableSlot = (
                               title="At their studio"
                               className="cursor-help inline-flex items-center"
                             >
-                              <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />
+                              <MapPin className="h-4 w-4 text-(--color-brand-dark)" aria-hidden="true" />
                             </span>
                           )}
                           {offersOnline && (
@@ -566,9 +566,9 @@ const findNextAvailableSlot = (
                 if (yearsLabel) {
                   metaRows.push(
                     <div className="flex items-center gap-2">
-                      <Clock3 className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <Clock3 className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
                       <div>
-                        <span className="font-semibold text-[#7E22CE]">Experience:</span>{' '}
+                        <span className="font-semibold text-(--color-brand-dark)">Experience:</span>{' '}
                         <span>{yearsLabel}</span>
                       </div>
                     </div>
@@ -578,9 +578,9 @@ const findNextAvailableSlot = (
                 if (areaLabel) {
                   metaRows.push(
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
+                      <MapPin className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
                       <div>
-                        <span className="font-semibold text-[#7E22CE]">Service areas:</span>{' '}
+                        <span className="font-semibold text-(--color-brand-dark)">Service areas:</span>{' '}
                         <span>{areaLabel}</span>
                       </div>
                     </div>
@@ -599,7 +599,7 @@ const findNextAvailableSlot = (
                     {combinedRows.map((row, index) => (
                       <div key={index}>
                         {index > 0 && (
-                          <div className="h-px w-[70%] ml-0 bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
+                          <div className="h-px w-[70%] ml-0 bg-gradient-to-r from-transparent via-(--color-brand-dark)/40 to-transparent" />
                         )}
                         <div className="py-2">{row}</div>
                       </div>
@@ -615,14 +615,14 @@ const findNextAvailableSlot = (
                 {(() => {
                   if (contextualRate === 0) {
                     return (
-                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
+                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-(--color-brand-dark)`} data-testid="instructor-price">
                         Contact
                       </p>
                     );
                   }
                   return (
                     <>
-                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
+                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-(--color-brand-dark)`} data-testid="instructor-price">
                         {contextualIsFrom ? 'from ' : ''}${contextualRate}/hr
                       </p>
                       {!contextualIsFrom && (
@@ -644,7 +644,7 @@ const findNextAvailableSlot = (
                 variant="ghost"
                 size="sm"
                 iconOnly
-                className="text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                className="text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
               />
 
               {/* Favorite Button */}
@@ -671,7 +671,7 @@ const findNextAvailableSlot = (
             {getBio().length > 400 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 text-sm font-medium mt-1 cursor-pointer"
+                className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 text-sm font-medium mt-1 cursor-pointer"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>
@@ -694,7 +694,7 @@ const findNextAvailableSlot = (
                         value={duration}
                         checked={selectedDuration === duration}
                         onChange={() => setSelectedDuration(duration)}
-                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-[#7E22CE] accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]`}
+                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-(--color-brand-dark)`}
                       />
                       <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700 dark:text-gray-300`}>{duration} min (${price})</span>
                     </label>
@@ -762,7 +762,7 @@ const findNextAvailableSlot = (
               disabled={!nextAvailableSlot}
               className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
                 nextAvailableSlot
-                  ? 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
+                  ? 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >
@@ -778,7 +778,7 @@ const findNextAvailableSlot = (
                   initialDurationMinutes: resolvedDurationMinutes,
                 });
               }}
-              className={`flex-1 text-center bg-white dark:bg-gray-800 text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors cursor-pointer`}
+              className={`flex-1 text-center bg-white dark:bg-gray-800 text-(--color-brand-dark) ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors cursor-pointer`}
             >
               More options
             </button>

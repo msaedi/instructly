@@ -527,7 +527,7 @@ describe('InstructorHeader', () => {
       const heartButton = screen.getByLabelText('Toggle favorite');
       expect(heartButton).toBeInTheDocument();
       // Heart should be filled (isSaved=true)
-      expect(heartButton.querySelector('svg')).toHaveAttribute('fill', '#7E22CE');
+      expect(heartButton.querySelector('svg')).toHaveAttribute('fill', 'var(--color-brand-dark)');
     });
 
     it('uses false when both favoriteStatus and is_favorited are undefined', () => {

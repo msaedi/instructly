@@ -144,7 +144,7 @@ export default function InstructorDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand-dark)"></div>
       </div>
     );
   }
@@ -156,7 +156,7 @@ export default function InstructorDashboard() {
         <nav className="bg-white dark:bg-gray-800 shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+              <Link href="/" className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                 iNSTAiNSTRU
               </Link>
               <UserProfileDropdown />
@@ -169,7 +169,7 @@ export default function InstructorDashboard() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
             <Link
               href="/become-instructor"
-              className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
+              className="inline-block px-6 py-2 bg-(--color-brand-dark) text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
               onClick={() => logger.debug('Navigating to become-instructor from error state')}
             >
               Complete Profile Setup
@@ -192,7 +192,7 @@ export default function InstructorDashboard() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <span className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
+              <span className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
                 {BRAND.name}
               </span>
             </Link>
@@ -237,7 +237,7 @@ export default function InstructorDashboard() {
               label="ID verification (Stripe Identity)"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/verification" className="text-[#7E22CE] hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-(--color-brand-dark) hover:underline">
                   Start verification
                 </Link>
               }
@@ -246,7 +246,7 @@ export default function InstructorDashboard() {
               label="Background check uploaded"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/verification" className="text-[#7E22CE] hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-(--color-brand-dark) hover:underline">
                   Upload document
                 </Link>
               }
@@ -255,14 +255,14 @@ export default function InstructorDashboard() {
               label="Skills & pricing set"
               ok={(profile.services || []).length > 0}
               action={
-                <Link href="/instructor/onboarding/skill-selection?redirect=%2Fdashboard%2Finstructor" className="text-[#7E22CE] hover:underline">
+                <Link href="/instructor/onboarding/skill-selection?redirect=%2Fdashboard%2Finstructor" className="text-(--color-brand-dark) hover:underline">
                   Edit skills
                 </Link>
               }
             />
             <div className="pt-2">
               <button
-                className="px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 font-semibold"
+                className="px-5 py-2.5 rounded-lg text-white bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 font-semibold"
                 disabled={!(connectStatus?.onboarding_completed && (profile.services || []).length > 0)}
                 onClick={() => alert('Please use the new dashboard at /instructor/dashboard')}
               >
@@ -279,20 +279,20 @@ export default function InstructorDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Total Bookings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">0</p>
+            <p className="text-3xl font-bold text-(--color-brand-dark)">0</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Coming soon</p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Rating</h3>
             <div className="flex items-center gap-2">
               <Star className="h-6 w-6 text-yellow-400" fill="#facc15" aria-hidden="true" />
-              <p className="text-3xl font-bold text-[#7E22CE]">{formattedRating}</p>
+              <p className="text-3xl font-bold text-(--color-brand-dark)">{formattedRating}</p>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{ratingSubtitle}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Total Earnings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
+            <p className="text-3xl font-bold text-(--color-brand-dark)">$0</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Payment integration pending</p>
           </div>
         </div>
@@ -304,7 +304,7 @@ export default function InstructorDashboard() {
             {profile?.user_id && totalReviews > 0 && (
               <Link
                 href={`/instructors/${profile.user_id}/reviews`}
-                className="text-sm text-[#7E22CE] hover:underline"
+                className="text-sm text-(--color-brand-dark) hover:underline"
                 onClick={() => logger.debug('Navigating to public reviews view from dashboard')}
               >
                 View all
@@ -356,7 +356,7 @@ export default function InstructorDashboard() {
             onClick={() => logger.debug('Navigating to availability management')}
           >
             <div className="flex items-center gap-4">
-              <Calendar className="w-8 h-8 text-[#7E22CE]" />
+              <Calendar className="w-8 h-8 text-(--color-brand-dark)" />
               <div>
                 <h3 className="text-lg font-semibold">Manage Availability</h3>
                 <p className="text-gray-600 dark:text-gray-400">Set your weekly schedule and available hours</p>
@@ -381,7 +381,7 @@ export default function InstructorDashboard() {
                 logger.debug('Opening edit profile modal');
                 setShowEditModal(true);
               }}
-              className="flex items-center px-4 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
+              className="flex items-center px-4 py-2 bg-(--color-brand-dark) text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Profile
@@ -410,7 +410,7 @@ export default function InstructorDashboard() {
                         <p className="text-sm text-gray-600 dark:text-gray-400">{service.description}</p>
                       )}
                     </div>
-                    <span className="font-semibold text-[#7E22CE]">${service.min_hourly_rate}/hr</span>
+                    <span className="font-semibold text-(--color-brand-dark)">${service.min_hourly_rate}/hr</span>
                   </div>
                 ))}
               </div>

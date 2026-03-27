@@ -96,6 +96,15 @@ body {
   --foreground-secondary: #6b7280;
 
   /* Brand Colors */
+  --color-brand: #7C3AED;
+  --color-brand-dark: #7E22CE;
+  --color-brand-lavender: #F3E8FF;
+  --color-star-amber: #FFD93D;
+  --color-online-green: #059669;
+  --color-online-green-light: #D1FAE5;
+  --color-notravel-yellow: #FFD93D;
+  --color-notravel-yellow-light: #FFEDAF;
+  --color-notravel-brown: #92400E;
   --color-primary: #7E22CE; /* Brand Purple */
   --color-primary-hover: #7E22CE; /* Keep solid on hover (no color change) */
   --color-primary-light: #EDE7F6; /* Pastel Lavender for cards */

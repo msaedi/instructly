@@ -178,7 +178,7 @@ describe('MessageBubble', () => {
       render(<MessageBubble message={createMessage({ reactions })} />);
 
       const reactionButton = screen.getByText('👍 1').closest('button');
-      expect(reactionButton).toHaveClass('bg-[#7E22CE]');
+      expect(reactionButton).toHaveClass('bg-(--color-brand-dark)');
     });
 
     it('calls onReact when reaction is clicked', async () => {

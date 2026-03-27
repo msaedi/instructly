@@ -141,7 +141,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
         <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4 ${compactShare ? 'p-0' : ''}`}>
           <div className={`flex items-start gap-3 ${hideShareIcon ? 'flex-1 min-w-0' : ''}`}>
             {!hideShareIcon && (
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-(--color-brand-dark)/10 text-(--color-brand-dark)">
                 <Gift className="h-6 w-6" aria-hidden="true" />
               </span>
             )}
@@ -162,7 +162,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               type="button"
               onClick={handleShare}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-secondary-btn"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-secondary-btn"
             >
               <Share2 className="h-4 w-4" aria-hidden="true" />
               Share
@@ -171,7 +171,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               type="button"
               onClick={handleCopy}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy
@@ -195,9 +195,9 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               onClick={() => setActiveTab(tab)}
               className={
                 minimalTabs
-                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`
+                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-(--color-brand-dark)' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`
                   : `rounded-full px-4 py-2 text-sm font-medium transition ${
-                      activeTab === tab ? 'bg-[#7E22CE] text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      activeTab === tab ? 'bg-(--color-brand-dark) text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`
               }
               aria-pressed={activeTab === tab}

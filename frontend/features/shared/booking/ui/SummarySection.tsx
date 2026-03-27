@@ -153,7 +153,7 @@ export default function SummarySection({
             w-full py-2.5 px-4 rounded-lg font-medium transition-colors
             ${
               isComplete
-                ? 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700'
+                ? 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700'
                 : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
             }
           `}

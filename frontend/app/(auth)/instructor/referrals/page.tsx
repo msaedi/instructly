@@ -77,7 +77,7 @@ function RewardOfferCard({
             Paid via Stripe when they complete their first lesson.
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center rounded-full bg-[#F3E8FF] px-3 py-1 text-sm font-semibold text-[#7E22CE]">
+        <span className="inline-flex shrink-0 items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand-dark) dark:bg-[#2D174D]/40 dark:text-[#C4B5FD]">
           {amount} cash
         </span>
       </CardContent>
@@ -103,7 +103,7 @@ function StatTile({
           </p>
           <p className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F3E8FF] text-[#7C3AED]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-(--color-brand-lavender) text-(--color-brand) dark:bg-[#2D174D]/40 dark:text-[#C4B5FD]">
           <Icon className="h-5 w-5" aria-hidden />
         </div>
       </CardContent>
@@ -155,7 +155,7 @@ function RewardRow({ reward }: { reward: InstructorReferralReward }) {
               {payoutStatus}
             </Badge>
           ) : null}
-          <span className="inline-flex items-center rounded-full bg-[#F3E8FF] px-2.5 py-1 text-sm font-semibold text-[#7E22CE]">
+          <span className="inline-flex items-center rounded-full bg-(--color-brand-lavender) px-2.5 py-1 text-sm font-semibold text-(--color-brand-dark) dark:bg-[#2D174D]/40 dark:text-[#C4B5FD]">
             {formatCents(reward.amountCents)}
           </span>
         </div>
@@ -323,7 +323,7 @@ export default function InstructorReferralsPage() {
         <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
           <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
+              <h1 className="pl-0 text-3xl font-bold text-(--color-brand-dark) transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
@@ -333,7 +333,7 @@ export default function InstructorReferralsPage() {
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 sm:block">
             <div className="pointer-events-auto container mx-auto max-w-6xl px-8 lg:px-32">
-              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark)">
                 <ArrowLeft className="h-4 w-4" />
                 <span>Back to dashboard</span>
               </Link>
@@ -348,7 +348,7 @@ export default function InstructorReferralsPage() {
             <Link
               href="/instructor/dashboard"
               aria-label="Back to dashboard"
-              className="inline-flex items-center gap-1 text-[#7E22CE]"
+              className="inline-flex items-center gap-1 text-(--color-brand-dark)"
             >
               <ArrowLeft className="h-5 w-5" />
               <span className="sr-only">Back to dashboard</span>

@@ -39,7 +39,7 @@ function SlotImpl(
       ref={ref}
       type="button"
       className={clsx(
-        'relative w-full border-l border-b border-gray-200 dark:border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] transition-colors',
+        'relative w-full border-l border-b border-gray-200 dark:border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-(--color-brand-dark) transition-colors',
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
         pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',

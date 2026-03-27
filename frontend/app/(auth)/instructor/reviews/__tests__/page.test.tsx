@@ -150,8 +150,10 @@ describe('InstructorReviewsPage', () => {
     expect(within(reviewMeta).getByText('about 4 hours ago')).toBeInTheDocument();
     expect(within(reviewMeta).getByRole('button', { name: 'Reply' })).toBeInTheDocument();
 
-    const summaryStars = container.querySelectorAll('.text-\\[\\#FFD93D\\]');
-    expect(summaryStars.length).toBeGreaterThan(0);
+    const amberStars = Array.from(container.querySelectorAll('svg')).filter((icon) =>
+      icon.classList.contains('text-(--color-star-amber)')
+    );
+    expect(amberStars.length).toBeGreaterThan(0);
 
     const secondReviewCard = screen.getByText('Alex W.').closest('article');
     expect(secondReviewCard).not.toBeNull();
@@ -179,7 +181,7 @@ describe('InstructorReviewsPage', () => {
     await user.click(commentsToggle);
 
     expect(commentsToggle).toHaveAttribute('aria-checked', 'true');
-    expect(commentsPill).toHaveClass('border-[#7C3AED]', 'bg-[#F3E8FF]', 'text-[#7C3AED]');
+    expect(commentsPill).toHaveClass('border-(--color-brand)', 'bg-(--color-brand-lavender)', 'text-(--color-brand)');
     expect(mockUseInstructorReviews).toHaveBeenLastCalledWith(
       'instructor-1',
       1,

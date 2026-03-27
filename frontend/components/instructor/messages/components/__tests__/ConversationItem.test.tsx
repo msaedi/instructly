@@ -262,8 +262,9 @@ describe('ConversationItem', () => {
         <ConversationItem {...defaultProps} conversation={composeConversation} />
       );
 
-      const avatar = container.querySelector('.bg-\\[\\#7E22CE\\]');
+      const avatar = container.querySelector('.lucide-pencil')?.closest('div');
       expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveClass('bg-(--color-brand-dark)');
     });
   });
 });

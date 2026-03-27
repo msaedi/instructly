@@ -123,7 +123,7 @@ export function InstructorBookingDetailView({
               type="button"
               variant="outline"
               size="sm"
-              className="min-w-[108px] rounded-full border-[#7C3AED] bg-white text-[#7C3AED] hover:bg-[#F3E8FF] hover:text-[#7C3AED] focus-visible:ring-[#7C3AED] dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
+              className="min-w-[108px] rounded-full border-(--color-brand) bg-white text-(--color-brand) hover:bg-(--color-brand-lavender) hover:text-(--color-brand) focus-visible:ring-(--color-brand) dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
               onClick={onMessageStudent}
               disabled={isMessagePending}
             >
@@ -159,21 +159,21 @@ export function InstructorBookingDetailView({
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl bg-[#F3E8FF] p-4 dark:bg-[#2D174D]/40">
+            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
               <p className="text-sm text-gray-500 dark:text-gray-400">Rate</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatPrice(booking.hourly_rate)}/hr
               </p>
             </div>
 
-            <div className="rounded-xl bg-[#F3E8FF] p-4 dark:bg-[#2D174D]/40">
+            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
               <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatDurationMinutes(booking.duration_minutes)}
               </p>
             </div>
 
-            <div className="rounded-xl bg-[#F3E8FF] p-4 dark:bg-[#2D174D]/40">
+            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
               <p className="text-sm text-gray-500 dark:text-gray-400">Lesson price</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatPrice(booking.total_price)}
@@ -193,7 +193,7 @@ export function InstructorBookingDetailView({
           <div className="space-y-4 px-6 pb-5">
             {needsAction ? (
               <div
-                className="rounded-xl border border-[#7C3AED]/20 bg-[#F3E8FF] p-4 dark:border-[#A78BFA]/25 dark:bg-[#2D174D]/40"
+                className="rounded-xl border border-(--color-brand)/20 bg-(--color-brand-lavender) p-4 dark:border-[#A78BFA]/25 dark:bg-[#2D174D]/40"
                 data-testid="booking-action-banner"
               >
                 <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
@@ -222,7 +222,7 @@ export function InstructorBookingDetailView({
                     type="button"
                     onClick={onMarkComplete}
                     disabled={isActionPending}
-                    className="bg-[#7C3AED] text-white hover:bg-[#6D28D9] dark:bg-[#7C3AED] dark:hover:bg-[#6D28D9]"
+                    className="bg-(--color-brand) text-white hover:bg-[#6D28D9] dark:bg-(--color-brand) dark:hover:bg-[#6D28D9]"
                   >
                     Mark Complete
                   </Button>

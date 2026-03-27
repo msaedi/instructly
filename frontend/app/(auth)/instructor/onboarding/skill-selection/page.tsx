@@ -1275,7 +1275,7 @@ function Step3SkillsPricingInner() {
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-[#7E22CE]" />
+                  <BookOpen className="w-6 h-6 text-(--color-brand-dark)" />
                 </div>
                 <span>Service categories</span>
               </div>
@@ -1316,7 +1316,7 @@ function Step3SkillsPricingInner() {
                       className={`ml-auto rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center no-hover-shadow shrink-0 ${
                         isInstructorLive && selected.length <= 1
                           ? 'text-gray-300 cursor-not-allowed'
-                          : 'text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30'
                       }`}
                       onClick={() => removeService(service.catalog_service_id)}
                     >
@@ -1347,9 +1347,9 @@ function Step3SkillsPricingInner() {
                           type="button"
                           onClick={() => toggleService(service)}
                           aria-pressed={selectedFlag}
-                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                             selectedFlag
-                              ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
+                              ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
@@ -1480,9 +1480,9 @@ function Step3SkillsPricingInner() {
                                         type="button"
                                         aria-label={`${selectedFlag ? 'Remove' : 'Add'} service ${service.name}`}
                                         onClick={() => toggleService(service)}
-                                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                           selectedFlag
-                                            ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
+                                            ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                         }`}
                                       >
@@ -1514,7 +1514,7 @@ function Step3SkillsPricingInner() {
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <CheckSquare className="w-6 h-6 text-[#7E22CE]" />
+                  <CheckSquare className="w-6 h-6 text-(--color-brand-dark)" />
                 </div>
                 <span>Your selected skills</span>
               </div>
@@ -1664,7 +1664,7 @@ function Step3SkillsPricingInner() {
                                   !isEligible
                                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-300 border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-70'
                                     : isSelected
-                                    ? 'bg-purple-100 text-[#7E22CE] border-purple-300'
+                                    ? 'bg-purple-100 text-(--color-brand-dark) border-purple-300'
                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border-transparent'
                                 }`}
                               >
@@ -1713,7 +1713,7 @@ function Step3SkillsPricingInner() {
                               }
                               className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                 service.duration_options.includes(duration)
-                                  ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                                  ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300'
                                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
@@ -1754,7 +1754,7 @@ function Step3SkillsPricingInner() {
                                 }}
                                 className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                   isSelected
-                                    ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                                    ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300'
                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                 }`}
                               >
@@ -1794,7 +1794,7 @@ function Step3SkillsPricingInner() {
                         </label>
                         <textarea
                           rows={2}
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                           placeholder="Brief description of your teaching style..."
                           value={service.description || ''}
                           onChange={(event) =>
@@ -1815,7 +1815,7 @@ function Step3SkillsPricingInner() {
                         </label>
                         <textarea
                           rows={2}
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                           placeholder="Yoga mat, tennis racket..."
                           value={service.equipment || ''}
                           onChange={(event) =>
@@ -1888,7 +1888,7 @@ function Step3SkillsPricingInner() {
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Lightbulb className="w-6 h-6 text-[#7E22CE]" />
+                  <Lightbulb className="w-6 h-6 text-(--color-brand-dark)" />
                 </div>
                 <span>Don&apos;t see your skill? We&apos;d love to add it!</span>
               </div>
@@ -1901,7 +1901,7 @@ function Step3SkillsPricingInner() {
               value={requestText}
               onChange={(event) => setRequestText(event.target.value)}
               placeholder="Type your skill here..."
-              className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20"
+              className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20"
             />
             <button
               onClick={submitServiceRequest}
@@ -1920,7 +1920,7 @@ function Step3SkillsPricingInner() {
             onClick={() => {
               window.location.href = '/instructor/onboarding/verification';
             }}
-            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 justify-center"
           >
             Skip for now
           </button>

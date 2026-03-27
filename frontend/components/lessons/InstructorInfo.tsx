@@ -109,7 +109,7 @@ export function InstructorInfo({
         {onChat && !showBookAgainButton && (
           <Button
             onClick={onChat}
-            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
+            className="flex-1 sm:flex-initial bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
           >
             <MessageCircle className="h-5 w-5 mr-2" />
             Chat
@@ -132,7 +132,7 @@ export function InstructorInfo({
           showReviewButton && onReview && (
             <Button
               onClick={onReview}
-              className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2 px-4 text-sm font-medium"
+              className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-(--color-brand-dark) border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2 px-4 text-sm font-medium"
             >
               Review & tip
             </Button>
@@ -141,7 +141,7 @@ export function InstructorInfo({
         {showBookAgainButton && onBookAgain && (
           <Button
             onClick={onBookAgain}
-            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
+            className="flex-1 sm:flex-initial bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
           >
             Book Again
           </Button>

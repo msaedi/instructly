@@ -570,7 +570,7 @@ describe('SettingsImpl', () => {
     });
 
     const tfaToggle = screen.getByRole('switch', { name: 'Two-factor authentication' });
-    expect(tfaToggle).toHaveClass('bg-[#7C3AED]');
+    expect(tfaToggle).toHaveClass('bg-(--color-brand)');
 
     await user.click(tfaToggle);
 

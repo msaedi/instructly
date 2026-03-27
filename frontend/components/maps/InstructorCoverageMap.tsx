@@ -164,8 +164,8 @@ export default function InstructorCoverageMap({
               const serving: readonly unknown[] = getArray(featureProps(feature), 'instructors');
               const highlighted = highlightInstructorId && serving.includes(highlightInstructorId);
               return highlighted
-                ? { color: '#7E22CE', weight: 2, fillOpacity: 0.35 }
-                : { color: '#7E22CE', weight: 1, fillOpacity: 0.12 };
+                ? { color: 'var(--color-brand-dark)', weight: 2, fillOpacity: 0.35 }
+                : { color: 'var(--color-brand-dark)', weight: 1, fillOpacity: 0.12 };
             }}
             onEachFeature={(feature: Feature<Geometry, GeoJSONProperties>, layer: L.Layer) => {
               const props = featureProps(feature);
@@ -354,7 +354,7 @@ function MapPins({ locations }: { locations: LocationPin[] }) {
     if (!locations || locations.length === 0) return;
 
     const pinSvg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#7E22CE" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.3 7 13 7 13s7-7.7 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#ffffff" stroke="none"/></svg>';
+      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="var(--color-brand-dark)" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.3 7 13 7 13s7-7.7 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#ffffff" stroke="none"/></svg>';
     const icon = L.divIcon({
       html: pinSvg,
       className: 'studio-pin',
@@ -549,7 +549,7 @@ function CustomControls() {
             if (locationMarker) {
               locationMarker.remove();
             }
-            locationMarker = L.circleMarker<GeoJSONProperties>(latlng, { radius: 4, color: '#7E22CE', fillOpacity: 0.9 });
+            locationMarker = L.circleMarker<GeoJSONProperties>(latlng, { radius: 4, color: 'var(--color-brand-dark)', fillOpacity: 0.9 });
             locationMarker.addTo(map);
           },
           () => {},

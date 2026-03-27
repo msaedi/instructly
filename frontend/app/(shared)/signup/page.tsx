@@ -410,7 +410,7 @@ function SignUpForm() {
       <div className="insta-surface-card py-4 md:py-8 px-0 sm:px-10 sm:shadow">
         <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
-            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">{BRAND.name}</h1>
+            <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">{BRAND.name}</h1>
           </Link>
         </div>
         {isInstructorFlow && (
@@ -443,7 +443,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
               <div className="mt-1">
-                <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={formData.firstName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'firstName-error' : undefined} />
+                <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={formData.firstName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'firstName-error' : undefined} />
                 {errors.firstName && (<p id="firstName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.firstName}</p>)}
               </div>
             </div>
@@ -452,7 +452,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
               <div className="mt-1">
-                <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={formData.lastName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? 'lastName-error' : undefined} />
+                <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={formData.lastName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? 'lastName-error' : undefined} />
                 {errors.lastName && (<p id="lastName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.lastName}</p>)}
               </div>
             </div>
@@ -462,7 +462,7 @@ function SignUpForm() {
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="mt-1">
-              <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} onBlur={handleEmailBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
+              <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} onBlur={handleEmailBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
               {errors.email && (<p id="email-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
             </div>
           </div>
@@ -473,7 +473,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
-                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} onBlur={handlePhoneBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} onBlur={handlePhoneBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
                 {errors.phone && (<p id="phone-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>
@@ -482,7 +482,7 @@ function SignUpForm() {
             <div>
               <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Zip Code</label>
               <div className="mt-1">
-                <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
+                <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
                 {errors.zipCode && (
                   <p id="zipCode-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
                 )}
@@ -494,12 +494,12 @@ function SignUpForm() {
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="mt-1 relative">
-              <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
+              <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
                 disabled={isLoading}
               >
                 {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
@@ -516,7 +516,7 @@ function SignUpForm() {
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
             <div className="mt-1">
-              <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.confirmPassword} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} />
+              <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.confirmPassword} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} />
               {errors.confirmPassword && (<p id="confirmPassword-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>)}
             </div>
           </div>
@@ -530,19 +530,19 @@ function SignUpForm() {
               I agree to iNSTAiNSTRU&apos;s{' '}
               <Link
                 href="/terms"
-                className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Terms of Service
               </Link>{' '}
               and{' '}
               <Link
                 href="/privacy"
-                className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
+                className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Privacy Policy
               </Link>
             </p>
-            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Sending code…' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
+            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Sending code…' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
 
             {/* Instructor CTAs placed tight under the button */}
             {isInstructorFlow && (
@@ -555,7 +555,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                     >
                       Sign up as a student
                     </Link>
@@ -569,7 +569,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -588,7 +588,7 @@ function SignUpForm() {
                       redirect,
                       ref: referralCode,
                     })}
-                    className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                    className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                   >
                     Sign up as Instructor
                   </Link>
@@ -601,7 +601,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -632,7 +632,7 @@ export default function SignUpPage() {
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 flex items-center justify-center">
       {/* Mobile: full-width, no modal look; Desktop: centered card */}
       <div className="w-full sm:max-w-md sm:mx-auto">
-        <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE] dark:border-purple-400" /></div>}>
+        <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark) dark:border-purple-400" /></div>}>
           <SignUpForm />
         </Suspense>
       </div>

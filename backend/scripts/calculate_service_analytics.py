@@ -115,8 +115,10 @@ class AnalyticsCalculator:
         Returns:
             Dictionary with instructor metrics
         """
-        # Use repository method to count active instructors
-        active_instructors = self.catalog_repository.count_active_instructors(service_catalog_id)
+        # Reuse the bulk repository path so analytics stays aligned with live-instructor filtering.
+        active_instructors = self.catalog_repository.count_active_instructors_bulk(
+            [service_catalog_id]
+        ).get(service_catalog_id, 0)
 
         # Calculate total weekly hours available
         # This is a simplified calculation - in reality would need availability data

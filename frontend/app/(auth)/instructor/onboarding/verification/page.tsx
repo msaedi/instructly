@@ -535,7 +535,7 @@ export default function Step4Verification() {
             <div className="grid grid-cols-[3rem_1fr] gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
                 <svg
-                  className="h-6 w-6 text-[#7E22CE]"
+                  className="h-6 w-6 text-(--color-brand-dark)"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -658,7 +658,7 @@ export default function Step4Verification() {
           <section id="bgc-step-card" className="insta-surface-card p-4 sm:p-6">
             <div className="mb-4 flex items-start gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-                <ShieldCheck className="h-6 w-6 text-[#7E22CE]" />
+                <ShieldCheck className="h-6 w-6 text-(--color-brand-dark)" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -708,7 +708,7 @@ export default function Step4Verification() {
                   : '/instructor/onboarding/payment-setup'
               );
             }}
-            className="insta-secondary-btn w-40 justify-center rounded-lg px-5 py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20"
+            className="insta-secondary-btn w-40 justify-center rounded-lg px-5 py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20"
           >
             Skip for now
           </button>

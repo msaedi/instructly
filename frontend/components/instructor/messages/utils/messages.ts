@@ -10,6 +10,7 @@ import type {
   MessageWithAttachments,
   ReadByEntry,
 } from '../types';
+import { getBookingTimestamp } from './bookings';
 import { formatRelativeTimestamp, formatTimeLabel } from '@/components/messaging/formatters';
 
 type MessageApiLike = {
@@ -52,18 +53,6 @@ export const getBookingActivityTimestamp = (booking: Booking): string | undefine
   );
 };
 
-const getConversationBookingTimestamp = (booking: ConversationBooking): number => {
-  const combined = `${booking.date}T${booking.start_time}`;
-  const parsed = Date.parse(combined);
-
-  if (Number.isFinite(parsed)) {
-    return parsed;
-  }
-
-  const fallback = Date.parse(booking.date);
-  return Number.isFinite(fallback) ? fallback : 0;
-};
-
 export const deriveConversationPastBookings = (
   messages: MessageWithAttachments[]
 ): ConversationBooking[] => {
@@ -85,7 +74,7 @@ export const deriveConversationPastBookings = (
   }
 
   return Array.from(bookingMap.values()).sort(
-    (left, right) => getConversationBookingTimestamp(right) - getConversationBookingTimestamp(left)
+    (left, right) => getBookingTimestamp(right, 0) - getBookingTimestamp(left, 0)
   );
 };
 

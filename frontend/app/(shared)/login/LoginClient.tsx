@@ -347,7 +347,7 @@ function LoginForm({
       <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
         <div className="text-center mb-6">
           <Link href="/" onClick={() => logger.debug('Navigating to home from login inside box')}>
-            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+            <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
               {BRAND.name}
             </h1>
           </Link>
@@ -372,7 +372,7 @@ function LoginForm({
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
                     disabled={isSubmitting}
                   >
                     {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
@@ -410,7 +410,7 @@ function LoginForm({
             {/* Forgot Password */}
             <div className="flex items-center justify-between">
               <div className="text-sm">
-                <Link href="/forgot-password" className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors" onClick={() => logger.debug('Navigating to forgot password')}>
+                <Link href="/forgot-password" className="font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors" onClick={() => logger.debug('Navigating to forgot password')}>
                   Forgot password
                 </Link>
               </div>
@@ -420,7 +420,7 @@ function LoginForm({
               <button
                 type="submit"
                 disabled={isSubmitting || (captchaRequired && !captchaToken) || !!rateLimitedUntil}
-                className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {rateLimitedUntil
                   ? getButtonWaitLabel(rateLimitSecondsRemaining)
@@ -443,11 +443,11 @@ function LoginForm({
             </div>
             <div>
               <label htmlFor="twofa" className="block text-sm font-medium text-gray-700 dark:text-gray-300">6-digit code</label>
-              <input id="twofa" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
+              <input id="twofa" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
             </div>
             <div>
               <label htmlFor="backup" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code (optional)</label>
-              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
+              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
             </div>
             <div className="flex items-center gap-2">
               <input id="trust" type="checkbox" className="h-4 w-4" checked={trustThisBrowser} onChange={(e) => setTrustThisBrowser(e.target.checked)} />
@@ -455,7 +455,7 @@ function LoginForm({
             </div>
             {errors['twofa'] && (<p className="text-sm text-red-600" role="alert">{errors['twofa']}</p>)}
             <div>
-              <button type="submit" disabled={isVerifying2FA} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <button type="submit" disabled={isVerifying2FA} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 {isVerifying2FA ? 'Verifying…' : 'Verify & Continue'}
               </button>
             </div>
@@ -471,7 +471,7 @@ function LoginForm({
                   redirect: resolvedRedirect,
                   ref: referralCode ?? null,
                 })}
-                className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors"
+                className="font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors"
                 onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: resolvedRedirect })}
               >
                 Sign up

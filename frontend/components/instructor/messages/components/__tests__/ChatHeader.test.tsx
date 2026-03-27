@@ -157,13 +157,38 @@ describe('ChatHeader', () => {
       fireEvent.click(menuButton);
 
       const primaryCard = screen.getByTestId('chat-header-booking-card-01KKQKWD9V9QF0J2T0AB3124');
-      expect(primaryCard).toHaveClass('bg-[#F3E8FF]');
+      expect(primaryCard).toHaveClass('bg-(--color-brand-lavender)');
       expect(within(primaryCard).getByText('Piano Lesson')).toBeInTheDocument();
       expect(within(primaryCard).getByText('Confirmed')).toHaveClass('bg-emerald-50', 'text-emerald-700');
       expect(within(primaryCard).getByText(`#${shortenBookingId('01KKQKWD9V9QF0J2T0AB3124')}`)).toBeInTheDocument();
       expect(screen.queryByText('Next booking')).not.toBeInTheDocument();
       expect(screen.queryByText('Upcoming')).not.toBeInTheDocument();
       expect(screen.queryByText('01KKQKWD9V9QF0J2T0AB3124')).not.toBeInTheDocument();
+    });
+
+    it('uses the first upcoming booking when nextBooking is omitted', () => {
+      render(
+        <ChatHeader
+          {...defaultProps}
+          activeConversation={{
+            ...mockConversation,
+            upcomingBookingCount: 1,
+            upcomingBookings: [
+              {
+                id: '01KUPCOMING000000000000001',
+                service_name: 'Violin Lesson',
+                date: '2025-01-25',
+                start_time: '11:30',
+              },
+            ],
+          }}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+
+      expect(screen.getByTestId('chat-header-booking-card-01KUPCOMING000000000000001')).toBeInTheDocument();
+      expect(screen.getByText('Violin Lesson')).toBeInTheDocument();
     });
 
     it('shows expand button for multiple bookings', () => {
@@ -339,6 +364,43 @@ describe('ChatHeader', () => {
       expect(screen.getByText('No Show')).toBeInTheDocument();
       expect(screen.getByText('In Progress')).toBeInTheDocument();
       expect(screen.getByText('Payment Pending')).toBeInTheDocument();
+    });
+
+    it('keeps fallback booking status stable across rerenders with unchanged booking props', () => {
+      const dateNowSpy = jest.spyOn(Date, 'now');
+      dateNowSpy.mockReturnValue(Date.parse('2025-01-19T00:00:00Z'));
+
+      const conversationWithoutExplicitStatus = {
+        ...mockConversation,
+        nextBooking: {
+          id: '01KSTABLE0000000000000001',
+          service_name: 'Stable Status Lesson',
+          date: '2025-01-20',
+          start_time: '09:00',
+        },
+        upcomingBookingCount: 1,
+        upcomingBookings: [
+          {
+            id: '01KSTABLE0000000000000001',
+            service_name: 'Stable Status Lesson',
+            date: '2025-01-20',
+            start_time: '09:00',
+          },
+        ],
+      } as ConversationEntry;
+
+      const { rerender } = render(
+        <ChatHeader {...defaultProps} activeConversation={conversationWithoutExplicitStatus} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { expanded: false }));
+      expect(screen.getByText('Confirmed')).toBeInTheDocument();
+
+      dateNowSpy.mockReturnValue(Date.parse('2025-01-21T00:00:00Z'));
+      rerender(<ChatHeader {...defaultProps} activeConversation={conversationWithoutExplicitStatus} />);
+
+      expect(screen.getByText('Confirmed')).toBeInTheDocument();
+      dateNowSpy.mockRestore();
     });
   });
 

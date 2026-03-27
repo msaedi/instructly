@@ -36,7 +36,7 @@ export function PersonalInfoCard({
     <div className="insta-dashboard-accordion-trigger">
       <div className="insta-dashboard-accordion-leading">
         <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-          <UserIcon className="w-6 h-6 text-[#7E22CE]" />
+          <UserIcon className="w-6 h-6 text-(--color-brand-dark)" />
         </div>
         <div className="flex flex-col text-left">
           <span className="insta-dashboard-accordion-title">Personal Information</span>

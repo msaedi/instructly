@@ -28,10 +28,10 @@ function SummaryRatingStar({ rating }: { rating?: number | null }) {
     <div className="relative h-10 w-10 shrink-0" aria-hidden="true">
       <PhosphorStar
         weight="regular"
-        className="absolute inset-0 h-full w-full text-[#FFD93D]"
+        className="absolute inset-0 h-full w-full text-(--color-star-amber)"
       />
       <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
-        <PhosphorStar weight="fill" className="h-full w-full text-[#FFD93D]" />
+        <PhosphorStar weight="fill" className="h-full w-full text-(--color-star-amber)" />
       </div>
     </div>
   );
@@ -44,7 +44,7 @@ function ReviewStars({ rating }: { rating: number }) {
         <PhosphorStar
           key={value}
           weight={value <= rating ? 'fill' : 'regular'}
-          className="h-4 w-4 text-[#FFD93D]"
+          className="h-4 w-4 text-(--color-star-amber)"
         />
       ))}
     </div>
@@ -166,7 +166,7 @@ function ReviewsPageImpl() {
         <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
           <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
+              <h1 className="pl-0 text-3xl font-bold text-(--color-brand-dark) transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
@@ -176,7 +176,7 @@ function ReviewsPageImpl() {
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 sm:block">
             <div className="pointer-events-auto container mx-auto max-w-6xl px-8 lg:px-32">
-              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark)">
                 <ArrowLeft className="h-4 w-4" />
                 <span>Back to dashboard</span>
               </Link>
@@ -188,7 +188,7 @@ function ReviewsPageImpl() {
       <div className={embedded ? 'max-w-none px-0 py-0' : 'container mx-auto max-w-6xl px-8 py-8 lg:px-32'}>
         {!embedded ? (
           <div className="mb-2 sm:hidden">
-            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-[#7E22CE]">
+            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark)">
               <ArrowLeft className="h-5 w-5" />
               <span className="sr-only">Back to dashboard</span>
             </Link>
@@ -229,7 +229,7 @@ function ReviewsPageImpl() {
                     setFilter(nextValue as RatingFilter);
                     setPage(1);
                   }}
-                  className="h-12 w-full appearance-none rounded-2xl border border-gray-300 bg-white px-4 pr-12 text-sm font-medium text-gray-700 shadow-sm transition-colors focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  className="h-12 w-full appearance-none rounded-2xl border border-gray-300 bg-white px-4 pr-12 text-sm font-medium text-gray-700 shadow-sm transition-colors focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
                   <option value="all">All reviews</option>
                   <option value="5">5 stars</option>
@@ -242,9 +242,9 @@ function ReviewsPageImpl() {
               </label>
 
               <div
-                className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:ring-2 focus-within:ring-[#7E22CE]/20 ${
+                className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:ring-2 focus-within:ring-(--color-brand-dark)/20 ${
                   withCommentsOnly
-                    ? 'border-[#7C3AED] bg-[#F3E8FF] text-[#7C3AED]'
+                    ? 'border-(--color-brand) bg-(--color-brand-lavender) text-(--color-brand) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
                     : 'border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
                 }`}
               >
@@ -327,7 +327,7 @@ function ReviewsPageImpl() {
                                 return next;
                               });
                             }}
-                            className="text-sm font-semibold text-[#7E22CE] transition-colors hover:text-[#5f1aa4]"
+                            className="text-sm font-semibold text-(--color-brand-dark) transition-colors hover:text-[#5f1aa4]"
                           >
                             Reply
                           </button>
@@ -375,7 +375,7 @@ function ReviewsPageImpl() {
                               }));
                             }}
                             rows={3}
-                            className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                            className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                             placeholder="Write a thoughtful reply..."
                           />
                           {replyError ? (
@@ -385,7 +385,7 @@ function ReviewsPageImpl() {
                             <button
                               type="submit"
                               disabled={isSubmittingReply}
-                              className="rounded-full bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b21a8] disabled:cursor-not-allowed disabled:opacity-60"
+                              className="rounded-full bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b21a8] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {isSubmittingReply ? 'Sending…' : 'Send reply'}
                             </button>

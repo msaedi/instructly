@@ -126,7 +126,7 @@ export default function StripeConnectCallbackPage() {
           We&apos;re updating your instructor account. You&apos;ll be redirected shortly.
         </p>
         <div className="mt-8 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-          <div className="h-full w-full animate-pulse bg-[#7E22CE]" />
+          <div className="h-full w-full animate-pulse bg-(--color-brand-dark)" />
         </div>
       </div>
     </div>

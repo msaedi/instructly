@@ -297,7 +297,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           aria-haspopup="listbox"
           role="combobox"
           className={cn(
-            'w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-[#7E22CE]/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
+            'w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-(--color-brand-dark)/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
             inputClassName,
           )}
         />

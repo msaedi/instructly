@@ -211,8 +211,8 @@ describe('InteractiveGrid', () => {
       fireEvent.mouseUp(targetCell, { button: 0 });
 
       expect(targetCell).toHaveAttribute('data-tag-state', 'online_only');
-      expect(targetCell).toHaveClass('bg-[#D1FAE5]');
-      expect(screen.getByTestId('tag-indicator-online')).toHaveClass('text-[#059669]');
+      expect(targetCell).toHaveClass('bg-(--color-online-green-light)');
+      expect(screen.getByTestId('tag-indicator-online')).toHaveClass('text-(--color-online-green)');
       expect(screen.getByTestId('tag-indicator-online')).toBeInTheDocument();
     });
 
@@ -242,9 +242,9 @@ describe('InteractiveGrid', () => {
 
       expect(cells[0]).toHaveAttribute('data-tag-state', 'no_travel');
       expect(cells[7]).toHaveAttribute('data-tag-state', 'no_travel');
-      expect(cells[0]).toHaveClass('bg-[#FFEDAF]');
+      expect(cells[0]).toHaveClass('bg-(--color-notravel-yellow-light)');
       expect(screen.getAllByTestId('tag-indicator-no-travel')[0]?.parentElement).toHaveClass(
-        'text-[#92400E]'
+        'text-(--color-notravel-brown)'
       );
       expect(screen.getAllByTestId('tag-indicator-no-travel-slash').length).toBeGreaterThan(0);
     });

@@ -881,7 +881,7 @@ export function Chat({
       {!isAtBottom && (
         <button
           onClick={() => scrollToBottom()}
-          className="absolute bottom-24 right-4 bg-[#7E22CE] text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-purple-800 transition dark:bg-purple-600 dark:hover:bg-purple-700"
+          className="absolute bottom-24 right-4 bg-(--color-brand-dark) text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-purple-800 transition dark:bg-purple-600 dark:hover:bg-purple-700"
           aria-label="Scroll to latest messages"
         >
           <ChevronDown className="w-5 h-5" aria-hidden="true" />
@@ -906,7 +906,7 @@ export function Chat({
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
+              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
               style={{ minHeight: '40px', maxHeight: '160px' }}
             />
             {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
@@ -916,7 +916,7 @@ export function Chat({
               className={cn(
                 'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
                 inputMessage.trim() && !sendMessageMutation.isPending
-                  ? 'bg-[#7E22CE] text-white hover:bg-purple-800 ring-1 ring-[#7E22CE]/20 dark:bg-purple-600 dark:hover:bg-purple-700'
+                  ? 'bg-(--color-brand-dark) text-white hover:bg-purple-800 ring-1 ring-(--color-brand-dark)/20 dark:bg-purple-600 dark:hover:bg-purple-700'
                   : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
               )}
               aria-label={sendMessageMutation.isPending ? 'Sending message' : 'Send message'}

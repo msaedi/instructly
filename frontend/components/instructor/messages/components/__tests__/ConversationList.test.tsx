@@ -144,14 +144,14 @@ describe('ConversationList', () => {
       render(<ConversationList {...defaultProps} typeFilter="student" />);
 
       const studentsButton = screen.getByRole('button', { name: /students/i });
-      expect(studentsButton).toHaveClass('bg-[#7E22CE]', 'text-white');
+      expect(studentsButton).toHaveClass('bg-(--color-brand-dark)', 'text-white');
     });
 
     it('highlights archived when in archived mode', () => {
       render(<ConversationList {...defaultProps} messageDisplay="archived" />);
 
       const archivedButton = screen.getByRole('button', { name: /archived/i });
-      expect(archivedButton).toHaveClass('bg-[#7E22CE]', 'text-white');
+      expect(archivedButton).toHaveClass('bg-(--color-brand-dark)', 'text-white');
     });
 
     it('calls onTypeFilterChange and onMessageDisplayChange when clicking filter', () => {

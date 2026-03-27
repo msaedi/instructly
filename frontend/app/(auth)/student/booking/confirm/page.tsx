@@ -218,7 +218,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
@@ -247,7 +247,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -271,7 +271,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -285,7 +285,7 @@ export default function BookingConfirmationPage() {
             </h2>
             <button
               onClick={() => router.push('/student/lessons')}
-              className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
+              className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
             >
               Back to My Lessons
             </button>
@@ -303,7 +303,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -349,7 +349,7 @@ export default function BookingConfirmationPage() {
                 {referralShare && (
                   <button
                     onClick={() => setShareModalOpen(true)}
-                    className="w-full bg-[#7E22CE] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#6b1fb8] transition-colors"
+                    className="w-full bg-(--color-brand-dark) text-white py-3 px-6 rounded-lg font-medium hover:bg-[#6b1fb8] transition-colors"
                     aria-label="Share referral credit"
                   >
                     Share &amp; earn $20 credit
@@ -357,14 +357,14 @@ export default function BookingConfirmationPage() {
                 )}
                 <button
                   onClick={() => router.push('/student/lessons')}
-                  className="w-full bg-white/95 dark:bg-gray-900/75 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                  className="w-full bg-white/95 dark:bg-gray-900/75 text-(--color-brand-dark) py-3 px-6 rounded-lg font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   View My Lessons
                 </button>
 
                 <button
                   onClick={() => router.push(bookingData?.instructorId ? `/instructors/${bookingData.instructorId}` : '/student/lessons')}
-                  className="w-full bg-white/95 dark:bg-gray-900/75 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                  className="w-full bg-white/95 dark:bg-gray-900/75 text-(--color-brand-dark) py-3 px-6 rounded-lg font-medium border-2 border-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   Book Another Lesson
                 </button>
@@ -373,7 +373,7 @@ export default function BookingConfirmationPage() {
               {referralShare && (
                 <p className="mt-5 text-xs text-gray-500 dark:text-gray-400">
                   If your friend books their first $75+ lesson within 30 days, you both receive iNSTAiNSTRU credits.{' '}
-                  <Link href="/referrals-terms" className="text-[#7E22CE] underline" onClick={() => setShareModalOpen(false)}>
+                  <Link href="/referrals-terms" className="text-(--color-brand-dark) underline" onClick={() => setShareModalOpen(false)}>
                     Terms apply
                   </Link>
                   .
@@ -396,7 +396,7 @@ export default function BookingConfirmationPage() {
       <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />

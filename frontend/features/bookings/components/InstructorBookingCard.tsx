@@ -93,7 +93,7 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
 
         <div className="border-t border-gray-100 dark:border-gray-800" />
 
-        <div className="flex justify-end px-5 py-4 text-sm font-medium text-[#7C3AED] transition-colors group-hover:text-[#6D28D9] dark:text-[#C4B5FD] dark:group-hover:text-[#DDD6FE]">
+        <div className="flex justify-end px-5 py-4 text-sm font-medium text-(--color-brand) transition-colors group-hover:text-[#6D28D9] dark:text-[#C4B5FD] dark:group-hover:text-[#DDD6FE]">
           <span>Lesson details ›</span>
         </div>
       </Card>

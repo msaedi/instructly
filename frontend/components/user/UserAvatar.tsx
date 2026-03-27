@@ -36,7 +36,7 @@ export function UserAvatar({
   prefetchedUrl,
 }: Props) {
   const initials = useMemo(() => getUserInitials(user), [user]);
-  const bgColor = fallbackBgColor ?? '#7E22CE';
+  const bgColor = fallbackBgColor ?? 'var(--color-brand-dark)';
   const textColor = fallbackTextColor ?? '#ffffff';
 
   const shouldFetch = Boolean(user?.id && user.has_profile_picture !== false);

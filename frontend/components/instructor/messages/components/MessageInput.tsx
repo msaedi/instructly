@@ -74,14 +74,14 @@ export function MessageInput({
           {pendingAttachments.map((file, index) => (
             <span
               key={`${file.name}-${index}`}
-              className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-xs text-[#7E22CE]"
+              className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-xs text-(--color-brand-dark)"
             >
               <span className="max-w-[8rem] truncate" title={file.name}>
                 {file.name}
               </span>
               <button
                 type="button"
-                className="text-[#7E22CE] hover:text-purple-800 dark:hover:text-purple-200"
+                className="text-(--color-brand-dark) hover:text-purple-800 dark:hover:text-purple-200"
                 aria-label={`Remove attachment ${file.name}`}
                 onClick={() => onAttachmentRemove(index)}
               >
@@ -128,7 +128,7 @@ export function MessageInput({
           onClick={onSend}
           disabled={isSendDisabled}
           aria-label="Send message"
-          className="h-10 w-10 flex items-center justify-center bg-[#7E22CE] text-white rounded-full hover:bg-[#5f1aa4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="h-10 w-10 flex items-center justify-center bg-(--color-brand-dark) text-white rounded-full hover:bg-[#5f1aa4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Send className="w-4 h-4" />
         </button>

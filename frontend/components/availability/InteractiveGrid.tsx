@@ -523,7 +523,7 @@ export default function InteractiveGrid({
                     className={clsx(
                       'inline-flex items-center justify-center px-1 py-0 text-2xl font-medium leading-none',
                       isToday
-                        ? 'rounded-md border-2 border-[#7E22CE] text-[#111827] dark:text-white'
+                        ? 'rounded-md border-2 border-(--color-brand-dark) text-[#111827] dark:text-white'
                         : isPastDate
                           ? 'text-gray-400 dark:text-gray-300'
                           : 'text-gray-900 dark:text-gray-100'
@@ -579,9 +579,9 @@ export default function InteractiveGrid({
                 isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
               const fillClass = selected
                 ? cellTag === TAG_ONLINE_ONLY
-                  ? 'bg-[#D1FAE5] dark:bg-[#064E3B]/30'
+                  ? 'bg-(--color-online-green-light) dark:bg-[#064E3B]/30'
                   : cellTag === TAG_NO_TRAVEL
-                    ? 'bg-[#FFEDAF] dark:bg-[#78350F]/30'
+                    ? 'bg-(--color-notravel-yellow-light) dark:bg-[#78350F]/30'
                     : 'bg-[#EDE3FA] dark:bg-purple-500/25'
                 : visualPast
                   ? 'bg-gray-50 dark:bg-gray-800/60'
@@ -615,7 +615,7 @@ export default function InteractiveGrid({
                     clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1
                   }
                   className={clsx(
-                    'group relative w-full flex-none cursor-pointer border-l border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-0 dark:border-gray-700',
+                    'group relative w-full flex-none cursor-pointer border-l border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-0 dark:border-gray-700',
                     isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
                     row === 0 && 'border-t border-gray-200 dark:border-gray-700',
                     isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
@@ -679,13 +679,13 @@ export default function InteractiveGrid({
                   {selected && !booked && cellTag === TAG_ONLINE_ONLY ? (
                     <span
                       data-testid="tag-indicator-online"
-                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-[#059669]"
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-(--color-online-green)"
                     >
                       <MonitorCheck className="h-3.5 w-3.5" />
                     </span>
                   ) : null}
                   {selected && !booked && cellTag === TAG_NO_TRAVEL ? (
-                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[#92400E]">
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-(--color-notravel-brown)">
                       <NoTravelIcon
                         className="h-3.5 w-3.5"
                         data-testid="tag-indicator-no-travel"

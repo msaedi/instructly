@@ -173,7 +173,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
                     ) : (
                       <>
                         <AlertCircle className="h-4 w-4 text-purple-600" aria-hidden="true" />
-                        <span className="text-[#7E22CE] font-medium whitespace-nowrap">Finish Onboarding</span>
+                        <span className="text-(--color-brand-dark) font-medium whitespace-nowrap">Finish Onboarding</span>
                       </>
                     )}
                   </button>
@@ -211,7 +211,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
               Sign Out
