@@ -13,55 +13,55 @@ class SMSTemplate:
 
 BOOKING_CONFIRMED_INSTRUCTOR = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: New booking! {student_name} booked {service_name} on {date} at {time}.",
+    template="iNSTAiNSTRU: New booking! {student_name} booked {service_name} on {date} at {time}.",
 )
 
 BOOKING_CONFIRMED_STUDENT = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: Booking confirmed! {service_name} with {instructor_name} on {date} at {time}.",
+    template="iNSTAiNSTRU: Booking confirmed! {service_name} with {instructor_name} on {date} at {time}.",
 )
 
 BOOKING_CANCELLED_INSTRUCTOR = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: {student_name} cancelled {service_name} on {date}.",
+    template="iNSTAiNSTRU: {student_name} cancelled {service_name} on {date}.",
 )
 
 BOOKING_CANCELLED_STUDENT = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: Your {service_name} lesson on {date} was cancelled by the instructor.",
+    template="iNSTAiNSTRU: Your {service_name} lesson on {date} was cancelled by the instructor.",
 )
 
 REMINDER_24H = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: Reminder - {service_name} tomorrow at {time} with {other_party_name}.",
+    template="iNSTAiNSTRU: Reminder - {service_name} tomorrow at {time} with {other_party_name}.",
 )
 
 REMINDER_1H = SMSTemplate(
     category="lesson_updates",
-    template="InstaInstru: {service_name} starts in 1 hour with {other_party_name}!",
+    template="iNSTAiNSTRU: {service_name} starts in 1 hour with {other_party_name}!",
 )
 
 REVIEW_NEW_REVIEW = SMSTemplate(
     category="reviews",
     template=(
-        "InstaInstru: New review! {student_name} left a {rating}-star review for " "{service_name}."
+        "iNSTAiNSTRU: New review! {student_name} left a {rating}-star review for " "{service_name}."
     ),
 )
 
 REVIEW_RESPONSE = SMSTemplate(
     category="reviews",
-    template="InstaInstru: {instructor_name} responded to your review. {response_preview}",
+    template="iNSTAiNSTRU: {instructor_name} responded to your review. {response_preview}",
 )
 
 BOOKING_NEW_MESSAGE = SMSTemplate(
     category="messages",
-    template="InstaInstru: New message from {sender_name} about {service_name}. {message_preview}",
+    template="iNSTAiNSTRU: New message from {sender_name} about {service_name}. {message_preview}",
 )
 
 SECURITY_NEW_DEVICE_LOGIN = SMSTemplate(
     category="system_updates",
     template=(
-        "InstaInstru: New login detected. If this wasn't you, secure your account at "
+        "iNSTAiNSTRU: New login detected. If this wasn't you, secure your account at "
         "{security_url}."
     ),
 )
@@ -69,7 +69,7 @@ SECURITY_NEW_DEVICE_LOGIN = SMSTemplate(
 SECURITY_PW_CHANGED = SMSTemplate(
     category="system_updates",
     template=(
-        "InstaInstru: Your password was just changed. If this wasn't you, reset it at "
+        "iNSTAiNSTRU: Your password was just changed. If this wasn't you, reset it at "
         "{reset_url}."
     ),
 )
@@ -77,7 +77,7 @@ SECURITY_PW_CHANGED = SMSTemplate(
 SECURITY_2FA_CHANGED = SMSTemplate(
     category="system_updates",
     template=(
-        "InstaInstru: Two-factor authentication was {status}. If this wasn't you, secure "
+        "iNSTAiNSTRU: Two-factor authentication was {status}. If this wasn't you, secure "
         "your account at {security_url}."
     ),
 )
@@ -85,7 +85,7 @@ SECURITY_2FA_CHANGED = SMSTemplate(
 PAYMENT_FAILED = SMSTemplate(
     category="lesson_updates",
     template=(
-        "InstaInstru: Payment failed for {service_name} with {instructor_name} on {date}. "
+        "iNSTAiNSTRU: Payment failed for {service_name} with {instructor_name} on {date}. "
         "Update your card: {payment_url}"
     ),
 )
