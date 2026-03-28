@@ -369,12 +369,6 @@ test.describe('Instructor availability calendar', () => {
         await fulfillJson(route, buildWeekBitmapResponse(week.iso.base, currentSchedule, currentEtag), 200, {
           ETag: currentEtag,
         });
-        await page.evaluate(
-          (version) => {
-            (window as Window & { __week_version?: string }).__week_version = version;
-          },
-          currentEtag
-        );
         return;
       }
 
@@ -408,12 +402,6 @@ test.describe('Instructor availability calendar', () => {
           },
           200,
           { ETag: currentEtag }
-        );
-        await page.evaluate(
-          (version) => {
-            (window as Window & { __week_version?: string }).__week_version = version;
-          },
-          currentEtag
         );
         return;
       }
@@ -800,6 +788,9 @@ test.describe('Instructor availability calendar', () => {
     await page.goto('/instructor/dashboard?panel=availability');
     await initialWeekResponse;
     await alignCalendarToWeek(page, week.iso.base);
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __week_version?: string }).__week_version ?? null))
+      .toBe(currentEtag);
 
     await expect(
       page.getByRole('heading', { name: 'Buffer between back-to-back lessons' })
@@ -832,6 +823,9 @@ test.describe('Instructor availability calendar', () => {
     const reloadWeekResponse = waitForWeekResponse(page, 'GET', week.iso.base);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await reloadWeekResponse;
+    await expect
+      .poll(() => page.evaluate(() => (window as Window & { __week_version?: string }).__week_version ?? null))
+      .toBe(currentEtag);
     await alignCalendarToWeek(page, week.iso.base);
 
     const secondEditStart = availabilityCell(page, week.iso.base, '15:00:00');
