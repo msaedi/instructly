@@ -31,6 +31,8 @@ describe('TimeDropdown', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.useRealTimers();
+    Object.defineProperty(window, 'scrollX', { configurable: true, value: 0 });
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
   });
 
   describe('Visibility', () => {
@@ -515,6 +517,52 @@ describe('TimeDropdown', () => {
       });
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('positions the portaled listbox with fixed viewport coordinates', () => {
+      const originalScrollX = window.scrollX;
+      const originalScrollY = window.scrollY;
+      Object.defineProperty(window, 'scrollX', { configurable: true, value: 80 });
+      Object.defineProperty(window, 'scrollY', { configurable: true, value: 240 });
+
+      try {
+        render(<TimeDropdown {...defaultProps} />);
+        const trigger = screen.getByRole('button', { name: /select time/i });
+        jest.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+          x: 24,
+          y: 40,
+          width: 180,
+          height: 44,
+          top: 40,
+          right: 204,
+          bottom: 84,
+          left: 24,
+          toJSON: () => ({}),
+        } as DOMRect);
+
+        fireEvent.click(trigger);
+
+        const listbox = screen.getByRole('listbox');
+        expect(listbox).toHaveStyle({
+          position: 'fixed',
+          top: '88px',
+          left: '24px',
+          width: '180px',
+        });
+      } finally {
+        Object.defineProperty(window, 'scrollX', { configurable: true, value: originalScrollX });
+        Object.defineProperty(window, 'scrollY', { configurable: true, value: originalScrollY });
+      }
+    });
+
+    it('contains scroll chaining inside the dropdown list', () => {
+      render(<TimeDropdown {...defaultProps} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /select time/i }));
+
+      const scrollContainer = screen.getByRole('listbox').querySelector('div');
+      expect(scrollContainer).not.toBeNull();
+      expect(scrollContainer).toHaveClass('overscroll-contain');
     });
   });
 });

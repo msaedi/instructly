@@ -323,6 +323,7 @@ let latestTimeSelectionModalProps: {
   initialDurationMinutes: number | null | undefined;
   initialLocationType?: string | null | undefined;
   lockLocationType?: boolean | undefined;
+  prioritizeTimeSelectionOnOpen?: boolean | undefined;
 } | null = null;
 
 let mockTimeSelectionModalSelectionOverride: Partial<{
@@ -346,6 +347,7 @@ jest.mock('@/features/student/booking/components/TimeSelectionModal', () => {
     initialDurationMinutes,
     initialLocationType,
     lockLocationType,
+    prioritizeTimeSelectionOnOpen,
   }: {
     isOpen: boolean;
     onClose: () => void;
@@ -372,6 +374,7 @@ jest.mock('@/features/student/booking/components/TimeSelectionModal', () => {
     initialDurationMinutes?: number | null;
     initialLocationType?: string | null;
     lockLocationType?: boolean;
+    prioritizeTimeSelectionOnOpen?: boolean;
   }) {
     if (!isOpen) return null;
     latestTimeSelectionModalProps = {
@@ -382,6 +385,7 @@ jest.mock('@/features/student/booking/components/TimeSelectionModal', () => {
       initialDurationMinutes,
       initialLocationType,
       lockLocationType,
+      prioritizeTimeSelectionOnOpen,
     };
     return (
       <div data-testid="time-selection-modal">
@@ -1098,6 +1102,18 @@ describe('PaymentConfirmation', () => {
     });
 
     it('shows the unavailable-slot error and disables the CTA', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-01',
+            start_time: '10:00',
+            end_time: '11:00',
+            duration_minutes: 60,
+            status: 'confirmed',
+          },
+        ],
+      });
+
       await renderWithConflictCheck(
         <PaymentConfirmation
           {...defaultProps}
@@ -1109,7 +1125,25 @@ describe('PaymentConfirmation', () => {
       expect(
         screen.getByText('This time slot is no longer available. Please select another time.')
       ).toBeInTheDocument();
+      expect(screen.queryByText('Scheduling Conflict')).not.toBeInTheDocument();
       expect(screen.getByTestId('booking-confirm-cta')).toBeDisabled();
+    });
+
+    it('uses the scheduling-conflict title for backend student conflict reasons', async () => {
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          instructorAvailabilityError="You already have a Spanish lesson at 2:15 PM on Tuesday, March 31"
+        />
+      );
+
+      expect(screen.getByText('Scheduling Conflict')).toBeInTheDocument();
+      expect(screen.queryByText('Slot Unavailable')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('You already have a Spanish lesson at 2:15 PM on Tuesday, March 31')
+      ).toBeInTheDocument();
     });
 
     it('shows advisory availability warnings without disabling the CTA', async () => {
@@ -1209,6 +1243,23 @@ describe('PaymentConfirmation', () => {
           initialLocationType: 'student_location',
           lockLocationType: false,
         });
+      });
+    });
+
+    it('prioritizes time selection when reopening after a scheduling conflict', async () => {
+      const user = setupUser();
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          instructorAvailabilityError="You already have a Spanish lesson at 2:15 PM on Tuesday, March 31"
+        />
+      );
+
+      await user.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(latestTimeSelectionModalProps?.prioritizeTimeSelectionOnOpen).toBe(true);
       });
     });
 

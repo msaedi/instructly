@@ -5634,19 +5634,22 @@ class BookingService(BaseService):
             return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
 
         if student_id:
-            has_student_conflict = self.conflict_checker.check_student_time_conflicts(
+            student_conflicts = self.conflict_checker.check_student_booking_conflicts(
                 student_id=student_id,
-                booking_date=booking_date,
+                check_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
                 new_location_type=normalized_location_type,
                 exclude_booking_id=exclude_booking_id,
                 instructor_profile=instructor_profile,
             )
-            if has_student_conflict:
+            if student_conflicts:
                 return {
                     "available": False,
-                    "reason": "Time slot conflicts with one of your existing bookings",
+                    "reason": self._build_student_conflict_reason(
+                        student_conflicts[0],
+                        booking_date,
+                    ),
                 }
 
         # Verify bitmap availability covers the requested range
@@ -5760,6 +5763,32 @@ class BookingService(BaseService):
             _safe_float(location_lat),
             _safe_float(location_lng),
         )
+
+    @staticmethod
+    def _format_conflict_reason_time(start_time: object) -> str:
+        if isinstance(start_time, time):
+            return start_time.strftime("%I:%M %p").lstrip("0")
+        if isinstance(start_time, str):
+            try:
+                parsed_time = string_to_time(start_time)
+            except ValueError:
+                return start_time
+            return parsed_time.strftime("%I:%M %p").lstrip("0")
+        return "Unknown time"
+
+    @classmethod
+    def _build_student_conflict_reason(
+        cls,
+        conflict: Dict[str, Any],
+        booking_date: date,
+    ) -> str:
+        service_name = _safe_str(conflict.get("service_name")) or "lesson"
+        lesson_label = (
+            "a lesson" if service_name.casefold() == "lesson" else f"a {service_name} lesson"
+        )
+        formatted_time = cls._format_conflict_reason_time(conflict.get("start_time"))
+        formatted_date = booking_date.strftime("%A, %B %d").replace(" 0", " ")
+        return f"You already have {lesson_label} at {formatted_time} on {formatted_date}"
 
     @BaseService.measure_operation("send_booking_reminders")
     def send_booking_reminders(self) -> int:

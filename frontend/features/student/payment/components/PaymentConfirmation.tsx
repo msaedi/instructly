@@ -108,6 +108,9 @@ const EMPTY_ADDRESS: AddressFields = {
 const formatFullAddress = ({ line1, city, state, postalCode }: AddressFields): string =>
   formatMeetingLocation(line1, city, state, postalCode);
 
+const getAvailabilityErrorTitle = (reason: string | null | undefined): string =>
+  reason?.includes('You already have') ? 'Scheduling Conflict' : 'Slot Unavailable';
+
 interface PaymentConfirmationProps {
   booking: BookingPayment;
   paymentMethod: PaymentMethod;
@@ -172,6 +175,7 @@ function PaymentConfirmationInner({
   hidePaymentMethod = false,
   paymentMethodSlot,
 }: PaymentConfirmationProps) {
+  const availabilityErrorTitle = getAvailabilityErrorTitle(instructorAvailabilityError);
   const [locationType, setLocationType] = useState<LocationType>('student_location');
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -2177,7 +2181,7 @@ function PaymentConfirmationInner({
           )}
 
           {/* Conflict Warning */}
-          {hasConflict && !isCheckingConflict && (
+          {hasConflict && !isCheckingConflict && !instructorAvailabilityError && (
             <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
@@ -2231,7 +2235,7 @@ function PaymentConfirmationInner({
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
                 <div className="text-sm text-red-700 dark:text-red-300">
-                  <p className="font-medium">Slot Unavailable</p>
+                  <p className="font-medium">{availabilityErrorTitle}</p>
                   <p>{instructorAvailabilityError}</p>
                 </div>
               </div>
@@ -2522,6 +2526,7 @@ function PaymentConfirmationInner({
           })}
           bookingDraftId={booking.bookingId}
           appliedCreditCents={derivedAppliedCreditCents}
+          prioritizeTimeSelectionOnOpen={hasConflict || Boolean(instructorAvailabilityError)}
           onTimeSelected={handleTimeSelected}
         />
       )}

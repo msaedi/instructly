@@ -640,7 +640,16 @@ def test_check_availability_student_conflict_returns_unavailable(
             datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
         )
     )
-    booking_service.conflict_checker.check_student_time_conflicts.return_value = True
+    booking_service.conflict_checker.check_student_booking_conflicts.return_value = [
+        {
+            "booking_id": generate_ulid(),
+            "start_time": "12:30:00",
+            "end_time": "13:30:00",
+            "service_name": "Guitar",
+            "status": "confirmed",
+            "instructor_id": generate_ulid(),
+        }
+    ]
 
     result = booking_service.check_availability(
         instructor_id=generate_ulid(),
@@ -653,7 +662,7 @@ def test_check_availability_student_conflict_returns_unavailable(
     )
 
     assert result["available"] is False
-    assert "existing bookings" in result["reason"].lower()
+    assert result["reason"] == "You already have a Guitar lesson at 12:30 PM on Tuesday, January 1"
 
 
 @pytest.mark.parametrize(

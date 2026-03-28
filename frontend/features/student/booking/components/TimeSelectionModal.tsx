@@ -154,6 +154,7 @@ export interface TimeSelectionModalProps {
   serviceId?: string | undefined; // Optional service ID from search context
   bookingDraftId?: string | undefined;
   appliedCreditCents?: number | undefined;
+  prioritizeTimeSelectionOnOpen?: boolean | undefined;
 }
 
 export default function TimeSelectionModal({
@@ -171,6 +172,7 @@ export default function TimeSelectionModal({
   serviceId,
   bookingDraftId,
   appliedCreditCents,
+  prioritizeTimeSelectionOnOpen = false,
 }: TimeSelectionModalProps) {
   const router = useRouter();
   const { isAuthenticated, redirectToLogin, user } = useAuth();
@@ -615,9 +617,17 @@ export default function TimeSelectionModal({
 
   const mobileModalRef = useRef<HTMLDivElement>(null);
   const desktopModalRef = useRef<HTMLDivElement>(null);
+  const mobileTimeSectionRef = useRef<HTMLDivElement>(null);
+  const desktopTimeSectionRef = useRef<HTMLDivElement>(null);
+  const hasAutoScrolledToTimeRef = useRef(false);
   const desktopTitleId = useId();
   const mobileTitleId = useId();
-  const [isDesktopViewport, setIsDesktopViewport] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
 
   // Get instructor first name and last initial
   const getInstructorDisplayName = () => {
@@ -774,6 +784,35 @@ export default function TimeSelectionModal({
   });
 
   useScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) {
+      hasAutoScrolledToTimeRef.current = false;
+      return;
+    }
+
+    if (!prioritizeTimeSelectionOnOpen || !showTimeDropdown || hasAutoScrolledToTimeRef.current) {
+      return;
+    }
+
+    const target = isDesktopViewport ? desktopTimeSectionRef.current : mobileTimeSectionRef.current;
+
+    const rafId = window.requestAnimationFrame(() => {
+      const prefersReducedMotion =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      target?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+      hasAutoScrolledToTimeRef.current = target != null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [isDesktopViewport, isOpen, prioritizeTimeSelectionOnOpen, showTimeDropdown]);
 
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -1338,7 +1377,7 @@ export default function TimeSelectionModal({
           </div>
 
           {/* Mobile Content */}
-          <div className="flex-1 overflow-y-auto px-4 pb-20">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-20">
             {renderFormatPicker()}
 
             {hasResolvedLocationType ? (
@@ -1355,7 +1394,11 @@ export default function TimeSelectionModal({
 
                 {/* Time Dropdown (shown when date selected) */}
                 {showTimeDropdown && (
-                  <div className="mb-4">
+                  <div
+                    ref={mobileTimeSectionRef}
+                    data-testid="mobile-time-dropdown-section"
+                    className="mb-4"
+                  >
                     <TimeDropdown
                       selectedTime={selectedTime}
                       timeSlots={timeSlots}
@@ -1503,7 +1546,7 @@ export default function TimeSelectionModal({
             </div>
 
             {/* Desktop Content - Split Layout */}
-            <div className="flex-1 overflow-y-auto px-8 pb-8">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-8 pb-8">
               {renderFormatPicker()}
               <div className="flex gap-8">
                 {/* Left Section - Calendar and Controls */}
@@ -1522,7 +1565,11 @@ export default function TimeSelectionModal({
 
                       {/* Time Dropdown (shown when date selected) */}
                       {showTimeDropdown && (
-                        <div className="mb-4">
+                        <div
+                          ref={desktopTimeSectionRef}
+                          data-testid="desktop-time-dropdown-section"
+                          className="mb-4"
+                        >
                           <TimeDropdown
                             selectedTime={selectedTime}
                             timeSlots={timeSlots}

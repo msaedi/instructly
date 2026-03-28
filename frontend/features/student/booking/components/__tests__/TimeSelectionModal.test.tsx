@@ -836,6 +836,92 @@ describe('TimeSelectionModal', () => {
     });
   });
 
+  describe('conflict edit focus', () => {
+    it('auto-scrolls the time picker into view when opened in a time-priority context', async () => {
+      mockViewport(false);
+      const scrollIntoViewMock = jest.fn();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoViewMock,
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={getDateString(1)}
+          initialTimeHHMM24="10:00"
+          prioritizeTimeSelectionOnOpen
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('time-dropdown').length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalled();
+      });
+    });
+
+    it('uses the desktop time section and respects reduced motion when prioritizing time selection', async () => {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation((query: string) => ({
+          matches:
+            query === '(min-width: 768px)'
+              ? true
+              : query === '(prefers-reduced-motion: reduce)',
+          media: query,
+          onchange: null,
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+          dispatchEvent: jest.fn(),
+        })),
+      });
+
+      const scrollIntoViewMock = jest.fn();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoViewMock,
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={getDateString(1)}
+          initialTimeHHMM24="10:00"
+          prioritizeTimeSelectionOnOpen
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('time-dropdown').length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: 'auto',
+          block: 'start',
+        });
+      });
+    });
+  });
+
+  describe('scroll containment', () => {
+    it('adds overscroll containment to the mobile and desktop modal content scrollers', () => {
+      const { container } = render(<TimeSelectionModal {...defaultProps} />);
+
+      expect(
+        container.querySelector('.flex-1.overflow-y-auto.overscroll-contain.px-4.pb-20')
+      ).toBeInTheDocument();
+      expect(
+        container.querySelector('.flex-1.overflow-y-auto.overscroll-contain.px-8.pb-8')
+      ).toBeInTheDocument();
+    });
+  });
+
   describe('summary section', () => {
     it('renders summary section', async () => {
       const dates = [getDateString(1)];

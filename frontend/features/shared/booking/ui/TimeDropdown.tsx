@@ -44,8 +44,8 @@ export default function TimeDropdown({
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4, // 4px gap
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 4, // 4px gap
+        left: rect.left,
         width: rect.width,
       });
     }
@@ -264,7 +264,7 @@ export default function TimeDropdown({
           isAnimating ? 'animate-dropdownOpen' : 'animate-dropdownClose'
         }`}
         style={{
-          position: 'absolute',
+          position: 'fixed',
           top: `${dropdownPosition.top}px`,
           left: `${dropdownPosition.left}px`,
           width: `${dropdownPosition.width}px`,
@@ -272,7 +272,7 @@ export default function TimeDropdown({
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
         }}
       >
-        <div className="py-2 max-h-60 overflow-y-auto">
+        <div className="py-2 max-h-60 overflow-y-auto overscroll-contain">
           {timeSlots.map((time, index) => (
             <button
               key={time}
