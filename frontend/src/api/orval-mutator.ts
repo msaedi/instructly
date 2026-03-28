@@ -8,6 +8,7 @@
  */
 
 import { withApiBaseForRequest } from '@/lib/apiBase';
+import { extractUnknownErrorMessage } from '@/lib/apiErrors';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 
@@ -16,42 +17,6 @@ const isMessagingRequest = (url: string): boolean =>
   url.includes('/messages') || url.includes('/reactions');
 
 export type ErrorType<Error> = Error;
-
-const extractErrorMessage = (errorData: unknown): string | null => {
-  if (typeof errorData === 'string') {
-    const trimmed = errorData.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-
-  if (!errorData || typeof errorData !== 'object') {
-    return null;
-  }
-
-  if ('detail' in errorData) {
-    const detail = (errorData as { detail?: unknown }).detail;
-    if (typeof detail === 'string') {
-      const trimmed = detail.trim();
-      if (trimmed.length > 0) {
-        return trimmed;
-      }
-    }
-    if (detail && typeof detail === 'object' && 'message' in detail) {
-      const message = (detail as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim().length > 0) {
-        return message.trim();
-      }
-    }
-  }
-
-  if ('message' in errorData) {
-    const message = (errorData as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) {
-      return message.trim();
-    }
-  }
-
-  return null;
-};
 
 /**
  * Custom fetch function for Orval-generated clients (orval v8.x signature).
@@ -158,7 +123,7 @@ export async function customFetch<TResponse>(
     }
 
     const error = new Error(
-      extractErrorMessage(errorData) ?? `HTTP ${response.status}: ${response.statusText}`
+      extractUnknownErrorMessage(errorData) ?? `HTTP ${response.status}: ${response.statusText}`
     ) as FetchErrorWithContext;
     error.response = response;
     error.status = response.status;

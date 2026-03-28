@@ -1,6 +1,7 @@
 // frontend/features/student/booking/hooks/useCreateBooking.ts
 import { useState } from 'react';
 import type { BookingCreate, BookingResponse } from '@/features/shared/api/types';
+import { extractUnknownErrorMessage } from '@/lib/apiErrors';
 import { createBookingImperative } from '@/src/api/services/bookings';
 import { logger } from '@/lib/logger';
 
@@ -14,43 +15,6 @@ interface UseCreateBookingReturn {
   error: string | null;
   booking: Booking | null;
   reset: () => void;
-}
-
-type ErrorWithData = Error & {
-  data?: unknown;
-};
-
-function extractStructuredErrorMessage(error: unknown): string | null {
-  if (!error || typeof error !== 'object') {
-    return null;
-  }
-
-  const errorWithData = error as ErrorWithData;
-  const data = errorWithData.data;
-
-  if (data && typeof data === 'object') {
-    if ('detail' in data) {
-      const detail = (data as { detail?: unknown }).detail;
-      if (typeof detail === 'string' && detail.trim().length > 0) {
-        return detail.trim();
-      }
-      if (detail && typeof detail === 'object' && 'message' in detail) {
-        const message = (detail as { message?: unknown }).message;
-        if (typeof message === 'string' && message.trim().length > 0) {
-          return message.trim();
-        }
-      }
-    }
-
-    if ('message' in data) {
-      const message = (data as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim().length > 0) {
-        return message.trim();
-      }
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -137,7 +101,10 @@ export function useCreateBooking(): UseCreateBookingReturn {
     } catch (err) {
       // Handle API errors
       let errorMessage = 'Failed to create booking';
-      const structuredMessage = extractStructuredErrorMessage(err);
+      const structuredMessage =
+        err && typeof err === 'object' && 'data' in err
+          ? extractUnknownErrorMessage((err as { data?: unknown }).data)
+          : null;
 
       if (err instanceof Error) {
         if (structuredMessage) {

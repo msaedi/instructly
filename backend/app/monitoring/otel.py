@@ -154,6 +154,7 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
             headers=exporter_headers or None,
+            timeout=30,
         )
 
         # BatchSpanProcessor settings can be tuned via env vars:

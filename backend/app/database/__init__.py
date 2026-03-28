@@ -207,6 +207,8 @@ T = TypeVar("T")
 _RETRYABLE_ERROR_SNIPPETS = (
     "server closed the connection",
     "ssl connection has been closed unexpectedly",
+    "this connection is closed",
+    "connection already closed",
 )
 
 

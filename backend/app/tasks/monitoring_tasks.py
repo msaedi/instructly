@@ -72,6 +72,22 @@ class MonitoringTask(MonitoringTaskBase):
 
     @property
     def db(self) -> Session:
+        if self._db is not None:
+            try:
+                self._db.connection()
+            except Exception:
+                logger.warning(
+                    "MonitoringTask detected stale DB session; recreating", exc_info=True
+                )
+                try:
+                    self._db.close()
+                except Exception:
+                    logger.debug("MonitoringTask failed to close stale DB session", exc_info=True)
+                self._db = None
+                self._email_service = None
+                self._email_config_service = None
+                self._alert_repo_instance = None
+
         if self._db is None:
             # Check if we should use test database
             if os.getenv("USE_TEST_DATABASE") == "true":
@@ -124,8 +140,16 @@ class MonitoringTask(MonitoringTaskBase):
     ) -> None:
         """Clean up the database session after task execution."""
         if self._db is not None:
-            self._db.close()
-            self._db = None
+            try:
+                self._db.close()
+            except Exception:
+                logger.debug(
+                    "MonitoringTask failed to close DB session during cleanup", exc_info=True
+                )
+            finally:
+                self._db = None
+        self._email_service = None
+        self._email_config_service = None
         self._alert_repo_instance = None
 
 
