@@ -83,6 +83,14 @@ async def disconnect_broadcast() -> None:
     global _broadcast
 
     if _broadcast is not None:
-        await _broadcast.disconnect()
-        _broadcast = None
-        logger.info("[BROADCAST] Disconnected from Redis")
+        try:
+            await _broadcast.disconnect()
+        except RuntimeError as exc:
+            if "event loop is closed" in str(exc).lower():
+                logger.debug("[BROADCAST] Disconnect skipped during event loop shutdown: %s", exc)
+            else:
+                raise
+        else:
+            logger.info("[BROADCAST] Disconnected from Redis")
+        finally:
+            _broadcast = None

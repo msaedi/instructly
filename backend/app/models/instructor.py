@@ -263,6 +263,7 @@ class InstructorProfile(Base):
         ),
         Index("ix_instructor_profiles_checkr_candidate_id", "checkr_candidate_id"),
         Index("ix_instructor_profiles_checkr_invitation_id", "checkr_invitation_id"),
+        Index("idx_instructor_profiles_is_live", "is_live"),
         Index("ix_instructor_profiles_live_bgc", "is_live", "bgc_status"),
     )
 

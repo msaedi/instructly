@@ -17,7 +17,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import logging
 import math
 import re
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session
 
@@ -442,13 +442,16 @@ class ConflictChecker(BaseService):
         check_date: date,
         start_time: time,
         end_time: time,
-        new_location_type: str | None = None,
         exclude_booking_id: Optional[str] = None,
-        instructor_profile: InstructorProfile | None = None,
+        existing_bookings: Optional[Sequence[Any]] = None,
     ) -> List[Dict[str, Any]]:
         exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
-        bookings = self.repository.get_student_bookings_for_conflict_check(
-            student_id, check_date, exclude_id
+        bookings = (
+            existing_bookings
+            if existing_bookings is not None
+            else self.repository.get_student_bookings_for_conflict_check(
+                student_id, check_date, exclude_id
+            )
         )
 
         conflicts = []
@@ -480,18 +483,14 @@ class ConflictChecker(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
-        new_location_type: str | None = None,
         exclude_booking_id: Optional[str] = None,
-        instructor_profile: InstructorProfile | None = None,
     ) -> bool:
         conflicts = self.check_student_booking_conflicts(
-            student_id,
-            booking_date,
-            start_time,
-            end_time,
-            new_location_type,
-            exclude_booking_id,
-            instructor_profile,
+            student_id=student_id,
+            check_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            exclude_booking_id=exclude_booking_id,
         )
         return len(conflicts) > 0
 
@@ -508,10 +507,15 @@ class ConflictChecker(BaseService):
         location_place_id: str | None = None,
         location_lat: float | None = None,
         location_lng: float | None = None,
+        existing_bookings: Optional[Sequence[Any]] = None,
     ) -> List[Dict[str, Any]]:
         exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
-        bookings = self.repository.get_student_bookings_for_conflict_check(
-            student_id, check_date, exclude_id
+        bookings = (
+            existing_bookings
+            if existing_bookings is not None
+            else self.repository.get_student_bookings_for_conflict_check(
+                student_id, check_date, exclude_id
+            )
         )
         new_location = self._location_snapshot_from_values(
             location_type=location_type,
@@ -849,7 +853,6 @@ class ConflictChecker(BaseService):
                 booking_date,
                 start_time,
                 end_time,
-                location_type,
             )
             if student_conflicts:
                 errors.append(

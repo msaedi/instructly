@@ -14,6 +14,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
 from app.services.booking_service import BookingService
 from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
+from app.services.conflict_checker import ConflictChecker
 from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 
 REAL_DATETIME = datetime
@@ -158,6 +159,7 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.transaction = MagicMock(return_value=_transaction_cm())
     service.cache_service = MagicMock()
     service.service_area_repository = MagicMock()
+    service.conflict_checker_repository.get_student_bookings_for_conflict_check.return_value = []
     service.conflict_checker = MagicMock()
     service.conflict_checker.check_time_conflicts.return_value = False
     service.conflict_checker.check_student_time_conflicts.return_value = False
@@ -292,6 +294,7 @@ def test_check_availability_returns_student_proximity_warnings(
         location_place_id="student_place",
         location_lat=40.7128,
         location_lng=-74.006,
+        existing_bookings=[],
     )
 
 
@@ -345,6 +348,68 @@ def test_check_availability_derives_instructor_location_warning_fields_from_prof
         location_place_id="teacher_place",
         location_lat=40.7505,
         location_lng=-73.9934,
+        existing_bookings=[],
+    )
+
+
+def test_check_availability_fetches_student_bookings_once(
+    booking_service: BookingService,
+    mock_db: MagicMock,
+) -> None:
+    student_id = generate_ulid()
+    existing_booking = SimpleNamespace(
+        id=generate_ulid(),
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        service_name="Piano",
+        status=BookingStatus.CONFIRMED,
+        instructor_id=generate_ulid(),
+        location_type="online",
+        location_address=None,
+        location_place_id=None,
+        location_lat=None,
+        location_lng=None,
+    )
+
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = (
+        SimpleNamespace(
+            user=SimpleNamespace(timezone="UTC", preferred_places=[]),
+        )
+    )
+    booking_service.conflict_checker_repository.get_student_bookings_for_conflict_check.return_value = [
+        existing_booking
+    ]
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+    )
+
+    real_conflict_checker = ConflictChecker(
+        mock_db,
+        repository=booking_service.conflict_checker_repository,
+        config_service=MagicMock(),
+    )
+    real_conflict_checker.check_time_conflicts = Mock(return_value=False)
+    booking_service.conflict_checker = real_conflict_checker
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        service_id=generate_ulid(),
+        student_id=student_id,
+        location_type="online",
+    )
+
+    assert result["available"] is True
+    booking_service.conflict_checker_repository.get_student_bookings_for_conflict_check.assert_called_once_with(
+        student_id,
+        date(2030, 1, 1),
+        None,
     )
 
 

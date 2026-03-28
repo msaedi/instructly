@@ -215,15 +215,15 @@ test.describe('Instructor Referrals', () => {
     await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env['GATE_CODE']);
     await page.goto(`${DEFAULT_BASE_URL}/instructor/dashboard?panel=referrals`);
 
-    await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Referrals', exact: true })).toBeVisible();
     await expect(page.getByText('Refer an instructor')).toBeVisible();
     await expect(page.getByText('Refer a student')).toBeVisible();
     await expect(
       page.locator('input[aria-label="Your referral link"]')
     ).toHaveValue('https://beta.instainstru.com/r/FNVC6KDW');
-    await expect(page.getByText('Total referred')).toBeVisible();
-    await expect(page.getByText('Pending payouts')).toBeVisible();
-    await expect(page.getByText('Total earned')).toBeVisible();
+    await expect(page.getByText(/^In progress$/)).toBeVisible();
+    await expect(page.getByText(/^Pending$/)).toBeVisible();
+    await expect(page.getByText(/^Redeemed$/).first()).toBeVisible();
     await expect(page.getByText('No founding')).toHaveCount(0);
 
     const sidebar = page.locator('aside');

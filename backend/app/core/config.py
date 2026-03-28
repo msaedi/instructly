@@ -331,9 +331,9 @@ class Settings(BaseSettings):
     db_worker_max_overflow: int = Field(default=4, alias="DB_WORKER_MAX_OVERFLOW", ge=0)
     db_worker_pool_timeout: int = Field(default=10, alias="DB_WORKER_POOL_TIMEOUT", ge=1)
 
-    db_scheduler_pool_size: int = Field(default=2, alias="DB_SCHEDULER_POOL_SIZE", ge=1)
-    db_scheduler_max_overflow: int = Field(default=2, alias="DB_SCHEDULER_MAX_OVERFLOW", ge=0)
-    db_scheduler_pool_timeout: int = Field(default=3, alias="DB_SCHEDULER_POOL_TIMEOUT", ge=1)
+    db_scheduler_pool_size: int = Field(default=4, alias="DB_SCHEDULER_POOL_SIZE", ge=1)
+    db_scheduler_max_overflow: int = Field(default=4, alias="DB_SCHEDULER_MAX_OVERFLOW", ge=0)
+    db_scheduler_pool_timeout: int = Field(default=10, alias="DB_SCHEDULER_POOL_TIMEOUT", ge=1)
     service_role: str = Field(
         default="api",
         alias="SERVICE_ROLE",

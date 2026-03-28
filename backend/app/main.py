@@ -630,6 +630,7 @@ def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
                 repo = InstructorProfileRepository(db)
                 workflow = BackgroundCheckWorkflowService(repo)
 
+                db.connection()
                 jobs = job_repo.fetch_due(limit=batch_size)
                 if not jobs:
                     db.commit()

@@ -5511,6 +5511,7 @@ class BookingService(BaseService):
             return {"available": False, "reason": "Service not found or no longer available"}
 
         normalized_location_type = normalize_location_type(location_type)
+        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
 
         # Get service and instructor profile using repositories
         service = self.conflict_checker_repository.get_active_service(resolved_service_id)
@@ -5633,15 +5634,22 @@ class BookingService(BaseService):
         if has_conflict:
             return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
 
+        existing_student_bookings: Optional[List[Any]] = None
         if student_id:
+            existing_student_bookings = (
+                self.conflict_checker_repository.get_student_bookings_for_conflict_check(
+                    student_id,
+                    booking_date,
+                    exclude_id,
+                )
+            )
             student_conflicts = self.conflict_checker.check_student_booking_conflicts(
                 student_id=student_id,
                 check_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
-                new_location_type=normalized_location_type,
                 exclude_booking_id=exclude_booking_id,
-                instructor_profile=instructor_profile,
+                existing_bookings=existing_student_bookings,
             )
             if student_conflicts:
                 return {
@@ -5703,6 +5711,7 @@ class BookingService(BaseService):
                 location_place_id=warning_location_place_id,
                 location_lat=warning_location_lat,
                 location_lng=warning_location_lng,
+                existing_bookings=existing_student_bookings,
             )
 
         return {
@@ -6217,9 +6226,7 @@ class BookingService(BaseService):
                 check_date=booking_data.booking_date,
                 start_time=booking_data.start_time,
                 end_time=booking_data.end_time,
-                new_location_type=normalized_location_type,
                 exclude_booking_id=exclude_booking_id,
-                instructor_profile=instructor_profile,
             )
 
             if student_conflicts:
@@ -6897,21 +6904,12 @@ class BookingService(BaseService):
             True if there's a conflict, False otherwise
         """
         try:
-            profile = None
-            if exclude_booking_id:
-                existing_booking = self.repository.get_by_id(exclude_booking_id)
-                if existing_booking is not None:
-                    profile = self.conflict_checker_repository.get_instructor_profile(
-                        existing_booking.instructor_id
-                    )
             conflicting = self.conflict_checker.check_student_time_conflicts(
                 student_id=student_id,
                 booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
-                new_location_type=location_type,
                 exclude_booking_id=exclude_booking_id,
-                instructor_profile=profile,
             )
             return bool(conflicting)
         except Exception:

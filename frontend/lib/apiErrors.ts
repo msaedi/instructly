@@ -1,5 +1,60 @@
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 
+const getTrimmedMessage = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const extractUnknownErrorMessageInternal = (
+  source: unknown,
+  seen: WeakSet<object>
+): string | null => {
+  if (typeof source === 'string') {
+    return getTrimmedMessage(source);
+  }
+
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  if (seen.has(source)) {
+    return null;
+  }
+  seen.add(source);
+
+  const record = source as Record<string, unknown>;
+
+  if ('data' in record) {
+    const nestedMessage = extractUnknownErrorMessageInternal(record['data'], seen);
+    if (nestedMessage) {
+      return nestedMessage;
+    }
+  }
+
+  const detail = record['detail'];
+  const detailMessage = getTrimmedMessage(detail);
+  if (detailMessage) {
+    return detailMessage;
+  }
+
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const structuredMessage = getTrimmedMessage((detail as Record<string, unknown>)['message']);
+    if (structuredMessage) {
+      return structuredMessage;
+    }
+  }
+
+  return getTrimmedMessage(record['message']);
+};
+
+export function extractUnknownErrorMessage(source: unknown): string | null {
+  return extractUnknownErrorMessageInternal(source, new WeakSet<object>());
+}
+
 /**
  * Extract a human-readable error message from an API error response.
  *
@@ -7,26 +62,10 @@ import type { ApiErrorResponse } from '@/features/shared/api/types';
  * `{ message, code, details }` objects (DomainException responses).
  */
 export function extractApiErrorMessage(
-  response: ApiErrorResponse,
+  response: ApiErrorResponse | unknown,
   fallback: string = 'An error occurred'
 ): string {
-  const { detail, message } = response;
-
-  if (typeof detail === 'string' && detail.trim().length > 0) {
-    return detail;
-  }
-
-  if (typeof detail === 'object' && detail !== null) {
-    if (typeof detail.message === 'string' && detail.message.trim().length > 0) {
-      return detail.message;
-    }
-  }
-
-  if (typeof message === 'string' && message.trim().length > 0) {
-    return message;
-  }
-
-  return fallback;
+  return extractUnknownErrorMessage(response) ?? fallback;
 }
 
 export function extractApiErrorCode(response: ApiErrorResponse): string | undefined {

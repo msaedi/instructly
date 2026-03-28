@@ -59,6 +59,29 @@ def test_with_db_retry_success_after_retry(monkeypatch) -> None:
     assert calls["count"] == 2
 
 
+@pytest.mark.parametrize(
+    "error_snippet",
+    [
+        "this connection is closed",
+        "connection already closed",
+    ],
+)
+def test_with_db_retry_retries_when_connection_is_closed(monkeypatch, error_snippet: str) -> None:
+    monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+
+    calls = {"count": 0}
+
+    def _op() -> str:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OperationalError("stmt", {}, Exception(error_snippet))
+        return "ok"
+
+    result = db_module.with_db_retry("op", _op, max_attempts=2)
+    assert result == "ok"
+    assert calls["count"] == 2
+
+
 def test_with_db_retry_non_retryable(monkeypatch) -> None:
     monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
 

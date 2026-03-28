@@ -742,15 +742,11 @@ class TestConflictCheckerValidationRules:
         existing.instructor_id = generate_ulid()
         service.repository.get_student_bookings_for_conflict_check.return_value = [existing]
 
-        instructor_profile = SimpleNamespace(travel_buffer_minutes=60, non_travel_buffer_minutes=15)
-
         conflicts = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
             start_time=time(10, 30),
             end_time=time(11, 30),
-            new_location_type="instructor_location",
-            instructor_profile=instructor_profile,
         )
         assert len(conflicts) == 1
 
@@ -759,8 +755,6 @@ class TestConflictCheckerValidationRules:
             check_date=date.today(),
             start_time=time(11, 0),
             end_time=time(12, 0),
-            new_location_type="neutral_location",
-            instructor_profile=instructor_profile,
         )
         assert len(no_conflict) == 0
 
@@ -1068,17 +1062,11 @@ class TestConflictCheckerFormatAwareBuffers:
             location_type="online",
         )
         service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
-        profile = Mock(spec=InstructorProfile)
-        profile.non_travel_buffer_minutes = 15
-        profile.travel_buffer_minutes = 60
-
         travel_conflicts = service.check_student_booking_conflicts(
             student_id=generate_ulid(),
             check_date=date.today(),
             start_time=time(10, 30),
             end_time=time(11, 30),
-            new_location_type="instructor_location",
-            instructor_profile=profile,
         )
         assert len(travel_conflicts) == 1
 
@@ -1087,8 +1075,6 @@ class TestConflictCheckerFormatAwareBuffers:
             check_date=date.today(),
             start_time=time(10, 30),
             end_time=time(11, 30),
-            new_location_type="student_location",
-            instructor_profile=profile,
         )
         assert len(non_travel_conflicts) == 1
 
@@ -1097,8 +1083,6 @@ class TestConflictCheckerFormatAwareBuffers:
             check_date=date.today(),
             start_time=time(11, 0),
             end_time=time(12, 0),
-            new_location_type="student_location",
-            instructor_profile=profile,
         )
         assert non_travel_clear == []
 
