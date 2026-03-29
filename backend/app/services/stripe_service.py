@@ -19,7 +19,7 @@ Architecture:
 - Follows established service patterns
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 import math
@@ -29,15 +29,13 @@ from types import SimpleNamespace
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
-    List,
     Optional,
     cast,
 )
-from urllib.parse import ParseResult, urljoin, urlparse
 import uuid
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 from stripe._balance import Balance as StripeBalance
@@ -55,41 +53,98 @@ from ..core.exceptions import (
     ServiceException,
 )
 from ..models.booking import BookingStatus, PaymentStatus
-from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
+from ..models.payment import PaymentIntent
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
-    DashboardLinkResponse,
-    IdentityRefreshResponse,
-    InstantPayoutResponse,
-    OnboardingResponse,
-    OnboardingStatusResponse,
-    PayoutScheduleResponse,
 )
-from ..utils.identity import clean_identity_value, normalize_name, redact_name
 from ..utils.url_validation import is_allowed_origin, origin_from_header
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .payment_summary_service import build_student_payment_summary
 from .pricing_service import PricingService
-from .stripe.capture_refund import StripeCaptureRefundMixin
-from .stripe.earnings import StripeEarningsMixin
-from .stripe.earnings_export import StripeEarningsExportMixin
 from .stripe.helpers import (
     ChargeContext,
     ReferralBonusTransferResult,
     ReferralBonusTransferSkippedResult,
     ReferralBonusTransferSuccessResult,
-    StripeHelpersMixin,
 )
-from .stripe.transfer import StripeTransferMixin
 from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:  # pragma: no cover
     from .booking_service import BookingService
+
+    class StripeHelpersMixin(BaseService):
+        stripe_configured: bool
+        _check_stripe_configured: Callable[[], None]
+        _call_with_retry: Callable[..., Any]
+        _mock_payment_response: Callable[[str, int], dict[str, Any]]
+        _stripe_value: Callable[..., Any]
+        _stripe_has_field: Callable[..., bool]
+
+    class StripeEarningsMixin(BaseService):
+        get_instructor_earnings_summary: Callable[..., Any]
+        get_instructor_payout_history: Callable[..., Any]
+        get_user_transaction_history: Callable[..., Any]
+        get_user_credit_balance: Callable[..., Any]
+        get_platform_revenue_stats: Callable[..., Any]
+        get_instructor_earnings: Callable[..., Any]
+
+    class StripeEarningsExportMixin(BaseService):
+        generate_earnings_pdf: Callable[..., bytes]
+        generate_earnings_csv: Callable[..., bytes]
+
+    class StripeCaptureRefundMixin(BaseService):
+        capture_payment_intent: Callable[..., dict[str, Any]]
+        get_payment_intent_capture_details: Callable[[str], dict[str, Any]]
+        reverse_transfer: Callable[..., dict[str, Any]]
+        cancel_payment_intent: Callable[..., bool]
+        _void_or_refund_payment: Callable[[Optional[str]], None]
+        refund_payment: Callable[..., dict[str, Any]]
+
+    class StripeTransferMixin(BaseService):
+        ensure_top_up_transfer: Callable[..., Optional[dict[str, Any]]]
+        create_manual_transfer: Callable[..., dict[str, Any]]
+        create_referral_bonus_transfer: Callable[..., ReferralBonusTransferResult]
+        set_payout_schedule_for_account: Callable[..., dict[str, Any]]
+        _top_up_from_pi_metadata: Callable[[Any], int]
+
+    class StripeIdentityMixin(BaseService):
+        create_identity_verification_session: Callable[..., Any]
+        refresh_instructor_identity: Callable[..., Any]
+        get_latest_identity_status: Callable[..., Any]
+        _persist_verified_identity: Callable[..., None]
+
+    class StripeOnboardingMixin(BaseService):
+        start_instructor_onboarding: Callable[..., Any]
+        get_instructor_onboarding_status: Callable[..., Any]
+        set_instructor_payout_schedule: Callable[..., Any]
+        get_instructor_dashboard_link: Callable[..., Any]
+        request_instructor_instant_payout: Callable[..., Any]
+        create_connected_account: Callable[..., Any]
+        create_account_link: Callable[..., Any]
+        check_account_status: Callable[..., Any]
+
+    class StripeCustomerMixin(BaseService):
+        create_customer: Callable[..., Any]
+        get_or_create_customer: Callable[..., Any]
+        save_payment_method: Callable[..., Any]
+        create_setup_intent_for_saving: Callable[..., dict[str, str]]
+        get_user_payment_methods: Callable[..., Any]
+        delete_payment_method: Callable[..., bool]
+
+else:
+    from .stripe.capture_refund import StripeCaptureRefundMixin
+    from .stripe.customer import StripeCustomerMixin
+    from .stripe.earnings import StripeEarningsMixin
+    from .stripe.earnings_export import StripeEarningsExportMixin
+    from .stripe.helpers import StripeHelpersMixin
+    from .stripe.identity import StripeIdentityMixin
+    from .stripe.onboarding import StripeOnboardingMixin
+    from .stripe.transfer import StripeTransferMixin
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -109,6 +164,8 @@ __all__ = [
     "build_student_payment_summary",
 ]
 
+_FACADE_TEST_PATCH_TARGETS = (StripeBalance, uuid, origin_from_header, is_allowed_origin)
+
 
 class StripeService(
     StripeHelpersMixin,
@@ -116,6 +173,9 @@ class StripeService(
     StripeEarningsExportMixin,
     StripeCaptureRefundMixin,
     StripeTransferMixin,
+    StripeIdentityMixin,
+    StripeOnboardingMixin,
+    StripeCustomerMixin,
     BaseService,
 ):
     """
@@ -194,495 +254,6 @@ class StripeService(
         )
 
         self.logger = logging.getLogger(__name__)
-
-    def _identity_last_error(self, session: Any) -> tuple[Optional[str], Optional[str]]:
-        """Extract last_error code/reason from a Stripe Identity session."""
-        last_error = self._stripe_value(session, "last_error")
-        if not last_error:
-            return None, None
-        code = self._stripe_value(last_error, "code")
-        reason = self._stripe_value(last_error, "reason")
-        return code, reason
-
-    @staticmethod
-    def _identity_retrieve_options() -> Dict[str, Any]:
-        """Return Stripe Identity session retrieve options, including sensitive expansions."""
-        api_key = None
-        if settings.stripe_identity_restricted_key:
-            api_key = settings.stripe_identity_restricted_key.get_secret_value()
-        return {
-            "expand": ["verified_outputs", "verified_outputs.dob"],
-            "api_key": api_key,
-        }
-
-    def _parse_identity_dob(self, dob_value: Any) -> Optional[date]:
-        """Convert Stripe DOB payloads into a Python date."""
-        if not dob_value:
-            return None
-
-        day = self._stripe_value(dob_value, "day")
-        month = self._stripe_value(dob_value, "month")
-        year = self._stripe_value(dob_value, "year")
-        if day in (None, "") or month in (None, "") or year in (None, ""):
-            return None
-
-        try:
-            return date(int(year), int(month), int(day))
-        except (TypeError, ValueError) as exc:
-            logger.warning("Invalid DOB components from Stripe: %s", exc)
-            return None
-
-    def _persist_verified_identity(
-        self,
-        *,
-        profile_id: str,
-        user_id: str,
-        session: Any,
-        session_id: str | None = None,
-        refresh_session: bool = False,
-        prefetched_session: Any | None = None,
-    ) -> None:
-        """Persist verified Stripe Identity outputs and mismatch flags on the instructor."""
-
-        resolved_session = prefetched_session if prefetched_session is not None else session
-        resolved_session_id = clean_identity_value(
-            self._stripe_value(resolved_session, "id", session_id) or session_id
-        )
-        verified_at = datetime.now(timezone.utc)
-
-        if refresh_session and prefetched_session is None and resolved_session_id:
-            try:
-                resolved_session = cast(Any, stripe.identity.VerificationSession).retrieve(
-                    resolved_session_id,
-                    **self._identity_retrieve_options(),
-                )
-            except stripe.StripeError as exc:
-                self.logger.warning(
-                    "Failed to retrieve Stripe verified outputs for session %s: %s",
-                    resolved_session_id,
-                    str(exc),
-                )
-                self.instructor_repository.update(
-                    profile_id,
-                    identity_verified_at=verified_at,
-                    identity_verification_session_id=resolved_session_id,
-                )
-                return
-
-        verified_outputs = (
-            self._stripe_value(resolved_session, "verified_outputs")
-            if self._stripe_has_field(resolved_session, "verified_outputs")
-            else None
-        )
-        verified_first_name = clean_identity_value(
-            self._stripe_value(verified_outputs, "first_name") if verified_outputs else None
-        )
-        verified_last_name = clean_identity_value(
-            self._stripe_value(verified_outputs, "last_name") if verified_outputs else None
-        )
-        verified_dob = self._parse_identity_dob(
-            self._stripe_value(verified_outputs, "dob") if verified_outputs else None
-        )
-
-        identity_name_mismatch = False
-        user = self.user_repository.get_by_id(user_id)
-        if user and verified_last_name:
-            signup_last_name = normalize_name(getattr(user, "last_name", None))
-            verified_last_name_normalized = normalize_name(verified_last_name)
-            identity_name_mismatch = bool(
-                signup_last_name
-                and verified_last_name_normalized
-                and signup_last_name != verified_last_name_normalized
-            )
-            if identity_name_mismatch:
-                self.logger.warning(
-                    "Identity last-name mismatch for user %s: signup_last=%s verified_last=%s",
-                    user_id,
-                    redact_name(getattr(user, "last_name", None)),
-                    redact_name(verified_last_name),
-                )
-
-        self.instructor_repository.update(
-            profile_id,
-            identity_verified_at=verified_at,
-            identity_verification_session_id=resolved_session_id,
-            verified_first_name=verified_first_name,
-            verified_last_name=verified_last_name,
-            verified_dob=verified_dob,
-            identity_name_mismatch=identity_name_mismatch,
-        )
-
-        if verified_outputs is None:
-            self.logger.warning(
-                "Stripe identity session %s verified without verified_outputs payload",
-                resolved_session_id or "unknown",
-            )
-
-    def _identity_session_payload(self, session: Any, *, reuse_existing: bool) -> Dict[str, str]:
-        """Return the API payload for a Stripe Identity session."""
-        client_secret = self._stripe_value(session, "client_secret")
-        if not client_secret:
-            if reuse_existing:
-                raise ServiceException("Failed to resume identity verification")
-            raise ServiceException("Failed to create identity verification session")
-
-        session_id = self._stripe_value(session, "id")
-        if not session_id:
-            if reuse_existing:
-                raise ServiceException("Failed to resume identity verification")
-            raise ServiceException("Failed to create identity verification session")
-
-        return {
-            "verification_session_id": str(session_id),
-            "client_secret": str(client_secret),
-        }
-
-    # --------------------------------------------------------------------- #
-    # Instructor onboarding and account management
-    # --------------------------------------------------------------------- #
-
-    @BaseService.measure_operation("stripe_start_instructor_onboarding")
-    def start_instructor_onboarding(
-        self,
-        *,
-        user: User,
-        request_host: str,
-        request_scheme: str,
-        request_origin: str | None = None,
-        request_referer: str | None = None,
-        return_to: str | None = None,
-    ) -> OnboardingResponse:
-        """Create or reuse a Stripe Express account and return onboarding link."""
-        instructor_profile = self.instructor_repository.get_by_user_id(user.id)
-        if not instructor_profile:
-            raise ServiceException(
-                "Instructor profile not found",
-                code="PAYMENTS_INSTRUCTOR_PROFILE_NOT_FOUND",
-            )
-
-        existing_account = self.payment_repository.get_connected_account_by_instructor_id(
-            instructor_profile.id
-        )
-        if existing_account and existing_account.stripe_account_id:
-            account_id = existing_account.stripe_account_id
-            account_status = self.check_account_status(instructor_profile.id)
-            if account_status.get("onboarding_completed"):
-                return OnboardingResponse(
-                    account_id=account_id,
-                    onboarding_url="",
-                    already_onboarded=True,
-                )
-        else:
-            created_account = self.create_connected_account(instructor_profile.id, user.email)
-            account_id = created_account.stripe_account_id
-
-        callback_from: str | None = None
-        if return_to and return_to.startswith("/"):
-            parsed_return = urlparse(return_to)
-            redirect_path = (parsed_return.path or "").strip().lower()
-            if redirect_path:
-                segments = [segment for segment in redirect_path.split("/") if segment]
-                if (
-                    len(segments) >= 3
-                    and segments[0] == "instructor"
-                    and segments[1] == "onboarding"
-                ):
-                    callback_from = segments[2]
-                elif len(segments) >= 2 and segments[0] == "instructor":
-                    callback_from = segments[1]
-                elif segments:
-                    callback_from = segments[-1]
-        if callback_from:
-            sanitized = "".join(ch for ch in callback_from if ch.isalnum() or ch in {"-", "_"})
-            callback_from = sanitized or None
-
-        configured_frontend = (settings.frontend_url or "").strip()
-        local_frontend = (settings.local_beta_frontend_origin or "").strip()
-        request_host_clean = (request_host or "").strip()
-
-        def _normalize_origin(raw: str | None) -> str | None:
-            if not raw:
-                return None
-            parsed_raw: ParseResult = urlparse(raw)
-            scheme = parsed_raw.scheme or request_scheme
-            if parsed_raw.netloc:
-                return f"{scheme}://{parsed_raw.netloc}".rstrip("/")
-            if parsed_raw.path and raw.startswith(("http://", "https://")):
-                return raw.rstrip("/")
-            return None
-
-        origin_candidates: list[str] = []
-        header_origin = origin_from_header(request_origin) or origin_from_header(request_referer)
-        if header_origin and is_allowed_origin(header_origin):
-            origin_candidates.append(header_origin)
-        if configured_frontend:
-            origin_candidates.append(configured_frontend)
-
-        request_host_lower = request_host_clean.lower()
-        parsed_front = urlparse(configured_frontend) if configured_frontend else None
-        configured_hostname = (parsed_front.hostname or "").lower() if parsed_front else ""
-
-        if (
-            request_host_lower.startswith("api.")
-            and configured_hostname
-            and request_host_lower.split(":", 1)[0].removeprefix("api.") == configured_hostname
-        ):
-            scheme = parsed_front.scheme or request_scheme if parsed_front else request_scheme
-            origin_candidates.append(f"{scheme}://{configured_hostname}".rstrip("/"))
-        if local_frontend:
-            origin_candidates.append(local_frontend)
-
-        origin = None
-        for candidate in origin_candidates:
-            origin = _normalize_origin(candidate)
-            if origin:
-                break
-
-        if not origin and configured_frontend:
-            origin = _normalize_origin(configured_frontend)
-
-        if not origin:
-            origin = f"{request_scheme}://{request_host_clean}".rstrip("/")
-
-        if callback_from == "payment-setup":
-            success_path = "/instructor/onboarding/payment-setup"
-        else:
-            success_path = (
-                f"/instructor/onboarding/status/{callback_from}"
-                if callback_from
-                else "/instructor/onboarding/status"
-            )
-        refresh_path = "/instructor/onboarding/start"
-        onboarding_link = self.create_account_link(
-            instructor_profile_id=instructor_profile.id,
-            refresh_url=urljoin(origin + "/", refresh_path.lstrip("/")),
-            return_url=urljoin(origin + "/", success_path.lstrip("/")),
-        )
-
-        return OnboardingResponse(
-            account_id=account_id,
-            onboarding_url=onboarding_link,
-            already_onboarded=False,
-        )
-
-    @BaseService.measure_operation("stripe_get_onboarding_status")
-    def get_instructor_onboarding_status(self, *, user: User) -> OnboardingStatusResponse:
-        """Return onboarding status for instructor."""
-        profile = self.instructor_repository.get_by_user_id(user.id)
-        if not profile:
-            raise ServiceException("Instructor profile not found", code="not_found")
-
-        connected = self.payment_repository.get_connected_account_by_instructor_id(profile.id)
-        if not connected or not connected.stripe_account_id:
-            return OnboardingStatusResponse(
-                has_account=False,
-                onboarding_completed=False,
-                charges_enabled=False,
-                payouts_enabled=False,
-                details_submitted=False,
-                requirements=[],
-            )
-
-        account = self.check_account_status(profile.id)
-        charges_enabled = bool(
-            account.get(
-                "charges_enabled",
-                account.get("can_accept_payments", False),
-            )
-        )
-        payouts_enabled = bool(account.get("payouts_enabled", False))
-        details_submitted = bool(account.get("details_submitted", False))
-        onboarding_completed = bool(account.get("onboarding_completed", False))
-        requirements_list: list[str] = account.get("requirements", []) or []
-
-        return OnboardingStatusResponse(
-            has_account=True,
-            onboarding_completed=onboarding_completed,
-            charges_enabled=charges_enabled,
-            payouts_enabled=payouts_enabled,
-            details_submitted=details_submitted,
-            requirements=requirements_list,
-        )
-
-    @BaseService.measure_operation("stripe_refresh_identity_status")
-    def refresh_instructor_identity(self, *, user: User) -> IdentityRefreshResponse:
-        """Refresh instructor identity verification status."""
-        profile = self.instructor_repository.get_by_user_id(user.id)
-        if not profile:
-            raise ServiceException("Instructor profile not found", code="not_found")
-
-        profile_id = profile.id
-        self.instructor_repository.update(profile_id, bgc_in_dispute=False)
-        if profile.identity_verified_at:
-            return IdentityRefreshResponse(
-                status="verified",
-                verified=True,
-                identity_name_mismatch=profile.identity_name_mismatch,
-                last_error_code=None,
-                last_error_reason=None,
-            )
-
-        session_id = profile.identity_verification_session_id
-        if not session_id:
-            return IdentityRefreshResponse(
-                status="not_started",
-                verified=False,
-                identity_name_mismatch=profile.identity_name_mismatch,
-                last_error_code=None,
-                last_error_reason=None,
-            )
-
-        self._check_stripe_configured()
-
-        try:
-            session = cast(Any, stripe.identity.VerificationSession).retrieve(
-                session_id,
-                **self._identity_retrieve_options(),
-            )
-        except stripe.StripeError as exc:
-            self.logger.error(
-                "Failed to retrieve identity session %s: %s",
-                session_id,
-                str(exc),
-            )
-            return IdentityRefreshResponse(
-                status="error",
-                verified=False,
-                identity_name_mismatch=profile.identity_name_mismatch,
-                last_error_code=None,
-                last_error_reason=None,
-            )
-
-        stripe_status = str(self._stripe_value(session, "status", "unknown") or "unknown")
-        last_error_code, last_error_reason = self._identity_last_error(session)
-        if stripe_status == "verified":
-            try:
-                self._persist_verified_identity(
-                    profile_id=profile_id,
-                    user_id=user.id,
-                    session=session,
-                    session_id=session_id,
-                )
-            except Exception as exc:
-                self.logger.warning("Failed to persist verified identity: %s", exc)
-                self.instructor_repository.update(
-                    profile_id,
-                    identity_verified_at=datetime.now(timezone.utc),
-                    identity_verification_session_id=session_id,
-                )
-            refreshed_profile = self.instructor_repository.get_by_user_id(user.id) or profile
-            return IdentityRefreshResponse(
-                status="verified",
-                verified=True,
-                identity_name_mismatch=refreshed_profile.identity_name_mismatch,
-                last_error_code=None,
-                last_error_reason=None,
-            )
-
-        if stripe_status == "processing":
-            last_error_code = None
-            last_error_reason = None
-
-        return IdentityRefreshResponse(
-            status=stripe_status or "unknown",
-            verified=False,
-            identity_name_mismatch=profile.identity_name_mismatch,
-            last_error_code=last_error_code,
-            last_error_reason=last_error_reason,
-        )
-
-    @BaseService.measure_operation("stripe_set_payout_schedule")
-    def set_instructor_payout_schedule(
-        self, *, user: User, monthly_anchor: int | None, interval: str
-    ) -> PayoutScheduleResponse:
-        """Update payout schedule for instructor connected account."""
-        profile = self.instructor_repository.get_by_user_id(user.id)
-        if not profile:
-            raise ServiceException("Instructor profile not found", code="not_found")
-
-        connected = self.payment_repository.get_connected_account_by_instructor_id(profile.id)
-        if not connected or not connected.stripe_account_id:
-            raise ServiceException("Instructor is not onboarded to Stripe", code="not_onboarded")
-
-        schedule_settings: dict[str, object] = {
-            "interval": interval,
-        }
-        if monthly_anchor:
-            schedule_settings["monthly_anchor"] = monthly_anchor
-
-        account = stripe.Account.modify(
-            connected.stripe_account_id,
-            settings={
-                "payouts": {
-                    "schedule": schedule_settings,
-                }
-            },
-        )
-        account_id = (
-            account.get("id") if isinstance(account, dict) else getattr(account, "id", None)
-        )
-        return PayoutScheduleResponse(
-            ok=True,
-            account_id=account_id,
-            settings={"interval": interval, "monthly_anchor": monthly_anchor},
-        )
-
-    @BaseService.measure_operation("stripe_dashboard_link")
-    def get_instructor_dashboard_link(self, *, user: User) -> DashboardLinkResponse:
-        """Generate Stripe dashboard link for instructor."""
-        profile = self.instructor_repository.get_by_user_id(user.id)
-        if not profile:
-            raise ServiceException("Instructor profile not found", code="not_found")
-
-        connected = self.payment_repository.get_connected_account_by_instructor_id(profile.id)
-        if not connected or not connected.stripe_account_id:
-            raise ServiceException("Instructor is not onboarded to Stripe", code="not_onboarded")
-
-        link = stripe.Account.create_login_link(connected.stripe_account_id)
-        dashboard_url = link.get("url") if isinstance(link, dict) else getattr(link, "url", None)
-        return DashboardLinkResponse(
-            dashboard_url=dashboard_url or "",
-            expires_in_minutes=5,
-        )
-
-    @BaseService.measure_operation("stripe_request_instant_payout")
-    def request_instructor_instant_payout(self, *, user: User) -> InstantPayoutResponse:
-        """Request an instant payout for an instructor's full available balance."""
-        profile = self.instructor_repository.get_by_user_id(user.id)
-        if not profile:
-            raise ServiceException("Instructor profile not found", code="not_found")
-
-        connected = self.payment_repository.get_connected_account_by_instructor_id(profile.id)
-        if not connected or not connected.stripe_account_id:
-            raise ServiceException("Instructor is not onboarded to Stripe", code="not_onboarded")
-
-        balance = StripeBalance.retrieve(stripe_account=connected.stripe_account_id)
-        available_amount = balance.available[0].amount if balance.available else 0
-        if available_amount <= 0:
-            raise ServiceException("No funds available for instant payout", code="no_funds")
-
-        payout_key = f"payout_{connected.stripe_account_id}_{uuid.uuid4()}"
-        payout = self._call_with_retry(
-            stripe.Payout.create,
-            amount=available_amount,
-            currency="usd",
-            stripe_account=connected.stripe_account_id,
-            method="instant",
-            idempotency_key=payout_key,
-        )
-        payout_id = (
-            getattr(payout, "id", None) if not isinstance(payout, dict) else payout.get("id")
-        )
-        payout_status = (
-            getattr(payout, "status", None)
-            if not isinstance(payout, dict)
-            else payout.get("status")
-        )
-        return InstantPayoutResponse(
-            ok=True,
-            payout_id=payout_id,
-            status=payout_status,
-        )
 
     # --------------------------------------------------------------------- #
     # Checkout and earnings
@@ -1198,516 +769,6 @@ class StripeService(
                 "Failed to build charge context for booking %s: %s", booking_id, str(exc)
             )
             raise ServiceException("Failed to build charge context") from exc
-
-    # ========== Identity Verification ==========
-    @BaseService.measure_operation("stripe_create_identity_session")
-    def create_identity_verification_session(
-        self,
-        *,
-        user_id: str,
-        return_url: str,
-    ) -> Dict[str, Any]:
-        """Create a Stripe Identity verification session for the given user.
-
-        Returns dict with `client_secret` and `verification_session_id`.
-        """
-        try:
-            self._check_stripe_configured()
-
-            user: Optional[User] = self.user_repository.get_by_id(user_id)
-            if not user:
-                raise ServiceException("User not found for identity verification")
-
-            profile = self.instructor_repository.get_by_user_id(user_id)
-            if profile and profile.identity_verified_at:
-                raise ServiceException("Identity verification already completed")
-
-            existing_session_id = profile.identity_verification_session_id if profile else None
-            if existing_session_id:
-                try:
-                    existing_session = cast(Any, stripe.identity.VerificationSession).retrieve(
-                        existing_session_id,
-                        **self._identity_retrieve_options(),
-                    )
-                except stripe.StripeError as exc:
-                    self.logger.error(
-                        "Stripe error retrieving existing identity session %s: %s",
-                        existing_session_id,
-                        str(exc),
-                    )
-                    raise ServiceException("Failed to resume identity verification") from exc
-
-                existing_status = str(
-                    self._stripe_value(existing_session, "status", "unknown") or "unknown"
-                )
-                if existing_status in {"requires_input", "processing"}:
-                    return self._identity_session_payload(existing_session, reuse_existing=True)
-
-                if existing_status == "verified":
-                    if profile and not profile.identity_verified_at:
-                        try:
-                            self._persist_verified_identity(
-                                profile_id=profile.id,
-                                user_id=user_id,
-                                session=existing_session,
-                                session_id=existing_session_id,
-                            )
-                        except Exception as exc:
-                            self.logger.warning("Failed to persist verified identity: %s", exc)
-                            self.instructor_repository.update(
-                                profile.id,
-                                identity_verified_at=datetime.now(timezone.utc),
-                                identity_verification_session_id=existing_session_id,
-                            )
-                    raise ServiceException("Identity verification already completed")
-
-                if existing_status != "canceled":
-                    raise ServiceException(
-                        f"Identity verification session cannot be reused (status: {existing_status})"
-                    )
-
-            # Build verification session parameters
-            params: Dict[str, Any] = {
-                "type": "document",
-                "metadata": {"user_id": user_id},
-                "options": {
-                    "document": {"require_live_capture": True, "require_matching_selfie": True}
-                },
-                "return_url": return_url,
-            }
-
-            session = stripe.identity.VerificationSession.create(**params)
-            session_payload = self._identity_session_payload(session, reuse_existing=False)
-            if profile:
-                self.instructor_repository.update(
-                    profile.id,
-                    identity_verification_session_id=session_payload["verification_session_id"],
-                )
-
-            return session_payload
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error creating identity session: %s", e)
-            raise ServiceException(f"Failed to start identity verification: {e}")
-        except Exception as e:
-            if isinstance(e, ServiceException):
-                raise
-            self.logger.error("Error creating identity session: %s", e)
-            raise ServiceException("Failed to start identity verification")
-
-    @BaseService.measure_operation("stripe_get_latest_identity_status")
-    def get_latest_identity_status(self, user_id: str) -> Dict[str, Any]:
-        """Return latest Stripe Identity verification status for a user.
-
-        Uses session metadata.user_id to find the most recent session.
-        """
-        try:
-            self._check_stripe_configured()
-            # Fetch recent sessions and filter by our metadata
-            # Run list call with bounded timeout via stripe client defaults
-            sessions = stripe.identity.VerificationSession.list(limit=20)
-            latest = None
-            for s in sessions.get("data", []):
-                try:
-                    meta = getattr(s, "metadata", {}) or {}
-                    if str(meta.get("user_id")) == str(user_id):
-                        if latest is None or getattr(s, "created", 0) > getattr(
-                            latest, "created", 0
-                        ):
-                            latest = s
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
-                    continue
-            if not latest:
-                return {"status": "not_found"}
-
-            return {
-                "status": getattr(latest, "status", "unknown"),
-                "id": getattr(latest, "id", None),
-                "created": getattr(latest, "created", None),
-            }
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error getting identity status: %s", e)
-            raise ServiceException(f"Failed to get identity status: {e}")
-        except Exception as e:
-            if isinstance(e, ServiceException):
-                raise
-            self.logger.error("Error getting identity status: %s", e)
-            raise ServiceException("Failed to get identity status")
-
-    # ========== Customer Management ==========
-
-    @BaseService.measure_operation("stripe_create_customer")
-    def create_customer(self, user_id: str, email: str, name: str) -> StripeCustomer:
-        """
-        Create a Stripe customer for a user.
-
-        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
-        - Phase 1: Check if customer exists (quick transaction)
-        - Phase 2: stripe.Customer.create (NO transaction)
-        - Phase 3: Save customer record (quick transaction)
-
-        Args:
-            user_id: User's ID (ULID string)
-            email: User's email address
-            name: User's full name
-
-        Returns:
-            StripeCustomer record
-
-        Raises:
-            ServiceException: If customer creation fails
-        """
-        try:
-            # ========== PHASE 1: Check if customer exists (quick transaction) ==========
-            with self.transaction():
-                existing_customer = self.payment_repository.get_customer_by_user_id(user_id)
-                if existing_customer:
-                    self.logger.info("Customer already exists for user %s", user_id)
-                    return existing_customer
-
-            # ========== PHASE 2: Stripe Customer.create (NO transaction) ==========
-            try:
-                stripe_customer = self._call_with_retry(
-                    stripe.Customer.create,
-                    email=email,
-                    name=name,
-                    metadata={"user_id": user_id},
-                    idempotency_key=f"cust_{user_id}",
-                )
-                stripe_customer_id = stripe_customer.id
-            except Exception as e:
-                # If Stripe isn't configured, decide between mock fallback and raising
-                if not self.stripe_configured:
-                    if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
-                        raise ServiceException(
-                            "Stripe not configured in production mode",
-                            code="configuration_error",
-                        )
-                    msg = str(e)
-                    auth_error = False
-                    try:
-                        # AuthenticationError indicates missing/invalid API key
-                        auth_error = isinstance(e, stripe.error.AuthenticationError)
-                    except Exception:
-                        auth_error = False
-
-                    if auth_error or "No API key" in msg or "api key" in msg.lower():
-                        self.logger.warning(
-                            "Stripe not configured (auth error); using mock customer for user %s",
-                            user_id,
-                        )
-                        stripe_customer_id = f"mock_cust_{user_id}"
-                    else:
-                        # For other errors (e.g., tests patching to raise API Error), surface as ServiceException
-                        self.logger.error("Stripe customer creation failed: %s", msg)
-                        raise ServiceException(f"Failed to create Stripe customer: {msg}")
-                else:
-                    # If configured, bubble up as a service error
-                    raise
-
-            # ========== PHASE 3: Save customer record (quick transaction) ==========
-            with self.transaction():
-                customer_record = self.payment_repository.create_customer_record(
-                    user_id=user_id, stripe_customer_id=stripe_customer_id
-                )
-
-            self.logger.info("Created Stripe customer %s for user %s", stripe_customer_id, user_id)
-            return customer_record
-
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error creating customer: %s", e)
-            raise ServiceException(f"Failed to create Stripe customer: {str(e)}")
-        except Exception as e:
-            self.logger.error("Error creating customer: %s", e)
-            raise ServiceException(f"Failed to create customer: {str(e)}")
-
-    @BaseService.measure_operation("stripe_get_or_create_customer")
-    def get_or_create_customer(self, user_id: str) -> StripeCustomer:
-        """
-        Get existing customer or create a new one.
-
-        Args:
-            user_id: User's ID
-
-        Returns:
-            StripeCustomer record
-
-        Raises:
-            ServiceException: If user not found or customer creation fails
-        """
-        try:
-            # Check if customer already exists
-            existing_customer = self.payment_repository.get_customer_by_user_id(user_id)
-            if existing_customer:
-                return existing_customer
-
-            # Get user details
-            user = self.user_repository.get_by_id(user_id)
-            if not user:
-                raise ServiceException(f"User {user_id} not found")
-
-            # Create new customer
-            full_name = f"{user.first_name} {user.last_name}".strip()
-            return self.create_customer(user_id, user.email, full_name)
-
-        except Exception as e:
-            if isinstance(e, ServiceException):
-                raise
-            self.logger.error("Error getting or creating customer: %s", e)
-            raise ServiceException(f"Failed to get or create customer: {str(e)}")
-
-    # ========== Connected Account Management ==========
-
-    @BaseService.measure_operation("stripe_create_connected_account")
-    def create_connected_account(
-        self, instructor_profile_id: str, email: str
-    ) -> StripeConnectedAccount:
-        """
-        Create a Stripe Connect Express account for an instructor.
-
-        Args:
-            instructor_profile_id: Instructor profile ID
-            email: Instructor's email address
-
-        Returns:
-            StripeConnectedAccount record
-
-        Raises:
-            ServiceException: If account creation fails
-        """
-        existing = self.payment_repository.get_connected_account_by_instructor_id(
-            instructor_profile_id
-        )
-        if existing:
-            return existing
-
-        def _persist_connected_account(stripe_account_id: str) -> StripeConnectedAccount:
-            try:
-                with self.payment_repository.transaction():
-                    record = self.payment_repository.create_connected_account_record(
-                        instructor_profile_id=instructor_profile_id,
-                        stripe_account_id=stripe_account_id,
-                        onboarding_completed=False,
-                    )
-                return record
-            except IntegrityError:
-                existing_record = self.payment_repository.get_connected_account_by_instructor_id(
-                    instructor_profile_id
-                )
-                if existing_record:
-                    return existing_record
-                raise
-
-        try:
-            # Try real Stripe path first (allows tests to @patch)
-            stripe_account = self._call_with_retry(
-                stripe.Account.create,
-                type="express",
-                email=email,
-                capabilities={"transfers": {"requested": True}},
-                metadata={"instructor_profile_id": instructor_profile_id},
-                idempotency_key=f"acct_{instructor_profile_id}",
-            )
-
-            account_record = _persist_connected_account(stripe_account.id)
-
-            # Set default payout schedule (best-effort)
-            try:
-                stripe.Account.modify(
-                    stripe_account.id,
-                    settings={
-                        "payouts": {
-                            "schedule": {
-                                "interval": "weekly",
-                                "weekly_anchor": "tuesday",
-                            }
-                        }
-                    },
-                )
-            except Exception:
-                logger.warning("Non-fatal error ignored", exc_info=True)
-            self.logger.info(
-                "Created Stripe Express account %s...%s for instructor %s",
-                stripe_account.id[:8],
-                stripe_account.id[-4:],
-                instructor_profile_id,
-            )
-            return account_record
-        except IntegrityError as e:
-            self.logger.warning(
-                "Race detected creating connected account for instructor %s: %s",
-                instructor_profile_id,
-                str(e),
-            )
-            existing_record = self.payment_repository.get_connected_account_by_instructor_id(
-                instructor_profile_id
-            )
-            if existing_record:
-                return existing_record
-            raise ServiceException("Failed to create connected account due to conflict") from e
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error creating connected account: %s", e)
-            raise ServiceException(f"Failed to create connected account: {e}")
-        except Exception as e:
-            if not self.stripe_configured:
-                if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
-                    raise ServiceException(
-                        "Stripe not configured in production mode",
-                        code="configuration_error",
-                    )
-                self.logger.warning(
-                    "Stripe not configured or call failed (%s); using mock connected account for instructor %s",
-                    str(e),
-                    instructor_profile_id,
-                )
-                try:
-                    return _persist_connected_account(f"mock_acct_{instructor_profile_id}")
-                except IntegrityError as conflict:
-                    self.logger.warning(
-                        "Race detected creating mock account for instructor %s: %s",
-                        instructor_profile_id,
-                        str(conflict),
-                    )
-                    existing_record = (
-                        self.payment_repository.get_connected_account_by_instructor_id(
-                            instructor_profile_id
-                        )
-                    )
-                    if existing_record:
-                        return existing_record
-                    raise ServiceException(
-                        "Failed to create connected account due to conflict"
-                    ) from conflict
-            self.logger.error("Error creating connected account: %s", e)
-            raise ServiceException(f"Failed to create connected account: {str(e)}")
-
-    @BaseService.measure_operation("stripe_create_account_link")
-    def create_account_link(
-        self, instructor_profile_id: str, refresh_url: str, return_url: str
-    ) -> str:
-        """
-        Create an account link for Express account onboarding.
-
-        Args:
-            instructor_profile_id: Instructor profile ID
-            refresh_url: URL to redirect if link expires
-            return_url: URL to redirect after onboarding
-
-        Returns:
-            Account link URL
-
-        Raises:
-            ServiceException: If account link creation fails
-        """
-        try:
-            # Get connected account
-            account_record = self.payment_repository.get_connected_account_by_instructor_id(
-                instructor_profile_id
-            )
-            if not account_record:
-                raise ServiceException(
-                    f"No connected account found for instructor {instructor_profile_id}"
-                )
-
-            # Create account link
-            account_link = stripe.AccountLink.create(
-                account=account_record.stripe_account_id,
-                refresh_url=refresh_url,
-                return_url=return_url,
-                type="account_onboarding",
-                idempotency_key=f"acct_link_{instructor_profile_id}_{uuid.uuid4()}",
-            )
-
-            self.logger.info("Created account link for instructor %s", instructor_profile_id)
-            url_attr = getattr(account_link, "url", None)
-            return str(url_attr) if url_attr is not None else ""
-
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error creating account link: %s", e)
-            raise ServiceException(f"Failed to create account link: {str(e)}")
-        except Exception as e:
-            self.logger.error("Error creating account link: %s", e)
-            raise ServiceException(f"Failed to create account link: {str(e)}")
-
-    @BaseService.measure_operation("stripe_check_account_status")
-    def check_account_status(self, instructor_profile_id: str) -> Dict[str, Any]:
-        """
-        Check the onboarding status of a connected account.
-
-        Args:
-            instructor_profile_id: Instructor profile ID
-
-        Returns:
-            Dictionary with account status information
-
-        Raises:
-            ServiceException: If status check fails
-        """
-        try:
-            # Get connected account
-            account_record = self.payment_repository.get_connected_account_by_instructor_id(
-                instructor_profile_id
-            )
-            if not account_record:
-                return {
-                    "has_account": False,
-                    "onboarding_completed": False,
-                    "charges_enabled": False,
-                    "can_accept_payments": False,
-                    "payouts_enabled": False,
-                    "details_submitted": False,
-                    "requirements": [],
-                }
-
-            # Get account details from Stripe
-            stripe_account = stripe.Account.retrieve(account_record.stripe_account_id)
-
-            charges_enabled = bool(getattr(stripe_account, "charges_enabled", False))
-            payouts_enabled = bool(getattr(stripe_account, "payouts_enabled", False))
-            details_submitted = bool(getattr(stripe_account, "details_submitted", False))
-            requirements: list[str] = []
-            try:
-                req_obj = getattr(stripe_account, "requirements", None)
-                if req_obj:
-                    for field_name in ("currently_due", "past_due", "pending_verification"):
-                        items = getattr(req_obj, field_name, None) or []
-                        if isinstance(items, (list, tuple, set)):
-                            for item in items:
-                                if isinstance(item, str):
-                                    requirements.append(item)
-            except Exception:
-                requirements = []
-
-            # Compute actual onboarding completion from live Stripe fields
-            computed_completed = bool(charges_enabled and details_submitted)
-
-            # Keep DB flag in sync (do not force true when not actually completed)
-            if account_record.onboarding_completed != computed_completed:
-                try:
-                    self.payment_repository.update_onboarding_status(
-                        account_record.stripe_account_id, computed_completed
-                    )
-                    account_record.onboarding_completed = computed_completed
-                except Exception:
-                    # Non-fatal if persistence fails; return live-computed status
-                    logger.debug("Non-fatal error ignored", exc_info=True)
-            return {
-                "has_account": True,
-                "onboarding_completed": computed_completed,
-                "charges_enabled": charges_enabled,
-                "can_accept_payments": charges_enabled,
-                "payouts_enabled": payouts_enabled,
-                "details_submitted": details_submitted,
-                "requirements": requirements,
-                "stripe_account_id": account_record.stripe_account_id,
-            }
-
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error checking account status: %s", e)
-            raise ServiceException(f"Failed to check account status: {str(e)}")
-        except Exception as e:
-            self.logger.error("Error checking account status: %s", e)
-            raise ServiceException(f"Failed to check account status: {str(e)}")
 
     # ========== Payment Processing ==========
 
@@ -2317,222 +1378,6 @@ class StripeService(
                 raise
             self.logger.error("Error processing booking payment: %s", e)
             raise ServiceException(f"Failed to process payment: {str(e)}")
-
-    # ========== Payment Method Management ==========
-
-    @BaseService.measure_operation("stripe_create_setup_intent_for_saving")
-    def create_setup_intent_for_saving(self, user_id: str) -> Dict[str, str]:
-        """Create a SetupIntent for saving a payment method via PaymentElement.
-
-        Returns a client_secret the frontend uses to render PaymentElement
-        and call stripe.confirmSetup().
-
-        Args:
-            user_id: User's ID
-
-        Returns:
-            Dict with client_secret key
-        """
-        self._check_stripe_configured()
-        customer = self.get_or_create_customer(user_id)
-        setup_intent = self._call_with_retry(
-            stripe.SetupIntent.create,
-            customer=customer.stripe_customer_id,
-            automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
-            usage="off_session",
-            metadata={"user_id": user_id, "platform": "instainstru"},
-        )
-        client_secret = setup_intent.client_secret
-        if not client_secret:
-            raise ServiceException("SetupIntent created without client_secret")
-        return {"client_secret": client_secret}
-
-    @BaseService.measure_operation("stripe_save_payment_method")
-    def save_payment_method(
-        self, user_id: str, payment_method_id: str, set_as_default: bool = False
-    ) -> PaymentMethod:
-        """
-        Save a payment method for a user.
-
-        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
-        - Phase 1: Check existing, get customer (quick transaction)
-        - Phase 2: Stripe retrieve/attach (NO transaction)
-        - Phase 3: Save to database (quick transaction)
-
-        Args:
-            user_id: User's ID
-            payment_method_id: Stripe payment method ID
-            set_as_default: Whether to set as default payment method
-
-        Returns:
-            PaymentMethod record
-
-        Raises:
-            ServiceException: If saving fails
-        """
-        try:
-            # ========== PHASE 1: Check existing & get customer (quick transaction) ==========
-            with self.transaction():
-                # Check if payment method already exists in our database
-                existing = self.payment_repository.get_payment_method_by_stripe_id(
-                    payment_method_id, user_id
-                )
-                if existing:
-                    self.logger.info(
-                        "Payment method %s already exists for user %s",
-                        payment_method_id,
-                        user_id,
-                    )
-                    # If setting as default, update the existing one
-                    if set_as_default:
-                        self.payment_repository.set_default_payment_method(existing.id, user_id)
-                    return existing
-
-            # Ensure user has a Stripe customer (may involve Stripe call, handled separately)
-            customer = self.get_or_create_customer(user_id)
-            stripe_customer_id = customer.stripe_customer_id
-
-            # ========== PHASE 2: Stripe calls (NO transaction) ==========
-            try:
-                stripe_pm = stripe.PaymentMethod.retrieve(payment_method_id)
-
-                # Check if already attached to a customer
-                if stripe_pm.customer:
-                    if stripe_pm.customer != stripe_customer_id:
-                        # Payment method is attached to a different customer
-                        self.logger.error(
-                            "Payment method %s is attached to a different customer",
-                            payment_method_id,
-                        )
-                        raise ServiceException(
-                            "This payment method is already in use by another account"
-                        )
-                    # Already attached to this customer, just retrieve it
-                    self.logger.info(
-                        "Payment method %s already attached to customer",
-                        payment_method_id,
-                    )
-                else:
-                    # Not attached, so attach it
-                    stripe_pm = stripe.PaymentMethod.attach(
-                        payment_method_id, customer=stripe_customer_id
-                    )
-                    self.logger.info("Attached payment method %s to customer", payment_method_id)
-
-            except stripe.error.CardError as e:
-                # Handle specific card errors
-                self.logger.error("Card error: %s", e)
-                error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
-                raise ServiceException(error_message)
-
-            # Extract card details from Stripe response
-            card = stripe_pm.card
-            last4 = cast(Optional[str], getattr(card, "last4", None) if card else None)
-            brand = cast(Optional[str], getattr(card, "brand", None) if card else None)
-
-            # ========== PHASE 3: Save to database (quick transaction) ==========
-            with self.transaction():
-                payment_method = self.payment_repository.save_payment_method(
-                    user_id=user_id,
-                    stripe_payment_method_id=payment_method_id,
-                    last4=last4 or "",
-                    brand=brand or "",
-                    is_default=set_as_default,
-                )
-
-            self.logger.info("Saved payment method %s for user %s", payment_method_id, user_id)
-            return payment_method
-
-        except ServiceException:
-            # Re-raise service exceptions
-            raise
-        except stripe.StripeError as e:
-            self.logger.error("Stripe error saving payment method: %s", e)
-            # Extract user-friendly message from Stripe error
-            error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
-            raise ServiceException(f"Failed to save payment method: {error_message}")
-        except Exception as e:
-            self.logger.error("Error saving payment method: %s", e)
-            raise ServiceException(f"Failed to save payment method: {str(e)}")
-
-    @BaseService.measure_operation("stripe_get_user_payment_methods")
-    def get_user_payment_methods(self, user_id: str) -> List[PaymentMethod]:
-        """
-        Get all payment methods for a user.
-
-        Args:
-            user_id: User's ID
-
-        Returns:
-            List of PaymentMethod records
-
-        Raises:
-            ServiceException: If retrieval fails
-        """
-        try:
-            return list(self.payment_repository.get_payment_methods_by_user(user_id))
-        except Exception as e:
-            self.logger.error("Error getting payment methods: %s", e)
-            raise ServiceException(f"Failed to get payment methods: {str(e)}")
-
-    @BaseService.measure_operation("stripe_delete_payment_method")
-    def delete_payment_method(self, payment_method_id: str, user_id: str) -> bool:
-        """
-        Delete a payment method.
-
-        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
-        - Phase 1: Ownership verification (BEFORE Stripe call)
-        - Phase 2: Stripe detach (NO transaction)
-        - Phase 3: Delete from database (quick transaction)
-
-        Args:
-            payment_method_id: Payment method ID (can be database ID or Stripe ID)
-            user_id: User's ID (for ownership verification)
-
-        Returns:
-            True if deleted successfully
-
-        Raises:
-            ServiceException: If deletion fails
-        """
-        try:
-            # ========== PHASE 1: Ownership verification (BEFORE Stripe) ==========
-            # For Stripe pm_ IDs, we MUST verify ownership before calling
-            # stripe.PaymentMethod.detach to prevent attackers from detaching
-            # payment methods they don't own (AUTHZ-VULN-02).
-            if payment_method_id.startswith("pm_"):
-                existing = self.payment_repository.get_payment_method_by_stripe_id(
-                    payment_method_id, user_id
-                )
-                if not existing:
-                    return False  # Not owned by this user — abort before Stripe call
-
-            # ========== PHASE 2: Stripe detach (NO transaction) ==========
-            # Try to detach from Stripe if it's a Stripe payment method ID
-            if payment_method_id.startswith("pm_"):
-                try:
-                    stripe.PaymentMethod.detach(payment_method_id)
-                    self.logger.info("Detached payment method %s from Stripe", payment_method_id)
-                except stripe.StripeError as e:
-                    # Log but don't fail - payment method might already be detached
-                    self.logger.warning("Could not detach payment method from Stripe: %s", e)
-
-            # ========== PHASE 3: Delete from database (quick transaction) ==========
-            with self.transaction():
-                success = self.payment_repository.delete_payment_method(payment_method_id, user_id)
-
-            if success:
-                self.logger.info(
-                    "Deleted payment method %s from database for user %s",
-                    payment_method_id,
-                    user_id,
-                )
-
-            return bool(success)
-
-        except Exception as e:
-            self.logger.error("Error deleting payment method: %s", e)
-            raise ServiceException(f"Failed to delete payment method: {str(e)}")
 
     # ========== Webhook Handling ==========
 
