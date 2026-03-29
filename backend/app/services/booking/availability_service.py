@@ -288,56 +288,134 @@ class BookingAvailabilityMixin:
         location_lat: Optional[float] = None,
         location_lng: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """
-        Check if a time range is available for booking.
-
-        Args:
-            instructor_id: The instructor ID
-            booking_date: The date to check
-            start_time: Start time
-            end_time: End time
-            service_id: Service ID
-
-        Returns:
-            Dictionary with availability status and details
-        """
-        # Enforce 15-minute booking boundary
+        """Check whether a requested lesson window is available."""
         start_minutes = time_to_minutes(start_time)
+        resolved_service_id = service_id or instructor_service_id
+        normalized_location_type = normalize_location_type(location_type)
+        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
+        shape_error = self._validate_availability_request_shape(start_minutes, resolved_service_id)
+        if shape_error:
+            return shape_error
+        availability_context = self._load_availability_context(
+            resolved_service_id=cast(str, resolved_service_id), instructor_id=instructor_id
+        )
+        if availability_context.get("error"):
+            return cast(Dict[str, Any], availability_context["error"])
+        service = cast(InstructorService, availability_context["service"])
+        instructor_profile = cast(InstructorProfile, availability_context["instructor_profile"])
+        business_rule_error = self._validate_availability_business_rules(
+            service=service,
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            selected_duration=selected_duration,
+            normalized_location_type=normalized_location_type,
+            location_lat=location_lat,
+            location_lng=location_lng,
+        )
+        if business_rule_error:
+            return business_rule_error
+        timing_error = self._enforce_availability_notice_and_overnight_rules(
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            normalized_location_type=normalized_location_type,
+            instructor_profile=instructor_profile,
+        )
+        if timing_error:
+            return timing_error
+        conflict_ctx = self._check_availability_conflicts(
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            normalized_location_type=normalized_location_type,
+            exclude_booking_id=exclude_booking_id,
+            student_id=student_id,
+            exclude_id=exclude_id,
+            instructor_profile=instructor_profile,
+        )
+        if conflict_ctx.get("error"):
+            return cast(Dict[str, Any], conflict_ctx["error"])
+        bitmap_error = self._validate_availability_bitmap_range(
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_minutes=start_minutes,
+            end_time=end_time,
+            normalized_location_type=normalized_location_type,
+        )
+        if bitmap_error:
+            return bitmap_error
+        proximity_warnings = self._build_availability_proximity_warnings(
+            student_id=student_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            normalized_location_type=normalized_location_type,
+            exclude_booking_id=exclude_booking_id,
+            instructor_profile=instructor_profile,
+            location_address=location_address,
+            location_place_id=location_place_id,
+            location_lat=location_lat,
+            location_lng=location_lng,
+            existing_student_bookings=cast(
+                Optional[List[Any]], conflict_ctx["existing_student_bookings"]
+            ),
+        )
+        return self._build_availability_success_response(
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            instructor_id=instructor_id,
+            proximity_warnings=proximity_warnings,
+        )
+
+    def _validate_availability_request_shape(
+        self,
+        start_minutes: int,
+        resolved_service_id: Optional[str],
+    ) -> Dict[str, Any] | None:
         if start_minutes % BOOKING_START_STEP_MINUTES != 0:
             return {
                 "available": False,
                 "reason": f"Start time must be on a {BOOKING_START_STEP_MINUTES}-minute boundary",
             }
-
-        resolved_service_id = service_id or instructor_service_id
         if not resolved_service_id:
             return {"available": False, "reason": "Service not found or no longer available"}
+        return None
 
-        normalized_location_type = normalize_location_type(location_type)
-        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
-
-        # Get service and instructor profile using repositories
+    def _load_availability_context(
+        self,
+        *,
+        resolved_service_id: str,
+        instructor_id: str,
+    ) -> Dict[str, Any]:
         service = self.conflict_checker_repository.get_active_service(resolved_service_id)
         if not service:
-            return {"available": False, "reason": "Service not found or no longer available"}
-
-        # Get instructor profile
+            return {
+                "error": {"available": False, "reason": "Service not found or no longer available"}
+            }
         instructor_profile = self.conflict_checker_repository.get_instructor_profile(instructor_id)
         if instructor_profile is None:
-            return {
-                "available": False,
-                "reason": "Instructor profile not found",
-            }
+            return {"error": {"available": False, "reason": "Instructor profile not found"}}
+        return {"service": service, "instructor_profile": instructor_profile}
 
+    def _validate_availability_business_rules(
+        self,
+        *,
+        service: InstructorService,
+        instructor_id: str,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        selected_duration: Optional[int],
+        normalized_location_type: str,
+        location_lat: Optional[float],
+        location_lng: Optional[float],
+    ) -> Dict[str, Any] | None:
         try:
             self._validate_location_capability(service, normalized_location_type)
-        except ValidationException as exc:
-            return {
-                "available": False,
-                "reason": str(exc),
-            }
-
-        try:
             self._validate_selected_duration_for_service(
                 service=service,
                 booking_date=booking_date,
@@ -345,13 +423,6 @@ class BookingAvailabilityMixin:
                 end_time=end_time,
                 selected_duration=selected_duration,
             )
-        except ValidationException as exc:
-            return {
-                "available": False,
-                "reason": str(exc),
-            }
-
-        try:
             self._validate_service_area_for_availability_check(
                 instructor_id=instructor_id,
                 service=service,
@@ -360,14 +431,19 @@ class BookingAvailabilityMixin:
                 location_lng=location_lng,
             )
         except ValidationException as exc:
-            return {
-                "available": False,
-                "reason": str(exc),
-            }
+            return {"available": False, "reason": str(exc)}
+        return None
 
+    def _enforce_availability_notice_and_overnight_rules(
+        self,
+        *,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        normalized_location_type: str,
+        instructor_profile: InstructorProfile,
+    ) -> Dict[str, Any] | None:
         booking_service_module = _booking_service_module()
-
-        # Check minimum advance booking using UTC.
         min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = booking_service_module.datetime.now(booking_service_module.timezone.utc)
         instructor_tz = self._resolve_instructor_timezone(instructor_profile)
@@ -385,35 +461,13 @@ class BookingAvailabilityMixin:
         except BusinessRuleException as exc:
             return {"available": False, "reason": str(exc)}
 
-        # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
-        if min_advance_minutes >= 24 * 60:
-            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
-            min_date_only = min_booking_dt.date()
-
-            if booking_start_utc.date() < min_date_only or (
-                booking_start_utc.date() == min_date_only
-                and booking_start_utc.time() < min_booking_dt.time()
-            ):
-                return {
-                    "available": False,
-                    "reason": (
-                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
-                        "in advance"
-                    ),
-                    "min_advance_minutes": min_advance_minutes,
-                }
-        else:
-            # For <24 hour min advance, do precise time comparison
-            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
-            if minutes_until < min_advance_minutes:
-                return {
-                    "available": False,
-                    "reason": (
-                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
-                        "in advance"
-                    ),
-                    "min_advance_minutes": min_advance_minutes,
-                }
+        advance_error = self._availability_advance_notice_error(
+            booking_start_utc=booking_start_utc,
+            now_utc=now_utc,
+            min_advance_minutes=min_advance_minutes,
+        )
+        if advance_error:
+            return advance_error
 
         booking_time_local = booking_service_module.TimezoneService.utc_to_local(
             now_utc, instructor_tz
@@ -430,7 +484,55 @@ class BookingAvailabilityMixin:
             )
         except BusinessRuleException as exc:
             return {"available": False, "reason": str(exc)}
+        return None
 
+    def _availability_advance_notice_error(
+        self,
+        *,
+        booking_start_utc: datetime,
+        now_utc: datetime,
+        min_advance_minutes: int,
+    ) -> Dict[str, Any] | None:
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
+            min_date_only = min_booking_dt.date()
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
+            ):
+                return {
+                    "available": False,
+                    "reason": (
+                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} in advance"
+                    ),
+                    "min_advance_minutes": min_advance_minutes,
+                }
+            return None
+
+        minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+        if minutes_until < min_advance_minutes:
+            return {
+                "available": False,
+                "reason": (
+                    f"Must book at least {self._format_advance_notice(min_advance_minutes)} in advance"
+                ),
+                "min_advance_minutes": min_advance_minutes,
+            }
+        return None
+
+    def _check_availability_conflicts(
+        self,
+        *,
+        instructor_id: str,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        normalized_location_type: str,
+        exclude_booking_id: Optional[str],
+        student_id: Optional[str],
+        exclude_id: Optional[str],
+        instructor_profile: InstructorProfile,
+    ) -> Dict[str, Any]:
         has_conflict = self.conflict_checker.check_time_conflicts(
             instructor_id=instructor_id,
             booking_date=booking_date,
@@ -441,7 +543,13 @@ class BookingAvailabilityMixin:
             instructor_profile=instructor_profile,
         )
         if has_conflict:
-            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
+            return {
+                "error": {
+                    "available": False,
+                    "reason": "Time slot has conflicts with existing bookings",
+                },
+                "existing_student_bookings": None,
+            }
 
         existing_student_bookings: Optional[List[Any]] = None
         if student_id:
@@ -462,18 +570,29 @@ class BookingAvailabilityMixin:
             )
             if student_conflicts:
                 return {
-                    "available": False,
-                    "reason": self._build_student_conflict_reason(
-                        student_conflicts[0],
-                        booking_date,
-                    ),
+                    "error": {
+                        "available": False,
+                        "reason": self._build_student_conflict_reason(
+                            student_conflicts[0],
+                            booking_date,
+                        ),
+                    },
+                    "existing_student_bookings": existing_student_bookings,
                 }
+        return {"error": None, "existing_student_bookings": existing_student_bookings}
 
-        # Verify bitmap availability covers the requested range
+    def _validate_availability_bitmap_range(
+        self,
+        *,
+        instructor_id: str,
+        booking_date: date,
+        start_minutes: int,
+        end_time: time,
+        normalized_location_type: str,
+    ) -> Dict[str, Any] | None:
         start_index = start_minutes // MINUTES_PER_SLOT
         end_minutes = time_to_minutes(end_time, is_end_time=True)
         end_index = end_minutes // MINUTES_PER_SLOT
-
         if (
             not (0 <= start_index < SLOTS_PER_DAY)
             or not (0 < end_index <= SLOTS_PER_DAY)
@@ -489,27 +608,43 @@ class BookingAvailabilityMixin:
             location_type=normalized_location_type,
         )
         if error_message:
-            return {
-                "available": False,
-                "reason": error_message,
-            }
+            return {"available": False, "reason": error_message}
+        return None
 
-        proximity_warnings: Optional[List[Dict[str, Any]]] = None
-        if student_id:
-            (
-                warning_location_address,
-                warning_location_place_id,
-                warning_location_lat,
-                warning_location_lng,
-            ) = self._resolve_availability_location_fields(
-                location_type=normalized_location_type,
-                instructor_profile=instructor_profile,
-                location_address=location_address,
-                location_place_id=location_place_id,
-                location_lat=location_lat,
-                location_lng=location_lng,
-            )
-            proximity_warnings = self.conflict_checker.check_student_proximity_warnings(
+    def _build_availability_proximity_warnings(
+        self,
+        *,
+        student_id: Optional[str],
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        normalized_location_type: str,
+        exclude_booking_id: Optional[str],
+        instructor_profile: InstructorProfile,
+        location_address: Optional[str],
+        location_place_id: Optional[str],
+        location_lat: Optional[float],
+        location_lng: Optional[float],
+        existing_student_bookings: Optional[List[Any]],
+    ) -> Optional[List[Dict[str, Any]]]:
+        if not student_id:
+            return None
+        (
+            warning_location_address,
+            warning_location_place_id,
+            warning_location_lat,
+            warning_location_lng,
+        ) = self._resolve_availability_location_fields(
+            location_type=normalized_location_type,
+            instructor_profile=instructor_profile,
+            location_address=location_address,
+            location_place_id=location_place_id,
+            location_lat=location_lat,
+            location_lng=location_lng,
+        )
+        return cast(
+            Optional[List[Dict[str, Any]]],
+            self.conflict_checker.check_student_proximity_warnings(
                 student_id=student_id,
                 check_date=booking_date,
                 start_time=start_time,
@@ -521,8 +656,18 @@ class BookingAvailabilityMixin:
                 location_lat=warning_location_lat,
                 location_lng=warning_location_lng,
                 existing_bookings=existing_student_bookings,
-            )
+            ),
+        )
 
+    @staticmethod
+    def _build_availability_success_response(
+        *,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        instructor_id: str,
+        proximity_warnings: Optional[List[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
         return {
             "available": True,
             "warnings": proximity_warnings or None,
@@ -591,7 +736,7 @@ class BookingAvailabilityMixin:
                 parsed_time = string_to_time(start_time)
             except ValueError:
                 return start_time
-            return parsed_time.strftime("%I:%M %p").lstrip("0")
+            return str(parsed_time.strftime("%I:%M %p").lstrip("0"))
         return "Unknown time"
 
     @classmethod
@@ -843,34 +988,91 @@ class BookingAvailabilityMixin:
             ConflictException: If time slot conflicts
             BusinessRuleException: If business rules violated
         """
-        booking_service_module = _booking_service_module()
-
-        # Check for instructor time conflicts
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
-
         normalized_location_type = normalize_location_type(booking_data.location_type)
+        self._validate_booking_conflict_prerequisites(
+            booking_data,
+            service,
+            normalized_location_type,
+        )
+        conflict_time_context = self._resolve_booking_conflict_time_context(
+            booking_data,
+            normalized_location_type,
+            instructor_profile,
+        )
+        self._enforce_booking_advance_notice(
+            booking_start_utc=conflict_time_context["booking_start_utc"],
+            now_utc=conflict_time_context["now_utc"],
+            min_advance_minutes=conflict_time_context["min_advance_minutes"],
+        )
+        self._enforce_booking_overnight_rules(
+            booking_time_local=conflict_time_context["booking_time_local"],
+            lesson_start_local=conflict_time_context["lesson_start_local"],
+            normalized_location_type=normalized_location_type,
+            instructor_profile=instructor_profile,
+        )
+        self._raise_instructor_conflict_if_needed(
+            booking_data,
+            student,
+            normalized_location_type,
+            instructor_profile,
+            exclude_booking_id,
+        )
+        self._raise_student_conflict_if_needed(
+            booking_data,
+            student,
+            exclude_booking_id,
+        )
 
+    def _validate_booking_conflict_prerequisites(
+        self,
+        booking_data: BookingCreate,
+        service: InstructorService,
+        normalized_location_type: str,
+    ) -> None:
         self._validate_location_capability(service, normalized_location_type)
         self._validate_service_area(booking_data, booking_data.instructor_id, service)
 
+    def _resolve_booking_conflict_time_context(
+        self,
+        booking_data: BookingCreate,
+        normalized_location_type: str,
+        instructor_profile: InstructorProfile,
+    ) -> Dict[str, Any]:
+        booking_service_module = _booking_service_module()
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
         booking_start_utc, _ = self._resolve_booking_times_utc(
             booking_data.booking_date,
             booking_data.start_time,
-            booking_data.end_time,
+            cast(time, booking_data.end_time),
             lesson_tz,
         )
-
-        # Check minimum advance booking time (UTC)
-        # For >=24 hour advance notice, enforce on date granularity to avoid HH:MM boundary flakiness
         min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = booking_service_module.datetime.now(booking_service_module.timezone.utc)
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        return {
+            "booking_start_utc": booking_start_utc,
+            "now_utc": now_utc,
+            "min_advance_minutes": min_advance_minutes,
+            "booking_time_local": booking_service_module.TimezoneService.utc_to_local(
+                now_utc, instructor_tz
+            ),
+            "lesson_start_local": booking_service_module.TimezoneService.utc_to_local(
+                booking_start_utc, instructor_tz
+            ),
+        }
 
+    def _enforce_booking_advance_notice(
+        self,
+        *,
+        booking_start_utc: datetime,
+        now_utc: datetime,
+        min_advance_minutes: int,
+    ) -> None:
         if min_advance_minutes >= 24 * 60:
             min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
             min_date_only = min_booking_dt.date()
-
             if booking_start_utc.date() < min_date_only or (
                 booking_start_utc.date() == min_date_only
                 and booking_start_utc.time() < min_booking_dt.time()
@@ -879,21 +1081,22 @@ class BookingAvailabilityMixin:
                     "Bookings must be made at least "
                     f"{self._format_advance_notice(min_advance_minutes)} in advance"
                 )
-        else:
-            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
-            if minutes_until < min_advance_minutes:
-                raise BusinessRuleException(
-                    "Bookings must be made at least "
-                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
-                )
+            return
+        minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+        if minutes_until < min_advance_minutes:
+            raise BusinessRuleException(
+                "Bookings must be made at least "
+                f"{self._format_advance_notice(min_advance_minutes)} in advance"
+            )
 
-        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
-        booking_time_local = booking_service_module.TimezoneService.utc_to_local(
-            now_utc, instructor_tz
-        )
-        lesson_start_local = booking_service_module.TimezoneService.utc_to_local(
-            booking_start_utc, instructor_tz
-        )
+    def _enforce_booking_overnight_rules(
+        self,
+        *,
+        booking_time_local: datetime,
+        lesson_start_local: datetime,
+        normalized_location_type: str,
+        instructor_profile: InstructorProfile,
+    ) -> None:
         self._check_overnight_protection(
             booking_time_local,
             lesson_start_local,
@@ -901,16 +1104,24 @@ class BookingAvailabilityMixin:
             instructor_profile,
         )
 
+    def _raise_instructor_conflict_if_needed(
+        self,
+        booking_data: BookingCreate,
+        student: Optional[User],
+        normalized_location_type: str,
+        instructor_profile: InstructorProfile,
+        exclude_booking_id: Optional[str],
+    ) -> None:
+        booking_service_module = _booking_service_module()
         existing_conflicts = self.conflict_checker.check_booking_conflicts(
             instructor_id=booking_data.instructor_id,
             check_date=booking_data.booking_date,
             start_time=booking_data.start_time,
-            end_time=booking_data.end_time,
+            end_time=cast(time, booking_data.end_time),
             new_location_type=normalized_location_type,
             exclude_booking_id=exclude_booking_id,
             instructor_profile=instructor_profile,
         )
-
         if existing_conflicts:
             conflict_details = self._build_conflict_details(
                 booking_data, getattr(student, "id", None)
@@ -921,23 +1132,29 @@ class BookingAvailabilityMixin:
                 details=conflict_details,
             )
 
-        # Check for student time conflicts
-        if student:
-            student_conflicts = self.conflict_checker.check_student_booking_conflicts(
-                student_id=student.id,
-                check_date=booking_data.booking_date,
-                start_time=booking_data.start_time,
-                end_time=booking_data.end_time,
-                exclude_booking_id=exclude_booking_id,
+    def _raise_student_conflict_if_needed(
+        self,
+        booking_data: BookingCreate,
+        student: Optional[User],
+        exclude_booking_id: Optional[str],
+    ) -> None:
+        if not student:
+            return
+        booking_service_module = _booking_service_module()
+        student_conflicts = self.conflict_checker.check_student_booking_conflicts(
+            student_id=student.id,
+            check_date=booking_data.booking_date,
+            start_time=booking_data.start_time,
+            end_time=cast(time, booking_data.end_time),
+            exclude_booking_id=exclude_booking_id,
+        )
+        if student_conflicts:
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            conflict_details["conflict_scope"] = "student"
+            raise booking_service_module.BookingConflictException(
+                message=booking_service_module.STUDENT_CONFLICT_MESSAGE,
+                details=conflict_details,
             )
-
-            if student_conflicts:
-                conflict_details = self._build_conflict_details(booking_data, student.id)
-                conflict_details["conflict_scope"] = "student"
-                raise booking_service_module.BookingConflictException(
-                    message=booking_service_module.STUDENT_CONFLICT_MESSAGE,
-                    details=conflict_details,
-                )
 
     def _get_instructor_availability_windows(
         self,

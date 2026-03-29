@@ -142,6 +142,16 @@ class BookingCompletionMixin:
             ValidationException: If user is not instructor
             BusinessRuleException: If booking cannot be completed
         """
+        self._validate_completion_actor(instructor)
+        self._persist_booking_completion(booking_id, instructor)
+        refreshed_booking = self._finalize_completed_booking_response(booking_id)
+        self._issue_completion_milestone_credit(refreshed_booking, booking_id)
+        self._create_completion_system_message(refreshed_booking, booking_id)
+        self._trigger_completion_referral_payout(refreshed_booking, booking_id)
+        self._maybe_refresh_instructor_tier(refreshed_booking.instructor_id, refreshed_booking.id)
+        return refreshed_booking
+
+    def _validate_completion_actor(self, instructor: User) -> None:
         instructor_roles = cast(list[Any], getattr(instructor, "roles", []) or [])
         is_instructor = any(
             cast(str, getattr(role, "name", "")) == RoleName.INSTRUCTOR for role in instructor_roles
@@ -149,24 +159,19 @@ class BookingCompletionMixin:
         if not is_instructor:
             raise ValidationException("Only instructors can mark bookings as complete")
 
+    def _persist_booking_completion(self, booking_id: str, instructor: User) -> None:
         with self.transaction():
-            # Load and validate booking
             booking = self.repository.get_booking_with_details(booking_id)
-
             if not booking:
                 raise NotFoundException("Booking not found")
-
             if booking.instructor_id != instructor.id:
                 raise ValidationException("You can only complete your own bookings")
-
             if booking.status != BookingStatus.CONFIRMED:
                 raise BusinessRuleException(
                     f"Only confirmed bookings can be completed - current status: {booking.status}"
                 )
 
             audit_before = self._snapshot_booking(booking)
-
-            # Mark as complete using repository method
             completed_booking = self.repository.complete_booking(booking_id)
             if completed_booking is None:
                 raise NotFoundException("Booking not found")
@@ -182,18 +187,19 @@ class BookingCompletionMixin:
                 default_role=RoleName.INSTRUCTOR.value,
             )
 
-        # External operations outside transaction
-        # Reload booking with details for cache invalidation
+    def _finalize_completed_booking_response(self, booking_id: str) -> Booking:
         refreshed_booking = self.repository.get_booking_with_details(booking_id)
         if refreshed_booking is None:
             raise NotFoundException("Booking not found")
         self._invalidate_booking_caches(refreshed_booking)
+        return refreshed_booking
 
+    def _issue_completion_milestone_credit(self, booking: Booking, booking_id: str) -> None:
         try:
             credit_service = StudentCreditService(self.db)
             credit_service.maybe_issue_milestone_credit(
-                student_id=refreshed_booking.student_id,
-                booking_id=refreshed_booking.id,
+                student_id=booking.student_id,
+                booking_id=booking.id,
             )
         except Exception as exc:
             logger.error(
@@ -202,34 +208,35 @@ class BookingCompletionMixin:
                 exc,
             )
 
-        # Create system message in conversation
+    def _create_completion_system_message(self, booking: Booking, booking_id: str) -> None:
         try:
             service_name = None
-            if refreshed_booking.instructor_service and refreshed_booking.instructor_service.name:
-                service_name = refreshed_booking.instructor_service.name
-
+            if booking.instructor_service and booking.instructor_service.name:
+                service_name = booking.instructor_service.name
             self.system_message_service.create_booking_completed_message(
-                student_id=refreshed_booking.student_id,
-                instructor_id=refreshed_booking.instructor_id,
-                booking_id=refreshed_booking.id,
-                booking_date=refreshed_booking.booking_date,
+                student_id=booking.student_id,
+                instructor_id=booking.instructor_id,
+                booking_id=booking.id,
+                booking_date=booking.booking_date,
                 service_name=service_name,
             )
-        except Exception as e:
+        except Exception as exc:
             logger.error(
-                "Failed to create completion system message for booking %s: %s", booking_id, str(e)
+                "Failed to create completion system message for booking %s: %s",
+                booking_id,
+                str(exc),
             )
 
+    def _trigger_completion_referral_payout(self, booking: Booking, booking_id: str) -> None:
         booking_service_module = _booking_service_module()
-
         try:
             from app.services.referral_service import ReferralService
 
             referral_service = ReferralService(self.db)
             referral_service.on_instructor_lesson_completed(
-                instructor_user_id=refreshed_booking.instructor_id,
-                booking_id=refreshed_booking.id,
-                completed_at=refreshed_booking.completed_at
+                instructor_user_id=booking.instructor_id,
+                booking_id=booking.id,
+                completed_at=booking.completed_at
                 or booking_service_module.datetime.now(booking_service_module.timezone.utc),
             )
         except Exception as exc:
@@ -239,10 +246,6 @@ class BookingCompletionMixin:
                 exc,
                 exc_info=True,
             )
-
-        self._maybe_refresh_instructor_tier(refreshed_booking.instructor_id, refreshed_booking.id)
-
-        return refreshed_booking
 
     @BaseService.measure_operation("instructor_mark_complete")
     def instructor_mark_complete(
@@ -270,38 +273,49 @@ class BookingCompletionMixin:
             ValidationException: If not the instructor's booking
             BusinessRuleException: If booking cannot be completed
         """
+        booking_service_module = _booking_service_module()
+        self._persist_instructor_mark_complete(booking_id, instructor, notes)
+        refreshed = self._reload_instructor_completed_booking(booking_id)
+        self._trigger_instructor_completion_referral(
+            refreshed,
+            booking_id,
+            booking_service_module,
+        )
+        self._maybe_refresh_instructor_tier(refreshed.instructor_id, refreshed.id)
+        return refreshed
+
+    def _validate_instructor_completion_timing(self, booking: Booking, now: Any) -> None:
+        if booking.status != BookingStatus.CONFIRMED:
+            raise BusinessRuleException(
+                f"Cannot mark booking as complete. Current status: {booking.status}"
+            )
+        lesson_end_utc = self._get_booking_end_utc(booking)
+        if lesson_end_utc > now:
+            raise BusinessRuleException("Cannot mark lesson as complete before it ends")
+
+    def _persist_instructor_mark_complete(
+        self,
+        booking_id: str,
+        instructor: User,
+        notes: Optional[str],
+    ) -> None:
         from ...repositories.payment_repository import PaymentRepository
         from ..badge_award_service import BadgeAwardService
 
         booking_service_module = _booking_service_module()
         payment_repo = PaymentRepository(self.db)
-
         with self.transaction():
-            # Defense-in-depth: filter by instructor at DB level (AUTHZ-VULN-01)
             booking = self.repository.get_booking_for_instructor(booking_id, instructor.id)
             if not booking:
                 raise NotFoundException("Booking not found")
-
-            if booking.status != BookingStatus.CONFIRMED:
-                raise BusinessRuleException(
-                    f"Cannot mark booking as complete. Current status: {booking.status}"
-                )
-
-            # Verify lesson has ended
             now = booking_service_module.datetime.now(booking_service_module.timezone.utc)
+            self._validate_instructor_completion_timing(booking, now)
             lesson_end_utc = self._get_booking_end_utc(booking)
-            if lesson_end_utc > now:
-                raise BusinessRuleException("Cannot mark lesson as complete before it ends")
-
-            # Mark as completed
             booking.status = BookingStatus.COMPLETED
             booking.completed_at = now
             if notes:
                 booking.instructor_note = notes
-
             capture_at = lesson_end_utc + timedelta(hours=24)
-
-            # Record payment completion event
             payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="instructor_marked_complete",
@@ -312,36 +326,42 @@ class BookingCompletionMixin:
                     "payment_capture_scheduled_for": capture_at.isoformat(),
                 },
             )
+            self._award_completion_badges(booking, now, BadgeAwardService(self.db))
 
-            # Trigger badge checks
-            badge_service = BadgeAwardService(self.db)
-            booked_at = booking.confirmed_at or booking.created_at or now
-            category_name = None
-            try:
-                instructor_service = booking.instructor_service
-                if instructor_service and instructor_service.catalog_entry:
-                    category = instructor_service.catalog_entry.category
-                    category_name = category.name if category else None
-            except Exception as exc:
-                logger.warning(
-                    "booking_category_chain_failed",
-                    extra={"booking_id": booking.id, "error": str(exc)},
-                )
-
-            badge_service.check_and_award_on_lesson_completed(
-                student_id=booking.student_id,
-                lesson_id=booking.id,
-                instructor_id=booking.instructor_id,
-                category_name=category_name,
-                booked_at_utc=booked_at,
-                completed_at_utc=now,
+    def _award_completion_badges(self, booking: Booking, now: Any, badge_service: Any) -> None:
+        booked_at = booking.confirmed_at or booking.created_at or now
+        category_name = None
+        try:
+            instructor_service = booking.instructor_service
+            if instructor_service and instructor_service.catalog_entry:
+                category = instructor_service.catalog_entry.category
+                category_name = category.name if category else None
+        except Exception as exc:
+            logger.warning(
+                "booking_category_chain_failed",
+                extra={"booking_id": booking.id, "error": str(exc)},
             )
+        badge_service.check_and_award_on_lesson_completed(
+            student_id=booking.student_id,
+            lesson_id=booking.id,
+            instructor_id=booking.instructor_id,
+            category_name=category_name,
+            booked_at_utc=booked_at,
+            completed_at_utc=now,
+        )
 
-        # Reload for fresh state after commit
+    def _reload_instructor_completed_booking(self, booking_id: str) -> Booking:
         refreshed = self.repository.get_by_id(booking_id)
         if refreshed is None:
             raise NotFoundException("Booking not found after completion")
+        return refreshed
 
+    def _trigger_instructor_completion_referral(
+        self,
+        refreshed: Booking,
+        booking_id: str,
+        booking_service_module: Any,
+    ) -> None:
         try:
             from app.services.referral_service import ReferralService
 
@@ -359,10 +379,6 @@ class BookingCompletionMixin:
                 exc,
                 exc_info=True,
             )
-
-        self._maybe_refresh_instructor_tier(refreshed.instructor_id, refreshed.id)
-
-        return refreshed
 
     @BaseService.measure_operation("instructor_dispute_completion")
     def instructor_dispute_completion(

@@ -305,8 +305,6 @@ class BookingCreationMixin:
         Returns:
             Booking with setup_intent_client_secret attached
         """
-        from ...repositories.payment_repository import PaymentRepository
-
         booking_service_module = _booking_service_module()
 
         self.log_operation(
@@ -316,28 +314,59 @@ class BookingCreationMixin:
             date=booking_data.booking_date,
         )
         self._validate_min_session_duration_floor(selected_duration)
+        service, instructor_profile = self._prepare_booking_with_payment_setup(
+            student,
+            booking_data,
+            selected_duration,
+        )
+        booking = self._create_pending_booking_with_payment_setup(
+            student=student,
+            booking_data=booking_data,
+            service=service,
+            instructor_profile=instructor_profile,
+            selected_duration=selected_duration,
+            rescheduled_from_booking_id=rescheduled_from_booking_id,
+        )
+        setup_intent = self._create_booking_setup_intent(
+            booking=booking,
+            student=student,
+            booking_data=booking_data,
+            pricing_service=booking_service_module.PricingService(self.db),
+        )
+        booking = self._persist_booking_setup_intent(booking.id, setup_intent)
+        self._finalize_booking_with_payment_setup(booking)
+        return booking
 
-        # 1. Validate and load required data
+    def _prepare_booking_with_payment_setup(
+        self,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+    ) -> tuple[InstructorService, InstructorProfile]:
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
-
-        # 2. Validate selected duration
         if selected_duration not in service.duration_options:
             raise BusinessRuleException(
                 f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
             )
-
-        # 3. Calculate end time
-        calculated_end_time = self._calculate_and_validate_end_time(
+        booking_data.end_time = self._calculate_and_validate_end_time(
             booking_data.booking_date,
             booking_data.start_time,
             selected_duration,
         )
-        booking_data.end_time = calculated_end_time
-
-        # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
+        return service, instructor_profile
 
-        # 5. Create booking with PENDING status initially and transaction-scoped conflict protection
+    def _create_pending_booking_with_payment_setup(
+        self,
+        *,
+        student: User,
+        booking_data: BookingCreate,
+        service: InstructorService,
+        instructor_profile: InstructorProfile,
+        selected_duration: int,
+        rescheduled_from_booking_id: Optional[str],
+    ) -> Booking:
+        booking_service_module = _booking_service_module()
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
@@ -349,59 +378,14 @@ class BookingCreationMixin:
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
-
-                # If this booking was created via reschedule, persist linkage and original lesson datetime
-                # for fair cancellation policy (Part 4b: Fair Reschedule Loophole Fix)
-                #
-                # IMPORTANT: We store the IMMEDIATE previous booking's lesson datetime, NOT traced
-                # back to the very first booking in a chain. The question we're answering is:
-                # "Was the user in a penalty window when they made THIS reschedule?"
-                # That's relative to the booking they're rescheduling FROM.
-                #
-                # Example: A -> B -> C (if Part 5 weren't blocking chains)
-                # When creating C from B, original_lesson_datetime = B's lesson time
-                # NOT: trace back to find A's lesson time
                 if rescheduled_from_booking_id:
-                    # Fetch the IMMEDIATE previous booking (NOT the chain's original)
-                    previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
-                    original_lesson_dt = None
-                    if previous_booking:
-                        # Store the previous booking's lesson datetime for fair cancellation policy
-                        original_lesson_dt = self._get_booking_start_utc(previous_booking)
-
-                    updated_booking = self.repository.update(
-                        booking.id,
-                        rescheduled_from_booking_id=rescheduled_from_booking_id,
+                    booking = self._persist_payment_setup_reschedule_linkage(
+                        booking, rescheduled_from_booking_id
                     )
-                    if updated_booking is not None:
-                        booking = updated_booking
-                    if previous_booking:
-                        # Policy-critical satellite writes — must succeed
-                        previous_reschedule = self.repository.ensure_reschedule(previous_booking.id)
-                        current_reschedule = self.repository.ensure_reschedule(booking.id)
-                        current_reschedule.original_lesson_datetime = original_lesson_dt
-                        previous_reschedule.rescheduled_to_booking_id = booking.id
-                        if bool(previous_reschedule.late_reschedule_used):
-                            current_reschedule.late_reschedule_used = True
-                        # Analytics-only counter — safe to swallow
-                        try:
-                            previous_count = int(previous_reschedule.reschedule_count or 0)
-                            new_count = previous_count + 1
-                            previous_reschedule.reschedule_count = new_count
-                            current_reschedule.reschedule_count = new_count
-                        except Exception:
-                            logger.warning(
-                                "Failed to increment reschedule_count for booking %s",
-                                booking.id,
-                                exc_info=True,
-                            )
-                # Override status to PENDING until payment confirmed
                 booking.status = BookingStatus.PENDING
                 bp = self.repository.ensure_payment(booking.id)
                 bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                 self._enqueue_booking_outbox_event(booking, "booking.created")
-
-                # Transaction handles flush/commit automatically
                 audit_after = self._snapshot_booking(booking)
                 self._write_booking_audit(
                     booking,
@@ -411,15 +395,13 @@ class BookingCreationMixin:
                     after=audit_after,
                     default_role=RoleName.STUDENT.value,
                 )
+                return booking
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
             conflict_details = self._build_conflict_details(booking_data, student.id)
             if scope:
                 conflict_details["conflict_scope"] = scope
-            raise BookingConflictException(
-                message=message,
-                details=conflict_details,
-            ) from exc
+            raise BookingConflictException(message=message, details=conflict_details) from exc
         except OperationalError as exc:
             if self._is_deadlock_error(exc):
                 conflict_details = self._build_conflict_details(booking_data, student.id)
@@ -430,23 +412,63 @@ class BookingCreationMixin:
             raise
         except RepositoryException as exc:
             self._raise_conflict_from_repo_error(exc, booking_data, student.id)
+        raise NotFoundException("Booking creation failed")
 
-        # ========== Phase 2: Stripe SetupIntent (NO transaction) ==========
+    def _persist_payment_setup_reschedule_linkage(
+        self,
+        booking: Booking,
+        rescheduled_from_booking_id: str,
+    ) -> Booking:
+        previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
+        original_lesson_dt = (
+            self._get_booking_start_utc(previous_booking) if previous_booking else None
+        )
+        updated_booking = self.repository.update(
+            booking.id,
+            rescheduled_from_booking_id=rescheduled_from_booking_id,
+        )
+        if updated_booking is not None:
+            booking = updated_booking
+        if previous_booking:
+            previous_reschedule = self.repository.ensure_reschedule(previous_booking.id)
+            current_reschedule = self.repository.ensure_reschedule(booking.id)
+            current_reschedule.original_lesson_datetime = original_lesson_dt
+            previous_reschedule.rescheduled_to_booking_id = booking.id
+            if bool(previous_reschedule.late_reschedule_used):
+                current_reschedule.late_reschedule_used = True
+            try:
+                previous_count = int(previous_reschedule.reschedule_count or 0)
+                new_count = previous_count + 1
+                previous_reschedule.reschedule_count = new_count
+                current_reschedule.reschedule_count = new_count
+            except Exception:
+                logger.warning(
+                    "Failed to increment reschedule_count for booking %s",
+                    booking.id,
+                    exc_info=True,
+                )
+        return booking
+
+    def _create_booking_setup_intent(
+        self,
+        *,
+        booking: Booking,
+        student: User,
+        booking_data: BookingCreate,
+        pricing_service: Any,
+    ) -> Any:
+        booking_service_module = _booking_service_module()
         stripe_service = _stripe_service_class()(
             self.db,
             config_service=self.config_service,
-            pricing_service=booking_service_module.PricingService(self.db),
+            pricing_service=pricing_service,
         )
-
         stripe_customer = stripe_service.get_or_create_customer(student.id)
-
-        setup_intent: Any = None
         try:
-            # Attempt real Stripe call; tests patch this in CI
-            setup_intent = booking_service_module.stripe.SetupIntent.create(
+            return booking_service_module.stripe.SetupIntent.create(
                 customer=stripe_customer.stripe_customer_id,
                 automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
-                usage="off_session",  # Will be used for future off-session payments
+                usage="off_session",
                 metadata={
                     "booking_id": booking.id,
                     "student_id": student.id,
@@ -454,7 +476,7 @@ class BookingCreationMixin:
                     "amount_cents": int(booking.total_price * 100),
                 },
             )
-        except Exception as e:
+        except Exception as exc:
             site_mode = (
                 booking_service_module.os.getenv("SITE_MODE", "")
                 or booking_service_module.settings.site_mode
@@ -469,33 +491,29 @@ class BookingCreationMixin:
                     exc_info=True,
                 )
                 raise
-
-            # Test/CI fallback to keep deterministic fixtures when Stripe is unavailable.
             logger.warning(
                 "SetupIntent creation failed for booking %s in test/CI: %s. Falling back to mock.",
                 booking.id,
-                e,
+                exc,
             )
-            setup_intent = booking_service_module.SimpleNamespace(
+            return booking_service_module.SimpleNamespace(
                 id=f"seti_mock_{booking.id}",
                 client_secret=f"seti_mock_secret_{booking.id}",
                 status="requires_payment_method",
             )
 
-        # ========== Phase 3: Persist SetupIntent (quick transaction) ==========
+    def _persist_booking_setup_intent(self, booking_id: str, setup_intent: Any) -> Booking:
+        from ...repositories.payment_repository import PaymentRepository
+
         with self.transaction():
-            refreshed_booking = self.repository.get_by_id(booking.id)
+            refreshed_booking = self.repository.get_by_id(booking_id)
             if not refreshed_booking:
                 raise NotFoundException("Booking not found after setup intent creation")
-
-            # Avoid mixing SetupIntent IDs with PaymentIntent IDs.
-            # PaymentIntent IDs are stored later during authorization.
             setattr(
                 refreshed_booking,
                 "setup_intent_client_secret",
                 getattr(setup_intent, "client_secret", None),
             )
-
             payment_repo = PaymentRepository(self.db)
             payment_repo.create_payment_event(
                 booking_id=refreshed_booking.id,
@@ -505,11 +523,9 @@ class BookingCreationMixin:
                     "status": setup_intent.status,
                 },
             )
+            return refreshed_booking
 
-            booking = refreshed_booking
-
-        # The checkout flow creates bookings through this path, so availability/search
-        # caches must be invalidated here after the booking transaction commits.
+    def _finalize_booking_with_payment_setup(self, booking: Booking) -> None:
         try:
             self._invalidate_booking_caches(booking)
         except Exception:
@@ -518,9 +534,7 @@ class BookingCreationMixin:
                 booking.id,
                 exc_info=True,
             )
-
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
-        return booking
 
     def _validate_booking_prerequisites(
         self, student: User, booking_data: BookingCreate
