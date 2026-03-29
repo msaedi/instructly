@@ -38,16 +38,31 @@ from ..repositories.filter_repository import FilterRepository
 from ..repositories.job_repository import JobRepository
 from .audit_service import AuditService
 from .base import BaseService
+from .booking.availability_conflicts import BookingAvailabilityConflictsMixin
+from .booking.availability_opportunities import BookingAvailabilityOpportunitiesMixin
+from .booking.availability_rules import BookingAvailabilityRulesMixin
 from .booking.availability_service import BookingAvailabilityMixin
+from .booking.cancellation_cleanup import BookingCancellationCleanupMixin
+from .booking.cancellation_finalize import BookingCancellationFinalizeMixin
+from .booking.cancellation_late_finalize import BookingCancellationLateFinalizeMixin
 from .booking.cancellation_service import BookingCancellationMixin
+from .booking.cancellation_stripe import BookingCancellationStripeMixin
 from .booking.completion_service import BookingCompletionMixin
+from .booking.creation_payment import BookingCreationPaymentMixin
 from .booking.creation_service import BookingCreationMixin
 from .booking.helpers import BookingHelpersMixin, _is_test_or_ci
+from .booking.helpers_audit import BookingAuditCacheMixin
+from .booking.lock_resolution import BookingLockResolutionMixin
 from .booking.lock_service import BookingLockMixin
+from .booking.noshow_resolution import BookingNoShowResolutionMixin
 from .booking.noshow_service import BookingNoShowMixin
+from .booking.noshow_settlement import BookingNoShowSettlementMixin
 from .booking.notifications import BookingNotificationsMixin
+from .booking.payment_retry import BookingPaymentRetryMixin
 from .booking.payment_service import BookingPaymentMixin
 from .booking.query_service import BookingQueryMixin
+from .booking.reschedule_creation import BookingRescheduleCreationMixin
+from .booking.reschedule_execution import BookingRescheduleExecutionMixin
 from .booking.reschedule_service import BookingRescheduleMixin
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
@@ -123,15 +138,30 @@ __all__ = [
 
 class BookingService(
     BookingHelpersMixin,
+    BookingAuditCacheMixin,
+    BookingAvailabilityRulesMixin,
+    BookingAvailabilityConflictsMixin,
+    BookingAvailabilityOpportunitiesMixin,
     BookingAvailabilityMixin,
     BookingQueryMixin,
     BookingCompletionMixin,
     BookingNotificationsMixin,
+    BookingPaymentRetryMixin,
     BookingPaymentMixin,
+    BookingLockResolutionMixin,
     BookingLockMixin,
+    BookingNoShowSettlementMixin,
+    BookingNoShowResolutionMixin,
     BookingNoShowMixin,
+    BookingCreationPaymentMixin,
     BookingCreationMixin,
+    BookingCancellationCleanupMixin,
+    BookingCancellationStripeMixin,
+    BookingCancellationLateFinalizeMixin,
+    BookingCancellationFinalizeMixin,
     BookingCancellationMixin,
+    BookingRescheduleCreationMixin,
+    BookingRescheduleExecutionMixin,
     BookingRescheduleMixin,
     BaseService,
 ):
