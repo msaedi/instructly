@@ -7,6 +7,12 @@ from typing import TYPE_CHECKING, Any, Optional, cast
 import stripe
 
 from ...core.exceptions import ServiceException
+from ...models.user import User
+from ...schemas.payment_schemas import (
+    DashboardLinkResponse,
+    InstantPayoutResponse,
+    PayoutScheduleResponse,
+)
 from ..base import BaseService
 from .helpers import ReferralBonusTransferResult
 
@@ -24,6 +30,81 @@ class StripeTransferMixin(BaseService):
     """Transfers, payouts, top-ups, and referral bonuses."""
 
     payment_repository: PaymentRepository
+
+    if TYPE_CHECKING:
+
+        def _call_with_retry(self, func: Any, *args: Any, **kwargs: Any) -> Any:
+            ...
+
+        def _require_connected_account_record(self, profile_id: str) -> Any:
+            ...
+
+        def _require_instructor_profile(self, user: User) -> Any:
+            ...
+
+    @BaseService.measure_operation("stripe_set_payout_schedule")
+    def set_instructor_payout_schedule(
+        self, *, user: User, monthly_anchor: int | None, interval: str
+    ) -> PayoutScheduleResponse:
+        """Update payout schedule for instructor connected account."""
+        stripe_sdk = _stripe_service_module().stripe
+        profile = self._require_instructor_profile(user)
+        connected = self._require_connected_account_record(profile.id)
+        schedule_settings: dict[str, object] = {"interval": interval}
+        if monthly_anchor:
+            schedule_settings["monthly_anchor"] = monthly_anchor
+        account = stripe_sdk.Account.modify(
+            connected.stripe_account_id,
+            settings={"payouts": {"schedule": schedule_settings}},
+        )
+        account_id = (
+            account.get("id") if isinstance(account, dict) else getattr(account, "id", None)
+        )
+        return PayoutScheduleResponse(
+            ok=True,
+            account_id=account_id,
+            settings={"interval": interval, "monthly_anchor": monthly_anchor},
+        )
+
+    @BaseService.measure_operation("stripe_dashboard_link")
+    def get_instructor_dashboard_link(self, *, user: User) -> DashboardLinkResponse:
+        """Generate Stripe dashboard link for instructor."""
+        stripe_sdk = _stripe_service_module().stripe
+        profile = self._require_instructor_profile(user)
+        connected = self._require_connected_account_record(profile.id)
+        link = stripe_sdk.Account.create_login_link(connected.stripe_account_id)
+        dashboard_url = link.get("url") if isinstance(link, dict) else getattr(link, "url", None)
+        return DashboardLinkResponse(dashboard_url=dashboard_url or "", expires_in_minutes=5)
+
+    @BaseService.measure_operation("stripe_request_instant_payout")
+    def request_instructor_instant_payout(self, *, user: User) -> InstantPayoutResponse:
+        """Request an instant payout for an instructor's full available balance."""
+        facade_module = _stripe_service_module()
+        profile = self._require_instructor_profile(user)
+        connected = self._require_connected_account_record(profile.id)
+
+        balance = facade_module.StripeBalance.retrieve(stripe_account=connected.stripe_account_id)
+        available_amount = balance.available[0].amount if balance.available else 0
+        if available_amount <= 0:
+            raise ServiceException("No funds available for instant payout", code="no_funds")
+        payout_key = f"payout_{connected.stripe_account_id}_{facade_module.uuid.uuid4()}"
+        payout = self._call_with_retry(
+            facade_module.stripe.Payout.create,
+            amount=available_amount,
+            currency="usd",
+            stripe_account=connected.stripe_account_id,
+            method="instant",
+            idempotency_key=payout_key,
+        )
+        payout_id = (
+            getattr(payout, "id", None) if not isinstance(payout, dict) else payout.get("id")
+        )
+        payout_status = (
+            getattr(payout, "status", None)
+            if not isinstance(payout, dict)
+            else payout.get("status")
+        )
+        return InstantPayoutResponse(ok=True, payout_id=payout_id, status=payout_status)
 
     @BaseService.measure_operation("stripe_ensure_top_up_transfer")
     def ensure_top_up_transfer(

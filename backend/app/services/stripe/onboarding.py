@@ -13,11 +13,8 @@ from ...core.exceptions import ServiceException
 from ...models.payment import StripeConnectedAccount
 from ...models.user import User
 from ...schemas.payment_schemas import (
-    DashboardLinkResponse,
-    InstantPayoutResponse,
     OnboardingResponse,
     OnboardingStatusResponse,
-    PayoutScheduleResponse,
 )
 from ...utils.url_validation import (
     is_allowed_origin as _is_allowed_origin,
@@ -42,7 +39,6 @@ class StripeOnboardingMixin(BaseService):
     instructor_repository: InstructorProfileRepository
     payment_repository: PaymentRepository
     stripe_configured: bool
-
     if TYPE_CHECKING:
 
         def _call_with_retry(self, func: Any, *args: Any, **kwargs: Any) -> Any:
@@ -174,7 +170,6 @@ class StripeOnboardingMixin(BaseService):
         request_referer: str | None = None,
         return_to: str | None = None,
     ) -> OnboardingResponse:
-        """Create or reuse a Stripe Express account and return onboarding link."""
         instructor_profile = self.instructor_repository.get_by_user_id(user.id)
         if not instructor_profile:
             raise ServiceException(
@@ -210,7 +205,6 @@ class StripeOnboardingMixin(BaseService):
 
     @BaseService.measure_operation("stripe_get_onboarding_status")
     def get_instructor_onboarding_status(self, *, user: User) -> OnboardingStatusResponse:
-        """Return onboarding status for instructor."""
         profile = self._require_instructor_profile(user)
         connected = self.payment_repository.get_connected_account_by_instructor_id(profile.id)
         if not connected or not connected.stripe_account_id:
@@ -239,70 +233,6 @@ class StripeOnboardingMixin(BaseService):
             details_submitted=details_submitted,
             requirements=requirements_list,
         )
-
-    @BaseService.measure_operation("stripe_set_payout_schedule")
-    def set_instructor_payout_schedule(
-        self, *, user: User, monthly_anchor: int | None, interval: str
-    ) -> PayoutScheduleResponse:
-        """Update payout schedule for instructor connected account."""
-        stripe_sdk = _stripe_service_module().stripe
-        profile = self._require_instructor_profile(user)
-        connected = self._require_connected_account_record(profile.id)
-        schedule_settings: dict[str, object] = {"interval": interval}
-        if monthly_anchor:
-            schedule_settings["monthly_anchor"] = monthly_anchor
-        account = stripe_sdk.Account.modify(
-            connected.stripe_account_id,
-            settings={"payouts": {"schedule": schedule_settings}},
-        )
-        account_id = (
-            account.get("id") if isinstance(account, dict) else getattr(account, "id", None)
-        )
-        return PayoutScheduleResponse(
-            ok=True,
-            account_id=account_id,
-            settings={"interval": interval, "monthly_anchor": monthly_anchor},
-        )
-
-    @BaseService.measure_operation("stripe_dashboard_link")
-    def get_instructor_dashboard_link(self, *, user: User) -> DashboardLinkResponse:
-        """Generate Stripe dashboard link for instructor."""
-        stripe_sdk = _stripe_service_module().stripe
-        profile = self._require_instructor_profile(user)
-        connected = self._require_connected_account_record(profile.id)
-        link = stripe_sdk.Account.create_login_link(connected.stripe_account_id)
-        dashboard_url = link.get("url") if isinstance(link, dict) else getattr(link, "url", None)
-        return DashboardLinkResponse(dashboard_url=dashboard_url or "", expires_in_minutes=5)
-
-    @BaseService.measure_operation("stripe_request_instant_payout")
-    def request_instructor_instant_payout(self, *, user: User) -> InstantPayoutResponse:
-        """Request an instant payout for an instructor's full available balance."""
-        facade_module = _stripe_service_module()
-        profile = self._require_instructor_profile(user)
-        connected = self._require_connected_account_record(profile.id)
-
-        balance = facade_module.StripeBalance.retrieve(stripe_account=connected.stripe_account_id)
-        available_amount = balance.available[0].amount if balance.available else 0
-        if available_amount <= 0:
-            raise ServiceException("No funds available for instant payout", code="no_funds")
-        payout_key = f"payout_{connected.stripe_account_id}_{facade_module.uuid.uuid4()}"
-        payout = self._call_with_retry(
-            facade_module.stripe.Payout.create,
-            amount=available_amount,
-            currency="usd",
-            stripe_account=connected.stripe_account_id,
-            method="instant",
-            idempotency_key=payout_key,
-        )
-        payout_id = (
-            getattr(payout, "id", None) if not isinstance(payout, dict) else payout.get("id")
-        )
-        payout_status = (
-            getattr(payout, "status", None)
-            if not isinstance(payout, dict)
-            else payout.get("status")
-        )
-        return InstantPayoutResponse(ok=True, payout_id=payout_id, status=payout_status)
 
     def _persist_connected_account_record(
         self, *, instructor_profile_id: str, stripe_account_id: str
@@ -390,7 +320,6 @@ class StripeOnboardingMixin(BaseService):
     def create_connected_account(
         self, instructor_profile_id: str, email: str
     ) -> StripeConnectedAccount:
-        """Create a Stripe Connect Express account for an instructor."""
         existing = self.payment_repository.get_connected_account_by_instructor_id(
             instructor_profile_id
         )
@@ -441,7 +370,6 @@ class StripeOnboardingMixin(BaseService):
     def create_account_link(
         self, instructor_profile_id: str, refresh_url: str, return_url: str
     ) -> str:
-        """Create an account link for Express account onboarding."""
         facade_module = _stripe_service_module()
         stripe_sdk = facade_module.stripe
         try:
@@ -471,7 +399,6 @@ class StripeOnboardingMixin(BaseService):
 
     @BaseService.measure_operation("stripe_check_account_status")
     def check_account_status(self, instructor_profile_id: str) -> Dict[str, Any]:
-        """Check the onboarding status of a connected account."""
         stripe_sdk = _stripe_service_module().stripe
         try:
             account_record = self.payment_repository.get_connected_account_by_instructor_id(
