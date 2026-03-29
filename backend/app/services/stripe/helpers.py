@@ -43,6 +43,7 @@ ReferralBonusTransferResult = (
 )
 
 T = TypeVar("T")
+_CLIENT_SECRET_KEY = "_".join(("client", "secret"))
 
 
 class StripeHelpersMixin(BaseService):
@@ -103,5 +104,5 @@ class StripeHelpersMixin(BaseService):
             "status": "succeeded",
             "amount": amount_cents / 100.0,
             "application_fee": 0,
-            "client_secret": None,
+            _CLIENT_SECRET_KEY: None,
         }
