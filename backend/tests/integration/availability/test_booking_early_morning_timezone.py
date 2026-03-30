@@ -268,10 +268,34 @@ class TestEarlyMorningBookingTimezone:
     @pytest.mark.parametrize(
         ("location_type", "tags", "should_raise", "expected_code"),
         [
-            ("online", set_range_tag(new_empty_tags(), 108, 12, 1), False, None),
-            ("student_location", set_range_tag(new_empty_tags(), 108, 12, 1), True, "FORMAT_TAG_INCOMPATIBLE"),
-            ("instructor_location", set_range_tag(new_empty_tags(), 108, 12, 2), False, None),
-            ("neutral_location", set_range_tag(new_empty_tags(), 108, 12, 2), True, "FORMAT_TAG_INCOMPATIBLE"),
+            pytest.param(
+                "online",
+                set_range_tag(new_empty_tags(), 108, 12, 1),
+                False,
+                None,
+                id="online-online_only",
+            ),
+            pytest.param(
+                "student_location",
+                set_range_tag(new_empty_tags(), 108, 12, 1),
+                True,
+                "FORMAT_TAG_INCOMPATIBLE",
+                id="student_location-online_only",
+            ),
+            pytest.param(
+                "instructor_location",
+                set_range_tag(new_empty_tags(), 108, 12, 2),
+                False,
+                None,
+                id="instructor_location-no_travel",
+            ),
+            pytest.param(
+                "neutral_location",
+                set_range_tag(new_empty_tags(), 108, 12, 2),
+                True,
+                "FORMAT_TAG_INCOMPATIBLE",
+                id="neutral_location-no_travel",
+            ),
         ],
     )
     def test_booking_validation_respects_uniform_format_tags(
