@@ -1,6 +1,6 @@
 # backend/app/services/search/nl_search_service.py
 """
-Main NL search service that orchestrates the full search pipeline.
+Main NL search service facade that orchestrates the full search pipeline.
 
 Pipeline stages:
 1. Cache check - return cached response if available
@@ -15,12 +15,11 @@ Pipeline stages:
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 import logging
 import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 from fastapi import HTTPException
 
@@ -29,25 +28,14 @@ from app.core.exceptions import raise_503_if_pool_exhaustion
 from app.database import get_db_session
 from app.repositories.search_batch_repository import (
     CachedAliasInfo,
-    RegionInfo,
     RegionLookup,
     SearchBatchRepository,
 )
 from app.schemas.nl_search import (
-    BudgetInfo,
-    InstructorSummary,
-    LocationResolutionInfo,
-    LocationTierResult,
     NLSearchContentFilterDefinition,
-    NLSearchContentFilterOption,
-    NLSearchMeta,
     NLSearchResponse,
     NLSearchResultItem,
-    ParsedQueryInfo,
-    PipelineStage,
-    RatingSummary,
     SearchDiagnostics,
-    ServiceMatch,
     StageStatus,
 )
 from app.services.search.config import get_search_config
@@ -57,6 +45,32 @@ from app.services.search.llm_parser import hybrid_parse
 from app.services.search.location_embedding_service import LocationEmbeddingService
 from app.services.search.location_llm_service import LocationLLMService
 from app.services.search.metrics import record_search_metrics
+from app.services.search.nl_pipeline import (
+    hydration,
+    location,
+    location_helpers,
+    postflight,
+    preflight,
+    response,
+    taxonomy,
+)
+from app.services.search.nl_pipeline.models import (
+    LocationLLMCache,
+    PipelineTimer,
+    PostOpenAIData,
+    PreOpenAIData,
+    SearchMetrics,
+    UnresolvedLocationInfo,
+)
+from app.services.search.nl_pipeline.runtime import (
+    compute_adaptive_budget,
+    decrement_inflight,
+    get_cached_subcategory_filter_value,
+    get_inflight_count,
+    increment_inflight,
+    normalize_concurrency_limit,
+    set_cached_subcategory_filter_value,
+)
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.ranking_service import RankedResult, RankingResult, RankingService
 from app.services.search.request_budget import RequestBudget
@@ -82,68 +96,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Optional perf logging for profiling in staging/dev.
-# NOTE: Read at module load time — changes require process restart.
 _PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
 _PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
-
-# Concurrency control for uncached searches.
-# Soft limit only; expensive OpenAI calls are gated separately.
 
 _search_inflight_lock = asyncio.Lock()
 _search_inflight_requests = 0
 
-
-async def _increment_search_inflight() -> int:
-    global _search_inflight_requests
-    async with _search_inflight_lock:
-        _search_inflight_requests += 1
-        return _search_inflight_requests
-
-
-async def _decrement_search_inflight() -> None:
-    global _search_inflight_requests
-    async with _search_inflight_lock:
-        _search_inflight_requests = max(0, _search_inflight_requests - 1)
-
-
-def _get_adaptive_budget(inflight: int, *, force_high_load: bool = False) -> int:
-    config = get_search_config()
-    if force_high_load or inflight >= int(config.high_load_threshold):
-        return int(config.high_load_budget_ms)
-    return int(config.search_budget_ms)
-
-
-async def get_search_inflight_count() -> int:
-    async with _search_inflight_lock:
-        return _search_inflight_requests
-
-
-def _coerce_skill_level_override(
-    value: str,
-) -> Literal["beginner", "intermediate", "advanced"] | None:
-    """Return a typed skill-level literal for validated override values."""
-    if value == "beginner":
-        return "beginner"
-    if value == "intermediate":
-        return "intermediate"
-    if value == "advanced":
-        return "advanced"
-    return None
-
-
-async def set_uncached_search_concurrency_limit(limit: int) -> int:
-    """Return the normalized soft concurrency limit."""
-    return max(1, int(limit))
-
-
-# Location resolution tuning.
 LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
 LOCATION_TIER4_HIGH_CONFIDENCE = float(os.getenv("LOCATION_TIER4_HIGH_CONFIDENCE", "0.85"))
 LOCATION_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCATION_LLM_CONFIDENCE_THRESHOLD", "0.7"))
 LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRESHOLD", "0.7"))
 
-# Top-match subcategory consensus for post-retrieval taxonomy inference.
 TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
 TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
 SUBCATEGORY_FILTER_CACHE_TTL_SECONDS = max(
@@ -155,211 +118,71 @@ _subcategory_filter_cache: Dict[str, Tuple[float, Any]] = {}
 _subcategory_filter_cache_lock = threading.Lock()
 
 
-def _get_cached_subcategory_filter_value(cache_key: str) -> Tuple[bool, Any]:
-    """Return cached value for key if present and unexpired."""
-    now = time.monotonic()
-    with _subcategory_filter_cache_lock:
-        cached = _subcategory_filter_cache.get(cache_key)
-        if cached is None:
-            return False, None
+def _get_inflight_count_value() -> int:
+    return _search_inflight_requests
 
-        cached_at, value = cached
-        if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS:
-            _subcategory_filter_cache.pop(cache_key, None)
-            return False, None
-        return True, value
+
+def _set_inflight_count_value(value: int) -> None:
+    global _search_inflight_requests
+    _search_inflight_requests = value
+
+
+async def _increment_search_inflight() -> int:
+    return await increment_inflight(
+        _search_inflight_lock,
+        get_count=_get_inflight_count_value,
+        set_count=_set_inflight_count_value,
+    )
+
+
+async def _decrement_search_inflight() -> None:
+    await decrement_inflight(
+        _search_inflight_lock,
+        get_count=_get_inflight_count_value,
+        set_count=_set_inflight_count_value,
+    )
+
+
+def _get_adaptive_budget(inflight: int, *, force_high_load: bool = False) -> int:
+    return compute_adaptive_budget(
+        inflight,
+        force_high_load=force_high_load,
+        get_config=get_search_config,
+    )
+
+
+async def get_search_inflight_count() -> int:
+    return await get_inflight_count(_search_inflight_lock, _get_inflight_count_value)
+
+
+async def set_uncached_search_concurrency_limit(limit: int) -> int:
+    return normalize_concurrency_limit(limit)
+
+
+def _get_cached_subcategory_filter_value(cache_key: str) -> Tuple[bool, Any]:
+    return get_cached_subcategory_filter_value(
+        cache_key,
+        cache=_subcategory_filter_cache,
+        lock=_subcategory_filter_cache_lock,
+        ttl_seconds=SUBCATEGORY_FILTER_CACHE_TTL_SECONDS,
+        monotonic=time.monotonic,
+    )
 
 
 def _set_cached_subcategory_filter_value(cache_key: str, value: Any) -> None:
-    """Store cached value for key with bounded size and TTL-aware eviction."""
-    now = time.monotonic()
-    with _subcategory_filter_cache_lock:
-        if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
-            expired_keys = [
-                key
-                for key, (cached_at, _cached_value) in _subcategory_filter_cache.items()
-                if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS
-            ]
-            for key in expired_keys:
-                _subcategory_filter_cache.pop(key, None)
-
-            if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
-                oldest_entries = sorted(
-                    _subcategory_filter_cache.items(),
-                    key=lambda item: item[1][0],
-                )
-                trim_count = max(1, len(oldest_entries) // 2)
-                for key, _entry in oldest_entries[:trim_count]:
-                    _subcategory_filter_cache.pop(key, None)
-
-        _subcategory_filter_cache[cache_key] = (now, value)
-
-
-@dataclass
-class SearchMetrics:
-    """Metrics collected during search execution."""
-
-    total_start: float = 0
-    parse_latency_ms: int = 0
-    embed_latency_ms: int = 0
-    retrieve_latency_ms: int = 0
-    filter_latency_ms: int = 0
-    rank_latency_ms: int = 0
-    total_latency_ms: int = 0
-    cache_hit: bool = False
-    degraded: bool = False
-    degradation_reasons: List[str] = field(default_factory=list)
-
-
-@dataclass
-class PipelineTimer:
-    """Collect timing data for diagnostics."""
-
-    stages: List[Dict[str, Any]] = field(default_factory=list)
-    location_tiers: List[Dict[str, Any]] = field(default_factory=list)
-    _current_stage_name: Optional[str] = None
-    _current_stage_start: Optional[float] = None
-
-    def start_stage(self, name: str) -> None:
-        self._current_stage_name = name
-        self._current_stage_start = time.perf_counter()
-
-    def end_stage(self, status: str = "success", details: Optional[Dict[str, Any]] = None) -> None:
-        if self._current_stage_start is None or self._current_stage_name is None:
-            return
-        duration_ms = int((time.perf_counter() - self._current_stage_start) * 1000)
-        self.stages.append(
-            {
-                "name": self._current_stage_name,
-                "duration_ms": max(0, duration_ms),
-                "status": status,
-                "details": details or {},
-            }
-        )
-        self._current_stage_name = None
-        self._current_stage_start = None
-
-    def record_stage(
-        self,
-        name: str,
-        duration_ms: int,
-        status: str,
-        details: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        self.stages.append(
-            {
-                "name": name,
-                "duration_ms": max(0, int(duration_ms)),
-                "status": status,
-                "details": details if details else None,
-            }
-        )
-
-    def skip_stage(self, name: str, reason: str) -> None:
-        self.record_stage(name, 0, StageStatus.SKIPPED.value, {"reason": reason})
-
-    def record_location_tier(
-        self,
-        *,
-        tier: int,
-        attempted: bool,
-        status: str,
-        duration_ms: int,
-        result: Optional[str] = None,
-        confidence: Optional[float] = None,
-        details: Optional[str] = None,
-    ) -> None:
-        self.location_tiers.append(
-            {
-                "tier": tier,
-                "attempted": attempted,
-                "status": status,
-                "duration_ms": max(0, int(duration_ms)),
-                "result": result,
-                "confidence": confidence,
-                "details": details,
-            }
-        )
-
-
-@dataclass
-class PreOpenAIData:
-    """DB-backed data collected before OpenAI calls."""
-
-    parsed_query: ParsedQuery
-    parse_latency_ms: int
-    text_results: Optional[Dict[str, Tuple[float, Dict[str, Any]]]]
-    text_latency_ms: int
-    has_service_embeddings: bool
-    best_text_score: float
-    require_text_match: bool
-    skip_vector: bool
-    region_lookup: Optional[RegionLookup]
-    location_resolution: Optional["ResolvedLocation"]
-    location_normalized: Optional[str]
-    cached_alias_normalized: Optional[str]
-    fuzzy_score: Optional[float]
-    location_llm_candidates: List[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class LocationLLMCache:
-    """LLM-derived alias cache payload to persist in DB burst."""
-
-    normalized: str
-    confidence: float
-    region_ids: List[str]
-
-
-@dataclass(frozen=True)
-class UnresolvedLocationInfo:
-    """Unresolved location payload to persist in DB burst."""
-
-    normalized: str
-    original_query: str
-
-
-@dataclass
-class PostOpenAIData:
-    """DB-backed data collected after OpenAI calls."""
-
-    filter_result: FilterResult
-    ranking_result: RankingResult
-    retrieval_candidates: List[ServiceCandidate]
-    instructor_rows: List[Dict[str, Any]]
-    distance_meters: Dict[str, float]
-    text_latency_ms: int
-    vector_latency_ms: int
-    filter_latency_ms: int
-    rank_latency_ms: int
-    vector_search_used: bool
-    total_candidates: int
-    filter_failed: bool
-    ranking_failed: bool
-    skip_vector: bool
-    inferred_filters: Dict[str, List[str]] = field(default_factory=dict)
-    effective_taxonomy_filters: Dict[str, List[str]] = field(default_factory=dict)
-    effective_subcategory_id: Optional[str] = None
-    effective_subcategory_name: Optional[str] = None
-    available_content_filters: List[NLSearchContentFilterDefinition] = field(default_factory=list)
+    set_cached_subcategory_filter_value(
+        cache_key,
+        value,
+        cache=_subcategory_filter_cache,
+        lock=_subcategory_filter_cache_lock,
+        ttl_seconds=SUBCATEGORY_FILTER_CACHE_TTL_SECONDS,
+        max_entries=SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES,
+        monotonic=time.monotonic,
+    )
 
 
 class NLSearchService:
-    """
-    Orchestrates the full NL search pipeline.
-
-    Pipeline stages:
-    1. Cache check
-    2. Query parsing (regex → LLM fallback)
-    3. Query embedding
-    4. Candidate retrieval (vector + text)
-    5. Constraint filtering
-    6. Multi-signal ranking
-    7. Response caching
-
-    All stages support graceful degradation.
-    Supports multi-region architecture via region_code parameter.
-    """
+    """Facade that keeps the public import path stable while delegating to nl_pipeline."""
 
     def __init__(
         self,
@@ -373,21 +196,1037 @@ class NLSearchService:
     ) -> None:
         self._cache_service = cache_service
         self._region_code = region_code
-
-        # Initialize search cache
         self.search_cache = search_cache or SearchCacheService(
-            cache_service=cache_service, region_code=region_code
+            cache_service=cache_service,
+            region_code=region_code,
         )
-
-        # Initialize embedding service
         self.embedding_service = embedding_service or EmbeddingService(cache_service=cache_service)
-
-        # Initialize pipeline components (DB sessions are acquired per operation)
         self.retriever = retriever or PostgresRetriever(self.embedding_service)
         self.filter_service = filter_service or FilterService(region_code=region_code)
         self.ranking_service = ranking_service or RankingService()
         self.location_embedding_service = LocationEmbeddingService(repository=None)
         self.location_llm_service = LocationLLMService()
+
+    @staticmethod
+    def _build_candidates_flow(include_diagnostics: bool) -> Dict[str, int]:
+        if not include_diagnostics:
+            return {}
+        return {
+            "initial_candidates": 0,
+            "after_text_search": 0,
+            "after_vector_search": 0,
+            "after_location_filter": 0,
+            "after_price_filter": 0,
+            "after_availability_filter": 0,
+            "final_results": 0,
+        }
+
+    def _prepare_search_filters(
+        self,
+        *,
+        explicit_skill_levels: Optional[List[str]],
+        taxonomy_filter_selections: Optional[Dict[str, List[str]]],
+        subcategory_id: Optional[str],
+    ) -> tuple[Dict[str, List[str]], List[str], Optional[Dict[str, object]]]:
+        normalized_explicit_skills = self._normalize_filter_values(explicit_skill_levels)
+        effective_taxonomy_filters = self._normalize_taxonomy_filter_selections(
+            taxonomy_filter_selections
+        )
+        if normalized_explicit_skills:
+            effective_taxonomy_filters["skill_level"] = normalized_explicit_skills
+        effective_skill_levels = effective_taxonomy_filters.get("skill_level", [])
+        cache_filters = self._build_cache_filters(
+            effective_taxonomy_filters,
+            subcategory_id=subcategory_id,
+        )
+        return effective_taxonomy_filters, effective_skill_levels, cache_filters
+
+    async def _cancel_task(self, task: Optional[asyncio.Task[Any]]) -> None:
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.debug("Background task failed after cancel: %s", exc)
+
+    async def _cache_parsed_query_safe(self, query: str, parsed_query: ParsedQuery) -> None:
+        try:
+            await self.search_cache.cache_parsed_query(
+                query,
+                parsed_query,
+                region_code=self._region_code,
+            )
+        except Exception as exc:
+            logger.warning("Failed to cache parsed query: %s", exc)
+
+    def _make_parsed_query_future(
+        self,
+        parsed_query_cached: Optional[ParsedQuery],
+    ) -> tuple[asyncio.Future[ParsedQuery], Callable[[ParsedQuery], None]]:
+        loop = asyncio.get_running_loop()
+        parsed_query_future: asyncio.Future[ParsedQuery] = loop.create_future()
+        if parsed_query_cached is not None:
+            parsed_query_future.set_result(parsed_query_cached)
+
+        def _notify(parsed_query: ParsedQuery) -> None:
+            if parsed_query_future.done():
+                return
+            loop.call_soon_threadsafe(parsed_query_future.set_result, parsed_query)
+
+        return parsed_query_future, _notify
+
+    def _create_embedding_task(
+        self,
+        *,
+        parsed_query_future: asyncio.Future[ParsedQuery],
+        budget: RequestBudget,
+        force_skip_vector_search: bool,
+    ) -> Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]]:
+        if force_skip_vector_search:
+            budget.skip("embedding")
+            budget.skip("vector_search")
+            return None
+        if not budget.can_afford_vector_search():
+            budget.skip("embedding")
+            budget.skip("vector_search")
+            return None
+
+        async def _maybe_embed_query() -> tuple[Optional[List[float]], int, Optional[str]]:
+            parsed_query = await parsed_query_future
+            if parsed_query.needs_llm:
+                return None, 0, None
+            return await self._embed_query_with_timeout(parsed_query.service_query)
+
+        return asyncio.create_task(_maybe_embed_query())
+
+    async def _prepare_uncached_pipeline(
+        self,
+        *,
+        query: str,
+        budget_ms: Optional[int],
+        force_high_load: bool,
+        force_skip_vector_search: bool,
+    ) -> tuple[
+        RequestBudget,
+        Optional[ParsedQuery],
+        asyncio.Future[ParsedQuery],
+        Callable[[ParsedQuery], None],
+        Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+    ]:
+        inflight = await _increment_search_inflight()
+        soft_limit = max(1, int(get_search_config().uncached_concurrency))
+        if inflight > soft_limit:
+            await _decrement_search_inflight()
+            logger.warning(
+                "[SEARCH] Soft concurrency limit reached, returning 503: query=%s",
+                query[:50] if query else "",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Search temporarily overloaded. Please retry in a few seconds.",
+                headers={"Retry-After": "2"},
+            )
+        effective_budget_ms = (
+            budget_ms
+            if budget_ms is not None
+            else _get_adaptive_budget(inflight, force_high_load=force_high_load)
+        )
+        budget = RequestBudget(total_ms=effective_budget_ms)
+        parsed_query_cached: Optional[ParsedQuery] = None
+        try:
+            parsed_query_cached = await self.search_cache.get_cached_parsed_query(
+                query,
+                region_code=self._region_code,
+            )
+        except Exception as exc:
+            logger.warning("Parsed query cache lookup failed: %s", exc)
+        parsed_query_future, notify_parsed = self._make_parsed_query_future(parsed_query_cached)
+        embedding_task = self._create_embedding_task(
+            parsed_query_future=parsed_query_future,
+            budget=budget,
+            force_skip_vector_search=force_skip_vector_search,
+        )
+        return budget, parsed_query_cached, parsed_query_future, notify_parsed, embedding_task
+
+    async def _run_llm_parse(
+        self,
+        *,
+        query: str,
+        parsed_query: ParsedQuery,
+        user_id: Optional[str],
+        metrics: SearchMetrics,
+    ) -> ParsedQuery:
+        from app.services.search.llm_parser import LLMParser
+
+        llm_start = time.perf_counter()
+        llm_parser = LLMParser(user_id=user_id, region_code=self._region_code)
+        parsed_query = await llm_parser.parse(query, parsed_query)
+        metrics.parse_latency_ms += int((time.perf_counter() - llm_start) * 1000)
+        if parsed_query.parsing_mode != "llm":
+            metrics.degraded = True
+            metrics.degradation_reasons.append("parsing_error")
+        await self._cache_parsed_query_safe(query, parsed_query)
+        return parsed_query
+
+    def _record_preflight_state(
+        self,
+        *,
+        timer: Optional[PipelineTimer],
+        pre_data: PreOpenAIData,
+        pre_openai_ms: int,
+        candidates_flow: Dict[str, int],
+        parsed_query: ParsedQuery,
+        user_location: Optional[Tuple[float, float]],
+    ) -> None:
+        if timer:
+            location_tier_value = None
+            if pre_data.location_resolution and pre_data.location_resolution.tier is not None:
+                try:
+                    location_tier_value = int(pre_data.location_resolution.tier.value)
+                except Exception:
+                    location_tier_value = None
+            timer.record_stage(
+                "burst1",
+                pre_openai_ms,
+                StageStatus.SUCCESS.value,
+                {
+                    "text_candidates": len(pre_data.text_results or {}),
+                    "region_lookup_loaded": bool(pre_data.region_lookup),
+                    "location_tier": location_tier_value,
+                },
+            )
+        if candidates_flow:
+            candidates_flow["after_text_search"] = len(pre_data.text_results or {})
+        if (
+            timer
+            and parsed_query.location_text
+            and parsed_query.location_type != "near_me"
+            and user_location is None
+        ):
+            self._record_pre_location_tiers(timer, pre_data.location_resolution)
+
+    def _start_speculative_tier5_task(
+        self,
+        *,
+        parsed_query: ParsedQuery,
+        pre_data: PreOpenAIData,
+        user_location: Optional[Tuple[float, float]],
+        budget: RequestBudget,
+        force_skip_tier5: bool,
+    ) -> tuple[
+        Optional[
+            asyncio.Task[
+                tuple[
+                    Optional[ResolvedLocation],
+                    Optional[LocationLLMCache],
+                    Optional[UnresolvedLocationInfo],
+                ]
+            ]
+        ],
+        Optional[float],
+    ]:
+        if (
+            parsed_query.needs_llm
+            or pre_data.location_resolution is not None
+            or not pre_data.region_lookup
+            or not pre_data.location_llm_candidates
+            or not parsed_query.location_text
+            or parsed_query.location_type == "near_me"
+            or user_location is not None
+        ):
+            return None, None
+        if not budget.can_afford_tier5() or force_skip_tier5:
+            budget.skip("tier5_llm")
+            return None, None
+        started_at = time.perf_counter()
+        task = asyncio.create_task(
+            self._resolve_location_llm(
+                location_text=parsed_query.location_text,
+                original_query=parsed_query.original_query,
+                region_lookup=pre_data.region_lookup,
+                candidate_names=pre_data.location_llm_candidates,
+            )
+        )
+        return task, started_at
+
+    async def _finalize_preflight_parse(
+        self,
+        *,
+        query: str,
+        user_id: Optional[str],
+        parsed_query_cached: Optional[ParsedQuery],
+        parsed_query: ParsedQuery,
+        embedding_task: Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+        metrics: SearchMetrics,
+    ) -> tuple[
+        ParsedQuery, Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]]
+    ]:
+        if parsed_query_cached is None and not parsed_query.needs_llm:
+            await self._cache_parsed_query_safe(query, parsed_query)
+            return parsed_query, embedding_task
+        if not parsed_query.needs_llm:
+            return parsed_query, embedding_task
+        await self._cancel_task(embedding_task)
+        parsed_query = await self._run_llm_parse(
+            query=query,
+            parsed_query=parsed_query,
+            user_id=user_id,
+            metrics=metrics,
+        )
+        return parsed_query, None
+
+    async def _run_preflight_and_parse(
+        self,
+        *,
+        query: str,
+        user_id: Optional[str],
+        user_location: Optional[Tuple[float, float]],
+        parsed_query_cached: Optional[ParsedQuery],
+        parsed_query_future: asyncio.Future[ParsedQuery],
+        notify_parsed: Callable[[ParsedQuery], None],
+        embedding_task: Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+        budget: RequestBudget,
+        effective_skill_levels: List[str],
+        metrics: SearchMetrics,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+        force_skip_tier5: bool,
+    ) -> tuple[
+        PreOpenAIData,
+        ParsedQuery,
+        Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+        Optional[
+            asyncio.Task[
+                tuple[
+                    Optional[ResolvedLocation],
+                    Optional[LocationLLMCache],
+                    Optional[UnresolvedLocationInfo],
+                ]
+            ]
+        ],
+        Optional[float],
+    ]:
+        pre_data, pre_openai_ms = await self._load_preflight_data(
+            query=query,
+            parsed_query_cached=parsed_query_cached,
+            user_id=user_id,
+            user_location=user_location,
+            notify_parsed=notify_parsed,
+            embedding_task=embedding_task,
+        )
+        if not parsed_query_future.done():
+            parsed_query_future.set_result(pre_data.parsed_query)
+        parsed_query = pre_data.parsed_query
+        if effective_skill_levels:
+            parsed_query.skill_level = (
+                preflight.coerce_skill_level_override(effective_skill_levels[0])
+                if len(effective_skill_levels) == 1
+                else None
+            )
+        metrics.parse_latency_ms = pre_data.parse_latency_ms
+        self._record_preflight_state(
+            timer=timer,
+            pre_data=pre_data,
+            pre_openai_ms=pre_openai_ms,
+            candidates_flow=candidates_flow,
+            parsed_query=parsed_query,
+            user_location=user_location,
+        )
+        tier5_task, tier5_started_at = self._start_speculative_tier5_task(
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            user_location=user_location,
+            budget=budget,
+            force_skip_tier5=force_skip_tier5,
+        )
+        parsed_query, embedding_task = await self._finalize_preflight_parse(
+            query=query,
+            user_id=user_id,
+            parsed_query_cached=parsed_query_cached,
+            parsed_query=parsed_query,
+            embedding_task=embedding_task,
+            metrics=metrics,
+        )
+        if timer:
+            timer.record_stage(
+                "parse",
+                metrics.parse_latency_ms,
+                StageStatus.SUCCESS.value,
+                {"mode": parsed_query.parsing_mode},
+            )
+        return pre_data, parsed_query, embedding_task, tier5_task, tier5_started_at
+
+    async def _load_preflight_data(
+        self,
+        *,
+        query: str,
+        parsed_query_cached: Optional[ParsedQuery],
+        user_id: Optional[str],
+        user_location: Optional[Tuple[float, float]],
+        notify_parsed: Callable[[ParsedQuery], None],
+        embedding_task: Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+    ) -> tuple[PreOpenAIData, int]:
+        pre_openai_start = time.perf_counter()
+        try:
+            pre_data = await asyncio.to_thread(
+                self._run_pre_openai_burst,
+                query,
+                parsed_query=parsed_query_cached,
+                user_id=user_id,
+                user_location=user_location,
+                notify_parsed=notify_parsed,
+            )
+        except Exception:
+            await self._cancel_task(embedding_task)
+            raise
+        return pre_data, int((time.perf_counter() - pre_openai_start) * 1000)
+
+    async def _resolve_query_embedding(
+        self,
+        *,
+        parsed_query: ParsedQuery,
+        pre_data: PreOpenAIData,
+        embedding_task: Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+        budget: RequestBudget,
+        metrics: SearchMetrics,
+        timer: Optional[PipelineTimer],
+        force_skip_vector: bool,
+        force_skip_embedding: bool,
+    ) -> tuple[Optional[List[float]], Optional[str]]:
+        query_embedding: Optional[List[float]] = None
+        embed_latency_ms = 0
+        embedding_reason: Optional[str] = None
+        budget_skip_vector = False
+        force_skip_vector_search = force_skip_vector or force_skip_embedding
+        if force_skip_vector_search:
+            pre_data.skip_vector = True
+            budget_skip_vector = True
+            embedding_reason = (
+                "force_skip_embedding" if force_skip_embedding else "force_skip_vector"
+            )
+        if not budget.can_afford_vector_search():
+            budget.skip("vector_search")
+            budget.skip("embedding")
+            pre_data.skip_vector = True
+            budget_skip_vector = True
+        if pre_data.skip_vector:
+            await self._cancel_task(embedding_task)
+            if embedding_reason is None and budget_skip_vector:
+                embedding_reason = "budget_skip_vector_search"
+        elif not pre_data.has_service_embeddings:
+            await self._cancel_task(embedding_task)
+            embedding_reason = "no_embeddings_in_database"
+        elif embedding_task is not None:
+            try:
+                query_embedding, embed_latency_ms, embedding_reason = await embedding_task
+            except Exception as exc:
+                logger.warning("[SEARCH] Embedding failed, falling back to text-only: %s", exc)
+                embedding_reason = "embedding_service_unavailable"
+        else:
+            (
+                query_embedding,
+                embed_latency_ms,
+                embedding_reason,
+            ) = await self._embed_query_with_timeout(parsed_query.service_query)
+        metrics.embed_latency_ms = embed_latency_ms
+        if embedding_reason:
+            metrics.degraded = True
+            metrics.degradation_reasons.append(embedding_reason)
+        if timer:
+            if pre_data.skip_vector:
+                embed_status = StageStatus.SKIPPED.value
+            elif embedding_reason == "embedding_timeout":
+                embed_status = StageStatus.TIMEOUT.value
+            elif embedding_reason in {
+                "no_embeddings_in_database",
+                "budget_skip_vector_search",
+                "force_skip_vector",
+                "force_skip_embedding",
+            }:
+                embed_status = StageStatus.SKIPPED.value
+            elif embedding_reason:
+                embed_status = StageStatus.ERROR.value
+            else:
+                embed_status = StageStatus.SUCCESS.value
+            timer.record_stage(
+                "embedding",
+                embed_latency_ms,
+                embed_status,
+                {"reason": embedding_reason, "used": bool(query_embedding)},
+            )
+        return query_embedding, embedding_reason
+
+    async def _resolve_location_stage(
+        self,
+        *,
+        parsed_query: ParsedQuery,
+        pre_data: PreOpenAIData,
+        user_location: Optional[Tuple[float, float]],
+        budget: RequestBudget,
+        timer: Optional[PipelineTimer],
+        force_skip_tier5: bool,
+        force_skip_tier4: bool,
+        force_skip_embedding: bool,
+        tier5_task: Optional[
+            asyncio.Task[
+                tuple[
+                    Optional[ResolvedLocation],
+                    Optional[LocationLLMCache],
+                    Optional[UnresolvedLocationInfo],
+                ]
+            ]
+        ],
+        tier5_started_at: Optional[float],
+    ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
+        from app.services.search.location_resolver import ResolvedLocation
+
+        location_resolution = pre_data.location_resolution
+        location_llm_cache: Optional[LocationLLMCache] = None
+        unresolved_info: Optional[UnresolvedLocationInfo] = None
+        if (
+            user_location is None
+            and parsed_query.location_text
+            and parsed_query.location_type != "near_me"
+        ):
+            location_start = time.perf_counter()
+            if location_resolution is None:
+                allow_tier4 = (
+                    budget.can_afford_tier4() and not force_skip_tier4 and not force_skip_embedding
+                )
+                allow_tier5 = budget.can_afford_tier5() and not force_skip_tier5
+                if not allow_tier4:
+                    budget.skip("tier4_embedding")
+                if force_skip_tier5:
+                    budget.skip("tier5_llm")
+                (
+                    location_resolution,
+                    location_llm_cache,
+                    unresolved_info,
+                ) = await self._resolve_location_openai(
+                    parsed_query.location_text,
+                    region_lookup=pre_data.region_lookup,
+                    fuzzy_score=pre_data.fuzzy_score,
+                    original_query=parsed_query.original_query,
+                    llm_candidates=pre_data.location_llm_candidates,
+                    tier5_task=tier5_task,
+                    tier5_started_at=tier5_started_at,
+                    allow_tier4=allow_tier4,
+                    allow_tier5=allow_tier5,
+                    force_skip_tier5=force_skip_tier5,
+                    budget=budget,
+                    diagnostics=timer,
+                )
+            if location_resolution is None:
+                location_resolution = ResolvedLocation.from_not_found()
+            location_ms = int((time.perf_counter() - location_start) * 1000)
+            if timer:
+                tier_value = None
+                if location_resolution and location_resolution.tier is not None:
+                    try:
+                        tier_value = int(location_resolution.tier.value)
+                    except Exception:
+                        tier_value = None
+                status = (
+                    StageStatus.SUCCESS.value
+                    if location_resolution
+                    and (location_resolution.resolved or location_resolution.requires_clarification)
+                    else StageStatus.MISS.value
+                )
+                timer.record_stage(
+                    "location_resolution",
+                    location_ms,
+                    status,
+                    {
+                        "resolved": bool(location_resolution and location_resolution.resolved),
+                        "tier": tier_value,
+                    },
+                )
+        elif timer:
+            timer.skip_stage("location_resolution", "no_location")
+        return (
+            location_resolution or ResolvedLocation.from_not_found(),
+            location_llm_cache,
+            unresolved_info,
+        )
+
+    def _apply_budget_degradation(self, metrics: SearchMetrics, budget: RequestBudget) -> None:
+        if not budget.is_degraded:
+            return
+        metrics.degraded = True
+        for reason in budget.degradation_reasons:
+            if reason not in metrics.degradation_reasons:
+                metrics.degradation_reasons.append(reason)
+        if budget.is_over_budget and "budget_overrun" not in metrics.degradation_reasons:
+            metrics.degradation_reasons.append("budget_overrun")
+        if budget.is_exhausted() and "budget_exhausted" not in metrics.degradation_reasons:
+            metrics.degradation_reasons.append("budget_exhausted")
+
+    async def _run_postflight_stage(
+        self,
+        *,
+        pre_data: PreOpenAIData,
+        parsed_query: ParsedQuery,
+        query_embedding: Optional[List[float]],
+        location_resolution: Optional[ResolvedLocation],
+        location_llm_cache: Optional[LocationLLMCache],
+        unresolved_info: Optional[UnresolvedLocationInfo],
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+        requester_timezone: Optional[str],
+        taxonomy_filter_selections: Optional[Dict[str, List[str]]],
+        subcategory_id: Optional[str],
+        embedding_reason: Optional[str],
+        budget: RequestBudget,
+        metrics: SearchMetrics,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+    ) -> tuple[PostOpenAIData, RetrievalResult]:
+        post_openai_start = time.perf_counter()
+        post_data = await asyncio.to_thread(
+            self._run_post_openai_burst,
+            pre_data,
+            parsed_query,
+            query_embedding,
+            location_resolution,
+            location_llm_cache,
+            unresolved_info,
+            user_location,
+            limit,
+            requester_timezone=requester_timezone,
+            taxonomy_filter_selections=taxonomy_filter_selections,
+            subcategory_id=subcategory_id,
+        )
+        post_openai_ms = int((time.perf_counter() - post_openai_start) * 1000)
+        if timer:
+            timer.record_stage(
+                "burst2",
+                post_openai_ms,
+                StageStatus.SUCCESS.value,
+                {
+                    "vector_search_used": post_data.vector_search_used,
+                    "total_candidates": post_data.total_candidates,
+                    "filter_failed": post_data.filter_failed,
+                    "ranking_failed": post_data.ranking_failed,
+                },
+            )
+        if candidates_flow:
+            candidates_flow["after_vector_search"] = post_data.total_candidates
+            filter_stats = post_data.filter_result.filter_stats or {}
+            candidates_flow["initial_candidates"] = int(
+                filter_stats.get("initial_candidates", post_data.total_candidates)
+            )
+            candidates_flow["after_location_filter"] = int(
+                filter_stats.get("after_location", candidates_flow["after_vector_search"])
+            )
+            candidates_flow["after_price_filter"] = int(
+                filter_stats.get("after_price", candidates_flow["after_location_filter"])
+            )
+            candidates_flow["after_availability_filter"] = int(
+                filter_stats.get("after_availability", candidates_flow["after_price_filter"])
+            )
+        if embedding_reason == "no_embeddings_in_database" and post_data.skip_vector:
+            embedding_reason = None
+            metrics.degradation_reasons = [
+                reason
+                for reason in metrics.degradation_reasons
+                if reason != "no_embeddings_in_database"
+            ]
+            if not metrics.degradation_reasons:
+                metrics.degraded = False
+        self._apply_budget_degradation(metrics, budget)
+        metrics.retrieve_latency_ms = post_data.text_latency_ms + post_data.vector_latency_ms
+        retrieval_result = RetrievalResult(
+            candidates=post_data.retrieval_candidates,
+            total_candidates=post_data.total_candidates,
+            vector_search_used=post_data.vector_search_used,
+            degraded=bool(embedding_reason),
+            degradation_reason=embedding_reason,
+            embed_latency_ms=metrics.embed_latency_ms,
+            db_latency_ms=metrics.retrieve_latency_ms,
+            text_search_latency_ms=post_data.text_latency_ms,
+            vector_search_latency_ms=post_data.vector_latency_ms,
+        )
+        metrics.filter_latency_ms = post_data.filter_latency_ms
+        metrics.rank_latency_ms = post_data.rank_latency_ms
+        if post_data.filter_failed:
+            metrics.degraded = True
+            metrics.degradation_reasons.append("filtering_error")
+        if post_data.ranking_failed:
+            metrics.degraded = True
+            metrics.degradation_reasons.append("ranking_error")
+        return post_data, retrieval_result
+
+    async def _hydrate_results(
+        self,
+        *,
+        post_data: PostOpenAIData,
+        limit: int,
+        metrics: SearchMetrics,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+    ) -> tuple[List[NLSearchResultItem], int]:
+        hydrate_start = time.perf_counter()
+        hydrate_failed = False
+        try:
+            results = await self._hydrate_instructor_results(
+                post_data.ranking_result.results,
+                limit=limit,
+                location_resolution=post_data.filter_result.location_resolution,
+                instructor_rows=cast(
+                    List[hydration.InstructorProfileRow],
+                    post_data.instructor_rows,
+                ),
+                distance_meters=post_data.distance_meters,
+            )
+        except Exception as exc:
+            logger.error("Hydration failed: %s", exc)
+            results = []
+            hydrate_failed = True
+            metrics.degraded = True
+            metrics.degradation_reasons.append("hydration_error")
+        hydrate_ms = int((time.perf_counter() - hydrate_start) * 1000)
+        if timer:
+            timer.record_stage(
+                "hydrate",
+                hydrate_ms,
+                StageStatus.ERROR.value if hydrate_failed else StageStatus.SUCCESS.value,
+                {"result_count": len(results)},
+            )
+        if candidates_flow:
+            candidates_flow["final_results"] = len(results)
+        return results, hydrate_ms
+
+    def _build_response(
+        self,
+        *,
+        query: str,
+        parsed_query: ParsedQuery,
+        results: List[NLSearchResultItem],
+        limit: int,
+        metrics: SearchMetrics,
+        post_data: PostOpenAIData,
+        budget: RequestBudget,
+        timer: Optional[PipelineTimer],
+    ) -> tuple[NLSearchResponse, int]:
+        metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
+        response_build_start = time.perf_counter()
+        response_obj = self._build_instructor_response(
+            query,
+            parsed_query,
+            results,
+            limit,
+            metrics,
+            filter_result=post_data.filter_result,
+            inferred_filters=post_data.inferred_filters,
+            effective_subcategory_id=post_data.effective_subcategory_id,
+            effective_subcategory_name=post_data.effective_subcategory_name,
+            available_content_filters=post_data.available_content_filters,
+            budget=budget,
+        )
+        response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
+        if timer:
+            timer.record_stage(
+                "build_response",
+                response_build_ms,
+                StageStatus.SUCCESS.value,
+                {"result_count": len(response_obj.results)},
+            )
+        return response_obj, response_build_ms
+
+    async def _record_metrics_and_cache(
+        self,
+        *,
+        query: str,
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+        parsed_query: ParsedQuery,
+        response_obj: NLSearchResponse,
+        metrics: SearchMetrics,
+        retrieval_result: RetrievalResult,
+        cache_check_ms: int,
+        hydrate_ms: int,
+        response_build_ms: int,
+        cache_filters: Optional[Dict[str, object]],
+    ) -> int:
+        record_search_metrics(
+            total_latency_ms=metrics.total_latency_ms,
+            stage_latencies={
+                "cache_check": cache_check_ms,
+                "parsing": metrics.parse_latency_ms,
+                "embedding": metrics.embed_latency_ms,
+                "retrieval": metrics.retrieve_latency_ms,
+                "filtering": metrics.filter_latency_ms,
+                "ranking": metrics.rank_latency_ms,
+                "hydration": hydrate_ms,
+                "response_build": response_build_ms,
+            },
+            cache_hit=metrics.cache_hit,
+            parsing_mode=parsed_query.parsing_mode,
+            result_count=len(response_obj.results),
+            degraded=metrics.degraded,
+            degradation_reasons=metrics.degradation_reasons,
+        )
+        degraded_ttl = 30 if metrics.degraded else None
+        cache_write_start = time.perf_counter()
+        await self._cache_response(
+            query,
+            user_location,
+            response_obj,
+            limit,
+            ttl=degraded_ttl,
+            filters=cache_filters,
+        )
+        return int((time.perf_counter() - cache_write_start) * 1000)
+
+    def _attach_diagnostics_and_perf_log(
+        self,
+        *,
+        response_obj: NLSearchResponse,
+        timer: Optional[PipelineTimer],
+        budget: RequestBudget,
+        parsed_query: ParsedQuery,
+        pre_data: PreOpenAIData,
+        post_data: PostOpenAIData,
+        location_resolution: Optional[ResolvedLocation],
+        query_embedding: Optional[List[float]],
+        candidates_flow: Dict[str, int],
+        metrics: SearchMetrics,
+        retrieval_result: RetrievalResult,
+        cache_check_ms: int,
+        hydrate_ms: int,
+        response_build_ms: int,
+        cache_write_ms: int,
+        limit: int,
+        include_diagnostics: bool,
+    ) -> None:
+        if include_diagnostics and timer:
+            diagnostics = self._build_search_diagnostics(
+                timer=timer,
+                budget=budget,
+                parsed_query=parsed_query,
+                pre_data=pre_data,
+                post_data=post_data,
+                location_resolution=location_resolution,
+                query_embedding=query_embedding,
+                results_count=len(response_obj.results),
+                cache_hit=False,
+                parsing_mode=parsed_query.parsing_mode,
+                candidates_flow=candidates_flow,
+                total_latency_ms=metrics.total_latency_ms,
+            )
+            response_obj.meta.diagnostics = diagnostics
+        if _PERF_LOG_ENABLED and metrics.total_latency_ms >= _PERF_LOG_SLOW_MS:
+            retrieval_stats = {
+                "text_search_ms": int(getattr(retrieval_result, "text_search_latency_ms", 0) or 0),
+                "vector_search_ms": int(
+                    getattr(retrieval_result, "vector_search_latency_ms", 0) or 0
+                ),
+                "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
+                "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
+            }
+            logger.info(
+                "NL search timings: %s",
+                {
+                    "cache_check_ms": cache_check_ms,
+                    "parse_ms": metrics.parse_latency_ms,
+                    "embed_ms": metrics.embed_latency_ms,
+                    "retrieve_db_ms": metrics.retrieve_latency_ms,
+                    "retrieve": retrieval_stats,
+                    "filter_ms": metrics.filter_latency_ms,
+                    "rank_ms": metrics.rank_latency_ms,
+                    "hydrate_ms": hydrate_ms,
+                    "response_build_ms": response_build_ms,
+                    "cache_write_ms": cache_write_ms,
+                    "total_ms": metrics.total_latency_ms,
+                    "degraded": metrics.degraded,
+                    "reasons": list(metrics.degradation_reasons),
+                    "limit": limit,
+                    "region": self._region_code,
+                },
+            )
+
+    async def _run_pipeline_stages(
+        self,
+        *,
+        query: str,
+        user_id: Optional[str],
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+        requester_timezone: Optional[str],
+        subcategory_id: Optional[str],
+        effective_filters: Dict[str, List[str]],
+        effective_skill_levels: List[str],
+        parsed_query_cached: Optional[ParsedQuery],
+        parsed_query_future: asyncio.Future[ParsedQuery],
+        notify_parsed: Callable[[ParsedQuery], None],
+        embedding_task: Optional[asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]],
+        budget: RequestBudget,
+        metrics: SearchMetrics,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+        force_skip_tier5: bool,
+        force_skip_tier4: bool,
+        force_skip_vector: bool,
+        force_skip_embedding: bool,
+    ) -> tuple[
+        PreOpenAIData,
+        ParsedQuery,
+        Optional[List[float]],
+        Optional[ResolvedLocation],
+        Optional[LocationLLMCache],
+        Optional[UnresolvedLocationInfo],
+        PostOpenAIData,
+        RetrievalResult,
+    ]:
+        (
+            pre_data,
+            parsed_query,
+            embedding_task,
+            tier5_task,
+            tier5_started_at,
+        ) = await self._run_preflight_and_parse(
+            query=query,
+            user_id=user_id,
+            user_location=user_location,
+            parsed_query_cached=parsed_query_cached,
+            parsed_query_future=parsed_query_future,
+            notify_parsed=notify_parsed,
+            embedding_task=embedding_task,
+            budget=budget,
+            effective_skill_levels=effective_skill_levels,
+            metrics=metrics,
+            timer=timer,
+            candidates_flow=candidates_flow,
+            force_skip_tier5=force_skip_tier5,
+        )
+        query_embedding, embedding_reason = await self._resolve_query_embedding(
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            embedding_task=embedding_task,
+            budget=budget,
+            metrics=metrics,
+            timer=timer,
+            force_skip_vector=force_skip_vector,
+            force_skip_embedding=force_skip_embedding,
+        )
+        (
+            location_resolution,
+            location_llm_cache,
+            unresolved_info,
+        ) = await self._resolve_location_stage(
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            user_location=user_location,
+            budget=budget,
+            timer=timer,
+            force_skip_tier5=force_skip_tier5,
+            force_skip_tier4=force_skip_tier4,
+            force_skip_embedding=force_skip_embedding,
+            tier5_task=tier5_task,
+            tier5_started_at=tier5_started_at,
+        )
+        post_data, retrieval_result = await self._run_postflight_stage(
+            pre_data=pre_data,
+            parsed_query=parsed_query,
+            query_embedding=query_embedding,
+            location_resolution=location_resolution,
+            location_llm_cache=location_llm_cache,
+            unresolved_info=unresolved_info,
+            user_location=user_location,
+            limit=limit,
+            requester_timezone=requester_timezone,
+            taxonomy_filter_selections=effective_filters,
+            subcategory_id=subcategory_id,
+            embedding_reason=embedding_reason,
+            budget=budget,
+            metrics=metrics,
+            timer=timer,
+            candidates_flow=candidates_flow,
+        )
+        return (
+            pre_data,
+            parsed_query,
+            query_embedding,
+            location_resolution,
+            location_llm_cache,
+            unresolved_info,
+            post_data,
+            retrieval_result,
+        )
+
+    async def _finalize_uncached_search(
+        self,
+        *,
+        query: str,
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+        parsed_query: ParsedQuery,
+        query_embedding: Optional[List[float]],
+        location_resolution: Optional[ResolvedLocation],
+        pre_data: PreOpenAIData,
+        post_data: PostOpenAIData,
+        metrics: SearchMetrics,
+        budget: RequestBudget,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+        retrieval_result: RetrievalResult,
+        cache_check_ms: int,
+        cache_filters: Optional[Dict[str, object]],
+        include_diagnostics: bool,
+    ) -> NLSearchResponse:
+        results, hydrate_ms = await self._hydrate_results(
+            post_data=post_data,
+            limit=limit,
+            metrics=metrics,
+            timer=timer,
+            candidates_flow=candidates_flow,
+        )
+        response_obj, response_build_ms = self._build_response(
+            query=query,
+            parsed_query=parsed_query,
+            results=results,
+            limit=limit,
+            metrics=metrics,
+            post_data=post_data,
+            budget=budget,
+            timer=timer,
+        )
+        cache_write_ms = await self._record_metrics_and_cache(
+            query=query,
+            user_location=user_location,
+            limit=limit,
+            parsed_query=parsed_query,
+            response_obj=response_obj,
+            metrics=metrics,
+            retrieval_result=retrieval_result,
+            cache_check_ms=cache_check_ms,
+            hydrate_ms=hydrate_ms,
+            response_build_ms=response_build_ms,
+            cache_filters=cache_filters,
+        )
+        self._attach_diagnostics_and_perf_log(
+            response_obj=response_obj,
+            timer=timer,
+            budget=budget,
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            post_data=post_data,
+            location_resolution=location_resolution,
+            query_embedding=query_embedding,
+            candidates_flow=candidates_flow,
+            metrics=metrics,
+            retrieval_result=retrieval_result,
+            cache_check_ms=cache_check_ms,
+            hydrate_ms=hydrate_ms,
+            response_build_ms=response_build_ms,
+            cache_write_ms=cache_write_ms,
+            limit=limit,
+            include_diagnostics=include_diagnostics,
+        )
+        return response_obj
 
     async def search(
         self,
@@ -408,1074 +1247,284 @@ class NLSearchService:
         force_skip_embedding: bool = False,
         force_high_load: bool = False,
     ) -> NLSearchResponse:
-        """
-        Execute full NL search pipeline and return instructor-level results.
-
-        Pipeline:
-        1. Cache check
-        2. Parse query (regex → LLM as needed)
-        3. Retrieve candidates (hybrid vector + trigram; text-only fallback)
-        4. Filter candidates (price, location, availability; soft fallback)
-        5. Rank candidates (6-signal scoring + audience/skill boosts)
-        6. Hydrate top instructors with embedded data (eliminate N+1)
-
-        Args:
-            query: Natural language search query
-            user_location: (lng, lat) tuple or None
-            limit: Maximum instructors to return
-            user_id: Optional user ID for timezone-aware parsing
-            budget_ms: Optional request budget override in milliseconds
-            explicit_skill_levels: Explicit skill-level filters from query params
-            subcategory_id: Optional taxonomy subcategory context
-            taxonomy_filter_selections: Optional taxonomy content filter selections
-            include_diagnostics: Whether to include pipeline diagnostics in response
-            force_skip_tier5: Force skip LLM location resolution (admin testing only)
-            force_skip_tier4: Force skip embedding location resolution (admin testing only)
-            force_skip_vector: Force skip vector search (admin testing only)
-            force_skip_embedding: Force skip query embedding (admin testing only)
-            force_high_load: Force high-load budget regardless of inflight (admin testing only)
-
-        Returns:
-            NLSearchResponse with instructor-level results and metadata
-        """
         perf_start = time.perf_counter()
-        cache_check_start = time.perf_counter()
         metrics = SearchMetrics(total_start=time.time())
-        timer: Optional[PipelineTimer] = PipelineTimer() if include_diagnostics else None
-        candidates_flow: Dict[str, int] = (
-            {
-                "initial_candidates": 0,
-                "after_text_search": 0,
-                "after_vector_search": 0,
-                "after_location_filter": 0,
-                "after_price_filter": 0,
-                "after_availability_filter": 0,
-                "final_results": 0,
-            }
-            if include_diagnostics
-            else {}
-        )
-        if timer:
-            timer.start_stage("cache_check")
-
-        normalized_explicit_skills = self._normalize_filter_values(explicit_skill_levels)
-        effective_taxonomy_filters = self._normalize_taxonomy_filter_selections(
-            taxonomy_filter_selections
-        )
-        if normalized_explicit_skills:
-            # Explicit query params must override NL-inferred skill level hints.
-            effective_taxonomy_filters["skill_level"] = normalized_explicit_skills
-        effective_skill_levels = effective_taxonomy_filters.get("skill_level", [])
-        cache_filters = self._build_cache_filters(
-            effective_taxonomy_filters,
+        timer = PipelineTimer() if include_diagnostics else None
+        candidates_flow = self._build_candidates_flow(include_diagnostics)
+        effective_filters, effective_skill_levels, cache_filters = self._prepare_search_filters(
+            explicit_skill_levels=explicit_skill_levels,
+            taxonomy_filter_selections=taxonomy_filter_selections,
             subcategory_id=subcategory_id,
         )
-
-        # Stage 0: Check cache
-        cached = await self._check_cache(
-            query,
-            user_location,
-            limit,
-            filters=cache_filters,
+        cached, cache_check_ms = await self._get_cached_search_response(
+            query=query,
+            user_location=user_location,
+            limit=limit,
+            timer=timer,
+            cache_filters=cache_filters,
         )
+        if cached:
+            return self._build_cached_response(
+                cached=cached,
+                perf_start=perf_start,
+                cache_check_ms=cache_check_ms,
+                timer=timer,
+                candidates_flow=candidates_flow,
+                include_diagnostics=include_diagnostics,
+            )
+        inflight_incremented = False
+        try:
+            (
+                budget,
+                parsed_query_cached,
+                parsed_query_future,
+                notify_parsed,
+                embedding_task,
+            ) = await self._prepare_uncached_pipeline(
+                query=query,
+                budget_ms=budget_ms,
+                force_high_load=force_high_load,
+                force_skip_vector_search=force_skip_vector or force_skip_embedding,
+            )
+            inflight_incremented = True
+            (
+                pre_data,
+                parsed_query,
+                query_embedding,
+                location_resolution,
+                _location_llm_cache,
+                _unresolved_info,
+                post_data,
+                retrieval_result,
+            ) = await self._run_pipeline_stages(
+                query=query,
+                user_id=user_id,
+                user_location=user_location,
+                limit=limit,
+                requester_timezone=requester_timezone,
+                subcategory_id=subcategory_id,
+                effective_filters=effective_filters,
+                effective_skill_levels=effective_skill_levels,
+                parsed_query_cached=parsed_query_cached,
+                parsed_query_future=parsed_query_future,
+                notify_parsed=notify_parsed,
+                embedding_task=embedding_task,
+                budget=budget,
+                metrics=metrics,
+                timer=timer,
+                candidates_flow=candidates_flow,
+                force_skip_tier5=force_skip_tier5,
+                force_skip_tier4=force_skip_tier4,
+                force_skip_vector=force_skip_vector,
+                force_skip_embedding=force_skip_embedding,
+            )
+            return await self._finalize_uncached_search(
+                query=query,
+                user_location=user_location,
+                limit=limit,
+                parsed_query=parsed_query,
+                query_embedding=query_embedding,
+                location_resolution=location_resolution,
+                pre_data=pre_data,
+                post_data=post_data,
+                metrics=metrics,
+                budget=budget,
+                timer=timer,
+                candidates_flow=candidates_flow,
+                retrieval_result=retrieval_result,
+                cache_check_ms=cache_check_ms,
+                cache_filters=cache_filters,
+                include_diagnostics=include_diagnostics,
+            )
+        except Exception as exc:
+            raise_503_if_pool_exhaustion(exc)
+            raise
+        finally:
+            if inflight_incremented:
+                await _decrement_search_inflight()
+
+    async def _get_cached_search_response(
+        self,
+        *,
+        query: str,
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+        timer: Optional[PipelineTimer],
+        cache_filters: Optional[Dict[str, object]],
+    ) -> tuple[Optional[Dict[str, object]], int]:
+        if timer:
+            timer.start_stage("cache_check")
+        cache_check_start = time.perf_counter()
+        cached = await self._check_cache(query, user_location, limit, filters=cache_filters)
         cache_check_ms = int((time.perf_counter() - cache_check_start) * 1000)
         if timer:
             timer.end_stage(
                 status=StageStatus.CACHE_HIT.value if cached else StageStatus.SUCCESS.value,
                 details={"latency_ms": cache_check_ms},
             )
-        if cached:
-            metrics.cache_hit = True
-            cached["meta"]["cache_hit"] = True
-            cached_total_ms = int((time.perf_counter() - perf_start) * 1000)
-            cached["meta"]["latency_ms"] = cached_total_ms
+        return cached, cache_check_ms
 
-            record_search_metrics(
-                total_latency_ms=cached_total_ms,
-                stage_latencies={"cache_check": cache_check_ms},
-                cache_hit=True,
-                parsing_mode=str(cached.get("meta", {}).get("parsing_mode") or "regex"),
-                result_count=len(cached.get("results") or []),
-                degraded=False,
-                degradation_reasons=[],
-            )
-
-            if _PERF_LOG_ENABLED and (cached_total_ms >= _PERF_LOG_SLOW_MS):
-                logger.info(
-                    "NL search timings (cache_hit): %s",
-                    {
-                        "cache_check_ms": cache_check_ms,
-                        "total_ms": cached_total_ms,
-                        "limit": limit,
-                        "region": self._region_code,
-                    },
-                )
-
-            response = NLSearchResponse(**cached)
-            if include_diagnostics and timer:
-                response.meta.diagnostics = self._build_search_diagnostics(
-                    timer=timer,
-                    budget=None,
-                    parsed_query=None,
-                    pre_data=None,
-                    post_data=None,
-                    location_resolution=None,
-                    query_embedding=None,
-                    results_count=len(response.results),
-                    cache_hit=True,
-                    parsing_mode=str(response.meta.parsing_mode or "regex"),
-                    candidates_flow=candidates_flow,
-                    total_latency_ms=cached_total_ms,
-                )
-            return response
-
-        # Concurrency control for expensive uncached searches.
-        # Limit concurrent full-pipeline searches to prevent system overload.
-        # If semaphore is full, return 503 immediately instead of piling up.
-        inflight_incremented = False
-        budget: Optional[RequestBudget] = None
-        soft_limit = max(1, int(get_search_config().uncached_concurrency))
-
-        try:
-            inflight = await _increment_search_inflight()
-            inflight_incremented = True
-            if inflight > soft_limit:
-                await _decrement_search_inflight()
-                inflight_incremented = False
-                logger.warning(
-                    "[SEARCH] Soft concurrency limit reached, returning 503: query=%s",
-                    query[:50] if query else "",
-                )
-                raise HTTPException(
-                    status_code=503,
-                    detail="Search temporarily overloaded. Please retry in a few seconds.",
-                    headers={"Retry-After": "2"},
-                )
-            effective_budget_ms = (
-                budget_ms
-                if budget_ms is not None
-                else _get_adaptive_budget(inflight, force_high_load=force_high_load)
-            )
-            budget = RequestBudget(total_ms=effective_budget_ms)
-            force_skip_vector_search = force_skip_vector or force_skip_embedding
-
-            parsed_query_cached = None
-            try:
-                parsed_query_cached = await self.search_cache.get_cached_parsed_query(
-                    query, region_code=self._region_code
-                )
-            except Exception as e:
-                logger.warning("Parsed query cache lookup failed: %s", e)
-
-            loop = asyncio.get_running_loop()
-            parsed_query_future: asyncio.Future[ParsedQuery] = loop.create_future()
-            if parsed_query_cached is not None:
-                parsed_query_future.set_result(parsed_query_cached)
-
-            def _notify_parsed_query(parsed_query: ParsedQuery) -> None:
-                if parsed_query_future.done():
-                    return
-                loop.call_soon_threadsafe(parsed_query_future.set_result, parsed_query)
-
-            async def _maybe_embed_query() -> tuple[Optional[List[float]], int, Optional[str]]:
-                parsed_query = await parsed_query_future
-                if parsed_query.needs_llm:
-                    return None, 0, None
-                return await self._embed_query_with_timeout(parsed_query.service_query)
-
-            embedding_task: Optional[
-                asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]
-            ] = None
-            if force_skip_vector_search:
-                if budget:
-                    budget.skip("embedding")
-                    budget.skip("vector_search")
-            elif budget and budget.can_afford_vector_search():
-                embedding_task = asyncio.create_task(_maybe_embed_query())
-            elif budget:
-                budget.skip("embedding")
-                budget.skip("vector_search")
-
-            pre_openai_start = time.perf_counter()
-            try:
-                pre_data = await asyncio.to_thread(
-                    self._run_pre_openai_burst,
-                    query,
-                    parsed_query=parsed_query_cached,
-                    user_id=user_id,
-                    user_location=user_location,
-                    notify_parsed=_notify_parsed_query,
-                )
-            except Exception:
-                if embedding_task:
-                    embedding_task.cancel()
-                    try:
-                        await embedding_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as exc:
-                        logger.debug("Embedding task failed after cancel: %s", exc)
-                raise
-            pre_openai_ms = int((time.perf_counter() - pre_openai_start) * 1000)
-
-            if not parsed_query_future.done():
-                parsed_query_future.set_result(pre_data.parsed_query)
-            parsed_query = pre_data.parsed_query
-
-            if effective_skill_levels:
-                # Explicit skill_level query params override NL-inferred skill level.
-                if len(effective_skill_levels) == 1:
-                    parsed_query.skill_level = _coerce_skill_level_override(
-                        effective_skill_levels[0]
-                    )
-                else:
-                    parsed_query.skill_level = None
-
-            metrics.parse_latency_ms = pre_data.parse_latency_ms
-            if timer:
-                location_tier_value = None
-                if pre_data.location_resolution and pre_data.location_resolution.tier is not None:
-                    try:
-                        location_tier_value = int(pre_data.location_resolution.tier.value)
-                    except Exception:
-                        location_tier_value = None
-                timer.record_stage(
-                    "burst1",
-                    pre_openai_ms,
-                    StageStatus.SUCCESS.value,
-                    {
-                        "text_candidates": len(pre_data.text_results or {}),
-                        "region_lookup_loaded": bool(pre_data.region_lookup),
-                        "location_tier": location_tier_value,
-                    },
-                )
-            if candidates_flow:
-                candidates_flow["after_text_search"] = len(pre_data.text_results or {})
-            if (
-                timer
-                and parsed_query.location_text
-                and parsed_query.location_type != "near_me"
-                and user_location is None
-            ):
-                self._record_pre_location_tiers(timer, pre_data.location_resolution)
-
-            tier5_task: Optional[
-                asyncio.Task[
-                    tuple[
-                        Optional["ResolvedLocation"],
-                        Optional[LocationLLMCache],
-                        Optional[UnresolvedLocationInfo],
-                    ]
-                ]
-            ] = None
-            tier5_started_at: Optional[float] = None
-
-            if (
-                not parsed_query.needs_llm
-                and pre_data.location_resolution is None
-                and pre_data.region_lookup
-                and pre_data.location_llm_candidates
-                and parsed_query.location_text
-                and parsed_query.location_type != "near_me"
-                and user_location is None
-            ):
-                allow_tier5_start = (
-                    bool(budget and budget.can_afford_tier5()) and not force_skip_tier5
-                )
-                if allow_tier5_start:
-                    tier5_started_at = time.perf_counter()
-                    tier5_task = asyncio.create_task(
-                        self._resolve_location_llm(
-                            location_text=parsed_query.location_text,
-                            original_query=parsed_query.original_query,
-                            region_lookup=pre_data.region_lookup,
-                            candidate_names=pre_data.location_llm_candidates,
-                        )
-                    )
-                elif budget:
-                    budget.skip("tier5_llm")
-
-            if parsed_query_cached is None and not parsed_query.needs_llm:
-                try:
-                    await self.search_cache.cache_parsed_query(
-                        query, parsed_query, region_code=self._region_code
-                    )
-                except Exception as e:
-                    logger.warning("Failed to cache parsed query: %s", e)
-
-            if parsed_query.needs_llm:
-                if embedding_task:
-                    embedding_task.cancel()
-                    try:
-                        await embedding_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as exc:
-                        logger.debug("Embedding task failed after cancel: %s", exc)
-                    embedding_task = None
-                from app.services.search.llm_parser import LLMParser
-
-                llm_start = time.perf_counter()
-                llm_parser = LLMParser(user_id=user_id, region_code=self._region_code)
-                parsed_query = await llm_parser.parse(query, parsed_query)
-                metrics.parse_latency_ms += int((time.perf_counter() - llm_start) * 1000)
-
-                if parsed_query.parsing_mode != "llm":
-                    metrics.degraded = True
-                    metrics.degradation_reasons.append("parsing_error")
-
-                try:
-                    await self.search_cache.cache_parsed_query(
-                        query, parsed_query, region_code=self._region_code
-                    )
-                except Exception as e:
-                    logger.warning("Failed to cache parsed query: %s", e)
-
-            if timer:
-                timer.record_stage(
-                    "parse",
-                    metrics.parse_latency_ms,
-                    StageStatus.SUCCESS.value,
-                    {"mode": parsed_query.parsing_mode},
-                )
-
-            # Stage 2: Embed service query (OpenAI)
-            embed_latency_ms = 0
-            embedding_reason: Optional[str] = None
-            query_embedding: Optional[List[float]] = None
-            budget_skip_vector = False
-            if force_skip_vector_search:
-                pre_data.skip_vector = True
-                budget_skip_vector = True
-                if embedding_reason is None:
-                    embedding_reason = (
-                        "force_skip_embedding" if force_skip_embedding else "force_skip_vector"
-                    )
-            if budget and not budget.can_afford_vector_search():
-                budget.skip("vector_search")
-                budget.skip("embedding")
-                pre_data.skip_vector = True
-                budget_skip_vector = True
-            if pre_data.skip_vector:
-                if embedding_task:
-                    embedding_task.cancel()
-                    try:
-                        await embedding_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as exc:
-                        logger.debug("Embedding task failed after cancel: %s", exc)
-                    embedding_task = None
-                if embedding_reason is None and budget_skip_vector:
-                    embedding_reason = "budget_skip_vector_search"
-            elif not pre_data.has_service_embeddings:
-                if embedding_task:
-                    embedding_task.cancel()
-                    try:
-                        await embedding_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as exc:
-                        logger.debug("Embedding task failed after cancel: %s", exc)
-                    embedding_task = None
-                embedding_reason = "no_embeddings_in_database"
-            else:
-                if embedding_task is not None:
-                    try:
-                        (
-                            query_embedding,
-                            embed_latency_ms,
-                            embedding_reason,
-                        ) = await embedding_task
-                    except Exception as exc:
-                        logger.warning(
-                            "[SEARCH] Embedding failed, falling back to text-only: %s",
-                            exc,
-                        )
-                        query_embedding = None
-                        embed_latency_ms = 0
-                        embedding_reason = "embedding_service_unavailable"
-                else:
-                    (
-                        query_embedding,
-                        embed_latency_ms,
-                        embedding_reason,
-                    ) = await self._embed_query_with_timeout(parsed_query.service_query)
-
-            metrics.embed_latency_ms = embed_latency_ms
-            if embedding_reason:
-                metrics.degraded = True
-                metrics.degradation_reasons.append(embedding_reason)
-            if timer:
-                if pre_data.skip_vector:
-                    embed_status = StageStatus.SKIPPED.value
-                elif embedding_reason == "embedding_timeout":
-                    embed_status = StageStatus.TIMEOUT.value
-                elif embedding_reason in {
-                    "no_embeddings_in_database",
-                    "budget_skip_vector_search",
-                    "force_skip_vector",
-                    "force_skip_embedding",
-                }:
-                    embed_status = StageStatus.SKIPPED.value
-                elif embedding_reason:
-                    embed_status = StageStatus.ERROR.value
-                else:
-                    embed_status = StageStatus.SUCCESS.value
-                timer.record_stage(
-                    "embedding",
-                    embed_latency_ms,
-                    embed_status,
-                    {
-                        "reason": embedding_reason,
-                        "used": bool(query_embedding),
-                    },
-                )
-
-            # Stage 3: Resolve location with OpenAI (no DB)
-            location_resolution = pre_data.location_resolution
-            location_llm_cache: Optional[LocationLLMCache] = None
-            unresolved_info: Optional[UnresolvedLocationInfo] = None
-            if (
-                user_location is None
-                and parsed_query.location_text
-                and parsed_query.location_type != "near_me"
-            ):
-                location_start = time.perf_counter()
-                if location_resolution is None:
-                    allow_tier4 = (
-                        bool(budget and budget.can_afford_tier4())
-                        and not force_skip_tier4
-                        and not force_skip_embedding
-                    )
-                    allow_tier5 = (
-                        bool(budget and budget.can_afford_tier5()) and not force_skip_tier5
-                    )
-                    if budget and not allow_tier4:
-                        budget.skip("tier4_embedding")
-                    if budget and force_skip_tier5:
-                        budget.skip("tier5_llm")
-                    (
-                        location_resolution,
-                        location_llm_cache,
-                        unresolved_info,
-                    ) = await self._resolve_location_openai(
-                        parsed_query.location_text,
-                        region_lookup=pre_data.region_lookup,
-                        fuzzy_score=pre_data.fuzzy_score,
-                        original_query=parsed_query.original_query,
-                        llm_candidates=pre_data.location_llm_candidates,
-                        tier5_task=tier5_task,
-                        tier5_started_at=tier5_started_at,
-                        allow_tier4=allow_tier4,
-                        allow_tier5=allow_tier5,
-                        force_skip_tier5=force_skip_tier5,
-                        budget=budget,
-                        diagnostics=timer if include_diagnostics else None,
-                    )
-                if location_resolution is None:
-                    from app.services.search.location_resolver import ResolvedLocation
-
-                    location_resolution = ResolvedLocation.from_not_found()
-                location_ms = int((time.perf_counter() - location_start) * 1000)
-                if timer:
-                    tier_value = None
-                    if location_resolution and location_resolution.tier is not None:
-                        try:
-                            tier_value = int(location_resolution.tier.value)
-                        except Exception:
-                            tier_value = None
-                    status = (
-                        StageStatus.SUCCESS.value
-                        if location_resolution
-                        and (
-                            location_resolution.resolved
-                            or location_resolution.requires_clarification
-                        )
-                        else StageStatus.MISS.value
-                    )
-                    timer.record_stage(
-                        "location_resolution",
-                        location_ms,
-                        status,
-                        {
-                            "resolved": bool(location_resolution and location_resolution.resolved),
-                            "tier": tier_value,
-                        },
-                    )
-            elif timer:
-                timer.skip_stage("location_resolution", "no_location")
-
-            # Stage 4: Post-OpenAI DB burst (vector search, filtering, ranking, hydration data)
-            post_openai_start = time.perf_counter()
-            post_data = await asyncio.to_thread(
-                self._run_post_openai_burst,
-                pre_data,
-                parsed_query,
-                query_embedding,
-                location_resolution,
-                location_llm_cache,
-                unresolved_info,
-                user_location,
-                limit,
-                taxonomy_filter_selections=effective_taxonomy_filters,
-                subcategory_id=subcategory_id,
-                requester_timezone=requester_timezone,
-            )
-            post_openai_ms = int((time.perf_counter() - post_openai_start) * 1000)
-            if timer:
-                timer.record_stage(
-                    "burst2",
-                    post_openai_ms,
-                    StageStatus.SUCCESS.value,
-                    {
-                        "vector_search_used": post_data.vector_search_used,
-                        "total_candidates": post_data.total_candidates,
-                        "filter_failed": post_data.filter_failed,
-                        "ranking_failed": post_data.ranking_failed,
-                    },
-                )
-            if candidates_flow:
-                candidates_flow["after_vector_search"] = post_data.total_candidates
-                filter_stats = post_data.filter_result.filter_stats or {}
-                candidates_flow["initial_candidates"] = int(
-                    filter_stats.get("initial_candidates", post_data.total_candidates)
-                )
-                candidates_flow["after_location_filter"] = int(
-                    filter_stats.get("after_location", candidates_flow["after_vector_search"])
-                )
-                candidates_flow["after_price_filter"] = int(
-                    filter_stats.get("after_price", candidates_flow["after_location_filter"])
-                )
-                candidates_flow["after_availability_filter"] = int(
-                    filter_stats.get("after_availability", candidates_flow["after_price_filter"])
-                )
-
-            if embedding_reason == "no_embeddings_in_database" and post_data.skip_vector:
-                embedding_reason = None
-                metrics.degradation_reasons = [
-                    r for r in metrics.degradation_reasons if r != "no_embeddings_in_database"
-                ]
-                if not metrics.degradation_reasons:
-                    metrics.degraded = False
-
-            if budget and budget.is_degraded:
-                metrics.degraded = True
-                for reason in budget.degradation_reasons:
-                    if reason not in metrics.degradation_reasons:
-                        metrics.degradation_reasons.append(reason)
-                if budget.is_over_budget and "budget_overrun" not in metrics.degradation_reasons:
-                    metrics.degradation_reasons.append("budget_overrun")
-                if budget.is_exhausted() and "budget_exhausted" not in metrics.degradation_reasons:
-                    metrics.degradation_reasons.append("budget_exhausted")
-
-            # Retrieval metrics
-            metrics.retrieve_latency_ms = post_data.text_latency_ms + post_data.vector_latency_ms
-
-            retrieval_result = RetrievalResult(
-                candidates=post_data.retrieval_candidates,
-                total_candidates=post_data.total_candidates,
-                vector_search_used=post_data.vector_search_used,
-                degraded=bool(embedding_reason),
-                degradation_reason=embedding_reason,
-                embed_latency_ms=metrics.embed_latency_ms,
-                db_latency_ms=metrics.retrieve_latency_ms,
-                text_search_latency_ms=post_data.text_latency_ms,
-                vector_search_latency_ms=post_data.vector_latency_ms,
-            )
-
-            metrics.filter_latency_ms = post_data.filter_latency_ms
-            metrics.rank_latency_ms = post_data.rank_latency_ms
-
-            if post_data.filter_failed:
-                metrics.degraded = True
-                metrics.degradation_reasons.append("filtering_error")
-            if post_data.ranking_failed:
-                metrics.degraded = True
-                metrics.degradation_reasons.append("ranking_error")
-
-            # Stage 5: Build instructor-level results with embedded data
-            hydrate_start = time.perf_counter()
-            hydrate_failed = False
-            try:
-                results = await self._hydrate_instructor_results(
-                    post_data.ranking_result.results,
-                    limit=limit,
-                    location_resolution=post_data.filter_result.location_resolution,
-                    instructor_rows=post_data.instructor_rows,
-                    distance_meters=post_data.distance_meters,
-                )
-            except Exception as e:
-                logger.error("Hydration failed: %s", e)
-                results = []
-                hydrate_failed = True
-                metrics.degraded = True
-                metrics.degradation_reasons.append("hydration_error")
-            hydrate_ms = int((time.perf_counter() - hydrate_start) * 1000)
-            if timer:
-                timer.record_stage(
-                    "hydrate",
-                    hydrate_ms,
-                    StageStatus.ERROR.value if hydrate_failed else StageStatus.SUCCESS.value,
-                    {"result_count": len(results)},
-                )
-            if candidates_flow:
-                candidates_flow["final_results"] = len(results)
-
-            # Build response
-            metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
-
-            response_build_start = time.perf_counter()
-            response = self._build_instructor_response(
-                query,
-                parsed_query,
-                results,
-                limit,
-                metrics,
-                filter_result=post_data.filter_result,
-                inferred_filters=post_data.inferred_filters,
-                effective_subcategory_id=post_data.effective_subcategory_id,
-                effective_subcategory_name=post_data.effective_subcategory_name,
-                available_content_filters=post_data.available_content_filters,
-                budget=budget,
-            )
-            response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
-            if timer:
-                timer.record_stage(
-                    "build_response",
-                    response_build_ms,
-                    StageStatus.SUCCESS.value,
-                    {"result_count": len(response.results)},
-                )
-
-            # Record Prometheus metrics
-            record_search_metrics(
-                total_latency_ms=metrics.total_latency_ms,
-                stage_latencies={
-                    "cache_check": cache_check_ms,
-                    "parsing": metrics.parse_latency_ms,
-                    "embedding": metrics.embed_latency_ms,
-                    "retrieval": metrics.retrieve_latency_ms,
-                    "filtering": metrics.filter_latency_ms,
-                    "ranking": metrics.rank_latency_ms,
-                    "hydration": hydrate_ms,
-                    "response_build": response_build_ms,
+    def _build_cached_response(
+        self,
+        *,
+        cached: Dict[str, object],
+        perf_start: float,
+        cache_check_ms: int,
+        timer: Optional[PipelineTimer],
+        candidates_flow: Dict[str, int],
+        include_diagnostics: bool,
+    ) -> NLSearchResponse:
+        cached_total_ms = int((time.perf_counter() - perf_start) * 1000)
+        meta_obj = cached.get("meta")
+        if not isinstance(meta_obj, dict):
+            meta_obj = {}
+            cached["meta"] = meta_obj
+        meta = cast(Dict[str, object], meta_obj)
+        meta["cache_hit"] = True
+        meta["latency_ms"] = cached_total_ms
+        results_obj = cached.get("results")
+        cached_results = results_obj if isinstance(results_obj, list) else []
+        record_search_metrics(
+            total_latency_ms=cached_total_ms,
+            stage_latencies={"cache_check": cache_check_ms},
+            cache_hit=True,
+            parsing_mode=str(meta.get("parsing_mode") or "regex"),
+            result_count=len(cached_results),
+            degraded=False,
+            degradation_reasons=[],
+        )
+        if _PERF_LOG_ENABLED and cached_total_ms >= _PERF_LOG_SLOW_MS:
+            logger.info(
+                "NL search timings (cache_hit): %s",
+                {
+                    "cache_check_ms": cache_check_ms,
+                    "total_ms": cached_total_ms,
+                    "limit": meta.get("limit", 0),
+                    "region": self._region_code,
                 },
-                cache_hit=metrics.cache_hit,
-                parsing_mode=parsed_query.parsing_mode,
-                result_count=len(response.results),
-                degraded=metrics.degraded,
-                degradation_reasons=metrics.degradation_reasons,
             )
-
-            # Cache response.
-            # Degraded responses get a short TTL to avoid "sticky" outages while still
-            # preventing repeated expensive cache misses during provider instability.
-            degraded_ttl = 30 if metrics.degraded else None
-            cache_write_start = time.perf_counter()
-            await self._cache_response(
-                query,
-                user_location,
-                response,
-                limit,
-                ttl=degraded_ttl,
-                filters=cache_filters,
+        response_obj = NLSearchResponse(**cached)
+        if include_diagnostics and timer:
+            response_obj.meta.diagnostics = self._build_search_diagnostics(
+                timer=timer,
+                budget=None,
+                parsed_query=None,
+                pre_data=None,
+                post_data=None,
+                location_resolution=None,
+                query_embedding=None,
+                results_count=len(response_obj.results),
+                cache_hit=True,
+                parsing_mode=str(response_obj.meta.parsing_mode or "regex"),
+                candidates_flow=candidates_flow,
+                total_latency_ms=cached_total_ms,
             )
-            cache_write_ms = int((time.perf_counter() - cache_write_start) * 1000)
+        return response_obj
 
-            if include_diagnostics and timer:
-                diagnostics = self._build_search_diagnostics(
-                    timer=timer,
-                    budget=budget,
-                    parsed_query=parsed_query,
-                    pre_data=pre_data,
-                    post_data=post_data,
-                    location_resolution=location_resolution,
-                    query_embedding=query_embedding,
-                    results_count=len(response.results),
-                    cache_hit=False,
-                    parsing_mode=parsed_query.parsing_mode,
-                    candidates_flow=candidates_flow,
-                    total_latency_ms=metrics.total_latency_ms,
-                )
-                response.meta.diagnostics = diagnostics
-
-            if _PERF_LOG_ENABLED and (metrics.total_latency_ms >= _PERF_LOG_SLOW_MS):
-                retrieval_stats = {
-                    "text_search_ms": int(
-                        getattr(retrieval_result, "text_search_latency_ms", 0) or 0
-                    ),
-                    "vector_search_ms": int(
-                        getattr(retrieval_result, "vector_search_latency_ms", 0) or 0
-                    ),
-                    "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
-                    "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
-                }
-                logger.info(
-                    "NL search timings: %s",
-                    {
-                        "cache_check_ms": cache_check_ms,
-                        "parse_ms": metrics.parse_latency_ms,
-                        "embed_ms": metrics.embed_latency_ms,
-                        "retrieve_db_ms": metrics.retrieve_latency_ms,
-                        "retrieve": retrieval_stats,
-                        "filter_ms": metrics.filter_latency_ms,
-                        "rank_ms": metrics.rank_latency_ms,
-                        "hydrate_ms": hydrate_ms,
-                        "response_build_ms": response_build_ms,
-                        "cache_write_ms": cache_write_ms,
-                        "total_ms": metrics.total_latency_ms,
-                        "degraded": metrics.degraded,
-                        "reasons": list(metrics.degradation_reasons),
-                        "limit": limit,
-                        "region": self._region_code,
-                    },
-                )
-
-            return response
-        except Exception as e:
-            # Convert DB pool exhaustion to 503 (retry later) instead of 500 (server error)
-            raise_503_if_pool_exhaustion(e)
-            raise
-        finally:
-            if inflight_incremented:
-                await _decrement_search_inflight()
-
-    @staticmethod
-    def _normalize_filter_values(values: Optional[List[str]]) -> List[str]:
-        """Normalize multi-select filter values for stable filtering/cache keys."""
-        if not values:
-            return []
-
-        normalized: List[str] = []
-        seen: set[str] = set()
-        for raw_value in values:
-            value = str(raw_value).strip().lower()
-            if not value or value in seen:
-                continue
-            seen.add(value)
-            normalized.append(value)
-        return normalized
+    def _normalize_filter_values(self, values: Optional[List[str]]) -> List[str]:
+        return preflight.normalize_filter_values(values)
 
     def _normalize_taxonomy_filter_selections(
         self,
         selections: Optional[Dict[str, List[str]]],
     ) -> Dict[str, List[str]]:
-        """Normalize taxonomy filters to deterministic key/value payloads."""
-        normalized: Dict[str, List[str]] = {}
-        for raw_key, raw_values in (selections or {}).items():
-            key = str(raw_key).strip().lower()
-            if not key:
-                continue
-            values = self._normalize_filter_values(raw_values)
-            if values:
-                normalized[key] = values
-        return normalized
+        return preflight.normalize_taxonomy_filter_selections(selections)
 
     def _load_subcategory_filter_metadata(
         self,
-        taxonomy_repository: Any,
+        taxonomy_repository: object,
         subcategory_id: str,
-    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-        """Return cached taxonomy filter definitions + subcategory name for a subcategory."""
-        filters_cache_key = f"filters:{subcategory_id}"
-        name_cache_key = f"name:{subcategory_id}"
-
-        has_cached_filters, cached_filters = _get_cached_subcategory_filter_value(filters_cache_key)
-        has_cached_name, cached_name = _get_cached_subcategory_filter_value(name_cache_key)
-        if has_cached_filters and has_cached_name:
-            return cached_filters, cached_name
-
-        subcategory_filters = taxonomy_repository.get_filters_for_subcategory(subcategory_id)
-        subcategory_name = taxonomy_repository.get_subcategory_name(subcategory_id)
-        _set_cached_subcategory_filter_value(filters_cache_key, subcategory_filters)
-        _set_cached_subcategory_filter_value(name_cache_key, subcategory_name)
-
-        return subcategory_filters, subcategory_name
+    ) -> Tuple[List[Dict[str, object]], Optional[str]]:
+        return taxonomy.load_subcategory_filter_metadata(
+            taxonomy_repository,
+            subcategory_id,
+            get_cached_value=_get_cached_subcategory_filter_value,
+            set_cached_value=_set_cached_subcategory_filter_value,
+        )
 
     @staticmethod
     def _build_available_content_filters(
-        filter_definitions: List[Dict[str, Any]],
+        filter_definitions: List[Dict[str, object]],
     ) -> List[NLSearchContentFilterDefinition]:
-        """Convert repository taxonomy filter definitions to API metadata schema."""
-        available_filters: List[NLSearchContentFilterDefinition] = []
+        return taxonomy.build_available_content_filters(filter_definitions)
 
-        for raw_filter in filter_definitions:
-            key = str(raw_filter.get("filter_key") or "").strip().lower()
-            if not key:
-                continue
-
-            label = str(raw_filter.get("filter_display_name") or key).strip() or key
-            filter_type = str(raw_filter.get("filter_type") or "multi_select").strip()
-
-            options: List[NLSearchContentFilterOption] = []
-            seen_values: set[str] = set()
-            for raw_option in raw_filter.get("options", []) or []:
-                raw_value = str(raw_option.get("value") or "").strip().lower()
-                if not raw_value or raw_value in seen_values:
-                    continue
-                seen_values.add(raw_value)
-
-                display_name = str(raw_option.get("display_name") or "").strip()
-                option_label = display_name or raw_value
-                options.append(
-                    NLSearchContentFilterOption(
-                        value=raw_value,
-                        label=option_label,
-                    )
-                )
-
-            if not options:
-                continue
-
-            available_filters.append(
-                NLSearchContentFilterDefinition(
-                    key=key,
-                    label=label,
-                    type=filter_type,
-                    options=options,
-                )
-            )
-
-        return available_filters
-
-    @staticmethod
     def _build_cache_filters(
+        self,
         taxonomy_filters: Dict[str, List[str]],
         *,
         subcategory_id: Optional[str],
-    ) -> Optional[Dict[str, Any]]:
-        """Build cache-key filter payload to avoid filtered/unfiltered collisions."""
-        payload: Dict[str, Any] = {}
-        if subcategory_id:
-            payload["subcategory_id"] = str(subcategory_id).strip()
-
-        if taxonomy_filters:
-            payload["taxonomy"] = {
-                key: list(values)
-                for key, values in sorted(taxonomy_filters.items(), key=lambda item: item[0])
-            }
-
-        return payload or None
+    ) -> Optional[Dict[str, object]]:
+        return preflight.build_cache_filters(taxonomy_filters, subcategory_id=subcategory_id)
 
     @staticmethod
     def _resolve_effective_subcategory_id(
         candidates: List[ServiceCandidate],
-        *,
-        explicit_subcategory_id: Optional[str],
+        explicit_subcategory_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Resolve subcategory context with explicit-param priority then top-match consensus."""
-        if explicit_subcategory_id:
-            normalized = str(explicit_subcategory_id).strip()
-            if normalized:
-                return normalized
-
-        top_candidates = candidates[:TOP_MATCH_SUBCATEGORY_CANDIDATES]
-        candidate_subcategory_ids = [
-            str(candidate.subcategory_id).strip()
-            for candidate in top_candidates
-            if candidate.subcategory_id
-        ]
-        if not candidate_subcategory_ids:
-            return None
-
-        top_subcategory_id = candidate_subcategory_ids[0]
-        if len(candidate_subcategory_ids) == 1:
-            return top_subcategory_id
-
-        consensus_count = sum(
-            1
-            for subcategory_id in candidate_subcategory_ids
-            if subcategory_id == top_subcategory_id
+        return taxonomy.resolve_effective_subcategory_id(
+            candidates,
+            explicit_subcategory_id=explicit_subcategory_id,
+            top_match_subcategory_candidates=TOP_MATCH_SUBCATEGORY_CANDIDATES,
+            top_match_subcategory_min_consensus=TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS,
         )
-        if consensus_count >= TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS:
-            return top_subcategory_id
-
-        return None
 
     @staticmethod
     def _normalize_location_text(text_value: str) -> str:
-        normalized = " ".join(str(text_value).lower().strip().split())
-        wrappers = ("near ", "by ", "in ", "around ", "close to ", "at ")
-        for wrapper in wrappers:
-            if normalized.startswith(wrapper):
-                normalized = normalized[len(wrapper) :]
-        if normalized.endswith(" area"):
-            normalized = normalized[:-5]
-        tokens = normalized.split()
-        if len(tokens) >= 3 and tokens[-1] in {"north", "south", "east", "west"}:
-            normalized = " ".join(tokens[:-1])
-        return " ".join(normalized.strip().split())
+        return location_helpers.normalize_location_text(text_value)
 
     @staticmethod
     def _record_pre_location_tiers(
-        timer: PipelineTimer, location_resolution: Optional["ResolvedLocation"]
+        timer: PipelineTimer,
+        location_resolution: Optional[ResolvedLocation],
     ) -> None:
-        from app.services.search.location_resolver import ResolutionTier
-
-        tier_map = {
-            ResolutionTier.EXACT: 1,
-            ResolutionTier.ALIAS: 2,
-            ResolutionTier.FUZZY: 3,
-        }
-        resolved_tier = (
-            tier_map.get(location_resolution.tier)
-            if location_resolution and location_resolution.tier
-            else None
-        )
-        resolved_name = None
-        if location_resolution and (location_resolution.region_name or location_resolution.borough):
-            resolved_name = location_resolution.region_name or location_resolution.borough
-
-        for tier in (1, 2, 3):
-            if resolved_tier == tier:
-                status = StageStatus.SUCCESS.value
-                requires_clarification = bool(
-                    location_resolution and location_resolution.requires_clarification
-                )
-                details = "ambiguous" if requires_clarification else "resolved"
-                timer.record_location_tier(
-                    tier=tier,
-                    attempted=True,
-                    status=status,
-                    duration_ms=0,
-                    result=resolved_name,
-                    confidence=location_resolution.confidence if location_resolution else None,
-                    details=details,
-                )
-            else:
-                timer.record_location_tier(
-                    tier=tier,
-                    attempted=True,
-                    status=StageStatus.MISS.value,
-                    duration_ms=0,
-                    details="miss",
-                )
+        location_helpers.record_pre_location_tiers(timer, location_resolution)
 
     @staticmethod
     def _compute_text_match_flags(
         service_query: str,
-        text_results: Dict[str, Tuple[float, Dict[str, Any]]],
+        text_results: Dict[str, Tuple[float, Dict[str, object]]],
     ) -> tuple[float, bool, bool]:
-        best_text_score = max((score for score, _ in text_results.values()), default=0.0)
-        raw_tokens = [t for t in str(service_query or "").strip().split() if t]
-        non_generic_tokens = [t for t in raw_tokens if t.lower() not in TRIGRAM_GENERIC_TOKENS]
-        require_text_match = (
-            bool(text_results)
-            and (0 < len(non_generic_tokens) <= 2)
-            and best_text_score >= TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD
+        return preflight.compute_text_match_flags(
+            service_query,
+            text_results,
+            trigram_generic_tokens=TRIGRAM_GENERIC_TOKENS,
+            require_text_match_score_threshold=TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+            skip_vector_min_results=TEXT_SKIP_VECTOR_MIN_RESULTS,
+            skip_vector_score_threshold=TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
         )
-        skip_vector = (
-            len(text_results) >= TEXT_SKIP_VECTOR_MIN_RESULTS
-            and best_text_score >= TEXT_SKIP_VECTOR_SCORE_THRESHOLD
-        )
-        return best_text_score, require_text_match, skip_vector
 
     @staticmethod
     def _resolve_cached_alias(
-        cached_alias: "CachedAliasInfo",
+        cached_alias: CachedAliasInfo,
         region_lookup: RegionLookup,
-    ) -> Optional["ResolvedLocation"]:
-        from app.services.search.location_resolver import (
-            LocationCandidate,
-            ResolutionTier,
-            ResolvedLocation,
-        )
-
-        if cached_alias.is_ambiguous and cached_alias.candidate_region_ids:
-            candidates: List[LocationCandidate] = []
-            for region_id in cached_alias.candidate_region_ids:
-                info = region_lookup.by_id.get(region_id)
-                if not info:
-                    continue
-                candidates.append(
-                    {
-                        "region_id": info.region_id,
-                        "region_name": info.region_name,
-                        "borough": info.borough,
-                    }
-                )
-            if len(candidates) >= 2:
-                return ResolvedLocation.from_ambiguous(
-                    candidates=candidates,
-                    tier=ResolutionTier.LLM,
-                    confidence=cached_alias.confidence,
-                )
-
-        if cached_alias.is_resolved and cached_alias.region_id:
-            info = region_lookup.by_id.get(cached_alias.region_id)
-            if info:
-                return ResolvedLocation.from_region(
-                    region_id=info.region_id,
-                    region_name=info.region_name,
-                    borough=info.borough,
-                    tier=ResolutionTier.LLM,
-                    confidence=cached_alias.confidence,
-                )
-        return None
+    ) -> Optional[ResolvedLocation]:
+        return location_helpers.resolve_cached_alias(cached_alias, region_lookup)
 
     @staticmethod
     def _select_instructor_ids(ranked: List[RankedResult], limit: int) -> List[str]:
-        ordered: List[str] = []
-        seen: set[str] = set()
-        for r in ranked:
-            if r.instructor_id in seen:
-                continue
-            seen.add(r.instructor_id)
-            ordered.append(r.instructor_id)
-            if len(ordered) >= limit:
-                break
-        return ordered
+        return postflight.select_instructor_ids(ranked, limit)
 
     @staticmethod
     def _distance_region_ids(
-        location_resolution: Optional["ResolvedLocation"],
+        location_resolution: Optional[ResolvedLocation],
     ) -> Optional[List[str]]:
-        if not location_resolution:
-            return None
-        if location_resolution.region_id:
-            return [str(location_resolution.region_id)]
-        if location_resolution.requires_clarification and location_resolution.candidates:
-            candidate_ids = [
-                str(c.get("region_id"))
-                for c in location_resolution.candidates
-                if isinstance(c, dict) and c.get("region_id")
-            ]
-            return list(dict.fromkeys(candidate_ids)) or None
-        return None
+        return location_helpers.distance_region_ids(location_resolution)
 
     @staticmethod
     def _consume_task_result(task: asyncio.Task[Any], *, label: str) -> None:
-        """Ensure background task exceptions are surfaced without blocking."""
-
-        def _done(finished: asyncio.Task[Any]) -> None:
-            try:
-                finished.result()
-            except asyncio.CancelledError:
-                return
-            except Exception as exc:
-                logger.debug("[SEARCH] %s task failed: %s", label, exc)
-
-        task.add_done_callback(_done)
+        location_helpers.consume_task_result(task, label=label, logger=logger)
 
     @staticmethod
     def _pick_best_location(
-        tier4_result: Optional["ResolvedLocation"],
-        tier5_result: Optional["ResolvedLocation"],
-    ) -> Optional["ResolvedLocation"]:
-        if (
-            tier4_result
-            and tier4_result.resolved
-            and tier4_result.confidence >= LOCATION_TIER4_HIGH_CONFIDENCE
-        ):
-            return tier4_result
-        if tier5_result and (
-            tier5_result.confidence >= LOCATION_LLM_CONFIDENCE_THRESHOLD or not tier4_result
-        ):
-            return tier5_result
-        if tier4_result:
-            return tier4_result
-        return None
+        tier4_result: Optional[ResolvedLocation],
+        tier5_result: Optional[ResolvedLocation],
+    ) -> Optional[ResolvedLocation]:
+        return location_helpers.pick_best_location(
+            tier4_result,
+            tier5_result,
+            tier4_high_confidence=LOCATION_TIER4_HIGH_CONFIDENCE,
+            llm_confidence_threshold=LOCATION_LLM_CONFIDENCE_THRESHOLD,
+        )
 
     async def _resolve_location_llm(
         self,
@@ -1487,158 +1536,29 @@ class NLSearchService:
         timeout_s: Optional[float] = None,
         normalized: Optional[str] = None,
     ) -> tuple[
-        Optional["ResolvedLocation"], Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]
+        Optional[ResolvedLocation], Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]
     ]:
-        from app.services.search.location_resolver import (
-            LocationCandidate,
-            ResolutionTier,
-            ResolvedLocation,
-        )
-
-        normalized_value = normalized or self._normalize_location_text(location_text)
-        if not normalized_value:
-            return None, None, None
-
-        allowed_names: List[str] = []
-        seen: set[str] = set()
-        for name in candidate_names:
-            if not name:
-                continue
-            key = str(name).strip().lower()
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            allowed_names.append(str(name).strip())
-
-        if not allowed_names:
-            return (
-                None,
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized_value,
-                    original_query=original_query or location_text,
-                ),
-            )
-
-        llm_result = await self.location_llm_service.resolve(
-            location_text=original_query or location_text,
-            allowed_region_names=allowed_names,
+        return await location.resolve_location_llm(
+            location_llm_service=self.location_llm_service,
+            location_text=location_text,
+            original_query=original_query,
+            region_lookup=region_lookup,
+            candidate_names=candidate_names,
             timeout_s=timeout_s,
-        )
-        if not llm_result:
-            return (
-                None,
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized_value,
-                    original_query=original_query or location_text,
-                ),
-            )
-
-        neighborhoods = llm_result.get("neighborhoods") or []
-        if not isinstance(neighborhoods, list) or not neighborhoods:
-            return (
-                None,
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized_value,
-                    original_query=original_query or location_text,
-                ),
-            )
-
-        regions: List[RegionInfo] = []
-        seen_ids: set[str] = set()
-        for name in neighborhoods:
-            if not isinstance(name, str):
-                continue
-            key = name.strip().lower()
-            info = region_lookup.by_name.get(key)
-            if not info or info.region_id in seen_ids:
-                continue
-            seen_ids.add(info.region_id)
-            regions.append(info)
-
-        if not regions:
-            return (
-                None,
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized_value,
-                    original_query=original_query or location_text,
-                ),
-            )
-
-        confidence_val = float(llm_result.get("confidence") or 0.5)
-        region_ids = [r.region_id for r in regions]
-        llm_cache = LocationLLMCache(
-            normalized=normalized_value,
-            confidence=confidence_val,
-            region_ids=region_ids,
-        )
-
-        if len(regions) == 1:
-            only = regions[0]
-            return (
-                ResolvedLocation.from_region(
-                    region_id=only.region_id,
-                    region_name=only.region_name,
-                    borough=only.borough,
-                    tier=ResolutionTier.LLM,
-                    confidence=confidence_val,
-                ),
-                llm_cache,
-                None,
-            )
-
-        llm_candidates: List[LocationCandidate] = [
-            {
-                "region_id": r.region_id,
-                "region_name": r.region_name,
-                "borough": r.borough,
-            }
-            for r in regions
-        ]
-        return (
-            ResolvedLocation.from_ambiguous(
-                candidates=llm_candidates,
-                tier=ResolutionTier.LLM,
-                confidence=confidence_val,
-            ),
-            llm_cache,
-            None,
+            normalized=normalized,
         )
 
     async def _embed_query_with_timeout(
         self,
         query: str,
     ) -> tuple[Optional[List[float]], int, Optional[str]]:
-        embed_start = time.perf_counter()
-        degradation_reason: Optional[str] = None
-        embedding: Optional[List[float]] = None
-
-        try:
-            config_timeout_ms = max(0, int(get_search_config().embedding_timeout_ms))
-            soft_timeout_ms = max(0, EMBEDDING_SOFT_TIMEOUT_MS)
-            timeout_ms = (
-                min(config_timeout_ms, soft_timeout_ms) if soft_timeout_ms else config_timeout_ms
-            )
-            timeout_s = (timeout_ms / 1000.0) if timeout_ms else None
-
-            if timeout_s:
-                embedding = await asyncio.wait_for(
-                    self.embedding_service.embed_query(query), timeout=timeout_s
-                )
-            else:
-                embedding = await self.embedding_service.embed_query(query)
-        except asyncio.TimeoutError:
-            degradation_reason = "embedding_timeout"
-            embedding = None
-
-        if embedding is None and degradation_reason is None:
-            degradation_reason = "embedding_service_unavailable"
-
-        embed_latency_ms = int((time.perf_counter() - embed_start) * 1000)
-        return embedding, embed_latency_ms, degradation_reason
+        return await preflight.embed_query_with_timeout(
+            query,
+            asyncio_module=asyncio,
+            embedding_service=self.embedding_service,
+            get_config=get_search_config,
+            embedding_soft_timeout_ms=EMBEDDING_SOFT_TIMEOUT_MS,
+        )
 
     def _run_pre_openai_burst(
         self,
@@ -1651,109 +1571,29 @@ class NLSearchService:
     ) -> PreOpenAIData:
         from app.services.search.location_resolver import LocationResolver
 
-        with get_db_session() as db:
-            batch = SearchBatchRepository(db, region_code=self._region_code)
-            parse_latency_ms = 0
-            if parsed_query is None:
-                parse_start = time.perf_counter()
-                parser = QueryParser(db, user_id=user_id, region_code=self._region_code)
-                parsed_query = parser.parse(query)
-                parse_latency_ms = int((time.perf_counter() - parse_start) * 1000)
-
-            if notify_parsed and parsed_query is not None:
-                try:
-                    notify_parsed(parsed_query)
-                except Exception as exc:
-                    logger.debug("Failed to notify parsed query: %s", exc)
-
-            has_service_embeddings = batch.has_service_embeddings()
-            text_results: Optional[Dict[str, Tuple[float, Dict[str, Any]]]] = None
-            text_latency_ms = 0
-            best_text_score = 0.0
-            require_text_match = False
-            skip_vector = False
-
-            if not parsed_query.needs_llm:
-                text_query = self.retriever._normalize_query_for_trigram(parsed_query.service_query)
-                text_start = time.perf_counter()
-                text_results = batch.text_search(
-                    text_query,
-                    text_query,
-                    limit=min(TEXT_TOP_K, MAX_CANDIDATES),
-                )
-                text_latency_ms = int((time.perf_counter() - text_start) * 1000)
-                (
-                    best_text_score,
-                    require_text_match,
-                    skip_vector,
-                ) = self._compute_text_match_flags(parsed_query.service_query, text_results)
-
-            region_lookup: Optional[RegionLookup] = None
-            location_resolution: Optional["ResolvedLocation"] = None
-            location_normalized: Optional[str] = None
-            cached_alias_normalized: Optional[str] = None
-            fuzzy_score: Optional[float] = None
-            location_llm_candidates: List[str] = []
-
-            should_load_regions = bool(parsed_query.needs_llm or parsed_query.location_text)
-            if should_load_regions:
-                region_lookup = batch.load_region_lookup()
-
-            if (
-                region_lookup
-                and parsed_query.location_text
-                and parsed_query.location_type != "near_me"
-                and user_location is None
-                and not parsed_query.needs_llm
-            ):
-                location_normalized = self._normalize_location_text(parsed_query.location_text)
-                resolver = LocationResolver(db, region_code=self._region_code)
-                non_semantic = resolver.resolve_sync(
-                    parsed_query.location_text,
-                    original_query=parsed_query.original_query,
-                    track_unresolved=False,
-                )
-                if non_semantic.resolved or non_semantic.requires_clarification:
-                    location_resolution = non_semantic
-                else:
-                    cached_alias = batch.get_cached_llm_alias(location_normalized)
-                    if cached_alias:
-                        location_resolution = self._resolve_cached_alias(
-                            cached_alias, region_lookup
-                        )
-                        if location_resolution:
-                            cached_alias_normalized = location_normalized
-
-                if location_resolution is None and location_normalized:
-                    fuzzy_score = batch.get_best_fuzzy_score(location_normalized)
-
-                if location_resolution is None and location_normalized:
-                    location_llm_candidates = batch.get_fuzzy_candidate_names(
-                        location_normalized, limit=LOCATION_LLM_TOP_K
-                    )
-                    if (
-                        fuzzy_score is not None
-                        and fuzzy_score < resolver.MIN_FUZZY_FOR_EMBEDDING
-                        and region_lookup.region_names
-                    ):
-                        location_llm_candidates = list(region_lookup.region_names)
-
-            return PreOpenAIData(
-                parsed_query=parsed_query,
-                parse_latency_ms=parse_latency_ms,
-                text_results=text_results,
-                text_latency_ms=text_latency_ms,
-                has_service_embeddings=has_service_embeddings,
-                best_text_score=best_text_score,
-                require_text_match=require_text_match,
-                skip_vector=skip_vector,
-                region_lookup=region_lookup,
-                location_resolution=location_resolution,
-                location_normalized=location_normalized,
-                cached_alias_normalized=cached_alias_normalized,
-                fuzzy_score=fuzzy_score,
-                location_llm_candidates=location_llm_candidates,
-            )
+        return preflight.run_pre_openai_burst(
+            get_db_session=get_db_session,
+            search_batch_repository_cls=SearchBatchRepository,
+            query=query,
+            parsed_query=parsed_query,
+            user_id=user_id,
+            user_location=user_location,
+            notify_parsed=notify_parsed,
+            region_code=self._region_code,
+            query_parser_cls=QueryParser,
+            retriever=self.retriever,
+            location_resolver_cls=LocationResolver,
+            normalize_location_text=self._normalize_location_text,
+            resolve_cached_alias=self._resolve_cached_alias,
+            location_llm_top_k=LOCATION_LLM_TOP_K,
+            trigram_generic_tokens=TRIGRAM_GENERIC_TOKENS,
+            require_text_match_score_threshold=TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+            skip_vector_min_results=TEXT_SKIP_VECTOR_MIN_RESULTS,
+            skip_vector_score_threshold=TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+            text_top_k=TEXT_TOP_K,
+            max_candidates=MAX_CANDIDATES,
+            logger=logger,
+        )
 
     async def _resolve_location_openai(
         self,
@@ -1766,7 +1606,7 @@ class NLSearchService:
         tier5_task: Optional[
             asyncio.Task[
                 tuple[
-                    Optional["ResolvedLocation"],
+                    Optional[ResolvedLocation],
                     Optional[LocationLLMCache],
                     Optional[UnresolvedLocationInfo],
                 ]
@@ -1779,382 +1619,35 @@ class NLSearchService:
         budget: Optional[RequestBudget] = None,
         diagnostics: Optional[PipelineTimer] = None,
     ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
-        from app.services.search.location_resolver import (
-            LocationCandidate,
-            LocationResolver,
-            ResolutionTier,
-            ResolvedLocation,
+        return await location.resolve_location_openai(
+            location_text=location_text,
+            region_lookup=region_lookup,
+            fuzzy_score=fuzzy_score,
+            original_query=original_query,
+            llm_candidates=llm_candidates,
+            tier5_task=tier5_task,
+            tier5_started_at=tier5_started_at,
+            allow_tier4=allow_tier4,
+            allow_tier5=allow_tier5,
+            force_skip_tier5=force_skip_tier5,
+            budget=budget,
+            diagnostics=diagnostics,
+            location_embedding_service=self.location_embedding_service,
+            resolve_location_llm_fn=self._resolve_location_llm,
+            get_config=get_search_config,
+            logger=logger,
+            tier4_high_confidence=LOCATION_TIER4_HIGH_CONFIDENCE,
+            llm_confidence_threshold=LOCATION_LLM_CONFIDENCE_THRESHOLD,
+            location_llm_top_k=LOCATION_LLM_TOP_K,
+            llm_embedding_threshold=LOCATION_LLM_EMBEDDING_THRESHOLD,
         )
-
-        normalized = self._normalize_location_text(location_text)
-        if not normalized or not region_lookup:
-            if tier5_task:
-                self._consume_task_result(tier5_task, label="location_llm")
-            if diagnostics:
-                reason = "empty_query" if not normalized else "missing_region_lookup"
-                diagnostics.record_location_tier(
-                    tier=4,
-                    attempted=False,
-                    status=StageStatus.SKIPPED.value,
-                    duration_ms=0,
-                    details=reason,
-                )
-                diagnostics.record_location_tier(
-                    tier=5,
-                    attempted=False,
-                    status=StageStatus.SKIPPED.value,
-                    duration_ms=0,
-                    details=reason,
-                )
-            unresolved = (
-                UnresolvedLocationInfo(
-                    normalized=normalized,
-                    original_query=original_query or location_text,
-                )
-                if normalized
-                else None
-            )
-            return ResolvedLocation.from_not_found(), None, unresolved
-
-        tokens = normalized.split()
-        threshold = LocationResolver.MIN_FUZZY_FOR_EMBEDDING
-        should_try_embedding = bool(region_lookup.embeddings) and (
-            len(tokens) >= 2 or fuzzy_score is None or (fuzzy_score >= threshold)
-        )
-
-        tier4_result: Optional[ResolvedLocation] = None
-        embedding_candidate_names: List[str] = []
-        if allow_tier4 and should_try_embedding:
-            tier4_start = time.perf_counter()
-            embedding = None
-            tier4_recorded = False
-            try:
-                embedding = await self.location_embedding_service.embed_location_text(normalized)
-            except Exception as exc:
-                if diagnostics:
-                    diagnostics.record_location_tier(
-                        tier=4,
-                        attempted=True,
-                        status=StageStatus.ERROR.value,
-                        duration_ms=int((time.perf_counter() - tier4_start) * 1000),
-                        details=str(exc),
-                    )
-                    tier4_recorded = True
-            if embedding:
-                embedding_rows = [
-                    {
-                        "region_id": row.region_id,
-                        "region_name": row.region_name,
-                        "borough": row.borough,
-                        "embedding": row.embedding,
-                        "norm": row.norm,
-                    }
-                    for row in region_lookup.embeddings
-                ]
-                embedding_candidates = LocationEmbeddingService.build_candidates_from_embeddings(
-                    embedding,
-                    embedding_rows,
-                    limit=5,
-                )
-                llm_embedding_candidates = (
-                    LocationEmbeddingService.build_candidates_from_embeddings(
-                        embedding,
-                        embedding_rows,
-                        limit=LOCATION_LLM_TOP_K,
-                        threshold=LOCATION_LLM_EMBEDDING_THRESHOLD,
-                    )
-                )
-                for row in llm_embedding_candidates:
-                    name = row.get("region_name")
-                    if not name:
-                        continue
-                    text = str(name).strip()
-                    if text and text not in embedding_candidate_names:
-                        embedding_candidate_names.append(text)
-                best_candidate, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(
-                    embedding_candidates
-                )
-                if (
-                    best_candidate
-                    and best_candidate.get("region_id")
-                    and best_candidate.get("region_name")
-                ):
-                    tier4_result = ResolvedLocation.from_region(
-                        region_id=str(best_candidate["region_id"]),
-                        region_name=str(best_candidate["region_name"]),
-                        borough=best_candidate.get("borough"),
-                        tier=ResolutionTier.EMBEDDING,
-                        confidence=float(best_candidate.get("similarity") or 0.0),
-                    )
-                if ambiguous:
-                    formatted: List[LocationCandidate] = []
-                    for row in ambiguous:
-                        if not row.get("region_id") or not row.get("region_name"):
-                            continue
-                        formatted.append(
-                            {
-                                "region_id": str(row["region_id"]),
-                                "region_name": str(row["region_name"]),
-                                "borough": row.get("borough"),
-                            }
-                        )
-                    if len(formatted) >= 2:
-                        top_sim = float(ambiguous[0].get("similarity") or 0.0)
-                        tier4_result = ResolvedLocation.from_ambiguous(
-                            candidates=formatted,
-                            tier=ResolutionTier.EMBEDDING,
-                            confidence=top_sim,
-                        )
-            if diagnostics and not tier4_recorded:
-                tier4_duration = int((time.perf_counter() - tier4_start) * 1000)
-                status = (
-                    StageStatus.SUCCESS.value
-                    if tier4_result
-                    and (tier4_result.resolved or tier4_result.requires_clarification)
-                    else StageStatus.MISS.value
-                )
-                resolved_name = None
-                if tier4_result and (tier4_result.region_name or tier4_result.borough):
-                    resolved_name = tier4_result.region_name or tier4_result.borough
-                diagnostics.record_location_tier(
-                    tier=4,
-                    attempted=True,
-                    status=status,
-                    duration_ms=tier4_duration,
-                    result=resolved_name,
-                    confidence=getattr(tier4_result, "confidence", None),
-                    details="embedding_match" if embedding else "no_embedding",
-                )
-        elif diagnostics:
-            reason = "disabled"
-            if allow_tier4:
-                reason = (
-                    "no_region_embeddings" if not region_lookup.embeddings else "fuzzy_threshold"
-                )
-            diagnostics.record_location_tier(
-                tier=4,
-                attempted=False,
-                status=StageStatus.SKIPPED.value,
-                duration_ms=0,
-                details=reason,
-            )
-
-        if (
-            tier4_result
-            and tier4_result.resolved
-            and tier4_result.confidence >= LOCATION_TIER4_HIGH_CONFIDENCE
-        ):
-            if tier5_task:
-                self._consume_task_result(tier5_task, label="location_llm")
-                if diagnostics:
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=False,
-                        status=StageStatus.SKIPPED.value,
-                        duration_ms=0,
-                        details="tier4_high_confidence",
-                    )
-            return tier4_result, None, None
-
-        tier4_resolved = bool(tier4_result and tier4_result.resolved)
-        tier5_timeout_s: Optional[float] = None
-        if budget and not budget.can_afford_tier5():
-            if not force_skip_tier5 and not tier4_resolved and budget.remaining_ms > 0:
-                config = get_search_config()
-                location_timeout_s = max(0.0, float(config.location_timeout_ms) / 1000.0)
-                tier5_timeout_s = min(budget.remaining_ms / 1000.0, location_timeout_s)
-                allow_tier5 = True
-            else:
-                allow_tier5 = False
-                budget.skip("tier5_llm")
-                if tier5_task:
-                    self._consume_task_result(tier5_task, label="location_llm")
-                    tier5_task = None
-                if diagnostics:
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=False,
-                        status=StageStatus.SKIPPED.value,
-                        duration_ms=0,
-                        details="budget_insufficient",
-                    )
-
-        llm_result: Optional[ResolvedLocation] = None
-        llm_cache: Optional[LocationLLMCache] = None
-        llm_unresolved: Optional[UnresolvedLocationInfo] = None
-
-        if not allow_tier5 and tier5_task is not None:
-            self._consume_task_result(tier5_task, label="location_llm")
-            if diagnostics:
-                diagnostics.record_location_tier(
-                    tier=5,
-                    attempted=False,
-                    status=StageStatus.SKIPPED.value,
-                    duration_ms=0,
-                    details="disabled",
-                )
-        elif tier5_task is not None:
-            tier5_start = tier5_started_at or time.perf_counter()
-            try:
-                if tier5_timeout_s and tier5_timeout_s > 0:
-                    llm_result, llm_cache, llm_unresolved = await asyncio.wait_for(
-                        tier5_task, timeout=tier5_timeout_s
-                    )
-                else:
-                    llm_result, llm_cache, llm_unresolved = await tier5_task
-                if diagnostics:
-                    tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                    resolved_name = None
-                    if llm_result and (llm_result.region_name or llm_result.borough):
-                        resolved_name = llm_result.region_name or llm_result.borough
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=True,
-                        status=StageStatus.SUCCESS.value if llm_result else StageStatus.MISS.value,
-                        duration_ms=tier5_duration,
-                        result=resolved_name,
-                        confidence=getattr(llm_result, "confidence", None),
-                        details=(
-                            f"llm_task timeout_ms={int(tier5_timeout_s * 1000)}"
-                            if tier5_timeout_s
-                            else "llm_task"
-                        ),
-                    )
-            except asyncio.TimeoutError:
-                llm_result = None
-                logger.warning("[LOCATION] Tier 5 timed out")
-                if diagnostics:
-                    tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=True,
-                        status=StageStatus.TIMEOUT.value,
-                        duration_ms=tier5_duration,
-                        details="timeout",
-                    )
-            except asyncio.CancelledError:
-                llm_result = None
-                if diagnostics:
-                    tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=True,
-                        status=StageStatus.CANCELLED.value,
-                        duration_ms=tier5_duration,
-                        details="cancelled",
-                    )
-            except Exception as exc:
-                logger.warning("[LOCATION] Tier 5 failed: %s", exc)
-                if diagnostics:
-                    tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                    diagnostics.record_location_tier(
-                        tier=5,
-                        attempted=True,
-                        status=StageStatus.ERROR.value,
-                        duration_ms=tier5_duration,
-                        details=str(exc),
-                    )
-        elif allow_tier5:
-            allowed_names = list(llm_candidates or [])
-            for name in embedding_candidate_names:
-                if name not in allowed_names:
-                    allowed_names.append(name)
-            if not allowed_names:
-                allowed_names = region_lookup.region_names
-            if allowed_names:
-                tier5_start = time.perf_counter()
-                try:
-                    llm_result, llm_cache, llm_unresolved = await self._resolve_location_llm(
-                        location_text=location_text,
-                        original_query=original_query,
-                        region_lookup=region_lookup,
-                        candidate_names=allowed_names,
-                        timeout_s=tier5_timeout_s,
-                        normalized=normalized,
-                    )
-                    if diagnostics:
-                        tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                        resolved_name = None
-                        if llm_result and (llm_result.region_name or llm_result.borough):
-                            resolved_name = llm_result.region_name or llm_result.borough
-                        diagnostics.record_location_tier(
-                            tier=5,
-                            attempted=True,
-                            status=StageStatus.SUCCESS.value
-                            if llm_result
-                            else StageStatus.MISS.value,
-                            duration_ms=tier5_duration,
-                            result=resolved_name,
-                            confidence=getattr(llm_result, "confidence", None),
-                            details=(
-                                f"llm_call candidates={len(allowed_names)}"
-                                + (
-                                    f" timeout_ms={int(tier5_timeout_s * 1000)}"
-                                    if tier5_timeout_s
-                                    else ""
-                                )
-                            ),
-                        )
-                except asyncio.TimeoutError:
-                    llm_result = None
-                    logger.warning("[LOCATION] Tier 5 timed out")
-                    if diagnostics:
-                        tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                        diagnostics.record_location_tier(
-                            tier=5,
-                            attempted=True,
-                            status=StageStatus.TIMEOUT.value,
-                            duration_ms=tier5_duration,
-                            details="timeout",
-                        )
-                except Exception as exc:
-                    logger.warning("[LOCATION] Tier 5 failed: %s", exc)
-                    if diagnostics:
-                        tier5_duration = int((time.perf_counter() - tier5_start) * 1000)
-                        diagnostics.record_location_tier(
-                            tier=5,
-                            attempted=True,
-                            status=StageStatus.ERROR.value,
-                            duration_ms=tier5_duration,
-                            details=str(exc),
-                        )
-            elif diagnostics:
-                diagnostics.record_location_tier(
-                    tier=5,
-                    attempted=False,
-                    status=StageStatus.SKIPPED.value,
-                    duration_ms=0,
-                    details="no_candidates",
-                )
-        elif diagnostics and tier5_task is None:
-            diagnostics.record_location_tier(
-                tier=5,
-                attempted=False,
-                status=StageStatus.SKIPPED.value,
-                duration_ms=0,
-                details="disabled",
-            )
-
-        best = self._pick_best_location(tier4_result, llm_result)
-        if not best:
-            if llm_unresolved is None:
-                llm_unresolved = UnresolvedLocationInfo(
-                    normalized=normalized,
-                    original_query=original_query or location_text,
-                )
-            return ResolvedLocation.from_not_found(), None, llm_unresolved
-
-        if best is llm_result:
-            return best, llm_cache, None
-
-        return best, None, None
 
     def _run_post_openai_burst(
         self,
         pre_data: PreOpenAIData,
         parsed_query: ParsedQuery,
         query_embedding: Optional[List[float]],
-        location_resolution: Optional["ResolvedLocation"],
+        location_resolution: Optional[ResolvedLocation],
         location_llm_cache: Optional[LocationLLMCache],
         unresolved_info: Optional[UnresolvedLocationInfo],
         user_location: Optional[Tuple[float, float]],
@@ -2172,489 +1665,83 @@ class NLSearchService:
         )
         from app.services.search.location_resolver import LocationResolver
 
-        with get_db_session() as db:
-            batch = SearchBatchRepository(db, region_code=self._region_code)
-            retriever_repo = RetrieverRepository(db)
-            filter_repo = FilterRepository(db)
-            ranking_repo = RankingRepository(db)
-            resolver = LocationResolver(db, region_code=self._region_code)
-
-            text_results = pre_data.text_results
-            text_latency_ms = pre_data.text_latency_ms
-            require_text_match = pre_data.require_text_match
-            skip_vector = pre_data.skip_vector
-
-            if text_results is None:
-                text_query = self.retriever._normalize_query_for_trigram(parsed_query.service_query)
-                text_start = time.perf_counter()
-                text_results = batch.text_search(
-                    text_query,
-                    text_query,
-                    limit=min(TEXT_TOP_K, MAX_CANDIDATES),
-                )
-                text_latency_ms = int((time.perf_counter() - text_start) * 1000)
-                (
-                    _,
-                    require_text_match,
-                    skip_vector,
-                ) = self._compute_text_match_flags(parsed_query.service_query, text_results)
-
-            vector_results: Dict[str, Tuple[float, Dict[str, Any]]] = {}
-            vector_latency_ms = 0
-            vector_search_used = False
-            if query_embedding and not skip_vector:
-                vector_start = time.perf_counter()
-                vector_results = batch.vector_search(
-                    query_embedding,
-                    limit=min(VECTOR_TOP_K, MAX_CANDIDATES),
-                )
-                vector_latency_ms = int((time.perf_counter() - vector_start) * 1000)
-                vector_search_used = True
-
-            candidates = self.retriever.fuse_results(
-                vector_results,
-                text_results or {},
-                MAX_CANDIDATES,
-                require_text_match=require_text_match,
-            )
-
-            explicit_taxonomy_filters = self._normalize_taxonomy_filter_selections(
-                taxonomy_filter_selections
-            )
-            explicit_subcategory_id = str(subcategory_id).strip() if subcategory_id else None
-            effective_subcategory_id = self._resolve_effective_subcategory_id(
-                candidates,
-                explicit_subcategory_id=explicit_subcategory_id,
-            )
-
-            taxonomy_repository = TaxonomyFilterRepository(db)
-            inferred_filters: Dict[str, List[str]] = {}
-            effective_subcategory_name: Optional[str] = None
-            available_content_filters: List[NLSearchContentFilterDefinition] = []
-            if effective_subcategory_id:
-                try:
-                    (
-                        subcategory_filters,
-                        effective_subcategory_name,
-                    ) = self._load_subcategory_filter_metadata(
-                        taxonomy_repository,
-                        effective_subcategory_id,
-                    )
-                    available_content_filters = self._build_available_content_filters(
-                        subcategory_filters
-                    )
-                    inferred_filters = extract_inferred_filters(
-                        original_query=parsed_query.original_query,
-                        filter_definitions=subcategory_filters,
-                        existing_explicit_filters=explicit_taxonomy_filters,
-                        parser_skill_level=parsed_query.skill_level,
-                    )
-                except Exception:
-                    logger.warning(
-                        "taxonomy_filter_load_failed",
-                        extra={"subcategory_id": effective_subcategory_id},
-                        exc_info=True,
-                    )
-
-            # Inferred filters are returned in metadata only. Hard filtering is explicit-only.
-            hard_taxonomy_filters = explicit_taxonomy_filters
-            hard_subcategory_id = explicit_subcategory_id
-            if hard_taxonomy_filters or hard_subcategory_id:
-                try:
-                    candidate_service_ids = [candidate.service_id for candidate in candidates]
-                    matching_service_ids = taxonomy_repository.find_matching_service_ids(
-                        service_ids=candidate_service_ids,
-                        subcategory_id=hard_subcategory_id,
-                        filter_selections=hard_taxonomy_filters,
-                        active_only=True,
-                    )
-
-                    if matching_service_ids:
-                        candidates = [
-                            candidate
-                            for candidate in candidates
-                            if candidate.service_id in matching_service_ids
-                        ]
-                    else:
-                        candidates = []
-                except Exception as exc:
-                    logger.warning(
-                        "taxonomy_filter_service_ids_failed",
-                        extra={
-                            "subcategory_id": hard_subcategory_id,
-                            "filter_count": len(hard_taxonomy_filters)
-                            if hard_taxonomy_filters
-                            else 0,
-                            "error": str(exc),
-                        },
-                        exc_info=True,
-                    )
-
-            # Filtering (sync, DB-only)
-            filter_start = time.perf_counter()
-            filter_service = FilterService(
-                repository=filter_repo,
-                location_resolver=resolver,
-                region_code=self._region_code,
-            )
-            filter_failed = False
-            try:
-                filter_result = filter_service.filter_candidates_sync(
-                    candidates,
-                    parsed_query,
-                    user_location=user_location,
-                    location_resolution=location_resolution,
-                    requester_timezone=requester_timezone,
-                )
-            except Exception as exc:
-                logger.error("Filtering failed: %s", exc)
-                filter_failed = True
-                filter_result = FilterResult(
-                    candidates=[
-                        FilteredCandidate(
-                            service_id=c.service_id,
-                            service_catalog_id=c.service_catalog_id,
-                            instructor_id=c.instructor_id,
-                            hybrid_score=c.hybrid_score,
-                            name=c.name,
-                            description=c.description,
-                            min_hourly_rate=c.min_hourly_rate,
-                        )
-                        for c in candidates
-                    ],
-                    total_before_filter=len(candidates),
-                    total_after_filter=len(candidates),
-                    filters_applied=[],
-                    soft_filtering_used=False,
-                    location_resolution=location_resolution,
-                )
-            if hard_taxonomy_filters or hard_subcategory_id:
-                taxonomy_filters_applied = list(filter_result.filters_applied)
-                if hard_subcategory_id:
-                    taxonomy_filters_applied.append("subcategory")
-                for key in sorted(hard_taxonomy_filters.keys()):
-                    taxonomy_filters_applied.append(f"taxonomy:{key}")
-                filter_result.filters_applied = list(dict.fromkeys(taxonomy_filters_applied))
-            filter_latency_ms = int((time.perf_counter() - filter_start) * 1000)
-
-            # Ranking
-            rank_start = time.perf_counter()
-            ranking_service = RankingService(repository=ranking_repo)
-            ranking_failed = False
-            try:
-                ranking_result = ranking_service.rank_candidates(
-                    filter_result.candidates,
-                    parsed_query,
-                    user_location=user_location,
-                )
-            except Exception as exc:
-                logger.error("Ranking failed: %s", exc)
-                ranking_failed = True
-                ranking_result = RankingResult(results=[], total_results=0)
-            rank_latency_ms = int((time.perf_counter() - rank_start) * 1000)
-
-            ordered_instructor_ids = self._select_instructor_ids(ranking_result.results, limit)
-            instructor_rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
-
-            distance_meters: Dict[str, float] = {}
-            distance_region_ids = self._distance_region_ids(location_resolution)
-            if distance_region_ids:
-                distance_meters = filter_repo.get_instructor_min_distance_to_regions(
-                    ordered_instructor_ids,
-                    distance_region_ids,
-                )
-
-            # Location cache updates (best-effort)
-            if location_llm_cache:
-                resolver.cache_llm_alias(
-                    location_llm_cache.normalized,
-                    location_llm_cache.region_ids,
-                    confidence=location_llm_cache.confidence,
-                )
-
-            if pre_data.cached_alias_normalized:
-                cached_alias = resolver.repository.find_cached_alias(
-                    pre_data.cached_alias_normalized, source="llm"
-                )
-                if cached_alias:
-                    resolver.repository.increment_alias_user_count(cached_alias)
-
-            if unresolved_info:
-                unresolved_repo = UnresolvedLocationQueryRepository(db)
-                unresolved_repo.track_unresolved(
-                    unresolved_info.normalized,
-                    original_query=unresolved_info.original_query,
-                )
-
-            return PostOpenAIData(
-                filter_result=filter_result,
-                ranking_result=ranking_result,
-                retrieval_candidates=candidates,
-                instructor_rows=instructor_rows,
-                distance_meters=distance_meters,
-                text_latency_ms=text_latency_ms,
-                vector_latency_ms=vector_latency_ms,
-                filter_latency_ms=filter_latency_ms,
-                rank_latency_ms=rank_latency_ms,
-                vector_search_used=vector_search_used,
-                total_candidates=len(candidates),
-                filter_failed=filter_failed,
-                ranking_failed=ranking_failed,
-                skip_vector=skip_vector,
-                inferred_filters=inferred_filters,
-                effective_taxonomy_filters=hard_taxonomy_filters,
-                effective_subcategory_id=effective_subcategory_id,
-                effective_subcategory_name=effective_subcategory_name,
-                available_content_filters=available_content_filters,
-            )
+        return postflight.run_post_openai_burst(
+            get_db_session=get_db_session,
+            search_batch_repository_cls=SearchBatchRepository,
+            pre_data=pre_data,
+            parsed_query=parsed_query,
+            query_embedding=query_embedding,
+            location_resolution=location_resolution,
+            location_llm_cache=location_llm_cache,
+            unresolved_info=unresolved_info,
+            user_location=user_location,
+            limit=limit,
+            requester_timezone=requester_timezone,
+            taxonomy_filter_selections=taxonomy_filter_selections,
+            subcategory_id=subcategory_id,
+            retriever=self.retriever,
+            compute_text_match_flags=self._compute_text_match_flags,
+            normalize_taxonomy_filter_selections=self._normalize_taxonomy_filter_selections,
+            resolve_effective_subcategory_id_fn=self._resolve_effective_subcategory_id,
+            load_subcategory_filter_metadata_fn=self._load_subcategory_filter_metadata,
+            build_available_content_filters_fn=self._build_available_content_filters,
+            select_instructor_ids_fn=self._select_instructor_ids,
+            distance_region_ids_fn=self._distance_region_ids,
+            filter_service_cls=FilterService,
+            ranking_service_cls=RankingService,
+            filter_repository_cls=FilterRepository,
+            ranking_repository_cls=RankingRepository,
+            retriever_repository_cls=RetrieverRepository,
+            taxonomy_filter_repository_cls=TaxonomyFilterRepository,
+            unresolved_location_query_repository_cls=UnresolvedLocationQueryRepository,
+            location_resolver_cls=LocationResolver,
+            extract_inferred_filters=extract_inferred_filters,
+            region_code=self._region_code,
+            text_top_k=TEXT_TOP_K,
+            vector_top_k=VECTOR_TOP_K,
+            max_candidates=MAX_CANDIDATES,
+            logger=logger,
+        )
 
     @staticmethod
-    def _serialize_format_prices(price_rows: List[Any]) -> List[Dict[str, Any]]:
-        """Serialize pricing rows for NL search responses."""
-        return [
-            {
-                "format": str(getattr(row, "format", "")),
-                "hourly_rate": float(getattr(row, "hourly_rate", 0)),
-            }
-            for row in price_rows
-            if getattr(row, "format", None) is not None
-        ]
+    def _serialize_format_prices(
+        price_rows: List[Any],
+    ) -> List[hydration.SerializedFormatPrice]:
+        return hydration.serialize_format_prices(price_rows)
 
     @staticmethod
-    def _derive_service_offers(format_prices: List[Dict[str, Any]]) -> Dict[str, bool]:
-        """Derive lesson-format booleans from serialized format prices."""
-        enabled_formats = {
-            str(price_row.get("format"))
-            for price_row in format_prices
-            if isinstance(price_row, dict) and price_row.get("format")
-        }
-        return {
-            "offers_travel": "student_location" in enabled_formats,
-            "offers_at_location": "instructor_location" in enabled_formats,
-            "offers_online": "online" in enabled_formats,
-        }
+    def _derive_service_offers(
+        format_prices: List[hydration.SerializedFormatPrice],
+    ) -> Dict[str, bool]:
+        return hydration.derive_service_offers(format_prices)
 
     async def _hydrate_instructor_results(
         self,
         ranked: List[RankedResult],
         limit: int,
         *,
-        location_resolution: Optional["ResolvedLocation"] = None,
-        instructor_rows: Optional[List[Dict[str, Any]]] = None,
+        location_resolution: Optional[ResolvedLocation] = None,
+        instructor_rows: Optional[List[hydration.InstructorProfileRow]] = None,
         distance_meters: Optional[Dict[str, float]] = None,
     ) -> List[NLSearchResultItem]:
-        """
-        Convert ranked service-level candidates into instructor-level results.
+        from app.repositories.filter_repository import FilterRepository
+        from app.repositories.retriever_repository import RetrieverRepository
+        from app.repositories.service_format_pricing_repository import (
+            ServiceFormatPricingRepository,
+        )
 
-        Uses batch DB queries to avoid N+1:
-        - instructor summaries (users + instructor_profiles)
-        - ratings aggregates (reviews)
-        - coverage areas (instructor_service_areas + region_boundaries)
-        - service catalog mapping for selected instructor_services
-        """
-        if not ranked:
-            return []
-
-        # Determine instructor order by first occurrence (ranked list is already sorted by score).
-        ordered_instructor_ids: List[str] = []
-        seen_instructors: set[str] = set()
-        for r in ranked:
-            if r.instructor_id in seen_instructors:
-                continue
-            seen_instructors.add(r.instructor_id)
-            ordered_instructor_ids.append(r.instructor_id)
-            if len(ordered_instructor_ids) >= limit:
-                break
-
-        selected_instructors = set(ordered_instructor_ids)
-
-        # Group services per instructor (keep all ranked services for match_count)
-        by_instructor: Dict[str, List[RankedResult]] = {iid: [] for iid in ordered_instructor_ids}
-        for r in ranked:
-            if r.instructor_id in selected_instructors:
-                by_instructor[r.instructor_id].append(r)
-
-        # Pick best_match + other_matches by relevance_score (semantic match) per instructor.
-        chosen_by_instructor: Dict[str, List[RankedResult]] = {}
-        for instructor_id in ordered_instructor_ids:
-            services = sorted(
-                by_instructor[instructor_id], key=lambda x: x.relevance_score, reverse=True
-            )
-            chosen = services[:4]  # best + up to 3 others
-            if not chosen:
-                continue
-            chosen_by_instructor[instructor_id] = chosen
-
-        service_ids: List[str] = []
-        for matches in chosen_by_instructor.values():
-            for match in matches:
-                if match.service_id:
-                    service_ids.append(match.service_id)
-        if service_ids:
-            service_ids = list(dict.fromkeys(service_ids))
-
-        format_prices_by_service: Dict[str, List[Dict[str, Any]]] = {}
-        if service_ids:
-
-            def _load_service_format_prices() -> Dict[str, List[Dict[str, Any]]]:
-                from app.repositories.service_format_pricing_repository import (
-                    ServiceFormatPricingRepository,
-                )
-
-                try:
-                    with get_db_session() as db:
-                        pricing_repo = ServiceFormatPricingRepository(db)
-                        grouped = pricing_repo.get_prices_for_services(service_ids)
-                        return {
-                            service_id: self._serialize_format_prices(price_rows)
-                            for service_id, price_rows in grouped.items()
-                        }
-                except Exception:
-                    return {}
-
-            format_prices_by_service = await asyncio.to_thread(_load_service_format_prices)
-
-        # Optional distance map (meters) for admin debugging when we have a location reference.
-        distance_region_ids: Optional[List[str]] = None
-        if location_resolution and location_resolution.region_id:
-            distance_region_ids = [str(location_resolution.region_id)]
-        elif (
-            location_resolution
-            and location_resolution.requires_clarification
-            and location_resolution.candidates
-        ):
-            candidate_ids = [
-                str(c.get("region_id"))
-                for c in location_resolution.candidates
-                if isinstance(c, dict) and c.get("region_id")
-            ]
-            # De-dupe while preserving order
-            distance_region_ids = list(dict.fromkeys(candidate_ids)) or None
-
-        if instructor_rows is None:
-
-            def _load_hydration_data() -> tuple[List[Dict[str, Any]], Dict[str, float]]:
-                from app.repositories.filter_repository import FilterRepository
-                from app.repositories.retriever_repository import RetrieverRepository
-
-                with get_db_session() as db:
-                    retriever_repo = RetrieverRepository(db)
-                    rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
-
-                    distance_map: Dict[str, float] = {}
-                    if distance_region_ids:
-                        filter_repo = FilterRepository(db)
-                        distance_map = filter_repo.get_instructor_min_distance_to_regions(
-                            ordered_instructor_ids,
-                            distance_region_ids,
-                        )
-                    return rows, distance_map
-
-            instructor_rows, distance_meters = await asyncio.to_thread(_load_hydration_data)
-
-        if distance_meters is None:
-            distance_meters = {}
-
-        if instructor_rows is None:
-            raise RuntimeError("Instructor hydration returned no rows")
-        instructor_by_id: Dict[str, Dict[str, Any]] = {
-            row["instructor_id"]: row for row in instructor_rows
-        }
-
-        results: List[NLSearchResultItem] = []
-        for instructor_id in ordered_instructor_ids:
-            chosen_for_instructor = chosen_by_instructor.get(instructor_id)
-            profile = instructor_by_id.get(instructor_id)
-            if not chosen_for_instructor or not profile:
-                continue
-
-            best_ranked = chosen_for_instructor[0]
-
-            instructor = InstructorSummary(
-                id=instructor_id,
-                first_name=profile["first_name"],
-                last_initial=profile.get("last_initial") or "",
-                profile_picture_url=self._build_photo_url(profile.get("profile_picture_key")),
-                bio_snippet=profile.get("bio_snippet"),
-                verified=bool(profile.get("verified", False)),
-                is_founding_instructor=bool(profile.get("is_founding_instructor", False)),
-                years_experience=profile.get("years_experience"),
-                teaching_locations=profile.get("teaching_locations", []) or [],
-            )
-
-            rating_summary = RatingSummary(
-                average=round(float(profile["avg_rating"]), 2)
-                if profile.get("avg_rating")
-                else None,
-                count=int(profile.get("review_count", 0) or 0),
-            )
-
-            best_format_prices = format_prices_by_service.get(best_ranked.service_id, [])
-            best_offers = self._derive_service_offers(best_format_prices)
-            _best_eff = best_ranked.effective_hourly_rate
-            best_match = ServiceMatch(
-                service_id=best_ranked.service_id,
-                service_catalog_id=best_ranked.service_catalog_id,
-                name=best_ranked.name,
-                description=best_ranked.description,
-                min_hourly_rate=best_ranked.min_hourly_rate,
-                **(
-                    {"effective_hourly_rate": _best_eff}
-                    if _best_eff != best_ranked.min_hourly_rate
-                    else {}
-                ),
-                format_prices=best_format_prices,
-                relevance_score=round(float(best_ranked.relevance_score), 3),
-                offers_travel=best_offers["offers_travel"],
-                offers_at_location=best_offers["offers_at_location"],
-                offers_online=best_offers["offers_online"],
-            )
-
-            other_matches: List[ServiceMatch] = []
-            for other_ranked in chosen_for_instructor[1:]:
-                other_format_prices = format_prices_by_service.get(other_ranked.service_id, [])
-                other_offers = self._derive_service_offers(other_format_prices)
-                _other_eff = other_ranked.effective_hourly_rate
-                other_matches.append(
-                    ServiceMatch(
-                        service_id=other_ranked.service_id,
-                        service_catalog_id=other_ranked.service_catalog_id,
-                        name=other_ranked.name,
-                        description=other_ranked.description,
-                        min_hourly_rate=other_ranked.min_hourly_rate,
-                        **(
-                            {"effective_hourly_rate": _other_eff}
-                            if _other_eff != other_ranked.min_hourly_rate
-                            else {}
-                        ),
-                        format_prices=other_format_prices,
-                        relevance_score=round(float(other_ranked.relevance_score), 3),
-                        offers_travel=other_offers["offers_travel"],
-                        offers_at_location=other_offers["offers_at_location"],
-                        offers_online=other_offers["offers_online"],
-                    )
-                )
-
-            results.append(
-                NLSearchResultItem(
-                    instructor_id=instructor_id,
-                    instructor=instructor,
-                    rating=rating_summary,
-                    coverage_areas=profile.get("coverage_areas", []) or [],
-                    best_match=best_match,
-                    other_matches=other_matches,
-                    total_matching_services=len(by_instructor.get(instructor_id, [])) or 1,
-                    relevance_score=best_match.relevance_score,
-                    distance_km=round(float(distance_meters[instructor_id]) / 1000.0, 1)
-                    if distance_meters.get(instructor_id) is not None
-                    else None,
-                    distance_mi=round(float(distance_meters[instructor_id]) / 1609.34, 1)
-                    if distance_meters.get(instructor_id) is not None
-                    else None,
-                )
-            )
-
-        return results
+        return await hydration.hydrate_instructor_results(
+            ranked=ranked,
+            limit=limit,
+            location_resolution=location_resolution,
+            instructor_rows=instructor_rows,
+            distance_meters=distance_meters,
+            asyncio_module=asyncio,
+            get_db_session=get_db_session,
+            pricing_repository_cls=ServiceFormatPricingRepository,
+            retriever_repository_cls=RetrieverRepository,
+            filter_repository_cls=FilterRepository,
+        )
 
     async def _check_cache(
         self,
@@ -2662,21 +1749,17 @@ class NLSearchService:
         user_location: Optional[Tuple[float, float]],
         limit: int,
         *,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Check for cached response."""
-        try:
-            result: Optional[Dict[str, Any]] = await self.search_cache.get_cached_response(
-                query,
-                user_location,
-                filters=filters,
-                limit=limit,
-                region_code=self._region_code,
-            )
-            return result
-        except Exception as e:
-            logger.warning("Cache check failed: %s", e)
-            return None
+        filters: Optional[Dict[str, object]] = None,
+    ) -> Optional[Dict[str, object]]:
+        return await response.check_cache(
+            search_cache=self.search_cache,
+            query=query,
+            user_location=user_location,
+            limit=limit,
+            region_code=self._region_code,
+            logger=logger,
+            filters=filters,
+        )
 
     async def _parse_query(
         self,
@@ -2684,26 +1767,19 @@ class NLSearchService:
         metrics: SearchMetrics,
         user_id: Optional[str] = None,
     ) -> ParsedQuery:
-        """Parse the search query."""
         start = time.time()
-
         try:
-            # Try cache first
             cached_parsed = await self.search_cache.get_cached_parsed_query(
-                query, region_code=self._region_code
+                query,
+                region_code=self._region_code,
             )
             if cached_parsed:
                 metrics.parse_latency_ms = int((time.time() - start) * 1000)
                 return cached_parsed
-
-            # Parse with hybrid approach
             parsed = await hybrid_parse(query, user_id=user_id, region_code=self._region_code)
-
-            # Cache the parsed query
             await self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
-
-        except Exception as e:
-            logger.error("Parsing failed, using basic extraction: %s", e)
+        except Exception as exc:
+            logger.error("Parsing failed, using basic extraction: %s", exc)
 
             def _parse_regex_fallback() -> ParsedQuery:
                 with get_db_session() as db:
@@ -2713,7 +1789,6 @@ class NLSearchService:
             parsed = await asyncio.to_thread(_parse_regex_fallback)
             metrics.degraded = True
             metrics.degradation_reasons.append("parsing_error")
-
         metrics.parse_latency_ms = int((time.time() - start) * 1000)
         return parsed
 
@@ -2722,19 +1797,15 @@ class NLSearchService:
         parsed_query: ParsedQuery,
         metrics: SearchMetrics,
     ) -> RetrievalResult:
-        """Retrieve candidate services."""
         start = time.time()
-
         try:
             result = await self.retriever.search(parsed_query)
-
             if result.degraded:
                 metrics.degraded = True
                 if result.degradation_reason:
                     metrics.degradation_reasons.append(result.degradation_reason)
-
-        except Exception as e:
-            logger.error("Retrieval failed: %s", e)
+        except Exception as exc:
+            logger.error("Retrieval failed: %s", exc)
             result = RetrievalResult(
                 candidates=[],
                 total_candidates=0,
@@ -2744,11 +1815,11 @@ class NLSearchService:
             )
             metrics.degraded = True
             metrics.degradation_reasons.append("retrieval_error")
-
         total_ms = int((time.time() - start) * 1000)
         metrics.embed_latency_ms = int(getattr(result, "embed_latency_ms", 0) or 0)
         metrics.retrieve_latency_ms = int(getattr(result, "db_latency_ms", 0) or 0) or max(
-            0, total_ms - metrics.embed_latency_ms
+            0,
+            total_ms - metrics.embed_latency_ms,
         )
         return result
 
@@ -2761,9 +1832,7 @@ class NLSearchService:
         *,
         requester_timezone: Optional[str] = None,
     ) -> FilterResult:
-        """Apply constraint filters."""
         start = time.time()
-
         try:
             result = await self.filter_service.filter_candidates(
                 retrieval_result.candidates,
@@ -2771,21 +1840,20 @@ class NLSearchService:
                 user_location=user_location,
                 requester_timezone=requester_timezone,
             )
-        except Exception as e:
-            logger.error("Filtering failed: %s", e)
-            # Pass through unfiltered on failure
+        except Exception as exc:
+            logger.error("Filtering failed: %s", exc)
             result = FilterResult(
                 candidates=[
                     FilteredCandidate(
-                        service_id=c.service_id,
-                        service_catalog_id=c.service_catalog_id,
-                        instructor_id=c.instructor_id,
-                        hybrid_score=c.hybrid_score,
-                        name=c.name,
-                        description=c.description,
-                        min_hourly_rate=c.min_hourly_rate,
+                        service_id=candidate.service_id,
+                        service_catalog_id=candidate.service_catalog_id,
+                        instructor_id=candidate.instructor_id,
+                        hybrid_score=candidate.hybrid_score,
+                        name=candidate.name,
+                        description=candidate.description,
+                        min_hourly_rate=candidate.min_hourly_rate,
                     )
-                    for c in retrieval_result.candidates
+                    for candidate in retrieval_result.candidates
                 ],
                 total_before_filter=len(retrieval_result.candidates),
                 total_after_filter=len(retrieval_result.candidates),
@@ -2794,7 +1862,6 @@ class NLSearchService:
             )
             metrics.degraded = True
             metrics.degradation_reasons.append("filtering_error")
-
         metrics.filter_latency_ms = int((time.time() - start) * 1000)
         return result
 
@@ -2805,46 +1872,42 @@ class NLSearchService:
         user_location: Optional[Tuple[float, float]],
         metrics: SearchMetrics,
     ) -> RankingResult:
-        """Rank filtered candidates."""
         start = time.time()
-
         try:
             result = self.ranking_service.rank_candidates(
                 filter_result.candidates,
                 parsed_query,
                 user_location=user_location,
             )
-        except Exception as e:
-            logger.error("Ranking failed: %s", e)
-            # Return unranked results on failure
+        except Exception as exc:
+            logger.error("Ranking failed: %s", exc)
             result = RankingResult(
                 results=[
                     RankedResult(
-                        service_id=c.service_id,
-                        service_catalog_id=c.service_catalog_id,
-                        instructor_id=c.instructor_id,
-                        name=c.name,
-                        description=c.description,
-                        min_hourly_rate=c.min_hourly_rate,
-                        effective_hourly_rate=c.effective_hourly_rate,
-                        final_score=c.hybrid_score,
-                        rank=i + 1,
-                        relevance_score=c.hybrid_score,
+                        service_id=candidate.service_id,
+                        service_catalog_id=candidate.service_catalog_id,
+                        instructor_id=candidate.instructor_id,
+                        name=candidate.name,
+                        description=candidate.description,
+                        min_hourly_rate=candidate.min_hourly_rate,
+                        effective_hourly_rate=candidate.effective_hourly_rate,
+                        final_score=candidate.hybrid_score,
+                        rank=index + 1,
+                        relevance_score=candidate.hybrid_score,
                         quality_score=0.5,
                         distance_score=0.5,
                         price_score=0.5,
                         freshness_score=0.5,
                         completeness_score=0.5,
-                        available_dates=list(c.available_dates),
-                        earliest_available=c.earliest_available,
+                        available_dates=list(candidate.available_dates),
+                        earliest_available=candidate.earliest_available,
                     )
-                    for i, c in enumerate(filter_result.candidates)
+                    for index, candidate in enumerate(filter_result.candidates)
                 ],
                 total_results=len(filter_result.candidates),
             )
             metrics.degraded = True
             metrics.degradation_reasons.append("ranking_error")
-
         metrics.rank_latency_ms = int((time.time() - start) * 1000)
         return result
 
@@ -2852,150 +1915,39 @@ class NLSearchService:
         self,
         query: str,
         user_location: Optional[Tuple[float, float]],
-        response: NLSearchResponse,
+        response_obj: NLSearchResponse,
         limit: int,
         *,
         ttl: Optional[int] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Dict[str, object]] = None,
     ) -> None:
-        """Cache the response."""
-        try:
-            await self.search_cache.cache_response(
-                query,
-                response.model_dump(),
-                user_location=user_location,
-                filters=filters,
-                limit=limit,
-                ttl=ttl,
-                region_code=self._region_code,
-            )
-        except Exception as e:
-            logger.warning("Failed to cache response: %s", e)
+        await response.cache_response(
+            search_cache=self.search_cache,
+            query=query,
+            user_location=user_location,
+            response=response_obj,
+            limit=limit,
+            region_code=self._region_code,
+            logger=logger,
+            ttl=ttl,
+            filters=filters,
+        )
 
     def _transform_instructor_results(
         self,
-        raw_results: List[Dict[str, Any]],
+        raw_results: List[hydration.RawInstructorResultRow],
         parsed_query: ParsedQuery,
     ) -> List[NLSearchResultItem]:
-        """
-        Transform raw DB results into instructor-level result items.
+        from app.repositories.service_format_pricing_repository import (
+            ServiceFormatPricingRepository,
+        )
 
-        Args:
-            raw_results: Results from search_with_instructor_data
-            parsed_query: Parsed query for price filtering
-
-        Returns:
-            List of NLSearchResultItem objects
-        """
-        results: List[NLSearchResultItem] = []
-        service_ids = [
-            str(service["service_id"])
-            for row in raw_results
-            for service in (row.get("matching_services") or [])
-            if isinstance(service, dict) and service.get("service_id")
-        ]
-        service_ids = list(dict.fromkeys(service_ids))
-        format_prices_by_service: Dict[str, List[Dict[str, Any]]] = {}
-        if service_ids:
-            from app.repositories.service_format_pricing_repository import (
-                ServiceFormatPricingRepository,
-            )
-
-            try:
-                with get_db_session() as db:
-                    pricing_repo = ServiceFormatPricingRepository(db)
-                    grouped = pricing_repo.get_prices_for_services(service_ids)
-                    format_prices_by_service = {
-                        service_id: self._serialize_format_prices(price_rows)
-                        for service_id, price_rows in grouped.items()
-                    }
-            except Exception:
-                format_prices_by_service = {}
-
-        for row in raw_results:
-            # Parse matching services from JSON
-            services = row["matching_services"]
-            if not services:
-                continue
-
-            # Apply price filter if specified
-            if parsed_query.max_price:
-                services = [
-                    s
-                    for s in services
-                    if float(s.get("min_hourly_rate", 0)) <= parsed_query.max_price
-                ]
-                if not services:
-                    continue
-            match_count = len(services)
-
-            # Build best match
-            best = services[0]
-            best_format_prices = format_prices_by_service.get(str(best["service_id"]), [])
-            best_offers = self._derive_service_offers(best_format_prices)
-            best_match = ServiceMatch(
-                service_id=best["service_id"],
-                service_catalog_id=best["service_catalog_id"],
-                name=best["name"],
-                description=best.get("description"),
-                min_hourly_rate=float(best.get("min_hourly_rate", 0)),
-                format_prices=best_format_prices,
-                relevance_score=round(float(best["relevance_score"]), 3),
-                offers_travel=best_offers["offers_travel"],
-                offers_at_location=best_offers["offers_at_location"],
-                offers_online=best_offers["offers_online"],
-            )
-
-            # Build other matches (max 3)
-            other_matches = [
-                ServiceMatch(
-                    service_id=s["service_id"],
-                    service_catalog_id=s["service_catalog_id"],
-                    name=s["name"],
-                    description=s.get("description"),
-                    min_hourly_rate=float(s.get("min_hourly_rate", 0)),
-                    format_prices=format_prices_by_service.get(str(s["service_id"]), []),
-                    relevance_score=round(float(s["relevance_score"]), 3),
-                    **self._derive_service_offers(
-                        format_prices_by_service.get(str(s["service_id"]), [])
-                    ),
-                )
-                for s in services[1:4]
-            ]
-
-            # Build instructor summary
-            instructor = InstructorSummary(
-                id=row["instructor_id"],
-                first_name=row["first_name"],
-                last_initial=row["last_initial"] or "",
-                profile_picture_url=self._build_photo_url(row.get("profile_picture_key")),
-                bio_snippet=row.get("bio_snippet"),
-                verified=bool(row.get("verified", False)),
-                is_founding_instructor=bool(row.get("is_founding_instructor", False)),
-                years_experience=row.get("years_experience"),
-                teaching_locations=row.get("teaching_locations", []) or [],
-            )
-
-            # Build rating summary
-            rating = RatingSummary(
-                average=round(row["avg_rating"], 2) if row.get("avg_rating") else None,
-                count=row.get("review_count", 0),
-            )
-
-            results.append(
-                NLSearchResultItem(
-                    instructor_id=row["instructor_id"],
-                    instructor=instructor,
-                    rating=rating,
-                    coverage_areas=row.get("coverage_areas", []),
-                    best_match=best_match,
-                    other_matches=other_matches,
-                    total_matching_services=match_count,
-                    relevance_score=best_match.relevance_score,
-                )
-            )
-
-        return results
+        return hydration.transform_instructor_results(
+            raw_results=raw_results,
+            parsed_query=parsed_query,
+            get_db_session=get_db_session,
+            pricing_repository_cls=ServiceFormatPricingRepository,
+        )
 
     def _build_instructor_response(
         self,
@@ -3012,76 +1964,19 @@ class NLSearchService:
         available_content_filters: Optional[List[NLSearchContentFilterDefinition]] = None,
         budget: Optional[RequestBudget] = None,
     ) -> NLSearchResponse:
-        """
-        Build the final instructor-level response.
-
-        Args:
-            query: Original search query
-            parsed_query: Parsed query details
-            results: Transformed instructor results
-            limit: Requested limit
-            metrics: Search metrics
-
-        Returns:
-            Complete NLSearchResponse
-        """
-        # Build parsed query info
-        parsed_info = ParsedQueryInfo(
-            service_query=parsed_query.service_query,
-            location=parsed_query.location_text,
-            max_price=parsed_query.max_price,
-            date=parsed_query.date.isoformat() if parsed_query.date else None,
-            time_after=parsed_query.time_after,
-            time_before=parsed_query.time_before,
-            audience_hint=parsed_query.audience_hint,
-            skill_level=parsed_query.skill_level,
-            urgency=parsed_query.urgency,
-            lesson_type=parsed_query.lesson_type,
-            use_user_location=parsed_query.use_user_location,
-        )
-
-        # Build metadata
-        location_resolution = filter_result.location_resolution if filter_result else None
-        location_not_found = bool(getattr(location_resolution, "not_found", False))
-
-        location_resolved = self._format_location_resolved(location_resolution)
-
-        soft_filter_message: Optional[str] = None
-        if filter_result and filter_result.soft_filtering_used:
-            soft_filter_message = self._generate_soft_filter_message(
-                parsed_query,
-                filter_result.filter_stats,
-                location_resolution,
-                location_resolved,
-                relaxed_constraints=filter_result.relaxed_constraints,
-                result_count=len(results),
-            )
-
-        meta = NLSearchMeta(
+        return response.build_instructor_response(
             query=query,
-            corrected_query=parsed_query.corrected_query,
-            parsed=parsed_info,
-            total_results=len(results),
+            parsed_query=parsed_query,
+            results=results,
             limit=limit,
-            latency_ms=metrics.total_latency_ms,
-            cache_hit=metrics.cache_hit,
-            degraded=metrics.degraded,
-            degradation_reasons=metrics.degradation_reasons,
-            skipped_operations=list(budget.skipped_operations) if budget else [],
-            parsing_mode=parsed_query.parsing_mode,
-            filters_applied=filter_result.filters_applied if filter_result else [],
-            inferred_filters=inferred_filters or {},
+            metrics=metrics,
+            filter_result=filter_result,
+            inferred_filters=inferred_filters,
             effective_subcategory_id=effective_subcategory_id,
             effective_subcategory_name=effective_subcategory_name,
-            available_content_filters=available_content_filters or [],
-            soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
-            filter_stats=filter_result.filter_stats if filter_result else None,
-            soft_filter_message=soft_filter_message,
-            location_resolved=location_resolved,
-            location_not_found=location_not_found,
+            available_content_filters=available_content_filters,
+            budget=budget,
         )
-
-        return NLSearchResponse(results=results[:limit], meta=meta)
 
     def _build_search_diagnostics(
         self,
@@ -3091,7 +1986,7 @@ class NLSearchService:
         parsed_query: Optional[ParsedQuery],
         pre_data: Optional[PreOpenAIData],
         post_data: Optional[PostOpenAIData],
-        location_resolution: Optional["ResolvedLocation"],
+        location_resolution: Optional[ResolvedLocation],
         query_embedding: Optional[List[float]],
         results_count: int,
         cache_hit: bool,
@@ -3099,225 +1994,48 @@ class NLSearchService:
         candidates_flow: Dict[str, int],
         total_latency_ms: Optional[int] = None,
     ) -> SearchDiagnostics:
-        if budget is None:
-            fallback_budget = int(get_search_config().search_budget_ms)
-            budget_info = BudgetInfo(
-                initial_ms=fallback_budget,
-                remaining_ms=fallback_budget,
-                over_budget=False,
-                skipped_operations=[],
-                degradation_level="none",
-            )
-        else:
-            budget_info = BudgetInfo(
-                initial_ms=budget.total_ms,
-                remaining_ms=budget.remaining_ms,
-                over_budget=budget.is_over_budget,
-                skipped_operations=list(budget.skipped_operations),
-                degradation_level=budget.degradation_level.value,
-            )
-
-        after_text_search = candidates_flow.get("after_text_search")
-        if after_text_search is None and pre_data is not None:
-            after_text_search = len(pre_data.text_results or {})
-
-        after_vector_search = candidates_flow.get("after_vector_search")
-        if after_vector_search is None and post_data is not None:
-            after_vector_search = int(post_data.total_candidates)
-
-        initial_candidates = candidates_flow.get("initial_candidates")
-        if initial_candidates is None and post_data is not None:
-            initial_candidates = int(post_data.total_candidates)
-
-        after_location_filter = candidates_flow.get("after_location_filter")
-        after_price_filter = candidates_flow.get("after_price_filter")
-        after_availability_filter = candidates_flow.get("after_availability_filter")
-        if post_data is not None and post_data.filter_result.filter_stats:
-            stats = post_data.filter_result.filter_stats
-            if after_location_filter is None:
-                after_location_filter = stats.get("after_location")
-            if after_price_filter is None:
-                after_price_filter = stats.get("after_price")
-            if after_availability_filter is None:
-                after_availability_filter = stats.get("after_availability")
-
-        final_results = candidates_flow.get("final_results")
-        if final_results is None:
-            final_results = results_count
-
-        location_info: Optional[LocationResolutionInfo] = None
-        if parsed_query and parsed_query.location_text:
-            resolved_name = None
-            resolved_regions: Optional[List[str]] = None
-            successful_tier: Optional[int] = None
-            if location_resolution:
-                if location_resolution.region_name:
-                    resolved_name = location_resolution.region_name
-                elif location_resolution.borough:
-                    resolved_name = location_resolution.borough
-                if location_resolution.tier is not None:
-                    try:
-                        successful_tier = int(location_resolution.tier.value)
-                    except Exception:
-                        successful_tier = None
-                if location_resolution.candidates:
-                    names: List[str] = []
-                    for candidate in location_resolution.candidates:
-                        if not isinstance(candidate, dict):
-                            continue
-                        name = candidate.get("region_name")
-                        if name:
-                            names.append(str(name))
-                    if names:
-                        resolved_regions = list(dict.fromkeys(names))
-
-            location_info = LocationResolutionInfo(
-                query=parsed_query.location_text,
-                resolved_name=resolved_name,
-                resolved_regions=resolved_regions,
-                successful_tier=successful_tier,
-                tiers=[LocationTierResult(**tier) for tier in timer.location_tiers],
-            )
-
-        return SearchDiagnostics(
-            total_latency_ms=(
-                int(total_latency_ms)
-                if total_latency_ms is not None
-                else (budget.elapsed_ms if budget else 0)
-            ),
-            pipeline_stages=[PipelineStage(**stage) for stage in timer.stages],
-            budget=budget_info,
-            location_resolution=location_info,
-            initial_candidates=int(initial_candidates or 0),
-            after_text_search=int(after_text_search or 0),
-            after_vector_search=int(after_vector_search or 0),
-            after_location_filter=int(after_location_filter or 0),
-            after_price_filter=int(after_price_filter or 0),
-            after_availability_filter=int(after_availability_filter or 0),
-            final_results=int(final_results or 0),
+        return response.build_search_diagnostics(
+            timer=timer,
+            budget=budget,
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            post_data=post_data,
+            location_resolution=location_resolution,
+            query_embedding=query_embedding,
+            results_count=results_count,
             cache_hit=cache_hit,
             parsing_mode=parsing_mode,
-            embedding_used=bool(query_embedding),
-            vector_search_used=bool(post_data.vector_search_used) if post_data else False,
+            candidates_flow=candidates_flow,
+            get_search_config=get_search_config,
+            total_latency_ms=total_latency_ms,
         )
 
     def _format_location_resolved(
-        self, location_resolution: Optional["ResolvedLocation"]
+        self,
+        location_resolution: Optional[ResolvedLocation],
     ) -> Optional[str]:
-        """Format a human-friendly resolved location string for UI/debug."""
-        if not location_resolution:
-            return None
-
-        if location_resolution.resolved:
-            resolved_name = location_resolution.region_name or location_resolution.borough
-            return str(resolved_name) if resolved_name is not None else None
-
-        if not (location_resolution.requires_clarification and location_resolution.candidates):
-            return None
-
-        candidate_names: List[str] = []
-        for candidate in location_resolution.candidates:
-            if not isinstance(candidate, dict):
-                continue
-            name = candidate.get("region_name")
-            if name is None:
-                continue
-            text = str(name).strip()
-            if text:
-                candidate_names.append(text)
-
-        if not candidate_names:
-            return None
-
-        # De-dupe while preserving order for stable display.
-        seen: set[str] = set()
-        unique_names: List[str] = []
-        for name in candidate_names:
-            key = name.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            unique_names.append(name)
-
-        def _split(name: str) -> tuple[str, str]:
-            if "-" in name:
-                base, suffix = name.split("-", 1)
-                return base.strip(), suffix.strip()
-            if " (" in name and name.endswith(")"):
-                base, rest = name.split(" (", 1)
-                return base.strip(), rest[:-1].strip()
-            return "", ""
-
-        split_parts = [_split(name) for name in unique_names]
-        prefixes = {p for p, s in split_parts if p and s}
-        if prefixes and len(prefixes) == 1 and all(s for _, s in split_parts):
-            prefix = next(iter(prefixes))
-            suffixes = sorted({s for _, s in split_parts}, key=lambda s: s.lower())
-            return f"{prefix} ({', '.join(suffixes)})"
-
-        return ", ".join(unique_names[:5])
+        return response.format_location_resolved(location_resolution)
 
     def _generate_soft_filter_message(
         self,
         parsed: ParsedQuery,
         filter_stats: Dict[str, int],
-        location_resolution: Optional["ResolvedLocation"],
+        location_resolution: Optional[ResolvedLocation],
         location_resolved: Optional[str],
         *,
         relaxed_constraints: List[str],
         result_count: int,
     ) -> Optional[str]:
-        """Generate a user-facing message when soft filtering/relaxation is used."""
-        messages: List[str] = []
-
-        # Location constraint
-        if parsed.location_text:
-            if location_resolution and location_resolution.not_found:
-                messages.append(f"Couldn't find location '{parsed.location_text}'")
-            elif filter_stats.get("after_location") == 0:
-                messages.append(
-                    f"No instructors found in {location_resolved or parsed.location_text}"
-                )
-
-        # Availability constraint
-        if (parsed.date or parsed.time_after) and filter_stats.get("after_availability") == 0:
-            if parsed.date:
-                messages.append(f"No availability on {parsed.date.strftime('%A, %b %d')}")
-            else:
-                messages.append("No availability matching your time constraints")
-
-        # Price constraint
-        if parsed.max_price is not None and filter_stats.get("after_price") == 0:
-            messages.append(f"No instructors under ${parsed.max_price}")
-
-        if not messages:
-            # Even if we don't have a specific "no results" cause, still report what we relaxed.
-            messages.append("No exact matches")
-
-        location_related = any(
-            m.startswith("No instructors found in") or m.startswith("Couldn't find location")
-            for m in messages
-        ) or ("location" in relaxed_constraints)
-
-        relaxed = [c for c in relaxed_constraints if c]
-        relaxed_text = f"Relaxed: {', '.join(relaxed)}." if relaxed else None
-
-        if result_count > 0:
-            lead = (
-                f"Showing {result_count} results from nearby areas."
-                if location_related
-                else f"Showing {result_count} results."
-            )
-        else:
-            lead = "No results found."
-
-        parts = [lead, ". ".join(messages) + ".", relaxed_text]
-        return " ".join(p for p in parts if p).strip()
+        return response.generate_soft_filter_message(
+            parsed=parsed,
+            filter_stats=filter_stats,
+            location_resolution=location_resolution,
+            location_resolved=location_resolved,
+            relaxed_constraints=relaxed_constraints,
+            result_count=result_count,
+        )
 
     def _build_photo_url(self, key: Optional[str]) -> Optional[str]:
-        """Build Cloudflare R2 URL for profile photo."""
-        if not key:
-            return None
-        # Use R2 assets domain from settings
-        assets_domain = getattr(settings, "r2_public_url", "https://assets.instainstru.com")
-        return f"{assets_domain}/{key}"
+        return hydration.build_photo_url(
+            key, assets_domain=getattr(settings, "r2_public_url", None)
+        )
