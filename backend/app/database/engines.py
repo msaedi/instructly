@@ -44,12 +44,10 @@ def _pool_recycle_seconds() -> int:
 def _build_connect_args(
     *,
     db_url: str,
-    statement_timeout_ms: int,
     connect_timeout: int,
 ) -> dict[str, Any]:
     args = dict(_BASE_CONNECT_ARGS)
     args["connect_timeout"] = connect_timeout
-    args["options"] = f"-c statement_timeout={statement_timeout_ms}"
     if not _should_require_ssl(db_url):
         args.pop("sslmode", None)
     return args
@@ -119,10 +117,18 @@ def _create_engine(
         future=True,
         connect_args=_build_connect_args(
             db_url=db_url,
-            statement_timeout_ms=statement_timeout_ms,
             connect_timeout=connect_timeout,
         ),
     )
+
+    def _set_statement_timeout(dbapi_connection: Any, _connection_record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute(f"SET statement_timeout = {statement_timeout_ms}")
+        finally:
+            cursor.close()
+
+    event.listen(engine, "connect", _set_statement_timeout)
     _add_pool_events(engine, pool_name)
     return engine
 

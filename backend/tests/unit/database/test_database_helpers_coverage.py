@@ -16,17 +16,17 @@ def test_should_require_ssl() -> None:
 
 
 def test_build_connect_args_non_supabase() -> None:
-    args = engines_module._build_connect_args(
-        db_url="postgresql://localhost/db", statement_timeout_ms=15000, connect_timeout=5
-    )
+    args = engines_module._build_connect_args(db_url="postgresql://localhost/db", connect_timeout=5)
     assert "sslmode" not in args
+    assert "options" not in args
 
 
 def test_build_connect_args_supabase() -> None:
     args = engines_module._build_connect_args(
-        db_url="postgresql://db.supabase.net/db", statement_timeout_ms=15000, connect_timeout=5
+        db_url="postgresql://db.supabase.net/db", connect_timeout=5
     )
     assert args.get("sslmode") == "require"
+    assert "options" not in args
 
 
 def test_retryable_db_error_detection() -> None:
@@ -438,14 +438,13 @@ def test_get_db_with_retry_handles_transient(monkeypatch) -> None:
     assert session.committed is True
 
 
-def test_build_connect_args_respects_timeouts() -> None:
+def test_build_connect_args_preserves_connect_timeout_without_options() -> None:
     args = engines_module._build_connect_args(
         db_url="postgresql://db.supabase.net/db",
-        statement_timeout_ms=12345,
         connect_timeout=7,
     )
-    assert args["options"] == "-c statement_timeout=12345"
     assert args["connect_timeout"] == 7
+    assert "options" not in args
 
 
 def test_should_require_ssl_handles_parse_error(monkeypatch) -> None:

@@ -41,8 +41,6 @@ DATABASE_POOL_CONFIG = {
         "keepalives_count": 3,
         "connect_timeout": 5,
         "application_name": "instainstru_render",
-        # Reduced from 30s to 15s - fail fast on slow queries
-        "options": "-c statement_timeout=15000",
     },
 }
 
