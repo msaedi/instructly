@@ -34,7 +34,7 @@ anyio==4.12.1
 
 # HTTP Client
 httpx==0.28.1
-requests==2.33.0
+requests==2.33.1
 
 # Email
 resend==2.26.0
