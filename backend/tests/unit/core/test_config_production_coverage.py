@@ -66,12 +66,11 @@ class TestDatabasePoolConfig:
         assert "keepalives_interval" in connect_args
         assert "keepalives_count" in connect_args
 
-    def test_statement_timeout_is_set(self):
-        """Test statement timeout is set in options."""
+    def test_connect_args_do_not_use_options(self):
+        """Test statement timeout is not configured via startup options."""
         from app.core.config_production import DATABASE_POOL_CONFIG
 
-        options = DATABASE_POOL_CONFIG["connect_args"]["options"]
-        assert "statement_timeout" in options
+        assert "options" not in DATABASE_POOL_CONFIG["connect_args"]
 
 
 class TestRedisConfig:

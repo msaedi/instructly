@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from app.database.engines import (
     _build_connect_args,
+    _create_engine,
     _pool_recycle_seconds,
     _should_require_ssl,
     get_engine_for_role,
@@ -39,21 +40,54 @@ class TestBuildConnectArgs:
     def test_supabase_url_includes_sslmode(self) -> None:
         args = _build_connect_args(
             db_url="postgresql://db.abc123.supabase.co:5432/db",
-            statement_timeout_ms=30000,
             connect_timeout=5,
         )
         assert args["sslmode"] == "require"
         assert args["connect_timeout"] == 5
-        assert "-c statement_timeout=30000" in args["options"]
+        assert "options" not in args
 
     def test_localhost_url_strips_sslmode(self) -> None:
         args = _build_connect_args(
             db_url="postgresql://localhost:5432/db",
-            statement_timeout_ms=15000,
             connect_timeout=10,
         )
         assert "sslmode" not in args
         assert args["connect_timeout"] == 10
+        assert "options" not in args
+
+    def test_create_engine_registers_statement_timeout_listener(self) -> None:
+        fake_engine = MagicMock()
+        listeners: list[tuple[str, object]] = []
+        dbapi_connection = MagicMock()
+        cursor = dbapi_connection.cursor.return_value
+
+        def _capture_listener(_target, name, fn):
+            listeners.append((name, fn))
+
+        with (
+            patch("app.database.engines.settings") as mock_settings,
+            patch("app.database.engines.create_engine", return_value=fake_engine),
+            patch("app.database.engines._add_pool_events"),
+            patch("app.database.engines._pool_recycle_seconds", return_value=45),
+            patch("app.database.engines.event.listen", side_effect=_capture_listener),
+        ):
+            mock_settings.get_database_url.return_value = "postgresql://db.supabase.net/postgres"
+            _create_engine(
+                pool_size=1,
+                max_overflow=2,
+                pool_timeout=3,
+                statement_timeout_ms=12345,
+                connect_timeout=7,
+                pool_name="API",
+            )
+
+        assert listeners
+        assert len(listeners) == 1
+        assert listeners[0][0] == "connect"
+        listener = listeners[0][1]
+        listener(dbapi_connection, MagicMock())
+        cursor.execute.assert_called_once_with("SET statement_timeout = 12345")
+        cursor.close.assert_called_once()
 
 
 class TestPoolRecycleSeconds:
