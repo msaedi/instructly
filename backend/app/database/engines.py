@@ -122,11 +122,14 @@ def _create_engine(
     )
 
     def _set_statement_timeout(dbapi_connection: Any, _connection_record: Any) -> None:
+        old_autocommit = dbapi_connection.autocommit
+        dbapi_connection.autocommit = True
         cursor = dbapi_connection.cursor()
         try:
-            cursor.execute(f"SET statement_timeout = {statement_timeout_ms}")
+            cursor.execute("SET statement_timeout = %s", (statement_timeout_ms,))
         finally:
             cursor.close()
+            dbapi_connection.autocommit = old_autocommit
 
     event.listen(engine, "connect", _set_statement_timeout)
     _add_pool_events(engine, pool_name)

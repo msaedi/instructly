@@ -80,11 +80,14 @@ def run_migrations_online() -> None:
     )
 
     def _disable_statement_timeout(dbapi_connection, _connection_record) -> None:
+        old_autocommit = dbapi_connection.autocommit
+        dbapi_connection.autocommit = True
         cursor = dbapi_connection.cursor()
         try:
-            cursor.execute("SET statement_timeout = 0")
+            cursor.execute("SET statement_timeout = %s", (0,))
         finally:
             cursor.close()
+            dbapi_connection.autocommit = old_autocommit
 
     event.listen(connectable, "connect", _disable_statement_timeout)
 

@@ -59,10 +59,16 @@ class TestBuildConnectArgs:
         fake_engine = MagicMock()
         listeners: list[tuple[str, object]] = []
         dbapi_connection = MagicMock()
+        dbapi_connection.autocommit = False
         cursor = dbapi_connection.cursor.return_value
 
         def _capture_listener(_target, name, fn):
             listeners.append((name, fn))
+
+        def _assert_execute(sql, params):
+            assert dbapi_connection.autocommit is True
+            assert sql == "SET statement_timeout = %s"
+            assert params == (12345,)
 
         with (
             patch("app.database.engines.settings") as mock_settings,
@@ -85,9 +91,11 @@ class TestBuildConnectArgs:
         assert len(listeners) == 1
         assert listeners[0][0] == "connect"
         listener = listeners[0][1]
+        cursor.execute.side_effect = _assert_execute
         listener(dbapi_connection, MagicMock())
-        cursor.execute.assert_called_once_with("SET statement_timeout = 12345")
+        cursor.execute.assert_called_once_with("SET statement_timeout = %s", (12345,))
         cursor.close.assert_called_once()
+        assert dbapi_connection.autocommit is False
 
 
 class TestPoolRecycleSeconds:
