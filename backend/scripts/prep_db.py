@@ -51,11 +51,9 @@ if len(sys.argv) > 1:
         }[candidate_mode]
         os.environ.setdefault("SITE_MODE", "local" if mapped_mode == "stg" else mapped_mode)
 
-# Import settings after dotenv so local overrides take effect
-from scripts.seed_chat_fixture import seed_chat_fixture_booking
-
 from app.core.config import settings
-from app.database import SessionLocal
+from app.core.database_config import DatabaseConfig
+from app.utils.database_safety import check_hosted_database
 from app.utils.env_logging import (
     log_info as color_log_info,
     log_warn as color_log_warn,
@@ -281,47 +279,102 @@ ENV_URL_VARS = {
     "preview": ("DATABASE_URL_PREVIEW", "PREVIEW_DATABASE_URL", "preview_database_url"),
     "prod": ("DATABASE_URL_PROD", "PROD_DATABASE_URL", "PRODUCTION_DATABASE_URL", "prod_database_url"),
 }
-
-SERVICE_ENV_URL_VARS = {
-    "preview": ("PREVIEW_SERVICE_DATABASE_URL", "preview_service_database_url"),
-    "prod": ("PROD_SERVICE_DATABASE_URL", "prod_service_database_url"),
+SITE_MODE_BY_ENV = {
+    "int": "int",
+    "stg": "local",
+    "preview": "preview",
+    "prod": "prod",
+}
+CANONICAL_DB_ENV_BY_MODE = {
+    "int": "TEST_DATABASE_URL",
+    "stg": "STG_DATABASE_URL",
+    "preview": "PREVIEW_DATABASE_URL",
+    "prod": "PROD_DATABASE_URL",
+}
+REQUIRED_DB_ENV_BY_MODE = {
+    "stg": (("STG_DATABASE_URL", "LOCAL_DATABASE_URL"), "STG_DATABASE_URL or LOCAL_DATABASE_URL"),
+    "preview": (("PREVIEW_DATABASE_URL",), "PREVIEW_DATABASE_URL"),
+    "prod": (("PROD_DATABASE_URL",), "PROD_DATABASE_URL"),
 }
 
 
-def resolve_db_url(mode: str) -> str:
-    """Resolve DB URL using env overrides first, then settings fields."""
+def _promote_database_url_aliases(mode: str) -> None:
+    canonical_var = CANONICAL_DB_ENV_BY_MODE[mode]
+    if mode in {"preview", "prod"} and canonical_var in os.environ:
+        return
     for key in ENV_URL_VARS.get(mode, ()):  # try lowercase/uppercase variants
         value = os.getenv(key)
         if value:
-            return value
+            os.environ[canonical_var] = value
+            return
         value = os.getenv(key.upper())
         if value:
-            return value
+            os.environ[canonical_var] = value
+            return
 
+
+def is_ci_environment() -> bool:
+    return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
+
+
+def _require_explicit_database_url(mode: str) -> None:
+    if mode == "int":
+        return
+
+    required_vars, display_name = REQUIRED_DB_ENV_BY_MODE[mode]
+    os.environ.pop("DATABASE_URL", None)
+    os.environ.pop("database_url", None)
+
+    if any((os.getenv(var) or "").strip() for var in required_vars):
+        return
+
+    sys.exit(
+        f"ERROR: {display_name} is not set. Cannot target '{mode}' without an explicit database URL. "
+        "Generic DATABASE_URL fallback is not allowed for non-INT modes."
+    )
+
+
+def get_database_url_for_mode(mode: str, *, allow_prod_bypass: bool = False) -> str:
+    """Resolve the database URL through DatabaseConfig after normalizing aliases."""
+    os.environ.pop("DB_CONFIRM_BYPASS", None)
+    if allow_prod_bypass and mode == "prod":
+        os.environ["DB_CONFIRM_BYPASS"] = "1"
+    _promote_database_url_aliases(mode)
+    _require_explicit_database_url(mode)
+    os.environ["SITE_MODE"] = SITE_MODE_BY_ENV[mode]
+    try:
+        return DatabaseConfig().get_database_url()
+    finally:
+        if allow_prod_bypass and mode == "prod":
+            os.environ.pop("DB_CONFIRM_BYPASS", None)
+
+
+def enforce_ci_guard(mode: str, dry_run: bool) -> None:
+    if is_ci_environment() and mode != "int" and not dry_run:
+        sys.exit("ERROR: Non-INT environment not allowed in CI. Aborting.")
+
+
+def grant_downstream_prod_access(mode: str) -> None:
+    # This is a post-validation grant for downstream runtime imports that need
+    # production DB access after this script has already enforced its own guards.
     if mode == "prod":
-        return settings.prod_database_url_raw or ""
-    if mode == "preview":
-        return settings.preview_database_url_raw or ""
-    if mode == "stg":
-        return settings.stg_database_url or settings.prod_database_url_raw or ""
-    # int/default
-    return settings.test_database_url
+        os.environ["DB_CONFIRM_BYPASS"] = "1"
 
 
-def resolve_service_db_url(mode: str) -> str:
-    for key in SERVICE_ENV_URL_VARS.get(mode, ()):  # try lowercase/uppercase variants
-        value = os.getenv(key)
-        if value:
-            return value
-        value = os.getenv(key.upper())
-        if value:
-            return value
+def get_session_local():
+    # Keep DB-initializing imports out of module scope so main() owns safety.
+    from app.database import SessionLocal as runtime_session_local
 
-    if mode == "prod":
-        return settings.prod_service_database_url_raw or ""
-    if mode == "preview":
-        return settings.preview_service_database_url_raw or ""
-    return ""
+    return runtime_session_local
+
+
+def get_seed_chat_fixture_booking():
+    # This module can indirectly touch the DB layer, so import it lazily.
+    from scripts.seed_chat_fixture import (
+        seed_chat_fixture_booking as runtime_seed_chat_fixture_booking,
+    )
+
+    return runtime_seed_chat_fixture_booking
 
 
 # ---------- ops ----------
@@ -356,7 +409,7 @@ def _mode_env(mode: str) -> dict:
     return {"SITE_MODE": site_mode}
 
 
-def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional[str] = None):
+def seed_system_data(db_url: str, dry_run: bool, mode: str):
     if dry_run:
         info("dry", f"(dry-run) Would seed SYSTEM data on {redact(db_url)}")
         info(
@@ -368,11 +421,10 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
         return
     info("seed", "Seeding SYSTEM data…")
     # Roles/permissions and catalog + regions
-    target = seed_db_url or db_url
-    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": target}
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
     with perf_timer("Seed System Data"):
         subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
-    engine = create_engine(target)
+    engine = create_engine(db_url)
     try:
         with Session(engine) as session:
             populate_region_embeddings(session, dry_run=dry_run)
@@ -380,13 +432,12 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
         engine.dispose()
 
 
-def seed_mock_users(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional[str] = None):
+def seed_mock_users(db_url: str, dry_run: bool, mode: str):
     if dry_run:
         info("dry", f"(dry-run) Would seed MOCK users on {redact(db_url)}")
         return
     info("seed", "Seeding MOCK users/instructors/bookings…")
-    target = seed_db_url or db_url
-    os.environ["DATABASE_URL"] = target
+    os.environ["DATABASE_URL"] = db_url
     env_snapshot_json = snapshot_to_json(build_env_snapshot(mode))
     trace_message("seed_mock_users:start", env_snapshot_json)
 
@@ -454,7 +505,7 @@ def _run_bitmap_backfill(backfill_days: int, dry_run: bool, banner_prefix: str) 
 
     from scripts.backfill_bitmaps import backfill_bitmaps_range
 
-    from app.database import SessionLocal
+    SessionLocal = get_session_local()
 
     with perf_timer("Bitmap Backfill", lambda: f"days={backfill_days}"):
         with SessionLocal() as session:
@@ -637,7 +688,6 @@ def run_seed_all_pipeline(
     *,
     mode: str,
     db_url: str,
-    seed_db_url: str,
     migrate: bool,
     dry_run: bool,
     env_snapshot: dict[str, str],
@@ -720,7 +770,7 @@ def run_seed_all_pipeline(
         log_summary("resetting mock dataset (idempotent cleanup)")
         with perf_timer("Reset Database"):
             mock_seeder.reset_database()
-        seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
+        seed_system_data(db_url, dry_run, mode)
         system_data_seeded = True
         log_summary("seeding instructor baseline prior to bitmap pipeline")
         with perf_timer("Create Instructors"):
@@ -776,7 +826,7 @@ def run_seed_all_pipeline(
 
     # Ensure system data seeded before mock stages
     if not dry_run and not system_data_seeded:
-        seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
+        seed_system_data(db_url, dry_run, mode)
         system_data_seeded = True
 
     # Phase 4: Mock users + bookings + reviews
@@ -946,6 +996,8 @@ def run_seed_all_pipeline(
                 warn("chat fixture config contains invalid integers; skipping fixture seeding")
             else:
                 try:
+                    seed_chat_fixture_booking = get_seed_chat_fixture_booking()
+                    session_local = get_session_local()
                     with perf_timer("Seed Chat Fixture"):
                         fixture_status = seed_chat_fixture_booking(
                             instructor_email=os.getenv("CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"),
@@ -956,7 +1008,7 @@ def run_seed_all_pipeline(
                             days_ahead_max=days_ahead_max,
                             location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral_location"),
                             service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
-                            session_factory=SessionLocal,
+                            session_factory=session_local,
                         )
                     if fixture_status == "error":
                         warn("chat fixture booking encountered an error; see log output above.")
@@ -1565,9 +1617,10 @@ to control the mock-data phases (stg/int default to include).
             "Legacy flags (USE_*_DATABASE) are deprecated. Use SITE_MODE or positional env. This mapping will be removed."
         )
 
-    db_url = resolve_db_url(mode)
-    service_db_url = resolve_service_db_url(mode)
-    seed_db_url = service_db_url or db_url
+    enforce_ci_guard(mode, args.dry_run)
+    ci_dry_run = is_ci_environment() and args.dry_run
+
+    db_url = get_database_url_for_mode(mode, allow_prod_bypass=ci_dry_run)
     if not db_url:
         missing = {
             "stg": "stg_database_url",
@@ -1588,6 +1641,9 @@ to control the mock-data phases (stg/int default to include).
         os.environ["PREVIEW_DATABASE_URL"] = db_url
     else:
         os.environ["PROD_DATABASE_URL"] = db_url
+
+    if not (ci_dry_run and mode == "prod"):
+        check_hosted_database(mode, db_url)
 
     # verify env marker (optional)
     if args.verify_env:
@@ -1626,6 +1682,8 @@ to control the mock-data phases (stg/int default to include).
                 info("prod", "Operation cancelled.")
                 sys.exit(0)
 
+    grant_downstream_prod_access(mode)
+
     if args.seed_availability_only and args.seed_reviews_only:
         fail("Cannot combine --seed-availability-only with --seed-reviews-only.")
 
@@ -1662,8 +1720,6 @@ to control the mock-data phases (stg/int default to include).
     )
 
     info("db", f"Using URL for migrations: {redact(db_url)}")
-    if seed_db_url != db_url:
-        info("db", f"Using seed connection override: {redact(seed_db_url)}")
 
     seed_availability_enabled = os.getenv("SEED_AVAILABILITY", "0").lower() in {"1", "true", "yes"}
 
@@ -1691,7 +1747,6 @@ to control the mock-data phases (stg/int default to include).
             pipeline_stats = run_seed_all_pipeline(
                 mode=mode,
                 db_url=db_url,
-                seed_db_url=seed_db_url,
                 migrate=args.migrate,
                 dry_run=args.dry_run,
                 env_snapshot=env_snapshot,
@@ -1718,9 +1773,9 @@ to control the mock-data phases (stg/int default to include).
             if run_availability_step:
                 steps.append(("Seed bitmap availability/backfill", lambda: run_availability_pipeline(mode, args.dry_run)))
             if perform_system_seed:
-                steps.append(("Seed system data", lambda: seed_system_data(db_url, args.dry_run, mode, seed_db_url=seed_db_url)))
+                steps.append(("Seed system data", lambda: seed_system_data(db_url, args.dry_run, mode)))
             if perform_mock_seed:
-                steps.append(("Seed mock users, bookings, reviews", lambda: seed_mock_users(db_url, args.dry_run, mode, seed_db_url=seed_db_url)))
+                steps.append(("Seed mock users, bookings, reviews", lambda: seed_mock_users(db_url, args.dry_run, mode)))
 
             if steps:
                 info("pipeline", "Executing seeding pipeline in the following order:")
@@ -1759,7 +1814,7 @@ to control the mock-data phases (stg/int default to include).
                 info("seed", "Warming NL search cache with popular queries…")
                 from scripts.seed_popular_queries import warm_queries  # noqa: E402
 
-                engine = create_engine(seed_db_url)
+                engine = create_engine(db_url)
                 try:
                     with Session(engine) as session:
                         stats = asyncio.run(
@@ -1782,8 +1837,6 @@ to control the mock-data phases (stg/int default to include).
         perf_summary()
     except subprocess.CalledProcessError as e:
         perf_summary()  # Still print summary on failure
-        if mode in {"prod", "preview"} and not service_db_url:
-            warn("Command failed; consider setting a service-role DSN (e.g., PROD_SERVICE_DATABASE_URL) for seeding.")
         fail(f"External command failed with exit code {e.returncode}")
     except KeyboardInterrupt:
         perf_summary()  # Still print summary on interrupt

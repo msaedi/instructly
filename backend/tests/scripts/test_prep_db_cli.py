@@ -8,13 +8,27 @@ import scripts.prep_db as prep_db
 
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("database_url", raising=False)
     monkeypatch.delenv("DATABASE_URL_PROD", raising=False)
     monkeypatch.delenv("PROD_DATABASE_URL", raising=False)
-    monkeypatch.delenv("PROD_SERVICE_DATABASE_URL", raising=False)
+    monkeypatch.delenv("PRODUCTION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("prod_database_url", raising=False)
+    monkeypatch.delenv("PREVIEW_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_PREVIEW", raising=False)
+    monkeypatch.delenv("preview_database_url", raising=False)
+    monkeypatch.delenv("STG_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_STG", raising=False)
+    monkeypatch.delenv("LOCAL_DATABASE_URL", raising=False)
+    monkeypatch.delenv("local_database_url", raising=False)
+    monkeypatch.delenv("stg_database_url", raising=False)
+    monkeypatch.delenv("DB_CONFIRM_BYPASS", raising=False)
     monkeypatch.delenv("SITE_MODE", raising=False)
     monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
     monkeypatch.delenv("ADMIN_EMAIL", raising=False)
     monkeypatch.setenv("PROD_DATABASE_URL", "postgresql://user:pass@localhost:5432/prod_db")
+    monkeypatch.setenv("PREVIEW_DATABASE_URL", "postgresql://user:pass@localhost:5432/preview_db")
+    monkeypatch.setenv("STG_DATABASE_URL", "postgresql://user:pass@localhost:5432/stg_db")
     monkeypatch.setenv("ADMIN_PASSWORD", "Test1234!")
     monkeypatch.setenv("ADMIN_EMAIL", "admin@example.com")
 
@@ -33,6 +47,19 @@ def _execute(monkeypatch, args):
     monkeypatch.setattr(prep_db, "generate_embeddings", record("embeddings"))
     monkeypatch.setattr(prep_db, "calculate_analytics", record("analytics"))
     monkeypatch.setattr(prep_db, "clear_cache", record("cache"))
+
+    class DummyDatabaseConfig:
+        def get_database_url(self):
+            site_mode = (os.environ.get("SITE_MODE") or "").strip().lower()
+            if site_mode == "prod":
+                return os.environ.get("PROD_DATABASE_URL", "")
+            if site_mode == "preview":
+                return os.environ.get("PREVIEW_DATABASE_URL", "")
+            if site_mode in {"local", "stg", "stage", "staging"}:
+                return os.environ.get("STG_DATABASE_URL") or os.environ.get("LOCAL_DATABASE_URL", "")
+            return os.environ.get("TEST_DATABASE_URL", "postgresql://user:pass@localhost:5432/instainstru_test")
+
+    monkeypatch.setattr(prep_db, "DatabaseConfig", DummyDatabaseConfig)
 
     class DummyResult:
         def fetchall(self):
@@ -115,15 +142,6 @@ def _execute(monkeypatch, args):
 
         def create_students(self):
             calls.append(("create_students", (), {}))
-            if not self._seed_mock_logged:
-                calls.append(
-                    (
-                        "seed_mock",
-                        (),
-                        {"seed_db_url": os.getenv("PROD_SERVICE_DATABASE_URL")},
-                    )
-                )
-                self._seed_mock_logged = True
             return 0
 
         def create_availability(self):
@@ -172,16 +190,121 @@ def test_prod_seed_all_default_skips_mock(monkeypatch):
 
 
 def test_prod_seed_all_prod_invokes_mock(monkeypatch):
-    monkeypatch.setenv("PROD_SERVICE_DATABASE_URL", "postgresql://service:pass@localhost:5432/prod_db_service")
     calls = _execute(monkeypatch, ["prod", "--seed-all-prod", "--force", "--yes"])
     tags = [tag for tag, *_ in calls]
     assert "seed_system" in tags
-    assert "seed_mock" in tags
+    assert "create_students" in tags
     assert "beta_seed" in tags
-    # Ensure service DSN propagated
-    seed_mock_call = next(entry for entry in calls if entry[0] == "seed_mock")
-    kwargs = seed_mock_call[2]
-    assert kwargs.get("seed_db_url") == "postgresql://service:pass@localhost:5432/prod_db_service"
+
+
+def test_ci_guard_blocks_non_int(monkeypatch):
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr(sys, "argv", ["prep_db.py", "prod"])
+
+    with pytest.raises(SystemExit, match="ERROR: Non-INT environment not allowed in CI. Aborting."):
+        prep_db.main()
+
+
+def test_ci_dry_run_allows_non_int(monkeypatch):
+    monkeypatch.setenv("CI", "true")
+
+    calls = _execute(monkeypatch, ["preview", "--migrate", "--dry-run"])
+
+    assert [tag for tag, *_ in calls] == ["migrate", "embeddings", "analytics", "cache"]
+
+
+def test_ci_dry_run_allows_prod_with_hosted_url(monkeypatch):
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv(
+        "PROD_DATABASE_URL",
+        "postgresql://user:pass@db.project.supabase.com:5432/postgres",
+    )
+
+    calls = _execute(monkeypatch, ["prod", "--migrate", "--dry-run"])
+
+    assert [tag for tag, *_ in calls] == ["migrate", "embeddings", "analytics", "cache"]
+
+
+def test_database_url_prod_alias_is_promoted_for_database_config(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL_PROD", "postgresql://user:pass@localhost:5432/prod_alias_db")
+    monkeypatch.delenv("PROD_DATABASE_URL", raising=False)
+    monkeypatch.setenv("DB_CONFIRM_BYPASS", "1")
+
+    captured = {}
+
+    class DummyDatabaseConfig:
+        def get_database_url(self):
+            captured["site_mode"] = os.environ.get("SITE_MODE")
+            captured["prod_database_url"] = os.environ.get("PROD_DATABASE_URL")
+            captured["db_confirm_bypass"] = os.environ.get("DB_CONFIRM_BYPASS")
+            return os.environ["PROD_DATABASE_URL"]
+
+    monkeypatch.setattr(prep_db, "DatabaseConfig", DummyDatabaseConfig)
+
+    assert prep_db.get_database_url_for_mode("prod") == "postgresql://user:pass@localhost:5432/prod_alias_db"
+    assert captured == {
+        "site_mode": "prod",
+        "prod_database_url": "postgresql://user:pass@localhost:5432/prod_alias_db",
+        "db_confirm_bypass": None,
+    }
+
+
+def test_preview_requires_explicit_database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/wrong_db")
+    monkeypatch.setenv("PREVIEW_DATABASE_URL", "")
+    monkeypatch.setenv("DATABASE_URL_PREVIEW", "postgresql://user:pass@localhost:5432/preview_alias_db")
+    monkeypatch.setenv("preview_database_url", "postgresql://user:pass@localhost:5432/preview_alias_db")
+
+    with pytest.raises(
+        SystemExit,
+        match=(
+            "ERROR: PREVIEW_DATABASE_URL is not set. Cannot target 'preview' without an explicit "
+            "database URL. Generic DATABASE_URL fallback is not allowed for non-INT modes."
+        ),
+    ):
+        prep_db.get_database_url_for_mode("preview")
+
+    assert os.environ.get("DATABASE_URL") is None
+
+
+def test_preview_resolution_clears_generic_database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/wrong_db")
+    captured = {}
+
+    class DummyDatabaseConfig:
+        def get_database_url(self):
+            captured["database_url"] = os.environ.get("DATABASE_URL")
+            captured["preview_database_url"] = os.environ.get("PREVIEW_DATABASE_URL")
+            return os.environ["PREVIEW_DATABASE_URL"]
+
+    monkeypatch.setattr(prep_db, "DatabaseConfig", DummyDatabaseConfig)
+
+    assert prep_db.get_database_url_for_mode("preview") == "postgresql://user:pass@localhost:5432/preview_db"
+    assert captured == {
+        "database_url": None,
+        "preview_database_url": "postgresql://user:pass@localhost:5432/preview_db",
+    }
+
+
+def test_database_url_prod_ci_dry_run_grants_temporary_bypass(monkeypatch):
+    monkeypatch.setenv("PROD_DATABASE_URL", "postgresql://user:pass@localhost:5432/prod_db")
+    monkeypatch.delenv("DB_CONFIRM_BYPASS", raising=False)
+
+    captured = {}
+
+    class DummyDatabaseConfig:
+        def get_database_url(self):
+            captured["db_confirm_bypass"] = os.environ.get("DB_CONFIRM_BYPASS")
+            return os.environ["PROD_DATABASE_URL"]
+
+    monkeypatch.setattr(prep_db, "DatabaseConfig", DummyDatabaseConfig)
+
+    assert (
+        prep_db.get_database_url_for_mode("prod", allow_prod_bypass=True)
+        == "postgresql://user:pass@localhost:5432/prod_db"
+    )
+    assert captured["db_confirm_bypass"] == "1"
+    assert os.environ.get("DB_CONFIRM_BYPASS") is None
 
 
 def test_beta_access_not_seeded_without_flag(monkeypatch):

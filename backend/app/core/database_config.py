@@ -120,10 +120,9 @@ class DatabaseConfig:
         Priority order:
         1. If pytest is detected, force INT (for safety)
         2. If CI environment + DATABASE_URL provided, use it
-        3. If USE_PROD_DATABASE=true, use production (with confirmation)
-        4. If USE_STG_DATABASE=true, use staging
-        5. Auto-detect environment and suggest appropriate database
-        6. Default: use INT (integration test database)
+        3. If SITE_MODE explicitly selects an environment, use that path
+        4. Auto-detect environment and suggest appropriate database
+        5. Default: use INT (integration test database)
 
         Returns:
             str: The selected database URL
@@ -363,22 +362,18 @@ class DatabaseConfig:
         """
         Get production database URL with safety checks.
 
-        Requires interactive confirmation to prevent accidents, unless running
-        in production server mode.
+        Requires interactive confirmation to prevent accidents unless an
+        explicit runtime bypass is set for managed production processes.
         """
-        # Check if we're in production server mode
-        is_production_server = self._check_production_mode()
-
-        if is_production_server:
-            # Production servers can access without confirmation
-            logger.info("Production server mode detected - allowing production database access")
-            scripts_log_info("prod", "Production server accessing production database")
+        if self._should_bypass_production_confirmation():
+            logger.info("DB_CONFIRM_BYPASS detected - allowing production database access")
+            scripts_log_info("prod", "Managed runtime accessing production database")
             self._audit_log_operation(
-                "production_server_access",
+                "production_access_bypass",
                 {
                     "url": self._mask_url(self.prod_url),
-                    "production_mode": True,
-                    "environment": os.getenv("INSTAINSTRU_PRODUCTION_MODE", "auto-detected"),
+                    "bypass": "DB_CONFIRM_BYPASS",
+                    "site_mode": os.getenv("SITE_MODE", ""),
                 },
             )
             return self.prod_url
@@ -400,7 +395,7 @@ class DatabaseConfig:
             raise RuntimeError(
                 "Production database access requested in non-interactive mode. "
                 "Production access requires interactive confirmation. "
-                "For production servers, set INSTAINSTRU_PRODUCTION_MODE=true"
+                "For managed runtimes, set DB_CONFIRM_BYPASS=1"
             )
 
         # Require confirmation
@@ -415,6 +410,9 @@ class DatabaseConfig:
             "production_access_granted", {"url": self._mask_url(self.prod_url)}
         )
         return self.prod_url
+
+    def _should_bypass_production_confirmation(self) -> bool:
+        return os.getenv("DB_CONFIRM_BYPASS", "").strip().lower() in {"1", "true", "yes"}
 
     def validate_configuration(self) -> None:
         """

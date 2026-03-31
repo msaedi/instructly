@@ -102,7 +102,6 @@ def test_seed_all_seeds_tier_maintenance_after_students(monkeypatch, capsys):
     stats = prep_db.run_seed_all_pipeline(
         mode="int",
         db_url="postgresql://user:pass@localhost/db",
-        seed_db_url="postgresql://user:pass@localhost/db",
         migrate=False,
         dry_run=False,
         env_snapshot=prep_db.build_env_snapshot("int"),
