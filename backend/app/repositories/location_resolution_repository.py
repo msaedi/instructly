@@ -45,11 +45,16 @@ class LocationResolutionRepository:
             )
             return region if isinstance(region, RegionBoundary) else None
         except Exception as exc:
-            logger.debug("Exact region lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Exact region lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback exact region lookup", exc_info=True)
             return None
 
     def find_trusted_alias(self, normalized: str) -> Optional[LocationAlias]:
@@ -81,11 +86,16 @@ class LocationResolutionRepository:
             )
             return alias_row if isinstance(alias_row, LocationAlias) else None
         except Exception as exc:
-            logger.debug("Trusted alias lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Trusted alias lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback trusted alias lookup", exc_info=True)
             return None
 
     def find_cached_alias(
@@ -108,11 +118,16 @@ class LocationResolutionRepository:
             alias_row = query.first()
             return alias_row if isinstance(alias_row, LocationAlias) else None
         except Exception as exc:
-            logger.debug("Cached alias lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Cached alias lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback cached alias lookup", exc_info=True)
             return None
 
     def increment_alias_user_count(self, alias_row: LocationAlias) -> None:
@@ -121,15 +136,16 @@ class LocationResolutionRepository:
             alias_row.user_count = int(alias_row.user_count or 0) + 1
             self.db.flush()
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Failed to increment alias user_count for '%s': %s",
                 alias_row.alias_normalized,
                 str(exc),
+                exc_info=True,
             )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback alias user_count increment", exc_info=True)
 
     def get_region_by_id(self, region_id: str) -> Optional[RegionBoundary]:
         """Fetch a RegionBoundary by id within this region_code."""
@@ -144,11 +160,16 @@ class LocationResolutionRepository:
             )
             return region if isinstance(region, RegionBoundary) else None
         except Exception as exc:
-            logger.debug("Region lookup failed for '%s': %s", region_id, str(exc))
+            logger.warning(
+                "Region lookup failed for '%s': %s",
+                region_id,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback region lookup", exc_info=True)
             return None
 
     def get_regions_by_ids(self, region_ids: list[str]) -> list[RegionBoundary]:
@@ -166,11 +187,11 @@ class LocationResolutionRepository:
             )
             return [r for r in regions if isinstance(r, RegionBoundary)]
         except Exception as exc:
-            logger.debug("Bulk region lookup failed: %s", str(exc))
+            logger.warning("Bulk region lookup failed: %s", str(exc), exc_info=True)
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback bulk region lookup", exc_info=True)
             return []
 
     def list_regions(self, *, limit: int = 2000) -> list[RegionBoundary]:
@@ -192,11 +213,11 @@ class LocationResolutionRepository:
             )
             return [r for r in rows if isinstance(r, RegionBoundary)]
         except Exception as exc:
-            logger.debug("Region list failed: %s", str(exc))
+            logger.warning("Region list failed: %s", str(exc), exc_info=True)
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback region list query", exc_info=True)
             return []
 
     def find_best_fuzzy_region(
@@ -231,11 +252,16 @@ class LocationResolutionRepository:
             return region, float(row.sim or 0.0)
         except Exception as exc:
             # Most commonly: pg_trgm not enabled in the environment.
-            logger.debug("Fuzzy region lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Fuzzy region lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback fuzzy region lookup", exc_info=True)
             return None, 0.0
 
     def get_best_fuzzy_score(self, normalized: str) -> float:
@@ -260,11 +286,16 @@ class LocationResolutionRepository:
             ).first()
             return float(row.max_sim or 0.0) if row else 0.0
         except Exception as exc:
-            logger.debug("Best fuzzy score lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Best fuzzy score lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback fuzzy score lookup", exc_info=True)
             return 0.0
 
     def list_fuzzy_region_names(self, normalized: str, *, limit: int = 5) -> list[str]:
@@ -292,11 +323,16 @@ class LocationResolutionRepository:
                 {"query": normalized, "rtype": self.region_code, "limit": int(limit)},
             ).fetchall()
         except Exception as exc:
-            logger.debug("Fuzzy candidate lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Fuzzy candidate lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback fuzzy candidate lookup", exc_info=True)
             return []
 
         out: list[str] = []
@@ -340,11 +376,16 @@ class LocationResolutionRepository:
             )
             return [r for r in regions if isinstance(r, RegionBoundary)]
         except Exception as exc:
-            logger.debug("Region fragment lookup failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Region fragment lookup failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback region fragment lookup", exc_info=True)
             return []
 
     def list_region_names(self) -> list[str]:
@@ -364,11 +405,11 @@ class LocationResolutionRepository:
             ).fetchall()
             return [str(r[0]) for r in rows if r and r[0]]
         except Exception as exc:
-            logger.debug("Region name listing failed: %s", str(exc))
+            logger.warning("Region name listing failed: %s", str(exc), exc_info=True)
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback region name listing", exc_info=True)
             return []
 
     def has_region_name_embeddings(self) -> bool:
@@ -390,11 +431,15 @@ class LocationResolutionRepository:
             ).first()
             return bool(getattr(row, "has_embeddings", False)) if row else False
         except Exception as exc:
-            logger.debug("Embedding availability check failed: %s", str(exc))
+            logger.warning(
+                "Embedding availability check failed: %s",
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback embedding availability check", exc_info=True)
             return False
 
     def find_regions_by_name_embedding(
@@ -444,9 +489,9 @@ class LocationResolutionRepository:
                     ordered.append((region, 0.0))
             return ordered
         except Exception as exc:
-            logger.debug("Embedding region lookup failed: %s", str(exc))
+            logger.warning("Embedding region lookup failed: %s", str(exc), exc_info=True)
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback embedding region lookup", exc_info=True)
             return []

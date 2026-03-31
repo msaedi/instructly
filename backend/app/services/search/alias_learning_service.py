@@ -108,8 +108,13 @@ class AliasLearningService:
                 continue
             try:
                 count = int(value or 0)
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse unresolved click count for alias '%s': %s",
+                    row.query_normalized,
+                    str(exc),
+                    exc_info=True,
+                )
                 continue
             if count > top_count:
                 top_region_id = str(region_id)

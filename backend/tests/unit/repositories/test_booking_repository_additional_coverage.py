@@ -123,7 +123,26 @@ def test_get_bookings_by_date_and_status_returns_empty_on_error() -> None:
     repo, mock_db = _make_repo()
     mock_db.query.side_effect = RuntimeError("boom")
 
+    repo.logger = MagicMock()
+
     assert repo.get_bookings_by_date_and_status(date(2024, 1, 1), "CONFIRMED") == []
+    repo.logger.warning.assert_called_once()
+
+
+def test_get_bookings_by_date_range_and_status_returns_empty_on_error() -> None:
+    repo, mock_db = _make_repo()
+    mock_db.query.side_effect = RuntimeError("boom")
+    repo.logger = MagicMock()
+
+    assert (
+        repo.get_bookings_by_date_range_and_status(
+            date(2024, 1, 1),
+            date(2024, 1, 2),
+            "CONFIRMED",
+        )
+        == []
+    )
+    repo.logger.warning.assert_called_once()
 
 
 def test_get_bookings_for_payment_authorization_error() -> None:

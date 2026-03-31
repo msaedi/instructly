@@ -10,6 +10,7 @@ import pytest
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import BookingStatus, PaymentStatus
+import app.services.booking.availability_opportunities as availability_opportunities_module
 from app.services.booking_service import BookingService
 
 
@@ -39,15 +40,17 @@ def test_check_student_time_conflict_returns_bool_and_handles_exceptions():
     )
 
     service.conflict_checker.check_student_time_conflicts.side_effect = RuntimeError("boom")
-    assert (
-        service.check_student_time_conflict(
-            student_id="student-1",
-            booking_date=date(2030, 1, 1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+    with patch.object(availability_opportunities_module.logger, "warning") as mock_warning:
+        assert (
+            service.check_student_time_conflict(
+                student_id="student-1",
+                booking_date=date(2030, 1, 1),
+                start_time=time(10, 0),
+                end_time=time(11, 0),
+            )
+            is False
         )
-        is False
-    )
+    mock_warning.assert_called_once()
 
 
 def test_validate_reschedule_allowed_branches():

@@ -69,8 +69,13 @@ class LocationLearningAdminService:
             for region_id, count in counts.items():
                 try:
                     c_int = int(count or 0)
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to parse admin location learning click count: %s",
+                        str(exc),
+                        extra={"region_id": str(region_id)},
+                        exc_info=True,
+                    )
                     continue
                 rid = str(region_id)
                 items.append(

@@ -54,7 +54,11 @@ class InstructorLocationMixin(InstructorMixinBase):
                     "neighborhood": getattr(place, "neighborhood", None),
                 }
         except Exception:
-            logger.debug("Non-fatal error loading existing teaching locations", exc_info=True)
+            logger.warning(
+                "Failed to load existing teaching locations for instructor %s",
+                instructor_id,
+                exc_info=True,
+            )
         return existing_places_by_address
 
     def _validate_location_removal(
@@ -160,8 +164,9 @@ class InstructorLocationMixin(InstructorMixinBase):
                     elif neighborhood and district and district not in neighborhood:
                         neighborhood = f"{neighborhood}, {district}"
                 except Exception:
-                    logger.debug(
-                        "Non-fatal location enrichment error for teaching location",
+                    logger.warning(
+                        "Failed to enrich teaching location neighborhood for '%s'",
+                        address,
                         exc_info=True,
                     )
 

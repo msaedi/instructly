@@ -372,8 +372,13 @@ class StripeIdentityMixin(BaseService):
                             latest, "created", 0
                         ):
                             latest = session
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to inspect identity session while loading latest status: %s",
+                        str(exc),
+                        extra={"user_id": user_id},
+                        exc_info=True,
+                    )
                     continue
 
             if not latest:

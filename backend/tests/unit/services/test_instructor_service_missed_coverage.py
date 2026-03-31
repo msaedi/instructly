@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from app.core.exceptions import BusinessRuleException
+import app.services.instructor.location_mixin as location_mixin_module
 from app.services.instructor_service import (
     InstructorService,
     PreparedProfileUpdateContext,
@@ -135,6 +136,45 @@ def _make_mock_profile(
         profile.user = mock_user
 
     return profile
+
+
+def test_load_existing_places_logs_warning_on_repository_error():
+    svc = _make_service()
+    svc.preferred_place_repository.list_for_instructor_and_kind.side_effect = RuntimeError("boom")
+
+    with patch.object(location_mixin_module.logger, "warning") as mock_warning:
+        result = svc._load_existing_places("USR_01", "teaching_location")
+
+    assert result == {}
+    mock_warning.assert_called_once()
+
+
+def test_build_teaching_location_fields_logs_warning_on_enrichment_error():
+    svc = _make_service()
+    geocode = PreparedTeachingLocationGeocode(lat=40.0, lng=-73.0)
+    service_module = SimpleNamespace(
+        jitter_coordinates=lambda lat, lng: (lat + 0.1, lng + 0.1),
+        LocationEnrichmentService=lambda _db: SimpleNamespace(
+            enrich=MagicMock(side_effect=RuntimeError("enrich-boom"))
+        ),
+    )
+
+    with (
+        patch(
+            "app.services.instructor.location_mixin.get_instructor_service_module",
+            return_value=service_module,
+        ),
+        patch.object(location_mixin_module.logger, "warning") as mock_warning,
+    ):
+        result = svc._build_teaching_location_fields(
+            "123 Main St",
+            {},
+            {"123 main st": geocode},
+        )
+
+    assert result["approx_lat"] == pytest.approx(40.1)
+    assert result["approx_lng"] == pytest.approx(-72.9)
+    mock_warning.assert_called_once()
 
 
 @pytest.mark.unit

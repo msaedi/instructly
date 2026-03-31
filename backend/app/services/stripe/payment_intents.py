@@ -363,7 +363,11 @@ class StripePaymentIntentsMixin(BaseService):
                         status=payment_intent.status,
                     )
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to persist manual authorization payment record for booking %s",
+                    booking_id,
+                    exc_info=True,
+                )
             return result
         except stripe.StripeError as exc:
             self.logger.error("Stripe error creating manual authorization: %s", exc)

@@ -123,7 +123,7 @@ class InstructorTaxonomyReadsMixin(InstructorMixinBase):
         )
         for service_data in services_with_analytics:
             del service_data["_original_display_order"]
-        return cast(JsonList, services_with_analytics)
+        return services_with_analytics
 
     @staticmethod
     def _build_all_services_metadata(

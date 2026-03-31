@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING, List, Optional
 
@@ -17,6 +18,8 @@ from app.services.search.nl_pipeline.models import PipelineTimer
 if TYPE_CHECKING:
     from app.repositories.search_batch_repository import RegionLookup
     from app.services.search.location_embedding_service import LocationEmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 async def run_tier4_embedding_search(
@@ -46,6 +49,12 @@ async def run_tier4_embedding_search(
     try:
         embedding = await location_embedding_service.embed_location_text(normalized)
     except Exception as exc:
+        logger.warning(
+            "Tier 4 embedding search failed for '%s': %s",
+            normalized,
+            str(exc),
+            exc_info=True,
+        )
         _record_tier4_error(diagnostics=diagnostics, started_at=tier4_start, error=exc)
         return None, []
     return _build_tier4_result(

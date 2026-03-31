@@ -356,7 +356,10 @@ class TestWebhookEdgePaths:
             "data": {"object": BadTransfer()},
         }
 
-        assert StripeService._handle_transfer_webhook(service, event) is True
+        with patch("app.services.stripe_service.logger.warning") as mock_warning:
+            assert StripeService._handle_transfer_webhook(service, event) is True
+
+        mock_warning.assert_called_once()
 
     def test_handle_charge_webhook_dispute_routes(self):
         service = _make_service()
@@ -658,6 +661,21 @@ class TestPayoutAndIdentityErrors:
         }
 
         assert StripeService._handle_identity_webhook(service, event) is False
+
+    def test_identity_webhook_processing_logs_warning_on_update_failure(self):
+        service = _make_service()
+        profile = SimpleNamespace(id="prof_1")
+        service.instructor_repository.get_by_user_id.return_value = profile
+        service.instructor_repository.update.side_effect = RuntimeError("boom")
+        event = {
+            "type": "identity.verification_session.processing",
+            "data": {"object": {"id": "vs_2", "status": "processing", "metadata": {"user_id": "u1"}}},
+        }
+
+        with patch("app.services.stripe.webhook_router.logger.warning") as mock_warning:
+            assert StripeService._handle_identity_webhook(service, event) is True
+
+        mock_warning.assert_called_once()
 
 
 class TestRefundAndTransferErrors:

@@ -153,7 +153,11 @@ class StripeTransferMixin(BaseService):
                     },
                 )
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to record top-up transfer event for booking %s",
+                    booking_id,
+                    exc_info=True,
+                )
             self.logger.info(
                 "Issued top-up transfer",
                 extra={

@@ -146,8 +146,13 @@ class StripePaymentMixin(BaseService):
         booking_service.repository.flush()
         try:
             booking_service.invalidate_booking_cache(fresh_booking)
-        except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to invalidate booking cache after checkout confirmation: %s",
+                str(exc),
+                extra={"booking_id": fresh_booking.id},
+                exc_info=True,
+            )
         try:
             service_name = "Lesson"
             if fresh_booking.instructor_service and fresh_booking.instructor_service.name:
@@ -160,13 +165,23 @@ class StripePaymentMixin(BaseService):
                 booking_date=fresh_booking.booking_date,
                 start_time=fresh_booking.start_time,
             )
-        except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to create booking-created message after checkout confirmation: %s",
+                str(exc),
+                extra={"booking_id": fresh_booking.id},
+                exc_info=True,
+            )
         if not was_confirmed:
             try:
                 booking_service.send_booking_notifications_after_confirmation(fresh_booking.id)
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to send booking confirmation notifications after checkout: %s",
+                    str(exc),
+                    extra={"booking_id": fresh_booking.id},
+                    exc_info=True,
+                )
 
     def _build_checkout_response(self, payment_result: dict[str, Any]) -> CheckoutResponse:
         status = payment_result.get("status")
@@ -264,8 +279,13 @@ class StripePaymentMixin(BaseService):
                             "authorized_at": datetime.now(timezone.utc).isoformat(),
                         },
                     )
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to record credits-only authorization event: %s",
+                        str(exc),
+                        extra={"booking_id": booking.id},
+                        exc_info=True,
+                    )
                 booking_payment = self.booking_repository.ensure_payment(booking.id)
                 booking_payment.payment_status = PaymentStatus.AUTHORIZED.value
                 booking_payment.auth_attempted_at = datetime.now(timezone.utc)
@@ -348,8 +368,13 @@ class StripePaymentMixin(BaseService):
                         payment_record.stripe_payment_intent_id,
                         stripe_intent.status,
                     )
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to persist immediate authorization status: %s",
+                        str(exc),
+                        extra={"payment_intent_id": payment_record.stripe_payment_intent_id},
+                        exc_info=True,
+                    )
                 booking_payment.payment_status = PaymentStatus.AUTHORIZED.value
                 booking_payment.auth_attempted_at = now
                 booking_payment.auth_failure_count = 0
@@ -380,8 +405,13 @@ class StripePaymentMixin(BaseService):
                     "hours_until_lesson": context.hours_until_lesson,
                 },
             )
-        except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to record scheduled authorization event: %s",
+                str(exc),
+                extra={"booking_id": booking.id},
+                exc_info=True,
+            )
 
     def _build_process_payment_response(
         self,
@@ -481,8 +511,13 @@ class StripePaymentMixin(BaseService):
                         args=(booking_id,),
                         countdown=30 * 60,
                     )
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to enqueue immediate authorization timeout check: %s",
+                        str(exc),
+                        extra={"booking_id": booking_id},
+                        exc_info=True,
+                    )
             return self._build_process_payment_response(
                 payment_record=payment_record,
                 immediate_auth=context.immediate_auth,

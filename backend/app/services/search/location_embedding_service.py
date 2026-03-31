@@ -108,8 +108,13 @@ class LocationEmbeddingService:
         for region, similarity in pairs:
             try:
                 sim_val = float(similarity)
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse embedding similarity for region '%s': %s",
+                    getattr(region, "id", None),
+                    str(exc),
+                    exc_info=True,
+                )
                 continue
             if sim_val < min_similarity:
                 continue
@@ -219,7 +224,12 @@ class LocationEmbeddingService:
                 )
             return list(response.data[0].embedding)
         except Exception as exc:
-            logger.debug("Location embedding failed for '%s': %s", query, str(exc))
+            logger.warning(
+                "Location embedding failed for '%s': %s",
+                query,
+                str(exc),
+                exc_info=True,
+            )
             return None
 
     async def _embed_location_text(self, query: str) -> Optional[List[float]]:

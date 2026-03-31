@@ -564,13 +564,38 @@ def test_handle_dispute_closed_handles_event_fetch_and_emit_failures():
     credit_service.get_spent_credits_for_booking.return_value = 600
 
     with patch("app.services.stripe_service.booking_lock_sync", return_value=lock_cm):
-        with patch("app.services.credit_service.CreditService", return_value=credit_service):
+        with (
+            patch("app.services.credit_service.CreditService", return_value=credit_service),
+            patch("app.services.stripe.webhook_disputes.logger.warning") as mock_warning,
+        ):
             result = StripeService._handle_dispute_closed(
                 service,
                 {"data": {"object": {"id": "dp_2", "payment_intent": "pi_2", "status": "won"}}},
             )
 
     assert result is True
+    assert mock_warning.call_count >= 1
+
+
+def test_ensure_top_up_transfer_logs_warning_on_event_write_failure():
+    service = _make_service()
+    service.payment_repository.create_payment_event.side_effect = RuntimeError("event-write-failed")
+    transfer = SimpleNamespace(id="tr_top_up")
+
+    with (
+        patch.object(stripe_service.StripeTransfer, "create", return_value=transfer),
+        patch("app.services.stripe.transfer.logger.warning") as mock_warning,
+    ):
+        result = StripeService.ensure_top_up_transfer(
+            service,
+            booking_id="booking_1",
+            payment_intent_id="pi_1",
+            destination_account_id="acct_1",
+            amount_cents=250,
+        )
+
+    assert result == transfer
+    mock_warning.assert_called_once()
 
 
 def test_get_instructor_earnings_summary_defaults_tier_when_config_has_no_tiers():

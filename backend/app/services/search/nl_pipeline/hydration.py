@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, TypedDict, cast
 
 from app.core.config import settings
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from app.services.search.location_resolver import ResolvedLocation
     from app.services.search.query_parser import ParsedQuery
     from app.services.search.ranking_service import RankedResult
+
+logger = logging.getLogger(__name__)
 
 
 class SerializedFormatPrice(TypedDict):
@@ -156,6 +159,11 @@ async def load_service_format_prices(
                     for service_id, price_rows in grouped.items()
                 }
         except Exception:
+            logger.warning(
+                "Failed to load async NL hydration service format prices",
+                extra={"service_count": len(service_ids)},
+                exc_info=True,
+            )
             return {}
 
     return await asyncio_module.to_thread(_load_service_format_prices)
@@ -368,6 +376,11 @@ def load_service_format_prices_sync(
                 for service_id, price_rows in grouped.items()
             }
     except Exception:
+        logger.warning(
+            "Failed to load sync NL hydration service format prices",
+            extra={"service_count": len(service_ids)},
+            exc_info=True,
+        )
         return {}
 
 

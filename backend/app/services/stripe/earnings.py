@@ -69,6 +69,8 @@ class StripeEarningsMixin(BaseService):
         try:
             return int((Decimal(value) * Decimal("100")).quantize(Decimal("1")))
         except Exception:
+            # Payment summary consumers should still get a response even when legacy values
+            # cannot be coerced cleanly into cents.
             return 0
 
     def _compute_base_price_cents(self, hourly_rate: Any, duration_minutes: int) -> int:
@@ -78,6 +80,7 @@ class StripeEarningsMixin(BaseService):
             cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
             return int(cents_value.quantize(Decimal("1")))
         except Exception:
+            # Earnings responses should degrade gracefully when historical price fields are malformed.
             return 0
 
     def _get_instructor_tier_pct(self, config: dict[str, Any], instructor_profile: Any) -> float:
@@ -324,8 +327,13 @@ class StripeEarningsMixin(BaseService):
                     payment_repo=payment_repo,
                     review_tip_repo=tip_repo,
                 )
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to build payment summary for transaction history: %s",
+                    str(exc),
+                    extra={"booking_id": booking.id},
+                    exc_info=True,
+                )
                 continue
 
             instructor = booking.instructor
@@ -376,6 +384,7 @@ class StripeEarningsMixin(BaseService):
             if expiries:
                 earliest_exp = min(expiries).isoformat()
         except Exception:
+            # Credit-balance reads should still succeed even if expiry metadata cannot be loaded.
             earliest_exp = None
 
         return CreditBalanceResponse(
