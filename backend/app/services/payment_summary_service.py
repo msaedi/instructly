@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+import logging
 from typing import Any, Dict, Optional, Tuple
 
 from app.models.booking import Booking
@@ -12,6 +13,7 @@ from app.repositories.review_repository import ReviewTipRepository
 from app.schemas.booking import PaymentSummary
 
 SUCCESSFUL_TIP_STATUSES = {"succeeded", "processing"}
+logger = logging.getLogger(__name__)
 
 
 def _to_cents(value: Any) -> int:
@@ -26,7 +28,13 @@ def _credit_applied_cents(payment_repo: PaymentRepository, booking_id: str) -> i
     credit_applied_cents = 0
     try:
         events = payment_repo.get_payment_events_for_booking(booking_id)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to load payment events while building summary for booking %s: %s",
+            booking_id,
+            str(exc),
+            exc_info=True,
+        )
         return 0
 
     for ev in events:
@@ -50,7 +58,13 @@ def _resolve_tip_info(
     tip_record = None
     try:
         tip_record = review_tip_repo.get_by_booking_id(booking_id)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to load review tip while building summary for booking %s: %s",
+            booking_id,
+            str(exc),
+            exc_info=True,
+        )
         tip_record = None
 
     if not tip_record:
@@ -65,13 +79,26 @@ def _resolve_tip_info(
     if tip_record.stripe_payment_intent_id:
         try:
             payment = payment_repo.get_payment_by_intent_id(tip_record.stripe_payment_intent_id)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to load tip payment intent %s for booking %s: %s",
+                tip_record.stripe_payment_intent_id,
+                booking_id,
+                str(exc),
+                exc_info=True,
+            )
             payment = None
 
     if payment is None and tip_amount_cents > 0:
         try:
             payment = payment_repo.find_payment_by_booking_and_amount(booking_id, tip_amount_cents)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to find tip payment by amount for booking %s: %s",
+                booking_id,
+                str(exc),
+                exc_info=True,
+            )
             payment = None
 
     if payment is not None:

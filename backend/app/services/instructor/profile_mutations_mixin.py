@@ -123,8 +123,12 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
                     catalog_entry = self.catalog_repository.get_by_id(service.service_catalog_id)
                     if catalog_entry and getattr(catalog_entry, "name", None):
                         skill_names.append(str(catalog_entry.name).strip().lower())
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load catalog entries for auto bio generation: %s",
+                    str(exc),
+                    exc_info=True,
+                )
 
             skills_phrase = self._oxford_join(skill_names)
             if skills_phrase:
@@ -160,8 +164,13 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
                 context.user_record = await asyncio.to_thread(
                     self.user_repository.get_by_id, user_id
                 )
-            except Exception:
-                logger.debug("Non-fatal error loading user for bio generation", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load user for bio generation: %s",
+                    str(exc),
+                    extra={"user_id": user_id},
+                    exc_info=True,
+                )
             if missing_bio:
                 try:
                     user_record = context.user_record
@@ -169,8 +178,13 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
                         geocoded = await _get_provider().geocode(user_record.zip_code)
                         if geocoded and getattr(geocoded, "city", None):
                             context.bio_city = geocoded.city
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to geocode zip code for bio city: %s",
+                        str(exc),
+                        extra={"user_id": user_id},
+                        exc_info=True,
+                    )
 
         if update_data.preferred_teaching_locations is None:
             return context
@@ -192,7 +206,11 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
                         "approx_lng": getattr(place, "approx_lng", None),
                     }
         except Exception:
-            logger.debug("Non-fatal error loading existing teaching locations", exc_info=True)
+            logger.warning(
+                "Failed to load existing teaching locations",
+                extra={"user_id": user_id},
+                exc_info=True,
+            )
 
         for item in update_data.preferred_teaching_locations:
             address = item.address.strip()
@@ -221,9 +239,10 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
                         city=getattr(geocoded, "city", None),
                         state=getattr(geocoded, "state", None),
                     )
-            except Exception:
-                logger.debug(
-                    "Non-fatal geocoding error for teaching location",
+            except Exception as exc:
+                logger.warning(
+                    "Non-fatal geocoding error for teaching location: %s",
+                    str(exc),
                     extra={"address": address},
                     exc_info=True,
                 )

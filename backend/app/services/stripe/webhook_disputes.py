@@ -58,12 +58,22 @@ class StripeWebhookDisputesMixin(BaseService):
                 event_data=event_data,
             )
         except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+            logger.warning(
+                "Failed to record Stripe payment event '%s' for booking %s",
+                event_type,
+                booking_id,
+                exc_info=True,
+            )
 
     def _load_payment_events(self, booking_id: str) -> list[Any]:
         try:
             return list(self.payment_repository.get_payment_events_for_booking(booking_id))
         except Exception:
+            logger.warning(
+                "Failed to load Stripe payment events for booking %s",
+                booking_id,
+                exc_info=True,
+            )
             return []
 
     def _process_charge_refunded(
@@ -210,6 +220,12 @@ class StripeWebhookDisputesMixin(BaseService):
             )
             return cast(Optional[str], reversal_id), None
         except Exception as exc:
+            self.logger.warning(
+                "Failed to reverse transfer for dispute context on booking %s: %s",
+                booking_id,
+                exc,
+                exc_info=True,
+            )
             return None, str(exc)
 
     def _mark_open_dispute_state(

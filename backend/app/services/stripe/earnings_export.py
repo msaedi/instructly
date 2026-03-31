@@ -36,6 +36,7 @@ class StripeEarningsExportMixin(BaseService):
             cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
             return int(cents_value.quantize(Decimal("1")))
         except Exception:
+            # Export generation should continue even when individual rows contain malformed pricing.
             return 0
 
     def _get_export_instructor_tier_pct(

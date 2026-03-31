@@ -13,6 +13,7 @@ Focus on uncovered lines: 490-531, 585-671, 744-769
 import asyncio
 from contextlib import contextmanager
 from datetime import date, time as dtime
+import logging
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,6 +30,7 @@ from app.schemas.nl_search import (
 )
 from app.services.search.filter_service import FilteredCandidate, FilterResult
 from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
+from app.services.search.nl_pipeline import hydration
 from app.services.search.nl_search_service import (
     LOCATION_LLM_CONFIDENCE_THRESHOLD,
     LOCATION_TIER4_HIGH_CONFIDENCE,
@@ -128,6 +130,38 @@ def _hydrate_to_thread_side_effect(
         raise AssertionError(f"Unexpected to_thread call: {name}")
 
     return _to_thread
+
+
+@pytest.mark.asyncio
+async def test_load_service_format_prices_logs_warning_on_error(caplog):
+    repo = MagicMock()
+    repo.get_prices_for_services.side_effect = RuntimeError("boom")
+
+    with caplog.at_level(logging.WARNING):
+        result = await hydration.load_service_format_prices(
+            service_ids=["svc_1"],
+            asyncio_module=asyncio,
+            get_db_session=_db_ctx,
+            pricing_repository_cls=lambda _db: repo,
+        )
+
+    assert result == {}
+    assert "Failed to load async NL hydration service format prices" in caplog.text
+
+
+def test_load_service_format_prices_sync_logs_warning_on_error(caplog):
+    repo = MagicMock()
+    repo.get_prices_for_services.side_effect = RuntimeError("boom")
+
+    with caplog.at_level(logging.WARNING):
+        result = hydration.load_service_format_prices_sync(
+            service_ids=["svc_1"],
+            get_db_session=_db_ctx,
+            pricing_repository_cls=lambda _db: repo,
+        )
+
+    assert result == {}
+    assert "Failed to load sync NL hydration service format prices" in caplog.text
 
 
 class TestBudgetSkipping:

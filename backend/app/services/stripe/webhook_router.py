@@ -264,7 +264,11 @@ class StripeWebhookRouterMixin(BaseService):
                     amount = transfer_data.get("amount")
                     self.logger.info("Transfer %s reversed (amount=%s)", transfer_id, amount)
                 except Exception:
-                    _stripe_service_module().logger.debug("Non-fatal error ignored", exc_info=True)
+                    _stripe_service_module().logger.warning(
+                        "Failed to log reversed transfer amount for transfer %s",
+                        transfer_id,
+                        exc_info=True,
+                    )
                 return True
             return False
         except Exception as exc:
@@ -322,7 +326,11 @@ class StripeWebhookRouterMixin(BaseService):
                         identity_verification_session_id=obj.get("id"),
                     )
                 except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                    logger.warning(
+                        "Failed to persist processing identity session for profile %s",
+                        profile.id,
+                        exc_info=True,
+                    )
                 return True
 
             if verification_status in {"requires_input", "canceled"}:
@@ -332,7 +340,12 @@ class StripeWebhookRouterMixin(BaseService):
                         identity_verification_session_id=obj.get("id"),
                     )
                 except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                    logger.warning(
+                        "Failed to persist identity session state %s for profile %s",
+                        verification_status,
+                        profile.id,
+                        exc_info=True,
+                    )
                 return True
 
             return True

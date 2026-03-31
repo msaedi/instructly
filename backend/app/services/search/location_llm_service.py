@@ -278,12 +278,22 @@ class LocationLLMService:
                 if raise_on_timeout:
                     raise asyncio.TimeoutError() from exc
                 return None, debug_info
-            logger.debug("Location LLM resolution failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Location LLM resolution failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             debug_info["reason"] = "openai_error"
             debug_info["error"] = str(exc)
             return None, debug_info
         except Exception as exc:
-            logger.debug("Location LLM resolution failed for '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Location LLM resolution failed for '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             debug_info["reason"] = "exception"
             debug_info["error"] = str(exc)
             return None, debug_info

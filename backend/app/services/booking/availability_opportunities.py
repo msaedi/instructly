@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from ...core.constants import BOOKING_START_STEP_MINUTES, MINUTES_PER_SLOT, SLOTS_PER_DAY
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from ...repositories.booking_repository import BookingRepository
     from ...schemas.booking import BookingCreate
     from ..conflict_checker import ConflictChecker
+
+logger = logging.getLogger(__name__)
 
 
 class BookingAvailabilityOpportunitiesMixin:
@@ -340,4 +343,10 @@ class BookingAvailabilityOpportunitiesMixin:
             )
             return bool(conflicting)
         except Exception:
+            logger.warning(
+                "Failed to check student time conflict for student %s on %s",
+                student_id,
+                booking_date,
+                exc_info=True,
+            )
             return False

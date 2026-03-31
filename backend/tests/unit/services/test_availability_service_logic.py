@@ -234,6 +234,78 @@ class TestAvailabilityServiceQueryHelpers:
             "slots": [{"start_time": "09:00:00", "end_time": "10:00:00"}],
         }
 
+    def test_get_instructor_availability_for_date_range_uses_batch_query(self, service):
+        start_date = date.today()
+        end_date = start_date + timedelta(days=1)
+        row = Mock()
+        row.day_date = start_date
+        row.bits = bits_from_windows([("09:00:00", "10:00:00")])
+        bitmap_repo = Mock()
+        bitmap_repo.get_days_in_range.return_value = [row]
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+
+        result = service.get_instructor_availability_for_date_range(123, start_date, end_date)
+
+        bitmap_repo.get_days_in_range.assert_called_once_with(123, start_date, end_date)
+        bitmap_repo.get_day_bits.assert_not_called()
+        assert result == [
+            {
+                "date": start_date.isoformat(),
+                "slots": [{"start_time": "09:00:00", "end_time": "10:00:00"}],
+            },
+            {
+                "date": end_date.isoformat(),
+                "slots": [],
+            },
+        ]
+
+    def test_get_all_instructor_availability_uses_batch_query(self, service):
+        target_date = date.today()
+        row = Mock()
+        row.day_date = target_date
+        row.bits = bits_from_windows([("10:00:00", "12:00:00")])
+        bitmap_repo = Mock()
+        bitmap_repo.get_days_in_range.return_value = [row]
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+
+        result = service.get_all_instructor_availability(
+            123,
+            start_date=target_date,
+            end_date=target_date,
+        )
+
+        bitmap_repo.get_days_in_range.assert_called_once_with(123, target_date, target_date)
+        bitmap_repo.get_day_bits.assert_not_called()
+        assert result == [
+            {
+                "instructor_id": 123,
+                "specific_date": target_date,
+                "start_time": "10:00:00",
+                "end_time": "12:00:00",
+            }
+        ]
+
+    def test_get_week_windows_as_slot_like_uses_batch_query(self, service):
+        start_date = date.today()
+        row = Mock()
+        row.day_date = start_date
+        row.bits = bits_from_windows([("14:00:00", "15:00:00")])
+        bitmap_repo = Mock()
+        bitmap_repo.get_days_in_range.return_value = [row]
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+
+        result = service.get_week_windows_as_slot_like(123, start_date, start_date)
+
+        bitmap_repo.get_days_in_range.assert_called_once_with(123, start_date, start_date)
+        bitmap_repo.get_day_bits.assert_not_called()
+        assert result == [
+            {
+                "specific_date": start_date,
+                "start_time": time(14, 0),
+                "end_time": time(15, 0),
+            }
+        ]
+
 
 class TestAvailabilityServiceCacheHandling:
     """Test cache handling in availability service."""

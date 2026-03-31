@@ -178,6 +178,8 @@ class AvailabilityWeekSaveMixin(AvailabilityMixinBase):
             except ConflictException:
                 raise
             except Exception as error:
+                # This optimistic version check is intentionally best-effort so stale version
+                # metadata never blocks a valid save when the read path cannot compute it.
                 logger.debug("Version check skipped: %s", error)
 
             self._validate_no_overlaps(

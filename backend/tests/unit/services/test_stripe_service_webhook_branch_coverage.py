@@ -63,13 +63,13 @@ def test_account_and_transfer_webhook_branches():
     assert service._handle_account_webhook(account_deauth) is True
 
     with patch.object(service.logger, "info", side_effect=RuntimeError("log-boom")):
-        with patch.object(stripe_mod.logger, "debug") as debug_log:
+        with patch.object(stripe_mod.logger, "warning") as warning_log:
             reversed_evt = {
                 "type": "transfer.reversed",
                 "data": {"object": {"id": "tr_1", "amount": 2500}},
             }
             assert service._handle_transfer_webhook(reversed_evt) is True
-            debug_log.assert_called()
+            warning_log.assert_called()
 
 
 def test_payout_webhook_created_paid_and_failed_paths():

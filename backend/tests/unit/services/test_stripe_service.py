@@ -223,6 +223,30 @@ class TestPaymentIntents:
         create_kwargs = create.call_args.kwargs
         assert create_kwargs["transfer_data"]["amount"] == 85
 
+    def test_create_and_confirm_manual_authorization_logs_warning_on_payment_record_failure(self):
+        service = _make_service()
+        service.payment_repository.upsert_payment_record = None
+        service.payment_repository.get_payment_by_intent_id.return_value = None
+        service.payment_repository.create_payment_record.side_effect = RuntimeError("boom")
+        pi = SimpleNamespace(id="pi_warn", status="requires_capture", client_secret=None)
+
+        with (
+            patch.object(stripe_service.stripe.PaymentIntent, "create", return_value=pi),
+            patch("app.services.stripe.payment_intents.logger.warning") as mock_warning,
+        ):
+            result = StripeService.create_and_confirm_manual_authorization(
+                service,
+                booking_id="booking_warn",
+                customer_id="cus_warn",
+                destination_account_id="acct_warn",
+                payment_method_id="pm_warn",
+                amount_cents=2000,
+                idempotency_key="auth_warn",
+            )
+
+        assert result["status"] == "requires_capture"
+        mock_warning.assert_called_once()
+
     def test_capture_payment_intent_uses_metadata_fallback(self):
         service = _make_service()
         service.payment_repository.update_payment_status = MagicMock()

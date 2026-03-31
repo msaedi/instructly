@@ -64,7 +64,11 @@ def _load_location_alias_seed_maps(
     except FileNotFoundError:
         return {}, {}
     except Exception as exc:
-        logger.debug("Failed to load location_aliases.json: %s", str(exc))
+        logger.warning(
+            "Failed to load location_aliases.json: %s",
+            str(exc),
+            exc_info=True,
+        )
         return {}, {}
 
     if str(payload.get("region_code") or "").strip().lower() != str(region_code).strip().lower():
@@ -835,11 +839,21 @@ class LocationResolver:
 
                 self.repository.db.flush()
             except Exception as exc:
-                logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+                logger.warning(
+                    "Failed to cache LLM alias '%s': %s",
+                    normalized,
+                    str(exc),
+                    exc_info=True,
+                )
                 try:
                     self.repository.db.rollback()
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as rollback_exc:
+                    logger.warning(
+                        "Failed to roll back LLM alias cache write for '%s': %s",
+                        normalized,
+                        str(rollback_exc),
+                        exc_info=True,
+                    )
 
         await asyncio.to_thread(_cache_llm_alias)
 
@@ -906,11 +920,21 @@ class LocationResolver:
 
             self.repository.db.flush()
         except Exception as exc:
-            logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Failed to cache LLM alias '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.repository.db.rollback()
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as rollback_exc:
+                logger.warning(
+                    "Failed to roll back LLM alias cache write for '%s': %s",
+                    normalized,
+                    str(rollback_exc),
+                    exc_info=True,
+                )
 
     @staticmethod
     def _format_candidates(regions: Sequence[RegionBoundary]) -> List[LocationCandidate]:

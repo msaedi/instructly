@@ -206,7 +206,13 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
                 .all(),
             )
         except Exception as e:
-            self.logger.error("Error getting bookings by date and status: %s", str(e))
+            self.logger.warning(
+                "Failed to load bookings for date %s and status %s: %s",
+                booking_date,
+                status,
+                str(e),
+                exc_info=True,
+            )
             return []
 
     def get_bookings_by_date_range_and_status(
@@ -226,5 +232,12 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
                 .all(),
             )
         except Exception as e:
-            self.logger.error("Error getting bookings by date range and status: %s", str(e))
+            self.logger.warning(
+                "Failed to load bookings from %s to %s for status %s: %s",
+                start_date,
+                end_date,
+                status,
+                str(e),
+                exc_info=True,
+            )
             return []

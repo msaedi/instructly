@@ -19,6 +19,16 @@ logger = logging.getLogger(__name__)
 class AvailabilityReadMixin(AvailabilityMixinBase):
     """Public read/query APIs for availability data."""
 
+    def _load_bits_by_date_for_range(
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+    ) -> dict[date, bytes]:
+        """Batch-load bitmap rows for a date range and group them by day."""
+        rows = self._bitmap_repo().get_days_in_range(instructor_id, start_date, end_date)
+        return {row.day_date: row.bits for row in rows if getattr(row, "bits", None)}
+
     @BaseService.measure_operation("get_week_last_modified")
     def get_week_last_modified(
         self,
@@ -260,11 +270,15 @@ class AvailabilityReadMixin(AvailabilityMixinBase):
                 logger.warning("Cache error for date range availability: %s", cache_error)
 
         try:
-            bitmap_repo = self._bitmap_repo()
+            bits_by_date = self._load_bits_by_date_for_range(
+                instructor_id,
+                start_date,
+                end_date,
+            )
             result = []
             current_date = start_date
             while current_date <= end_date:
-                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+                bits = bits_by_date.get(current_date)
                 windows_str: list[tuple[str, str]] = (
                     availability_service_module().windows_from_bits(bits) if bits else []
                 )
@@ -317,11 +331,14 @@ class AvailabilityReadMixin(AvailabilityMixinBase):
                     instructor_id, self.db
                 ) + timedelta(days=365)
 
-            bitmap_repo = self._bitmap_repo()
+            bits_by_date = self._load_bits_by_date_for_range(
+                instructor_id,
+                start_date,
+                end_date,
+            )
             windows: list[dict[str, Any]] = []
-            current_date = start_date
-            while current_date <= end_date:
-                bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+            for current_date in sorted(bits_by_date):
+                bits = bits_by_date[current_date]
                 if bits:
                     day_windows = availability_service_module().windows_from_bits(bits)
                     for start, end in day_windows:
@@ -333,8 +350,6 @@ class AvailabilityReadMixin(AvailabilityMixinBase):
                                 "end_time": end,
                             }
                         )
-                current_date += timedelta(days=1)
-
             return windows
         except Exception as error:
             logger.error("Error retrieving all availability: %s", str(error))
@@ -349,11 +364,10 @@ class AvailabilityReadMixin(AvailabilityMixinBase):
 
         Returns list of dicts with specific_date (date), start_time (time), end_time (time).
         """
-        bitmap_repo = self._bitmap_repo()
+        bits_by_date = self._load_bits_by_date_for_range(instructor_id, start_date, end_date)
         windows: list[dict[str, Any]] = []
-        current_date = start_date
-        while current_date <= end_date:
-            bits = bitmap_repo.get_day_bits(instructor_id, current_date)
+        for current_date in sorted(bits_by_date):
+            bits = bits_by_date[current_date]
             if bits:
                 day_windows_str: list[
                     tuple[str, str]
@@ -366,5 +380,4 @@ class AvailabilityReadMixin(AvailabilityMixinBase):
                             "end_time": string_to_time(end_str),
                         }
                     )
-            current_date += timedelta(days=1)
         return windows

@@ -458,12 +458,16 @@ class TestGetAvailabilityForDateRangeCacheHit:
             "app.services.availability_service.AvailabilityDayRepository"
         ) as MockRepo:
             mock_repo = MagicMock()
-            mock_repo.get_day_bits.return_value = None
+            mock_repo.get_days_in_range.return_value = []
             MockRepo.return_value = mock_repo
 
             result = svc.get_instructor_availability_for_date_range(
                 "I1", date(2026, 3, 16), date(2026, 3, 16)
             )
+            mock_repo.get_days_in_range.assert_called_once_with(
+                "I1", date(2026, 3, 16), date(2026, 3, 16)
+            )
+            mock_repo.get_day_bits.assert_not_called()
             assert len(result) == 1
             assert result[0]["date"] == "2026-03-16"
             assert result[0]["slots"] == []

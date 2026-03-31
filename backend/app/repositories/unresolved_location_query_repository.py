@@ -72,11 +72,16 @@ class UnresolvedLocationQueryRepository:
 
             self.db.flush()
         except Exception as exc:
-            logger.debug("Failed to track unresolved location '%s': %s", query_normalized, str(exc))
+            logger.warning(
+                "Failed to track unresolved location '%s': %s",
+                query_normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback unresolved location tracking", exc_info=True)
 
     def record_click(
         self,
@@ -136,13 +141,16 @@ class UnresolvedLocationQueryRepository:
 
             self.db.flush()
         except Exception as exc:
-            logger.debug(
-                "Failed to record click for unresolved location '%s': %s", normalized, str(exc)
+            logger.warning(
+                "Failed to record click for unresolved location '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
             )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback unresolved location click record", exc_info=True)
 
     def list_pending(self, *, limit: int = 50) -> list[UnresolvedLocationQuery]:
         """List pending unresolved queries for admin review."""
@@ -157,11 +165,15 @@ class UnresolvedLocationQueryRepository:
             )
             return [r for r in rows if isinstance(r, UnresolvedLocationQuery)]
         except Exception as exc:
-            logger.debug("Failed to list pending unresolved queries: %s", str(exc))
+            logger.warning(
+                "Failed to list pending unresolved queries: %s",
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback pending unresolved query list", exc_info=True)
             return []
 
     def get_by_normalized(self, query_normalized: str) -> Optional[UnresolvedLocationQuery]:
@@ -181,11 +193,16 @@ class UnresolvedLocationQueryRepository:
             )
             return row if isinstance(row, UnresolvedLocationQuery) else None
         except Exception as exc:
-            logger.debug("Failed to fetch unresolved query '%s': %s", normalized, str(exc))
+            logger.warning(
+                "Failed to fetch unresolved query '%s': %s",
+                normalized,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback unresolved query fetch", exc_info=True)
             return None
 
     def list_pending_with_evidence(
@@ -211,11 +228,15 @@ class UnresolvedLocationQueryRepository:
             )
             return [r for r in rows if isinstance(r, UnresolvedLocationQuery)]
         except Exception as exc:
-            logger.debug("Failed to list learnable unresolved queries: %s", str(exc))
+            logger.warning(
+                "Failed to list learnable unresolved queries: %s",
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback learnable unresolved query list", exc_info=True)
             return []
 
     def mark_manual_review(self, row: UnresolvedLocationQuery) -> None:
@@ -224,11 +245,17 @@ class UnresolvedLocationQueryRepository:
             row.status = "manual_review"
             self.db.flush()
         except Exception as exc:
-            logger.debug("Failed to mark unresolved query manual_review: %s", str(exc))
+            logger.warning(
+                "Failed to mark unresolved query manual_review: %s",
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to rollback unresolved query manual_review update", exc_info=True
+                )
 
     def set_status(self, query_normalized: str, *, status: str) -> bool:
         """Update status for an unresolved query row (best-effort)."""
@@ -240,16 +267,17 @@ class UnresolvedLocationQueryRepository:
             self.db.flush()
             return True
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Failed to set unresolved query '%s' status=%s: %s",
                 query_normalized,
                 status,
                 str(exc),
+                exc_info=True,
             )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback unresolved query status update", exc_info=True)
             return False
 
     def mark_resolved(
@@ -269,9 +297,13 @@ class UnresolvedLocationQueryRepository:
             self.db.flush()
             return True
         except Exception as exc:
-            logger.debug("Failed to mark unresolved query resolved: %s", str(exc))
+            logger.warning(
+                "Failed to mark unresolved query resolved: %s",
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback unresolved query resolution", exc_info=True)
             return False

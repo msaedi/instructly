@@ -57,7 +57,13 @@ class StripeCaptureRefundMixin(BaseService):
                 if hasattr(transfer, "get")
                 else getattr(transfer, "amount", None)
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to retrieve transfer %s for capture details: %s",
+                transfer_id,
+                str(exc),
+                exc_info=True,
+            )
             metadata = payment_intent.get("metadata", {}) if hasattr(payment_intent, "get") else {}
             target_payout = metadata.get("target_instructor_payout_cents") if metadata else None
             if not target_payout:
@@ -98,8 +104,13 @@ class StripeCaptureRefundMixin(BaseService):
                 amount_received = charge.get("amount") or payment_intent.get("amount_received")
                 transfer_id = charge.get("transfer")
                 transfer_amount = self._extract_transfer_amount(payment_intent, transfer_id)
-        except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to extract capture details from payment intent %s: %s",
+                payment_intent.get("id") if hasattr(payment_intent, "get") else None,
+                str(exc),
+                exc_info=True,
+            )
 
         amount_received = self._resolve_amount_received(payment_intent, amount_received)
         return charge_id, transfer_id, amount_received, transfer_amount
@@ -126,8 +137,13 @@ class StripeCaptureRefundMixin(BaseService):
                 self.payment_repository.update_payment_status(
                     payment_intent_id, payment_intent.status
                 )
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist captured payment status for %s: %s",
+                    payment_intent_id,
+                    str(exc),
+                    exc_info=True,
+                )
             return {
                 "payment_intent": payment_intent,
                 "charge_id": charge_id,
@@ -224,8 +240,13 @@ class StripeCaptureRefundMixin(BaseService):
                         failure_code,
                         transfer_id,
                     )
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to inspect reversal metadata for transfer %s: %s",
+                    transfer_id,
+                    str(exc),
+                    exc_info=True,
+                )
             return {"reversal": reversal}
         except stripe.StripeError as exc:
             self.logger.error("Stripe error reversing transfer: %s", exc)
@@ -248,8 +269,13 @@ class StripeCaptureRefundMixin(BaseService):
                 self.payment_repository.update_payment_status(
                     payment_intent_id, payment_intent.status
                 )
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist canceled payment status for %s: %s",
+                    payment_intent_id,
+                    str(exc),
+                    exc_info=True,
+                )
             return {"payment_intent": payment_intent}
         except stripe.StripeError as exc:
             self.logger.error("Stripe error canceling payment intent: %s", exc)
@@ -339,8 +365,13 @@ class StripeCaptureRefundMixin(BaseService):
                 payment_status = "refund_pending"
             try:
                 self.payment_repository.update_payment_status(payment_intent_id, payment_status)
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist refund status for %s: %s",
+                    payment_intent_id,
+                    str(exc),
+                    exc_info=True,
+                )
             self.logger.info(
                 "Refund created for PI %s: refund_id=%s, amount=%s, reverse_transfer=%s",
                 payment_intent_id,

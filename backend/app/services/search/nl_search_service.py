@@ -250,6 +250,8 @@ class NLSearchService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            # The task has already been canceled; this debug log is only for follow-up diagnosis
+            # and should not turn a normal cancellation path into a user-visible warning.
             logger.debug("Background task failed after cancel: %s", exc)
 
     async def _cache_parsed_query_safe(self, query: str, parsed_query: ParsedQuery) -> None:

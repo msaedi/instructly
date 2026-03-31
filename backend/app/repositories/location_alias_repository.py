@@ -26,15 +26,16 @@ class LocationAliasRepository:
             self.db.flush()
             return True
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Failed to add location alias '%s': %s",
                 getattr(alias, "alias_normalized", None),
                 str(exc),
+                exc_info=True,
             )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback location alias insert", exc_info=True)
             return False
 
     def get_by_id(self, alias_id: str) -> Optional[LocationAlias]:
@@ -43,11 +44,16 @@ class LocationAliasRepository:
             row = self.db.get(LocationAlias, alias_id)
             return row if isinstance(row, LocationAlias) else None
         except Exception as exc:
-            logger.debug("Failed to fetch LocationAlias '%s': %s", alias_id, str(exc))
+            logger.warning(
+                "Failed to fetch LocationAlias '%s': %s",
+                alias_id,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback location alias fetch", exc_info=True)
             return None
 
     def update_status(self, alias_id: str, status: str) -> bool:
@@ -60,11 +66,16 @@ class LocationAliasRepository:
             self.db.flush()
             return True
         except Exception as exc:
-            logger.debug("Failed to update LocationAlias '%s' status: %s", alias_id, str(exc))
+            logger.warning(
+                "Failed to update LocationAlias '%s' status: %s",
+                alias_id,
+                str(exc),
+                exc_info=True,
+            )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback location alias status update", exc_info=True)
             return False
 
     def list_by_source_and_status(
@@ -89,14 +100,15 @@ class LocationAliasRepository:
             )
             return [a for a in rows if isinstance(a, LocationAlias)]
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Failed to list LocationAlias rows for source=%s status=%s: %s",
                 source,
                 status,
                 str(exc),
+                exc_info=True,
             )
             try:
                 self.db.rollback()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Failed to rollback location alias list query", exc_info=True)
             return []

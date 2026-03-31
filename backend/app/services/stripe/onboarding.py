@@ -429,7 +429,13 @@ class StripeOnboardingMixin(BaseService):
                             for item in items:
                                 if isinstance(item, str):
                                     requirements.append(item)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "Failed to inspect Stripe account requirements for %s: %s",
+                    account_record.stripe_account_id,
+                    str(exc),
+                    exc_info=True,
+                )
                 requirements = []
 
             computed_completed = bool(charges_enabled and details_submitted)
@@ -440,8 +446,13 @@ class StripeOnboardingMixin(BaseService):
                         computed_completed,
                     )
                     account_record.onboarding_completed = computed_completed
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to persist onboarding status for %s: %s",
+                        account_record.stripe_account_id,
+                        str(exc),
+                        exc_info=True,
+                    )
             return {
                 "has_account": True,
                 "onboarding_completed": computed_completed,
