@@ -13,7 +13,10 @@ jobs:
 
     services:
       postgres:
-        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
+        # Match the pg17 backup format with an official PostgreSQL 17 + PostGIS base.
+        # The repo's published CI image is still pg14, so pgvector is installed into
+        # this verification container in a later step before restore.
+        image: postgis/postgis:17-3.5
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -39,6 +42,30 @@ jobs:
           pg_dump --version
           echo "Age version:"
           age --version
+
+      - name: Install pgvector into verification container
+        run: |
+          echo "🧩 Installing pgvector into PostgreSQL 17 verification container..."
+
+          CONTAINER_ID=$(docker ps --filter "publish=5432" --format '{{.ID}}' | head -n 1)
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "::error::Could not find the PostgreSQL verification container."
+            exit 1
+          fi
+
+          docker exec --user 0 "$CONTAINER_ID" bash -lc '
+            set -e
+            apt-get update
+            apt-get install -y --no-install-recommends wget gnupg ca-certificates
+            . /etc/os-release
+            echo "deb http://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+            apt-get update
+            apt-get install -y --no-install-recommends postgresql-17-pgvector
+            ls -la /usr/share/postgresql/17/extension/vector*
+            apt-get clean
+            rm -rf /var/lib/apt/lists/*
+          '
 
       - name: Download latest backup from R2
         id: download
@@ -93,6 +120,30 @@ jobs:
           fi
           echo "✅ Checksum verified"
 
+      - name: Verify backup freshness
+        env:
+          BACKUP_FILENAME: ${{ steps.download.outputs.latest_backup }}
+        run: |
+          echo "🕒 Verifying backup freshness..."
+
+          BACKUP_DATE=$(printf '%s\n' "$BACKUP_FILENAME" | sed -nE 's/^backup_([0-9]{4}-[0-9]{2}-[0-9]{2})-[0-9]{6}\.dump\.age$/\1/p')
+
+          if [ -z "$BACKUP_DATE" ]; then
+            echo "::error::Could not parse backup date from filename: $BACKUP_FILENAME"
+            exit 1
+          fi
+
+          NOW_TS=$(date +%s)
+          BACKUP_TS=$(date -d "$BACKUP_DATE" +%s)
+          DAYS_OLD=$(( (NOW_TS - BACKUP_TS) / 86400 ))
+
+          if [ "$DAYS_OLD" -gt 2 ]; then
+            echo "::error::Latest backup is ${DAYS_OLD} days old. Backup pipeline may be stalled."
+            exit 1
+          fi
+
+          echo "Backup age: ${DAYS_OLD} day(s) — OK"
+
       - name: Decrypt backup
         run: |
           echo "🔐 Decrypting backup..."
@@ -109,6 +160,23 @@ jobs:
           echo "✅ Backup decrypted"
           ls -lh backup.dump
 
+      - name: Validate backup size
+        run: |
+          echo "📏 Validating backup size..."
+
+          BACKUP_FILE=backup.dump
+          MIN_SIZE=1048576
+
+          ls -la "$BACKUP_FILE"
+          BACKUP_SIZE=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || stat -f%z "$BACKUP_FILE")
+
+          if [ "$BACKUP_SIZE" -lt "$MIN_SIZE" ]; then
+            echo "::error::Backup file is only ${BACKUP_SIZE} bytes (minimum: ${MIN_SIZE}). Possible truncation."
+            exit 1
+          fi
+
+          echo "Backup size: ${BACKUP_SIZE} bytes — OK"
+
       - name: Measure restore time
         id: restore
         env:
@@ -119,6 +187,7 @@ jobs:
 
           START=$(date +%s)
 
+          set +e
           pg_restore \
             --host=localhost \
             --port=5432 \
@@ -129,10 +198,61 @@ jobs:
             --no-owner \
             --no-acl \
             --verbose \
-            backup.dump || true
+            backup.dump \
+            > restore_stdout.log \
+            2> restore_errors.log
+          RESTORE_EXIT=$?
+          set -e
 
           END=$(date +%s)
           DURATION=$((END - START))
+
+          echo "pg_restore exit code: $RESTORE_EXIT"
+          if [ -s restore_stdout.log ]; then
+            cat restore_stdout.log
+          fi
+
+          if [ -s restore_errors.log ]; then
+            echo "pg_restore stderr:"
+            cat restore_errors.log
+          fi
+
+          : > restore_error_lines.log
+          : > restore_warning_lines.log
+          : > restore_fatal_lines.log
+
+          while IFS= read -r line; do
+            case "$line" in
+              "pg_restore: error:"*)
+                printf '%s\n' "$line" >> restore_error_lines.log
+                ;;
+            esac
+          done < restore_errors.log
+
+          while IFS= read -r line; do
+            if printf '%s\n' "$line" | grep -Eqi \
+              'role ".*" does not exist|must be owner of extension|schema ".*" already exists|extension ".*" already exists|extension "vector" is not available|could not open extension control file ".*/vector\.control"|COMMENT ON EXTENSION'; then
+              printf '%s\n' "$line" >> restore_warning_lines.log
+            else
+              printf '%s\n' "$line" >> restore_fatal_lines.log
+            fi
+          done < restore_error_lines.log
+
+          if [ -s restore_warning_lines.log ]; then
+            echo "Expected restore warnings (non-fatal):"
+            cat restore_warning_lines.log
+          fi
+
+          if [ -s restore_fatal_lines.log ]; then
+            echo "::error::Fatal restore errors detected:"
+            cat restore_fatal_lines.log
+            exit 1
+          fi
+
+          if [ "$RESTORE_EXIT" -ne 0 ] && [ ! -s restore_warning_lines.log ]; then
+            echo "::error::pg_restore exited with status $RESTORE_EXIT and no expected warning classification matched."
+            exit "$RESTORE_EXIT"
+          fi
 
           echo "restore_seconds=$DURATION" >> $GITHUB_OUTPUT
           echo ""
@@ -151,10 +271,9 @@ jobs:
           RESULT=$(psql -h localhost -U postgres -d instainstru_test -t -A -c "
             SELECT json_build_object(
               'users', CASE WHEN to_regclass('public.users') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
-              'instructor_profiles', CASE WHEN to_regclass('public.instructor_profiles') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
-              'bookings', CASE WHEN to_regclass('public.bookings') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'instructor_services', CASE WHEN to_regclass('public.instructor_services') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
-              'messages', CASE WHEN to_regclass('public.messages') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'service_catalog', CASE WHEN to_regclass('public.service_catalog') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'service_categories', CASE WHEN to_regclass('public.service_categories') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'alembic_version', CASE WHEN to_regclass('public.alembic_version') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
             );
           ")
@@ -164,7 +283,8 @@ jobs:
 
           # Check for any MISSING tables
           if echo "$RESULT" | grep -q "MISSING"; then
-            echo "::warning::Some expected tables are missing!"
+            echo "::error::Some expected tables are missing after restore!"
+            exit 1
           else
             echo "✅ All critical tables present"
           fi
@@ -175,13 +295,23 @@ jobs:
         run: |
           echo "📊 Checking row counts..."
 
-          psql -h localhost -U postgres -d instainstru_test -c "
-            SELECT 'users' as table_name, COUNT(*) as row_count FROM users
-            UNION ALL SELECT 'instructor_profiles', COUNT(*) FROM instructor_profiles
-            UNION ALL SELECT 'bookings', COUNT(*) FROM bookings
-            UNION ALL SELECT 'services', COUNT(*) FROM services
-            ORDER BY table_name;
-          " || echo "Some tables may not exist yet (this is OK for new deployments)"
+          TABLES_TO_CHECK="users instructor_services service_catalog service_categories"
+          for TABLE in $TABLES_TO_CHECK; do
+            COUNT=$(psql -h localhost -U postgres -d instainstru_test -t -A -c "SELECT COUNT(*) FROM ${TABLE};")
+            COUNT=$(printf '%s' "$COUNT" | tr -d '[:space:]')
+
+            if ! printf '%s\n' "$COUNT" | grep -Eq '^[0-9]+$'; then
+              echo "::error::Table '${TABLE}' returned a non-numeric row count: '${COUNT}'"
+              exit 1
+            fi
+
+            if [ "$COUNT" -eq 0 ]; then
+              echo "::error::Table '${TABLE}' has 0 rows after restore. Backup may be incomplete."
+              exit 1
+            fi
+
+            echo "Table ${TABLE}: ${COUNT} rows — OK"
+          done
 
       - name: Verify auth schema (Supabase Auth)
         env:
@@ -223,7 +353,9 @@ jobs:
         if: always()
         run: |
           echo "🧹 Cleaning up..."
-          rm -f backup.dump backup.dump.age backup.dump.age.sha256 /tmp/backup-key.txt
+          rm -f backup.dump backup.dump.age backup.dump.age.sha256 /tmp/backup-key.txt \
+            restore_stdout.log restore_errors.log restore_error_lines.log \
+            restore_warning_lines.log restore_fatal_lines.log
           echo "✅ Cleanup complete"
 
       - name: Report failure
