@@ -1,7 +1,14 @@
 import sys
 import types
 
+import pytest
 from scripts import prep_db, seed_data
+
+
+@pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
 
 def test_seed_all_orders_availability_before_reviews(monkeypatch):

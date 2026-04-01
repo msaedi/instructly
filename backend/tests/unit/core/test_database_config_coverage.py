@@ -11,6 +11,12 @@ import pytest
 from app.core import database_config
 
 
+@pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch) -> None:
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 def _make_config(monkeypatch) -> database_config.DatabaseConfig:
     monkeypatch.setenv("TEST_DATABASE_URL", "postgresql://user:pass@localhost/test_db")
     monkeypatch.setenv("STG_DATABASE_URL", "postgresql://user:pass@localhost/stg_db")

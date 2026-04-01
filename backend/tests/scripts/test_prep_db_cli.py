@@ -8,6 +8,8 @@ import scripts.prep_db as prep_db
 
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("database_url", raising=False)
     monkeypatch.delenv("DATABASE_URL_PROD", raising=False)
