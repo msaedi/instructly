@@ -12,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.database import SessionLocal
 
 try:  # pragma: no cover - helper only available in repo environments
     from backend.tests._utils.service_seed import ensure_instructor_service_for_tests
@@ -247,13 +246,18 @@ def seed_chat_fixture_booking(
     days_ahead_max: int,
     location: str,
     service_name: str,
-    session_factory: Callable[[], Session] = SessionLocal,
+    session_factory: Optional[Callable[[], Session]] = None,
 ) -> str:
     """Create a minimal chat/booking fixture using bitmap availability."""
     default_enabled = settings.site_mode.lower() not in {"prod", "production", "beta", "live"}
     seed_enabled = _bool_env(os.getenv("SEED_CHAT_FIXTURE"), default_enabled)
     if not seed_enabled:
         return "disabled"
+
+    if session_factory is None:
+        from app.database import SessionLocal
+
+        session_factory = SessionLocal
 
     from app.services.cache_service import CacheService
     from app.services.search.cache_invalidation import init_search_cache

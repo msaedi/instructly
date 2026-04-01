@@ -89,10 +89,11 @@ def test_get_preview_url_errors_when_missing(monkeypatch) -> None:
         cfg._get_preview_url()
 
 
-def test_get_production_url_in_production_mode(monkeypatch) -> None:
+def test_get_production_url_with_bypass(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.prod_url = "postgresql://user:pass@host/prod"
-    monkeypatch.setattr(cfg, "_check_production_mode", lambda: True)
+    monkeypatch.setenv("DB_CONFIRM_BYPASS", "1")
+    monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
 
     assert cfg._get_production_url() == cfg.prod_url
 
@@ -169,7 +170,6 @@ def test_validate_configuration_local_fallback(monkeypatch) -> None:
 def test_get_production_url_non_interactive(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.prod_url = "postgresql://user:pass@host/prod"
-    monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(cfg, "_is_ci_environment", lambda: False)
@@ -182,7 +182,6 @@ def test_get_production_url_non_interactive(monkeypatch) -> None:
 def test_get_production_url_confirmation_yes(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.prod_url = "postgresql://user:pass@host/prod"
-    monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(database_config.sys.stdin, "isatty", lambda: True)
@@ -455,7 +454,6 @@ def test_ensure_ci_database_exists_handles_exception(monkeypatch) -> None:
 def test_get_production_url_user_cancel(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.prod_url = "postgresql://user:pass@host/prod"
-    monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(database_config.sys.stdin, "isatty", lambda: True)

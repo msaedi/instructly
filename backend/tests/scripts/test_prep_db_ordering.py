@@ -31,7 +31,7 @@ def test_seed_all_orders_availability_before_reviews(monkeypatch):
             system_logged = False
         return {"days_requested": 56, "instructors_touched": 5, "days_backfilled": 25}
 
-    def fake_seed_system_data(db_url, dry_run, mode, seed_db_url=None):
+    def fake_seed_system_data(db_url, dry_run, mode):
         nonlocal system_logged
         system_logged = True
 
@@ -187,7 +187,7 @@ def test_seed_all_uses_student_counts(monkeypatch):
     )
     monkeypatch.setattr(prep_db, "count_instructors", lambda *_args, **_kwargs: 0)
     monkeypatch.setattr(prep_db, "count_mock_students", lambda *_args, **_kwargs: next(student_counts))
-    monkeypatch.setattr(prep_db, "seed_chat_fixture_booking", lambda **_kwargs: "skipped-existing")
+    monkeypatch.setattr(prep_db, "get_seed_chat_fixture_booking", lambda: (lambda **_kwargs: "skipped-existing"))
 
     class StudentSeeder:
         def __init__(self):
@@ -240,7 +240,6 @@ def test_seed_all_uses_student_counts(monkeypatch):
     stats = prep_db.run_seed_all_pipeline(
         mode="stg",
         db_url="postgresql://user:pass@localhost/db",
-        seed_db_url="postgresql://user:pass@localhost/db",
         migrate=True,
         dry_run=False,
         env_snapshot=prep_db.build_env_snapshot("stg"),

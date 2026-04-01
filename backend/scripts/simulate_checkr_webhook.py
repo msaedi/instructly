@@ -78,11 +78,6 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
         "beta": "prod_database_url",
         "prod": "prod_database_url",
     }
-    service_key_map = {
-        "preview": "preview_service_database_url",
-        "beta": "prod_service_database_url",
-        "prod": "prod_service_database_url",
-    }
 
     db_key = key_map.get(env_name, "stg_database_url")
     db_url = (env_map.get(db_key) or "").strip()
@@ -93,11 +88,6 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
     if env_name != "int" and "instainstru_test" in db_url:
         print("Refusing to use test database outside --env int", file=sys.stderr)
         sys.exit(2)
-
-    service_key = service_key_map.get(env_name)
-    service_url = (env_map.get(service_key) or "").strip() if service_key else ""
-    if service_url:
-        db_url = service_url
 
     os.environ["DATABASE_URL"] = db_url
     if env_name == "stg" and "SITE_MODE" not in os.environ:

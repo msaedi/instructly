@@ -83,13 +83,12 @@ def _make_dummy_session(report_id: str = "report"):
     return Session()
 
 
-def test_bootstrap_env_beta_prefers_prod_service(tmp_path, monkeypatch):
+def test_bootstrap_env_beta_uses_prod_database_url(tmp_path, monkeypatch):
     env_path = _write_env(
         tmp_path,
         "\n".join(
             [
                 "prod_database_url=postgresql://prod-user@host/prod",
-                "prod_service_database_url=postgresql://service-user@host/prod",
                 "CHECKR_WEBHOOK_SECRET=supersecret",
             ]
         ),
@@ -100,7 +99,7 @@ def test_bootstrap_env_beta_prefers_prod_service(tmp_path, monkeypatch):
     assert env_name == "beta"
     assert (
         sim.os.environ["DATABASE_URL"]
-        == "postgresql://service-user@host/prod"
+        == "postgresql://prod-user@host/prod"
     )
     assert sim.os.environ["SITE_MODE"] == "prod"
     assert "CHECKR_WEBHOOK_URL" not in sim.os.environ
@@ -162,7 +161,6 @@ def test_requests_post_uses_raw_body(monkeypatch, tmp_path):
         "\n".join(
             [
                 "prod_database_url=postgresql://prod-user@host/prod",
-                "prod_service_database_url=postgresql://service-user@host/prod",
                 "CHECKR_WEBHOOK_SECRET=secret-val",
             ]
         ),
@@ -292,7 +290,6 @@ def test_api_key_preferred_over_webhook_secret(monkeypatch, tmp_path):
         "\n".join(
             [
                 "prod_database_url=postgresql://prod-user@host/prod",
-                "prod_service_database_url=postgresql://service-user@host/prod",
                 "CHECKR_WEBHOOK_SECRET=secret-val",
                 "CHECKR_API_KEY=api-key-env",
             ]
@@ -353,7 +350,6 @@ def test_sig_format_sha256(monkeypatch, tmp_path):
         "\n".join(
             [
                 "prod_database_url=postgresql://prod-user@host/prod",
-                "prod_service_database_url=postgresql://service-user@host/prod",
                 "CHECKR_WEBHOOK_SECRET=secret-val",
             ]
         ),

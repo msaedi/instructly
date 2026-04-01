@@ -47,6 +47,7 @@ jobs:
         working-directory: backend
         env:
           SITE_MODE: prod
+          DB_CONFIRM_BYPASS: "1"
           BGC_ENCRYPTION_KEY: ${{ secrets.BGC_ENCRYPTION_KEY }}
           PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
           PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}

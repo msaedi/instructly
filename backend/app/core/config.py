@@ -301,15 +301,9 @@ class Settings(BaseSettings):
     prod_database_url_raw: SecretStr | None = Field(
         default=None, alias="prod_database_url"
     )  # From env PROD_DATABASE_URL
-    prod_service_database_url_raw: SecretStr | None = Field(
-        default=None, alias="prod_service_database_url"
-    )
     preview_database_url_raw: SecretStr = Field(
         default=SecretStr(""), alias="preview_database_url"
     )  # From env PREVIEW_DATABASE_URL
-    preview_service_database_url_raw: SecretStr | None = Field(
-        default=None, alias="preview_service_database_url"
-    )
     int_database_url_raw: SecretStr = Field(
         default=SecretStr("postgresql://postgres:postgres@localhost:5432/instainstru_test")
         if os.getenv("CI")
