@@ -2,14 +2,18 @@
 # iNSTAiNSTRU Verification Suite
 # Usage: bash verify.sh [backend|frontend|all]
 #
-# Runs the full quality gate sequence and reports pass/fail per step.
-# Exit code 0 = all passed. Non-zero = at least one failure.
+# Runs the quality gate sequence in fail-fast mode between steps.
+# Each individual step is allowed to finish naturally; the script never
+# interrupts an in-flight command just because it has started failing.
+# Exit code 0 = all passed. Non-zero = the first failing scope/step failed.
 
 set -euo pipefail
 
 SCOPE="${1:-all}"
 FAILURES=0
 RESULTS=""
+BACKEND_STATUS="NOT_RUN"
+FRONTEND_STATUS="NOT_RUN"
 
 # Find repo root (look for backend/ and frontend/ directories)
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -45,14 +49,16 @@ run_backend() {
 
     cd "$REPO_ROOT/backend"
 
-    # 1. Tests
-    echo "→ Running pytest..."
-    if TEST_OUTPUT=$(python -m pytest tests/ --tb=short -q 2>&1); then
-        PASS_LINE=$(echo "$TEST_OUTPUT" | tail -1)
-        record "Backend tests" "PASS" "$PASS_LINE"
+    # 1. Ruff
+    echo "→ Running ruff..."
+    if RUFF_OUTPUT=$(cd "$REPO_ROOT" && ruff check backend/ 2>&1); then
+        record "ruff" "PASS" "clean"
     else
-        PASS_LINE=$(echo "$TEST_OUTPUT" | tail -3)
-        record "Backend tests" "FAIL" "$PASS_LINE"
+        ERROR_COUNT=$(echo "$RUFF_OUTPUT" | tail -1)
+        record "ruff" "FAIL" "$ERROR_COUNT"
+        BACKEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 2. mypy
@@ -62,6 +68,9 @@ run_backend() {
     else
         ERROR_COUNT=$(echo "$MYPY_OUTPUT" | tail -1)
         record "mypy" "FAIL" "$ERROR_COUNT"
+        BACKEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 3. Pre-commit
@@ -71,9 +80,27 @@ run_backend() {
     else
         FAILED_HOOKS=$(echo "$PRECOMMIT_OUTPUT" | grep -c "Failed" || true)
         record "Pre-commit" "FAIL" "${FAILED_HOOKS} hook(s) failed"
+        BACKEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
+    # 4. Tests
+    echo "→ Running pytest..."
+    if TEST_OUTPUT=$(python -m pytest tests/ --tb=short -q 2>&1); then
+        PASS_LINE=$(echo "$TEST_OUTPUT" | tail -1)
+        record "Backend tests" "PASS" "$PASS_LINE"
+    else
+        PASS_LINE=$(echo "$TEST_OUTPUT" | tail -3)
+        record "Backend tests" "FAIL" "$PASS_LINE"
+        BACKEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
+    fi
+
+    BACKEND_STATUS="PASS"
     cd "$REPO_ROOT"
+    return 0
 }
 
 # ─── FRONTEND ──────────────────────────────────────────────────────
@@ -95,6 +122,9 @@ run_frontend() {
     else
         SUMMARY=$(echo "$TEST_OUTPUT" | grep -E "Tests:|Test Suites:|FAIL" | tail -5)
         record "Frontend tests" "FAIL" "$SUMMARY"
+        FRONTEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 2. Lint
@@ -103,6 +133,9 @@ run_frontend() {
         record "ESLint" "PASS" "clean"
     else
         record "ESLint" "FAIL" "lint errors or warnings found"
+        FRONTEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 3. TypeScript (strict-all is the strictest superset — covers typecheck and typecheck:strict)
@@ -111,6 +144,9 @@ run_frontend() {
         record "typecheck:strict-all" "PASS" "0 errors"
     else
         record "typecheck:strict-all" "FAIL" "strict-all type errors found"
+        FRONTEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 4. Type coverage
@@ -119,6 +155,9 @@ run_frontend() {
         record "Type coverage" "PASS" "100%"
     else
         record "Type coverage" "FAIL" "below 100% — any introduced"
+        FRONTEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
     # 5. npm audit
@@ -128,9 +167,14 @@ run_frontend() {
     else
         VULN_LINE=$(echo "$AUDIT_OUTPUT" | grep -E "vulnerabilities" | tail -1)
         record "npm audit" "FAIL" "$VULN_LINE"
+        FRONTEND_STATUS="FAIL"
+        cd "$REPO_ROOT"
+        return 1
     fi
 
+    FRONTEND_STATUS="PASS"
     cd "$REPO_ROOT"
+    return 0
 }
 
 # ─── MAIN ──────────────────────────────────────────────────────────
@@ -143,14 +187,21 @@ echo "╚═══════════════════════�
 
 case "$SCOPE" in
     backend)
-        run_backend
+        if ! run_backend; then
+            :
+        fi
         ;;
     frontend)
-        run_frontend
+        if ! run_frontend; then
+            :
+        fi
         ;;
     all)
-        run_backend
-        run_frontend
+        if ! run_backend; then
+            :
+        elif ! run_frontend; then
+            :
+        fi
         ;;
     *)
         echo "Usage: verify.sh [backend|frontend|all]"
@@ -169,7 +220,13 @@ echo ""
 
 if [[ $FAILURES -gt 0 ]]; then
     echo "❌ FAILED: ${FAILURES} check(s) did not pass."
-    echo "   Fix all failures before reporting task as complete."
+    if [[ "$SCOPE" == "all" && "$BACKEND_STATUS" == "PASS" && "$FRONTEND_STATUS" == "FAIL" ]]; then
+        echo "   Backend is already green. Fix frontend failures, then rerun: bash scripts/verify.sh frontend"
+    elif [[ "$SCOPE" == "all" && "$BACKEND_STATUS" == "FAIL" ]]; then
+        echo "   Stop here. Fix backend failures, then rerun: bash scripts/verify.sh backend"
+    else
+        echo "   Stop here. Fix the failing step, then rerun: bash scripts/verify.sh ${SCOPE}"
+    fi
     exit 1
 else
     echo "✅ ALL CHECKS PASSED"
