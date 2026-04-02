@@ -560,6 +560,8 @@ export function formatLessonStatus(
       return 'Upcoming';
     case 'COMPLETED':
       return 'Completed';
+    case 'PAYMENT_FAILED':
+      return 'Payment Failed';
     case 'CANCELLED':
       if (cancelledAt && lessonDate) {
         const cancelDate = new Date(cancelledAt);

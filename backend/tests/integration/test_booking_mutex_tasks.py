@@ -64,7 +64,7 @@ def test_process_scheduled_authorizations_skips_locked_booking(db, test_booking)
     _update_booking(
         db,
         test_booking,
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_status="scheduled",
         payment_method_id="pm_test",
         booking_start_utc=now + timedelta(hours=24),
@@ -88,7 +88,7 @@ def test_retry_failed_authorizations_skips_locked_booking(db, test_booking):
     _update_booking(
         db,
         test_booking,
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_status = "payment_method_required",
         payment_method_id="pm_test",
         booking_start_utc=now + timedelta(hours=10),
@@ -100,13 +100,13 @@ def test_retry_failed_authorizations_skips_locked_booking(db, test_booking):
     ), patch(
         "app.tasks.payment_tasks._process_retry_authorization"
     ) as mock_retry, patch(
-        "app.tasks.payment_tasks._cancel_booking_payment_failed"
-    ) as mock_cancel:
+        "app.tasks.payment_tasks._mark_booking_payment_failed"
+    ) as mock_payment_failed:
         result = retry_failed_authorizations()
 
     assert test_booking.id in calls
     mock_retry.assert_not_called()
-    mock_cancel.assert_not_called()
+    mock_payment_failed.assert_not_called()
     assert result["failed"] == 0
 
 

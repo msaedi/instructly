@@ -600,6 +600,8 @@ class BookingDetailService(BaseService):
             add_event(booking.updated_at or booking.created_at, "BOOKING_RESCHEDULED")
         if booking.cancelled_at:
             add_event(booking.cancelled_at, "BOOKING_CANCELLED")
+        if _normalize_booking_status(booking.status) == BookingStatus.PAYMENT_FAILED.value:
+            add_event(booking.updated_at or booking.created_at, "BOOKING_PAYMENT_FAILED")
         if booking.completed_at:
             add_event(booking.completed_at, "BOOKING_COMPLETED")
         if (

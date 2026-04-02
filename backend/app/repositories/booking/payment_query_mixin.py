@@ -76,7 +76,7 @@ class BookingPaymentQueryMixin(BookingRepositoryMixinBase):
                 .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
-                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
                         BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                         BookingPayment.payment_method_id.isnot(None),
                     )
@@ -97,7 +97,7 @@ class BookingPaymentQueryMixin(BookingRepositoryMixinBase):
                 .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
-                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.status == BookingStatus.PENDING,
                         BookingPayment.payment_status
                         == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
                         BookingPayment.capture_failed_at.is_(None),
@@ -214,7 +214,7 @@ class BookingPaymentQueryMixin(BookingRepositoryMixinBase):
                 .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
                     and_(
-                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
                         BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                         Booking.booking_date <= current_date,
                     )

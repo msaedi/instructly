@@ -2775,6 +2775,26 @@ def test_post_cancellation_actions_skips_user_notifications_for_never_confirmed_
     booking_service._invalidate_booking_caches.assert_called_once_with(booking)
 
 
+def test_post_cancellation_actions_skips_all_user_facing_side_effects_for_payment_failed_booking(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(
+        status=BookingStatus.PAYMENT_FAILED,
+        confirmed_at=datetime.now(timezone.utc),
+    )
+    booking_service.event_publisher.publish = Mock()
+    booking_service.system_message_service.create_booking_cancelled_message = Mock()
+    booking_service._send_cancellation_notifications = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+
+    booking_service._post_cancellation_actions(booking, "student")
+
+    booking_service.event_publisher.publish.assert_called_once()
+    booking_service.system_message_service.create_booking_cancelled_message.assert_not_called()
+    booking_service._send_cancellation_notifications.assert_not_called()
+    booking_service._invalidate_booking_caches.assert_called_once_with(booking)
+
+
 def test_post_cancellation_actions_sends_user_notifications_for_confirmed_booking(
     booking_service: BookingService,
 ) -> None:

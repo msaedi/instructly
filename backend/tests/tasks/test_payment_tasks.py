@@ -124,7 +124,7 @@ class TestPaymentTasks:
         # Create mock booking that needs authorization
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_test123"
         # Set booking to be exactly 24 hours from now
@@ -231,7 +231,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_test123"
         now = datetime.now(timezone.utc)
@@ -418,7 +418,7 @@ class TestPaymentTasks:
         # Create mock booking with failed auth
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_test123"
         # Set booking to be exactly 20 hours from now (triggers retry)
@@ -530,7 +530,7 @@ class TestPaymentTasks:
         # Create mock booking
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_test123"
         # Set booking to be 5 hours from now (triggers cancellation)
@@ -576,15 +576,15 @@ class TestPaymentTasks:
         assert result["retried"] == 0
         assert result["cancelled"] == 1
         assert booking.payment_detail.payment_status == "settled"
-        assert booking.payment_detail.settlement_outcome == "student_cancel_gt24_no_charge"
+        assert booking.payment_detail.settlement_outcome == "payment_failed_no_charge"
 
         # Verify abandonment event was created
         mock_payment_repo.create_payment_event.assert_called_once()
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_abandoned"
 
-        # Verify notification of cancellation due to payment failure was sent (email mocked)
-        notification_instance.send_booking_cancelled_payment_failed.assert_called_once_with(booking)
+        # Verify student-only payment failed notification was sent (email mocked)
+        notification_instance.send_payment_failed_notification.assert_called_once_with(booking)
 
     @patch("app.database.SessionLocal")
     def test_create_new_authorization_and_capture_application_fee(self, mock_session_local):
@@ -1023,7 +1023,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_credit"
         booking.student_id = "student_credit"
@@ -1100,7 +1100,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_skip"
         booking.student_id = "student_skip"
@@ -1139,7 +1139,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_due"
         booking.student_id = "student_due"
@@ -1187,7 +1187,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_warn"
         booking.student_id = "student_warn"
@@ -1261,7 +1261,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_recent"
         booking.student_id = "student_recent"
@@ -1686,7 +1686,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "authorized"
         booking.payment_detail.payment_intent_id = "pi_expired_pending"
 
@@ -1971,7 +1971,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_credit_metric"
         booking.student_id = "student_metric"
@@ -2047,7 +2047,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_warn_skip"
         booking.student_id = "student_warn_skip"
@@ -2243,7 +2243,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_missing_customer"
         booking.student_id = "student_missing_customer"
@@ -2306,7 +2306,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_missing_profile"
         booking.student_id = "student_profile"
@@ -2368,7 +2368,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_missing_account"
         booking.student_id = "student_account"
@@ -2434,7 +2434,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_email_fail"
         booking.student_id = "student_email_fail"
@@ -2496,7 +2496,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "scheduled"
         booking.payment_detail.payment_method_id = "pm_metrics_fail"
         booking.student_id = "student_metrics_fail"
@@ -2569,7 +2569,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_past"
         booking.student_id = "student_past"
@@ -2608,7 +2608,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.payment_method_id = "pm_retry_fail"
         booking.student_id = "student_retry_fail"
@@ -2651,14 +2651,14 @@ class TestPaymentTasks:
         assert result["failed"] == 1
 
     @patch("app.database.SessionLocal")
-    def test_check_immediate_auth_timeout_cancels_after_window(self, mock_session_local):
-        """Immediate auth failures are auto-cancelled after 30 minutes."""
+    def test_check_immediate_auth_timeout_marks_payment_failed_after_window(self, mock_session_local):
+        """Immediate auth failures are marked payment failed after 30 minutes."""
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.auth_attempted_at = datetime.now(timezone.utc) - timedelta(minutes=31)
         booking.booking_date = date.today() + timedelta(days=1)
@@ -2676,13 +2676,13 @@ class TestPaymentTasks:
                 return_value=10.0,
             ):
                 with patch(
-                    "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                    "app.tasks.payment_tasks._mark_booking_payment_failed",
                     return_value=True,
-                ) as mock_cancel:
+                ) as mock_mark_payment_failed:
                     result = check_immediate_auth_timeout(booking.id)
 
-        assert result["cancelled"] is True
-        mock_cancel.assert_called_once()
+        assert result["payment_failed"] is True
+        mock_mark_payment_failed.assert_called_once()
 
     @patch("app.database.SessionLocal")
     def test_check_immediate_auth_timeout_skips_within_window(self, mock_session_local):
@@ -2692,7 +2692,7 @@ class TestPaymentTasks:
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.status = BookingStatus.CONFIRMED
+        booking.status = BookingStatus.PENDING
         booking.payment_detail.payment_status = "payment_method_required"
         booking.payment_detail.auth_attempted_at = datetime.now(timezone.utc) - timedelta(minutes=10)
         booking.booking_date = date.today() + timedelta(days=1)
@@ -2706,13 +2706,13 @@ class TestPaymentTasks:
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
             with patch(
-                "app.tasks.payment_tasks._cancel_booking_payment_failed",
-            ) as mock_cancel:
+                "app.tasks.payment_tasks._mark_booking_payment_failed",
+            ) as mock_mark_payment_failed:
                 result = check_immediate_auth_timeout(booking.id)
 
         assert result["skipped"] is True
         assert result["reason"] == "retry_window_open"
-        mock_cancel.assert_not_called()
+        mock_mark_payment_failed.assert_not_called()
 
     def test_attempt_authorization_retry_missing_connected_account(self):
         """Missing connected accounts fail retry attempts."""

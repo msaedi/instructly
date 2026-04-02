@@ -134,7 +134,7 @@ def test_retry_failed_authorizations_cancels_when_due():
                             return_value=_lock(True),
                         ):
                             with patch(
-                                "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                                "app.tasks.payment_tasks._mark_booking_payment_failed",
                                 return_value=True,
                             ):
                                 result = payment_tasks.retry_failed_authorizations()
@@ -157,7 +157,7 @@ def test_check_immediate_auth_timeout_cancelled_status():
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             result = payment_tasks.check_immediate_auth_timeout("booking_id")
 
-    assert result == {"skipped": True, "reason": "cancelled"}
+    assert result == {"skipped": True, "reason": "terminal"}
 
 
 def test_retry_failed_captures_skips_when_not_capture_failure():
@@ -398,7 +398,7 @@ def test_check_immediate_auth_timeout_skip_when_lock_unavailable():
 def test_check_immediate_auth_timeout_retry_window_open():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             auth_attempted_at=now - timedelta(minutes=10),
@@ -418,7 +418,7 @@ def test_check_immediate_auth_timeout_retry_window_open():
 def test_check_immediate_auth_timeout_cancelled():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             auth_attempted_at=now - timedelta(hours=1),
@@ -431,7 +431,7 @@ def test_check_immediate_auth_timeout_cancelled():
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
-                "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                "app.tasks.payment_tasks._mark_booking_payment_failed",
                 return_value=True,
             ):
                 with patch(
@@ -444,7 +444,7 @@ def test_check_immediate_auth_timeout_cancelled():
                     ):
                         result = payment_tasks.check_immediate_auth_timeout("booking_id")
 
-    assert result == {"cancelled": True}
+    assert result == {"payment_failed": True}
 
 
 def test_process_scheduled_authorizations_sends_first_failure_email():
@@ -754,7 +754,7 @@ def test_process_scheduled_authorizations_handles_missing_booking_for_email():
 def test_process_authorization_for_booking_phase3_missing():
     booking = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.SCHEDULED.value,
             payment_method_id="pm_1",
@@ -795,7 +795,7 @@ def test_retry_failed_authorizations_warn_only_sends_warning():
     db_warn = MagicMock()
     booking_warn = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=None,
@@ -860,7 +860,7 @@ def test_retry_failed_authorizations_warn_only_skips_when_already_sent():
     db_read = MagicMock()
     db_warn = MagicMock()
     warn_booking = SimpleNamespace(
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=None,
@@ -1068,7 +1068,7 @@ def test_retry_failed_authorizations_cancel_path_noop_when_cancel_returns_false(
                             return_value=_lock(True),
                         ):
                             with patch(
-                                "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                                "app.tasks.payment_tasks._mark_booking_payment_failed",
                                 return_value=False,
                             ):
                                 result = payment_tasks.retry_failed_authorizations()
@@ -1091,7 +1091,7 @@ def test_check_immediate_auth_timeout_booking_not_found():
 
 def test_check_immediate_auth_timeout_resolved():
     booking = SimpleNamespace(
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.AUTHORIZED.value,
             auth_attempted_at=None,
@@ -1111,7 +1111,7 @@ def test_check_immediate_auth_timeout_resolved():
 def test_check_immediate_auth_timeout_attempted_at_missing():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             auth_attempted_at=None,
@@ -1124,7 +1124,7 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
-                "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                "app.tasks.payment_tasks._mark_booking_payment_failed",
                 return_value=True,
             ):
                 with patch(
@@ -1137,7 +1137,7 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
                     ):
                         result = payment_tasks.check_immediate_auth_timeout("booking_id")
 
-    assert result == {"cancelled": True}
+    assert result == {"payment_failed": True}
 
 
 def test_retry_failed_captures_skips_when_lock_unavailable():
@@ -1450,7 +1450,7 @@ def test_handle_authorization_failure_sets_status():
 def test_process_capture_for_booking_locked_funds():
     booking = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
         rescheduled_from_booking_id="locked_parent",
         has_locked_funds=True,
@@ -1479,7 +1479,7 @@ def test_process_capture_for_booking_locked_funds():
 def test_process_capture_for_booking_locked_funds_without_settle_when_resolution_fails():
     booking = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
         rescheduled_from_booking_id="locked_parent",
         has_locked_funds=True,
@@ -1575,7 +1575,7 @@ def test_process_capture_for_booking_already_captured():
 def test_process_capture_for_booking_phase3_missing():
     booking_phase1 = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.AUTHORIZED.value,
             payment_intent_id="pi_123",
@@ -1617,7 +1617,7 @@ def test_auto_complete_booking_locked_funds():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.AUTHORIZED.value,
             payment_intent_id="pi_123",
@@ -2679,7 +2679,7 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
     db_warn = MagicMock()
     booking_warn = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=None,
@@ -2739,7 +2739,7 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
 def test_process_retry_authorization_returns_phase3_missing():
     booking_phase1 = SimpleNamespace(
         id="booking_id",
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             payment_method_id="pm_123",

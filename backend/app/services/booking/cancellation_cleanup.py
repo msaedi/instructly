@@ -4,7 +4,7 @@ import logging
 from types import ModuleType
 from typing import TYPE_CHECKING, cast
 
-from ...models.booking import Booking, PaymentStatus
+from ...models.booking import Booking, BookingStatus, PaymentStatus
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -147,7 +147,12 @@ class BookingCancellationCleanupMixin:
         except Exception as e:
             logger.error("Failed to send cancellation notification event: %s", str(e))
 
-        if self._was_ever_confirmed(booking):
+        if booking.status == BookingStatus.PAYMENT_FAILED:
+            logger.info(
+                "Skipping cancellation side effects for payment-failed booking %s",
+                booking.id,
+            )
+        elif self._was_ever_confirmed(booking):
             try:
                 self.system_message_service.create_booking_cancelled_message(
                     student_id=booking.student_id,

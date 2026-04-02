@@ -368,7 +368,7 @@ function MyLessonsContent() {
                   Your lesson history will appear here
                 </p>
                 <p className="text-gray-500 dark:text-gray-400">
-                  This includes completed, cancelled, and past lessons.
+                  This includes completed, cancelled, payment-failed, and past lessons.
                 </p>
               </>
             )}

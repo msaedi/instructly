@@ -48,10 +48,11 @@ class BookingStatus(str, Enum):
     Case-insensitive: accepts 'completed', 'COMPLETED', or 'Completed'.
     """
 
-    PENDING = "PENDING"  # Reserved for future use
-    CONFIRMED = "CONFIRMED"  # Default - instant booking
+    PENDING = "PENDING"  # Booking exists but payment/setup is not complete
+    CONFIRMED = "CONFIRMED"  # Booking confirmed after payment succeeds
     COMPLETED = "COMPLETED"  # Lesson completed
     CANCELLED = "CANCELLED"  # Booking cancelled
+    PAYMENT_FAILED = "PAYMENT_FAILED"  # Booking never confirmed because payment failed
     NO_SHOW = "NO_SHOW"  # Student didn't attend
 
     @classmethod
@@ -151,7 +152,7 @@ class Booking(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
-    confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -277,7 +278,7 @@ class Booking(Base):
     # Data integrity constraints
     _table_constraints = [
         CheckConstraint(
-            "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
+            "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'PAYMENT_FAILED', 'NO_SHOW')",
             name="ck_bookings_status",
         ),
         CheckConstraint(
@@ -304,11 +305,30 @@ class Booking(Base):
         super().__init__(**kwargs)
         if not self.status:
             self.status = BookingStatus.CONFIRMED
+        if self.status == BookingStatus.CONFIRMED and self.confirmed_at is None:
+            self.confirmed_at = datetime.now(timezone.utc)
         logger.info(
             "Creating booking for student %s with instructor %s",
             self.student_id,
             self.instructor_id,
         )
+
+    _ALLOWED_TRANSITIONS: dict[BookingStatus, set[BookingStatus]] = {
+        BookingStatus.PENDING: {
+            BookingStatus.CONFIRMED,
+            BookingStatus.CANCELLED,
+            BookingStatus.PAYMENT_FAILED,
+        },
+        BookingStatus.CONFIRMED: {
+            BookingStatus.COMPLETED,
+            BookingStatus.CANCELLED,
+            BookingStatus.NO_SHOW,
+        },
+        BookingStatus.COMPLETED: set(),
+        BookingStatus.CANCELLED: set(),
+        BookingStatus.PAYMENT_FAILED: set(),
+        BookingStatus.NO_SHOW: set(),
+    }
 
     def __repr__(self) -> str:
         """String representation for debugging."""
@@ -318,8 +338,27 @@ class Booking(Base):
             f"time={self.start_time}-{self.end_time}, status={self.status}>"
         )
 
+    @property
+    def normalized_status(self) -> BookingStatus:
+        """Return the enum value for the current booking status."""
+        return BookingStatus(self.status)
+
+    def can_transition_to(self, next_status: BookingStatus | str) -> bool:
+        """Return whether the booking can move to the requested status."""
+        target = BookingStatus(next_status)
+        current = self.normalized_status
+        return target == current or target in self._ALLOWED_TRANSITIONS.get(current, set())
+
+    def assert_can_transition_to(self, next_status: BookingStatus | str) -> BookingStatus:
+        """Raise when the requested status change is not allowed."""
+        target = BookingStatus(next_status)
+        if not self.can_transition_to(target):
+            raise ValueError(f"Invalid booking status transition: {self.status} -> {target.value}")
+        return target
+
     def cancel(self, cancelled_by_user_id: str, reason: Optional[str] = None) -> None:
         """Cancel this booking."""
+        self.assert_can_transition_to(BookingStatus.CANCELLED)
         self.status = BookingStatus.CANCELLED
         self.cancelled_at = datetime.now(timezone.utc)
         self.cancelled_by_id = cancelled_by_user_id
@@ -328,14 +367,23 @@ class Booking(Base):
 
     def complete(self) -> None:
         """Mark booking as completed."""
+        self.assert_can_transition_to(BookingStatus.COMPLETED)
         self.status = BookingStatus.COMPLETED
         self.completed_at = datetime.now(timezone.utc)
         logger.info("Booking %s marked as completed", self.id)
 
     def mark_no_show(self) -> None:
         """Mark booking as no-show."""
+        self.assert_can_transition_to(BookingStatus.NO_SHOW)
         self.status = BookingStatus.NO_SHOW
         logger.info("Booking %s marked as no-show", self.id)
+
+    def mark_payment_failed(self) -> None:
+        """Mark booking as payment failed without treating it as cancelled."""
+        self.assert_can_transition_to(BookingStatus.PAYMENT_FAILED)
+        self.status = BookingStatus.PAYMENT_FAILED
+        self.confirmed_at = None
+        logger.info("Booking %s marked as payment failed", self.id)
 
     @property
     def is_cancellable(self) -> bool:

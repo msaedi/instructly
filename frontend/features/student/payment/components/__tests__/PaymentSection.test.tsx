@@ -90,6 +90,7 @@ let latestPaymentConfirmationProps: {
   availabilityWarnings?: Array<{ message: string }> | null | undefined;
   isCheckingInstructorAvailability?: boolean | undefined;
   isMissingRequiredPaymentMethod?: boolean | undefined;
+  onConfirm?: (() => void | Promise<void>) | undefined;
 } | null = null;
 
 type BookingWithMetadata = BookingPayment & {
@@ -159,6 +160,7 @@ jest.mock('../PaymentConfirmation', () => {
       availabilityWarnings,
       isCheckingInstructorAvailability,
       isMissingRequiredPaymentMethod,
+      onConfirm,
     };
 
     if (isMissingRequiredPaymentMethod && confirmationMockHasSelectableSavedCard) {
@@ -970,6 +972,40 @@ describe('PaymentSection', () => {
       await waitFor(() => {
         expect(screen.queryByTestId('instructor-availability-error')).not.toBeInTheDocument();
       });
+    });
+
+    it('surfaces a retryable error when the instructor availability preflight request fails', async () => {
+      const createBookingMock = jest.fn();
+      const mutateAsync = jest.fn().mockRejectedValue(new Error('availability service unavailable'));
+
+      usePaymentFlowMock.mockReturnValue(confirmationFlowState);
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+      useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
+
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Commit Time Selection'));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('instructor-availability-error')).toHaveTextContent(
+          'Unable to verify availability right now. Please try again.'
+        );
+      });
+      expect(createBookingMock).not.toHaveBeenCalled();
     });
   });
 
@@ -6211,6 +6247,60 @@ describe('PaymentSection', () => {
       fireEvent.click(screen.getByText('Confirm Payment'));
 
       await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+        expect(onError).toHaveBeenCalled();
+      });
+      expect(cancelBookingMock).not.toHaveBeenCalled();
+    });
+
+    it('covers the defensive missing-card branch by reaching the error step without cancelling', async () => {
+      const cancelBookingMock = jest.fn();
+      jest.requireMock('@/src/api/services/bookings').cancelBookingImperative = cancelBookingMock;
+
+      const goToStep = jest.fn();
+      const onError = jest.fn();
+      const createBookingMock = jest
+        .fn()
+        .mockResolvedValue({ id: 'booking-payment-required', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          onError={onError}
+          showPaymentMethodInline={true}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(latestPaymentConfirmationProps?.isMissingRequiredPaymentMethod).toBe(true);
+      });
+      expect(latestPaymentConfirmationProps?.onConfirm).toEqual(expect.any(Function));
+
+      await act(async () => {
+        await latestPaymentConfirmationProps?.onConfirm?.();
+      });
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
         expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
         expect(onError).toHaveBeenCalled();
       });

@@ -640,6 +640,10 @@ describe('useMyLessons hooks', () => {
       expect(formatLessonStatus('COMPLETED' as BookingStatus)).toBe('Completed');
     });
 
+    it('formats PAYMENT_FAILED status', () => {
+      expect(formatLessonStatus('PAYMENT_FAILED' as BookingStatus)).toBe('Payment Failed');
+    });
+
     it('formats NO_SHOW status', () => {
       expect(formatLessonStatus('NO_SHOW' as BookingStatus)).toBe('No-show');
     });

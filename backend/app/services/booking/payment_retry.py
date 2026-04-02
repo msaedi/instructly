@@ -104,6 +104,8 @@ class BookingPaymentRetryMixin:
             raise ForbiddenException("Only the student can retry payment authorization")
         if booking.status == BookingStatus.CANCELLED:
             raise BusinessRuleException("Booking has been cancelled")
+        if booking.status == BookingStatus.PAYMENT_FAILED:
+            raise BusinessRuleException("Booking payment has already failed")
         pd = booking.payment_detail
         cur_payment_status = pd.payment_status if pd is not None else None
         if cur_payment_status not in {

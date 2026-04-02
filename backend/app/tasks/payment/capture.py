@@ -21,8 +21,8 @@ def load_capture_context(
     booking = api.BookingRepository(db).get_by_id(booking_id)
     if not booking:
         return {"result": {"success": False, "error": "Booking not found"}}
-    if booking.status == BookingStatus.CANCELLED:
-        return {"result": {"success": True, "skipped": True, "reason": "cancelled"}}
+    if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
+        return {"result": {"success": True, "skipped": True, "reason": "terminal"}}
     if getattr(booking, "has_locked_funds", False) is True and booking.rescheduled_from_booking_id:
         return {"locked_booking_id": booking.rescheduled_from_booking_id}
     payment = booking.payment_detail

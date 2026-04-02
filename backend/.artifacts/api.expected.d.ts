@@ -7087,7 +7087,7 @@ export type components = {
  total_earnings: number;
  upcoming_bookings: number;
  };
- BookingStatus: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+ BookingStatus: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "PAYMENT_FAILED" | "NO_SHOW";
  BookingSummary: {
  date: string;
  id: string;

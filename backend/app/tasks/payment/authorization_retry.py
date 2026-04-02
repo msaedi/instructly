@@ -11,29 +11,33 @@ from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.tasks.payment.common import PaymentTasksFacadeApi, RetryJobResults
 
 
-def cancel_booking_payment_failed_impl(
+def mark_booking_payment_failed_impl(
     api: PaymentTasksFacadeApi,
     booking_id: str,
     hours_until_lesson: float,
     now: datetime,
 ) -> bool:
-    """Cancel a booking due to payment failure."""
+    """Mark a booking as payment failed after authorization exhaustion."""
     from app.database import SessionLocal
 
     db: Session = SessionLocal()
     try:
         repo = api.BookingRepository(db)
         booking = repo.get_by_id(booking_id)
-        if not booking or booking.status == BookingStatus.CANCELLED:
+        if not booking or booking.status in {
+            BookingStatus.CANCELLED,
+            BookingStatus.PAYMENT_FAILED,
+        }:
             return False
-        booking.status = BookingStatus.CANCELLED
+        booking = repo.mark_payment_failed(booking_id)
         booking.student_credit_amount = 0
         booking.refunded_to_card_amount = 0
-        booking.cancelled_at = now
-        booking.cancellation_reason = "Payment authorization failed after multiple attempts"
+        booking.cancelled_at = None
+        booking.cancelled_by_id = None
+        booking.cancellation_reason = None
         payment = repo.ensure_payment(booking.id)
         payment.payment_status = PaymentStatus.SETTLED.value
-        payment.settlement_outcome = "student_cancel_gt24_no_charge"
+        payment.settlement_outcome = "payment_failed_no_charge"
         payment.instructor_payout_amount = 0
         try:
             from app.services.credit_service import CreditService
@@ -50,25 +54,35 @@ def cancel_booking_payment_failed_impl(
             booking_id=booking_id,
             event_type="auth_abandoned",
             event_data={
-                "reason": "T-12hr cancellation",
+                "reason": "payment_failed_no_charge",
                 "hours_until_lesson": round(hours_until_lesson, 1),
-                "cancelled_at": now.isoformat(),
+                "payment_failed_at": now.isoformat(),
             },
         )
-        api.NotificationService(db).send_booking_cancelled_payment_failed(booking)
+        api.NotificationService(db).send_payment_failed_notification(booking)
         db.commit()
         api.logger.info(
-            "Cancelled booking %s due to payment failure (T-%shr)",
+            "Marked booking %s as payment failed (T-%shr)",
             booking_id,
             f"{hours_until_lesson:.1f}",
         )
         return True
     except Exception as exc:
-        api.logger.error("Error cancelling booking %s: %s", booking_id, exc)
+        api.logger.error("Error marking booking %s as payment failed: %s", booking_id, exc)
         db.rollback()
         return False
     finally:
         db.close()
+
+
+def cancel_booking_payment_failed_impl(
+    api: PaymentTasksFacadeApi,
+    booking_id: str,
+    hours_until_lesson: float,
+    now: datetime,
+) -> bool:
+    """Backward-compatible alias for the payment-failed terminal transition."""
+    return mark_booking_payment_failed_impl(api, booking_id, hours_until_lesson, now)
 
 
 def load_retry_context(api: PaymentTasksFacadeApi, db: Session, booking_id: str) -> Dict[str, Any]:
@@ -77,10 +91,10 @@ def load_retry_context(api: PaymentTasksFacadeApi, db: Session, booking_id: str)
     booking = api.BookingRepository(db).get_by_id(booking_id)
     if not booking:
         return {"result": {"success": False, "error": "Booking not found"}}
-    if booking.status == BookingStatus.CANCELLED:
-        return {"result": {"success": False, "skipped": True, "reason": "cancelled"}}
+    if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
+        return {"result": {"success": False, "skipped": True, "reason": "terminal"}}
     payment = booking.payment_detail
-    if booking.status != BookingStatus.CONFIRMED:
+    if booking.status != BookingStatus.PENDING:
         return {"result": {"success": False, "skipped": True, "reason": "not_eligible"}}
     if getattr(payment, "payment_status", None) != PaymentStatus.PAYMENT_METHOD_REQUIRED.value:
         return {"result": {"success": False, "skipped": True, "reason": "not_eligible"}}
@@ -204,7 +218,7 @@ def _run_retry_warning(
         repo = api.BookingRepository(db_warn)
         booking = repo.get_by_id(booking_id)
         payment = booking.payment_detail if booking else None
-        if not booking or booking.status != BookingStatus.CONFIRMED:
+        if not booking or booking.status != BookingStatus.PENDING:
             db_warn.commit()
             return False
         if getattr(payment, "payment_status", None) != PaymentStatus.PAYMENT_METHOD_REQUIRED.value:
@@ -248,7 +262,7 @@ def plan_retry_actions(
                 {
                     "booking_id": booking.id,
                     "hours_until_lesson": hours_until_lesson,
-                    "action": "cancel",
+                    "action": "mark_payment_failed",
                 }
             )
             continue
@@ -294,9 +308,9 @@ def _run_retry_action(
     with api.booking_lock_sync(booking_id) as acquired:
         if not acquired:
             return
-        if action == "cancel":
+        if action == "mark_payment_failed":
             results["cancelled"] += int(
-                api._cancel_booking_payment_failed(booking_id, hours_until_lesson, now)
+                api._mark_booking_payment_failed(booking_id, hours_until_lesson, now)
             )
             return
         if action == "warn_only":
@@ -339,7 +353,7 @@ def retry_failed_authorizations_impl(api: PaymentTasksFacadeApi) -> RetryJobResu
             )
             results["failed"] += 1
     api.logger.info(
-        "Retry job completed: %s attempted, %s success, %s failed, %s cancelled, %s warnings sent",
+        "Retry job completed: %s attempted, %s success, %s failed, %s payment-failed, %s warnings sent",
         results["retried"],
         results["success"],
         results["failed"],

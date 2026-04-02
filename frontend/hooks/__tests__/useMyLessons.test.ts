@@ -171,6 +171,12 @@ describe('useMyLessons', () => {
       expect(formatLessonStatus('COMPLETED')).toBe('Completed');
     });
 
+    it('returns "Payment Failed" for PAYMENT_FAILED status', () => {
+      expect(formatLessonStatus('PAYMENT_FAILED' as Parameters<typeof formatLessonStatus>[0])).toBe(
+        'Payment Failed',
+      );
+    });
+
     it('returns "No-show" for NO_SHOW status', () => {
       expect(formatLessonStatus('NO_SHOW')).toBe('No-show');
     });

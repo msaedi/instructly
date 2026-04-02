@@ -20,7 +20,7 @@ def _always_acquire_lock(*_args, **_kwargs):
 def _make_booking() -> Booking:
     booking = MagicMock(spec=Booking)
     booking.id = str(ulid.ULID())
-    booking.status = BookingStatus.CONFIRMED
+    booking.status = BookingStatus.PENDING
     booking.student_id = "student_deadline"
     booking.instructor_id = "instructor_deadline"
     booking.booking_date = date.today()
@@ -34,7 +34,7 @@ def _make_booking() -> Booking:
     return booking
 
 
-def test_cancels_at_12h_deadline():
+def test_marks_payment_failed_at_12h_deadline():
     booking = _make_booking()
 
     mock_payment_repo = MagicMock()
@@ -57,16 +57,16 @@ def test_cancels_at_12h_deadline():
         "app.tasks.payment_tasks.TimezoneService.hours_until",
         return_value=11.0,
     ), patch(
-        "app.tasks.payment_tasks._cancel_booking_payment_failed",
+        "app.tasks.payment_tasks._mark_booking_payment_failed",
         return_value=True,
-    ) as mock_cancel, patch(
+    ) as mock_mark_payment_failed, patch(
         "app.tasks.payment_tasks._process_retry_authorization"
     ) as mock_retry:
         result = retry_failed_authorizations()
 
     assert result["cancelled"] == 1
     assert result["retried"] == 0
-    mock_cancel.assert_called_once()
+    mock_mark_payment_failed.assert_called_once()
     mock_retry.assert_not_called()
 
 
@@ -105,7 +105,7 @@ def test_retries_before_12h_deadline():
     mock_retry.assert_called_once()
 
 
-def test_exactly_12h_triggers_cancel():
+def test_exactly_12h_triggers_payment_failed():
     booking = _make_booking()
 
     mock_payment_repo = MagicMock()
@@ -128,10 +128,10 @@ def test_exactly_12h_triggers_cancel():
         "app.tasks.payment_tasks.TimezoneService.hours_until",
         return_value=12.0,
     ), patch(
-        "app.tasks.payment_tasks._cancel_booking_payment_failed",
+        "app.tasks.payment_tasks._mark_booking_payment_failed",
         return_value=True,
-    ) as mock_cancel:
+    ) as mock_mark_payment_failed:
         result = retry_failed_authorizations()
 
     assert result["cancelled"] == 1
-    mock_cancel.assert_called_once()
+    mock_mark_payment_failed.assert_called_once()

@@ -164,7 +164,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
-        sa.Column("confirmed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("confirmed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_by_id", sa.String(26), nullable=True),
@@ -338,7 +338,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_bookings_status",
         "bookings",
-        "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
+        "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'PAYMENT_FAILED', 'NO_SHOW')",
     )
     op.create_check_constraint(
         "ck_bookings_location_type",

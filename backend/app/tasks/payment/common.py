@@ -121,7 +121,7 @@ class PaymentTasksFacadeApi(Protocol):
     def _auto_complete_booking(self, booking_id: str, now: datetime) -> Dict[str, Any]:
         ...
 
-    def _cancel_booking_payment_failed(
+    def _mark_booking_payment_failed(
         self,
         booking_id: str,
         hours_until_lesson: float,

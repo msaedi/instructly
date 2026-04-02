@@ -102,10 +102,11 @@ class TestCancelBookingPaymentFailed:
 
         mock_db = MagicMock()
         mock_session.return_value = mock_db
-        b = _fake_booking(status=BookingStatus.CONFIRMED)
+        b = _fake_booking(status=BookingStatus.PENDING)
         bp = MagicMock()
         mock_repo = MagicMock()
         mock_repo.get_by_id.return_value = b
+        mock_repo.mark_payment_failed.return_value = b
         mock_repo.ensure_payment.return_value = bp
         mock_repo_cls.return_value = mock_repo
         mock_payment_repo = MagicMock()
@@ -117,7 +118,7 @@ class TestCancelBookingPaymentFailed:
                 result = _cancel_booking_payment_failed("B1", 10.0, now)
 
         assert result is True
-        assert b.status == BookingStatus.CANCELLED
+        mock_repo.mark_payment_failed.assert_called_once_with("B1")
 
 
 @pytest.mark.unit
@@ -156,7 +157,7 @@ class TestWarnOnlyAlreadySent:
         pd.payment_status = "payment_method_required"
         pd.capture_failed_at = None
 
-        booking = _fake_booking(status=BookingStatus.CONFIRMED)
+        booking = _fake_booking(status=BookingStatus.PENDING)
         booking.payment_detail = pd
         booking.booking_start_utc = datetime(2026, 3, 15, 23, 0, tzinfo=timezone.utc)
         booking.start_time = time(23, 0)
@@ -166,7 +167,7 @@ class TestWarnOnlyAlreadySent:
         booking_repo_read.get_bookings_requiring_authorization_retry.return_value = [booking]
 
         # Warn phase: bp_warn has warning already sent
-        booking_warn = _fake_booking(status=BookingStatus.CONFIRMED)
+        booking_warn = _fake_booking(status=BookingStatus.PENDING)
         pd_warn = MagicMock()
         pd_warn.payment_status = "payment_method_required"
         pd_warn.capture_failed_at = None

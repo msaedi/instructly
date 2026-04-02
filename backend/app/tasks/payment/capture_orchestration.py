@@ -21,8 +21,8 @@ def complete_booking_status(
     booking = api.BookingRepository(db).get_by_id(booking_id)
     if not booking:
         return {"success": False, "error": "Booking not found"}
-    if booking.status == BookingStatus.CANCELLED:
-        return {"success": True, "auto_completed": False, "skipped": True, "reason": "cancelled"}
+    if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
+        return {"success": True, "auto_completed": False, "skipped": True, "reason": "terminal"}
     payment = booking.payment_detail
     if getattr(payment, "payment_status", None) == PaymentStatus.MANUAL_REVIEW.value:
         return {"success": True, "auto_completed": False, "skipped": True, "reason": "disputed"}
@@ -239,7 +239,7 @@ def _handle_expired_auth_booking(
     try:
         repo = api.BookingRepository(db_expired)
         booking = repo.get_by_id(booking_id)
-        if not booking or booking.status == BookingStatus.CANCELLED:
+        if not booking or booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
             return
         payment = booking.payment_detail
         if getattr(payment, "payment_status", None) in {PaymentStatus.MANUAL_REVIEW.value, None}:

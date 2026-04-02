@@ -58,7 +58,7 @@ def test_auth_task_skips_cancelled_booking(db, test_booking):
     )
     result = _process_authorization_for_booking(test_booking.id, hours_until_lesson=24.0)
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_auth_task_skips_not_eligible_booking(db, test_booking):
@@ -84,7 +84,7 @@ def test_capture_task_skips_cancelled_booking(db, test_booking):
     )
     result = _process_capture_for_booking(test_booking.id, "test")
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_capture_task_skips_disputed_booking(db, test_booking):

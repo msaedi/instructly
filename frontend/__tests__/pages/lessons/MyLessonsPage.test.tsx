@@ -379,7 +379,7 @@ describe('MyLessonsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Your lesson history will appear here')).toBeInTheDocument();
       expect(
-        screen.getByText('This includes completed, cancelled, and past lessons.')
+        screen.getByText('This includes completed, cancelled, payment-failed, and past lessons.')
       ).toBeInTheDocument();
     });
   });

@@ -65,7 +65,13 @@ class BookingListQueryMixin(BookingRepositoryMixinBase):
                     Booking.booking_end_utc <= now_utc,
                     and_(
                         Booking.booking_end_utc > now_utc,
-                        Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                        Booking.status.in_(
+                            [
+                                BookingStatus.CANCELLED,
+                                BookingStatus.PAYMENT_FAILED,
+                                BookingStatus.NO_SHOW,
+                            ]
+                        ),
                         Booking.cancellation_reason != "Rescheduled",
                     ),
                 )
@@ -94,6 +100,7 @@ class BookingListQueryMixin(BookingRepositoryMixinBase):
     ) -> Query:
         """Build the filtered instructor-bookings query used by list endpoints."""
         query = self._booking_list_query().filter(Booking.instructor_id == instructor_id)
+        query = query.filter(Booking.status != BookingStatus.PAYMENT_FAILED)
 
         include_past_confirmed_mode = include_past_confirmed and status == BookingStatus.COMPLETED
         status_filter = None if include_past_confirmed_mode else status
@@ -294,7 +301,9 @@ class BookingListQueryMixin(BookingRepositoryMixinBase):
             )
 
             if exclude_cancelled:
-                query = query.filter(Booking.status != BookingStatus.CANCELLED)
+                query = query.filter(
+                    Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED])
+                )
 
             return cast(
                 List[Booking], query.order_by(Booking.booking_date, Booking.start_time).all()

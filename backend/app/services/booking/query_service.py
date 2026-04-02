@@ -133,7 +133,11 @@ class BookingQueryMixin:
                 return cast(Dict[str, Any], cached_stats)
 
         # Calculate stats if not cached
-        bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
+        bookings = [
+            booking
+            for booking in self.repository.get_instructor_bookings_for_stats(instructor_id)
+            if booking.status != BookingStatus.PAYMENT_FAILED
+        ]
 
         # Use UTC for date-based calculations
         instructor_today = datetime.now(timezone.utc).date()
@@ -190,7 +194,12 @@ class BookingQueryMixin:
         Returns:
             Booking if user has access, None otherwise
         """
-        return self.repository.get_booking_for_participant(booking_id, user.id)
+        booking = self.repository.get_booking_for_participant(booking_id, user.id)
+        if booking is None:
+            return None
+        if self._is_hidden_from_instructor(booking, user):
+            return None
+        return booking
 
     @BaseService.measure_operation("get_booking_pricing_preview")
     def get_booking_pricing_preview(
@@ -262,3 +271,9 @@ class BookingQueryMixin:
             )
 
         return (booking, payment_summary)
+
+    def _is_hidden_from_instructor(self, booking: Booking, user: User) -> bool:
+        """Hide payment-failed bookings from instructor-facing reads."""
+        return bool(
+            booking.instructor_id == user.id and booking.status == BookingStatus.PAYMENT_FAILED
+        )

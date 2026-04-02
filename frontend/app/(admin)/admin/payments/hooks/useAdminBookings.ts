@@ -9,7 +9,7 @@ import { listAdminBookingsApiV1AdminBookingsGet } from '@/src/api/generated/admi
 import { PAYMENT_STATUS, type PaymentStatus } from '@/features/shared/types/paymentStatus';
 export type { PaymentStatus };
 
-export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'PAYMENT_FAILED' | 'NO_SHOW';
 
 export interface BookingPerson {
   id: string;
@@ -74,6 +74,7 @@ export const bookingStatusOptions: { value: BookingFiltersState['status']; label
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'PAYMENT_FAILED', label: 'Payment Failed' },
   { value: 'NO_SHOW', label: 'No-show' },
 ];
 
@@ -107,6 +108,7 @@ const BOOKING_STATUS_VALUES: BookingStatus[] = [
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
+  'PAYMENT_FAILED',
   'NO_SHOW',
 ];
 

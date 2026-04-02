@@ -4,6 +4,8 @@ export const COMPLETED_BOOKING_BADGE_CLASSES =
   'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200';
 export const CANCELLED_BOOKING_BADGE_CLASSES =
   'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300';
+export const PAYMENT_FAILED_BOOKING_BADGE_CLASSES =
+  'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200';
 export const NO_SHOW_BOOKING_BADGE_CLASSES =
   'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200';
 export const IN_PROGRESS_BOOKING_BADGE_CLASSES =
@@ -20,6 +22,8 @@ export function getBookingStatusBadgeClasses(status?: string | null): string {
       return COMPLETED_BOOKING_BADGE_CLASSES;
     case 'CANCELLED':
       return CANCELLED_BOOKING_BADGE_CLASSES;
+    case 'PAYMENT_FAILED':
+      return PAYMENT_FAILED_BOOKING_BADGE_CLASSES;
     case 'NO_SHOW':
       return NO_SHOW_BOOKING_BADGE_CLASSES;
     case 'IN_PROGRESS':

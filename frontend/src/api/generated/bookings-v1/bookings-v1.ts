@@ -1267,11 +1267,12 @@ export const useCompleteBookingApiV1BookingsBookingIdCompletePost = <
 /**
  * Report a no-show for a booking.
 
-- Student can report instructor no-show
+- Student can report instructor no-show for their booking
+- Instructor can report student no-show for their booking
 - Admin can report either type
 - Must be within reporting window
-- Intentionally broader than COMPLETE_BOOKINGS: students must be able to report
-  instructor no-shows, and the service enforces actor-specific authorization.
+- Intentionally broader than COMPLETE_BOOKINGS: the service enforces actor-specific
+  authorization for the booking participants.
  * @summary Report No Show
  */
 export const getReportNoShowApiV1BookingsBookingIdNoShowPostUrl = (bookingId: string) => {
