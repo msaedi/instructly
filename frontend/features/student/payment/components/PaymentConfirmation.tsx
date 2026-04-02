@@ -139,6 +139,7 @@ interface PaymentConfirmationProps {
   onTimeSelectionCommitted?: (nextBooking: BookingWithMetadata) => void | Promise<void>;
   creditsAccordionExpanded?: boolean;
   onCreditsAccordionToggle?: (expanded: boolean) => void;
+  isMissingRequiredPaymentMethod?: boolean;
   hidePaymentMethod?: boolean;
   /** Slot to render payment method UI at the top of the left column (replaces built-in accordion) */
   paymentMethodSlot?: React.ReactNode;
@@ -172,6 +173,7 @@ function PaymentConfirmationInner({
   onTimeSelectionCommitted,
   creditsAccordionExpanded,
   onCreditsAccordionToggle,
+  isMissingRequiredPaymentMethod = false,
   hidePaymentMethod = false,
   paymentMethodSlot,
 }: PaymentConfirmationProps) {
@@ -1208,6 +1210,7 @@ function PaymentConfirmationInner({
     Boolean(instructorAvailabilityError) ||
     isFloorBlocking ||
     isPricingPreviewLoading ||
+    isMissingRequiredPaymentMethod ||
     isOutsideServiceArea ||
     (isCheckingServiceArea && shouldCheckServiceArea);
   const ctaLabel = useMemo(() => {
@@ -2256,6 +2259,11 @@ function PaymentConfirmationInner({
             >
               {ctaLabel}
             </button>
+            {isMissingRequiredPaymentMethod && (
+              <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
+                Add a payment method to continue
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">

@@ -89,6 +89,7 @@ let latestPaymentConfirmationProps: {
   instructorAvailabilityError?: string | null | undefined;
   availabilityWarnings?: Array<{ message: string }> | null | undefined;
   isCheckingInstructorAvailability?: boolean | undefined;
+  isMissingRequiredPaymentMethod?: boolean | undefined;
 } | null = null;
 
 type BookingWithMetadata = BookingPayment & {
@@ -108,6 +109,8 @@ let latestPaymentSuccessProps: {
   cardLast4?: string;
 } | null = null;
 
+let confirmationMockHasSelectableSavedCard = true;
+
 jest.mock('../PaymentConfirmation', () => {
   return function MockPaymentConfirmation({
     booking,
@@ -126,6 +129,7 @@ jest.mock('../PaymentConfirmation', () => {
     instructorAvailabilityError,
     availabilityWarnings,
     isCheckingInstructorAvailability,
+    isMissingRequiredPaymentMethod,
     paymentMethodSlot,
   }: {
     booking: BookingWithMetadata;
@@ -144,6 +148,7 @@ jest.mock('../PaymentConfirmation', () => {
     instructorAvailabilityError?: string | null;
     availabilityWarnings?: Array<{ message: string }> | null;
     isCheckingInstructorAvailability?: boolean;
+    isMissingRequiredPaymentMethod?: boolean;
     paymentMethodSlot?: React.ReactNode;
   }) {
     latestPaymentConfirmationProps = {
@@ -153,11 +158,25 @@ jest.mock('../PaymentConfirmation', () => {
       instructorAvailabilityError,
       availabilityWarnings,
       isCheckingInstructorAvailability,
+      isMissingRequiredPaymentMethod,
     };
+
+    if (isMissingRequiredPaymentMethod && confirmationMockHasSelectableSavedCard) {
+      return <div data-testid="payment-confirmation-pending-card">Loading saved card...</div>;
+    }
+
     return (
       <div data-testid="payment-confirmation">
         {paymentMethodSlot}
-        <button onClick={onConfirm}>Confirm Payment</button>
+        <button
+          onClick={onConfirm}
+          disabled={Boolean(isMissingRequiredPaymentMethod && !confirmationMockHasSelectableSavedCard)}
+        >
+          Confirm Payment
+        </button>
+        {isMissingRequiredPaymentMethod && !confirmationMockHasSelectableSavedCard && (
+          <p>Add a payment method to continue</p>
+        )}
         <button onClick={onBack}>Back</button>
         {onCreditToggle && <button onClick={onCreditToggle}>Toggle Credits</button>}
         {onCreditAmountChange && (
@@ -417,6 +436,7 @@ describe('PaymentSection', () => {
     latestPaymentConfirmationProps = null;
     latestPaymentProcessingProps = null;
     latestPaymentSuccessProps = null;
+    confirmationMockHasSelectableSavedCard = true;
 
     // Default mock implementations
     useCreateBookingMock.mockReturnValue({
@@ -477,6 +497,9 @@ describe('PaymentSection', () => {
         () => new Promise(() => {}) // Never resolves
       );
 
+      confirmationMockHasSelectableSavedCard = false;
+      confirmationMockHasSelectableSavedCard = false;
+      confirmationMockHasSelectableSavedCard = false;
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       expect(screen.getByText('Loading payment data...')).toBeInTheDocument();
@@ -525,17 +548,22 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
     });
 
     it('handles back button to method selection', async () => {
       const goToStep = jest.fn();
       usePaymentFlowMock.mockReturnValue({
-        currentStep: PaymentStep.CONFIRMATION,
+        currentStep: PaymentStep.METHOD_SELECTION,
         paymentMethod: PaymentMethod.CREDIT_CARD,
         creditsToUse: 0,
         error: null,
@@ -544,7 +572,9 @@ describe('PaymentSection', () => {
         reset: jest.fn(),
       });
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -581,10 +611,18 @@ describe('PaymentSection', () => {
       });
       useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -661,10 +699,18 @@ describe('PaymentSection', () => {
       });
       useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -698,10 +744,15 @@ describe('PaymentSection', () => {
       usePaymentFlowMock.mockReturnValue(confirmationFlowState);
       useCheckAvailabilityMock.mockReturnValue({ mutateAsync });
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Commit Time Selection'));
@@ -1349,7 +1400,7 @@ describe('PaymentSection', () => {
       });
 
       usePaymentFlowMock.mockReturnValue({
-        currentStep: PaymentStep.CONFIRMATION,
+        currentStep: PaymentStep.METHOD_SELECTION,
         paymentMethod: PaymentMethod.CREDIT_CARD,
         creditsToUse: 0,
         error: null,
@@ -1362,10 +1413,15 @@ describe('PaymentSection', () => {
         new Error('Your card has insufficient funds')
       );
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -1388,7 +1444,7 @@ describe('PaymentSection', () => {
       });
 
       usePaymentFlowMock.mockReturnValue({
-        currentStep: PaymentStep.CONFIRMATION,
+        currentStep: PaymentStep.METHOD_SELECTION,
         paymentMethod: PaymentMethod.CREDIT_CARD,
         creditsToUse: 0,
         error: null,
@@ -1399,10 +1455,15 @@ describe('PaymentSection', () => {
 
       paymentServiceMock.createCheckout.mockRejectedValue(new Error('Your card was declined'));
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -1425,7 +1486,7 @@ describe('PaymentSection', () => {
       });
 
       usePaymentFlowMock.mockReturnValue({
-        currentStep: PaymentStep.CONFIRMATION,
+        currentStep: PaymentStep.METHOD_SELECTION,
         paymentMethod: PaymentMethod.CREDIT_CARD,
         creditsToUse: 0,
         error: null,
@@ -1436,10 +1497,15 @@ describe('PaymentSection', () => {
 
       paymentServiceMock.createCheckout.mockRejectedValue(new Error('Your card has expired'));
 
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+      render(<PaymentSection {...defaultProps} showPaymentMethodInline={true} />, {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -2479,7 +2545,14 @@ describe('PaymentSection', () => {
         new Error('Payment failed with status: canceled')
       );
 
-      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
+      render(
+        <PaymentSection
+          {...defaultProps}
+          onError={onError}
+          showPaymentMethodInline={true}
+        />,
+        { wrapper: createWrapper() }
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
@@ -2572,7 +2645,7 @@ describe('PaymentSection', () => {
   });
 
   describe('booking cancellation on payment failure', () => {
-    it('cancels booking when payment fails after booking creation', async () => {
+    it('does not cancel booking when payment fails after booking creation', async () => {
       const cancelBookingMock = jest.fn().mockResolvedValue(undefined);
       const { cancelBookingImperative } = jest.requireMock('@/src/api/services/bookings');
       cancelBookingImperative.mockImplementation(cancelBookingMock);
@@ -2611,6 +2684,7 @@ describe('PaymentSection', () => {
       await waitFor(() => {
         expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
       });
+      expect(cancelBookingMock).not.toHaveBeenCalled();
     });
   });
 
@@ -2779,7 +2853,7 @@ describe('PaymentSection', () => {
   });
 
   describe('payment without card when amount is due', () => {
-    it('throws error when payment required but no card selected', async () => {
+    it('disables confirmation when payment required but no card is selected', async () => {
       const goToStep = jest.fn();
       const createBookingMock = jest
         .fn()
@@ -2802,6 +2876,7 @@ describe('PaymentSection', () => {
       });
 
       // Mock no payment methods
+      confirmationMockHasSelectableSavedCard = false;
       paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
 
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
@@ -2810,11 +2885,13 @@ describe('PaymentSection', () => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
       });
 
+      expect(latestPaymentConfirmationProps?.isMissingRequiredPaymentMethod).toBe(true);
+      expect(screen.getByText('Add a payment method to continue')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Payment')).toBeDisabled();
       fireEvent.click(screen.getByText('Confirm Payment'));
 
-      await waitFor(() => {
-        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
-      });
+      expect(createBookingMock).not.toHaveBeenCalled();
+      expect(goToStep).not.toHaveBeenCalled();
     });
   });
 
@@ -5061,6 +5138,7 @@ describe('PaymentSection', () => {
 
   describe('inline mode with no cards initially', () => {
     it('does not auto-select in inline mode when no cards available', async () => {
+      confirmationMockHasSelectableSavedCard = false;
       paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
 
       const goToStep = jest.fn();
@@ -6085,8 +6163,8 @@ describe('PaymentSection', () => {
     });
   });
 
-  describe('cancel booking failure during payment error handling', () => {
-    it('continues to error step even when cancel booking fails', async () => {
+  describe('payment error handling without immediate cancellation', () => {
+    it('continues to the error step without calling the cancel endpoint', async () => {
       const cancelBookingMock = jest.fn().mockRejectedValue(new Error('Cancel failed'));
       jest.requireMock('@/src/api/services/bookings').cancelBookingImperative = cancelBookingMock;
 
@@ -6114,10 +6192,20 @@ describe('PaymentSection', () => {
 
       paymentServiceMock.createCheckout.mockRejectedValue(new Error('Payment gateway timeout'));
 
-      render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
+      render(
+        <PaymentSection
+          {...defaultProps}
+          onError={onError}
+          showPaymentMethodInline={true}
+        />,
+        { wrapper: createWrapper() }
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Payment')).not.toBeDisabled();
       });
 
       fireEvent.click(screen.getByText('Confirm Payment'));
@@ -6126,6 +6214,7 @@ describe('PaymentSection', () => {
         expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
         expect(onError).toHaveBeenCalled();
       });
+      expect(cancelBookingMock).not.toHaveBeenCalled();
     });
   });
 
@@ -6485,7 +6574,7 @@ describe('PaymentSection', () => {
   });
 
   describe('payment with no selectedCardId and amount due', () => {
-    it('throws Payment method required when shouldProcessCheckout but no card selected', async () => {
+    it('disables confirmation when no card is selected and payment is still due', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
       const createBookingMock = jest
@@ -6509,6 +6598,7 @@ describe('PaymentSection', () => {
       });
 
       // No payment methods -> no card will be selected
+      confirmationMockHasSelectableSavedCard = false;
       paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
 
       render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
@@ -6517,11 +6607,14 @@ describe('PaymentSection', () => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
       });
 
+      expect(latestPaymentConfirmationProps?.isMissingRequiredPaymentMethod).toBe(true);
+      expect(screen.getByText('Add a payment method to continue')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Payment')).toBeDisabled();
       fireEvent.click(screen.getByText('Confirm Payment'));
 
-      await waitFor(() => {
-        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
-      });
+      expect(createBookingMock).not.toHaveBeenCalled();
+      expect(goToStep).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
     });
   });
 
@@ -8259,18 +8352,19 @@ describe('PaymentSection', () => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
       });
 
+      const initialApplyCreditCalls = applyCredit.mock.calls.length;
+
       // Trigger a credit change to cause a 422 floor violation
       fireEvent.click(screen.getByText('Change Credit Amount'));
 
       await waitFor(() => {
-        expect(applyCredit).toHaveBeenCalled();
+        expect(applyCredit.mock.calls.length).toBeGreaterThan(initialApplyCreditCalls);
       });
 
       // After the 422 error, floorViolationMessage is set, so subsequent auto-apply
-      // in the auto-apply effect should be blocked.
-      // The applyCredit should only have been called once (from the manual change),
-      // not again from auto-apply.
-      expect(applyCredit).toHaveBeenCalledTimes(1);
+      // in the auto-apply effect should be blocked. We should only see one additional
+      // call from the explicit credit change, regardless of any initial render-side call.
+      expect(applyCredit).toHaveBeenCalledTimes(initialApplyCreditCalls + 1);
     });
   });
 
@@ -8474,6 +8568,7 @@ describe('PaymentSection', () => {
     it('does not auto-select card in inline mode when cards array is empty', async () => {
       const selectPaymentMethod = jest.fn();
 
+      confirmationMockHasSelectableSavedCard = false;
       paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
 
       usePaymentFlowMock.mockReturnValue({
@@ -9968,20 +10063,9 @@ describe('PaymentSection', () => {
   });
 
   describe('else if amountDue > 0 without checkout', () => {
-    it('throws Payment method required when shouldProcessCheckout is false but amountDue > 0', async () => {
+    it('keeps booking creation blocked when a charge remains without a selected card', async () => {
       const goToStep = jest.fn();
       const onError = jest.fn();
-      // Credits = 0, referral = 0, totalAmount = 115
-      // amountDue = 115 - 0 - 0 = 115 > 0
-      // shouldProcessCheckout = amountDue > 0 || appliedCreditCents > 0
-      // = true (115 > 0), so this branch is actually the same as the existing test.
-      // To hit the `else if (amountDue > 0)` at line 1347, we need:
-      //   shouldProcessCheckout = false AND amountDue > 0
-      //   shouldProcessCheckout = (amountDue > 0 || appliedCreditCents > 0)
-      // If amountDue > 0, then shouldProcessCheckout is always true.
-      // So line 1347 can only be reached if amountDue > 0 AND shouldProcessCheckout was false,
-      // which means this branch is unreachable. It's dead code.
-      // Still, let's verify the component handles the error step correctly.
       const createBookingMock = jest
         .fn()
         .mockResolvedValue({ id: 'booking-no-card', status: 'pending' });
@@ -10012,18 +10096,21 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 0,
       });
 
+      confirmationMockHasSelectableSavedCard = false;
       render(<PaymentSection {...defaultProps} onError={onError} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
       });
 
-      // No card selected, amount > 0: should throw 'Payment method required'
+      expect(latestPaymentConfirmationProps?.isMissingRequiredPaymentMethod).toBe(true);
+      expect(screen.getByText('Add a payment method to continue')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Payment')).toBeDisabled();
       fireEvent.click(screen.getByText('Confirm Payment'));
 
-      await waitFor(() => {
-        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
-      });
+      expect(createBookingMock).not.toHaveBeenCalled();
+      expect(goToStep).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
     });
   });
 
@@ -11003,17 +11090,7 @@ describe('PaymentSection', () => {
       // triggering the early return that resets refs.
     });
 
-    it('else-if amountDue > 0 throws Payment method required when checkout not needed', async () => {
-      // Line 1347-1348: shouldProcessCheckout is false but amountDue > 0
-      // This happens when amountDue > 0 but appliedCreditCents = 0 AND
-      // shouldProcessCheckout evaluates to false... Actually this is amountDue > 0
-      // without selectedCardId AND shouldProcessCheckout = true. Let me construct
-      // the scenario where shouldProcessCheckout = false but amountDue > 0:
-      // shouldProcessCheckout = amountDue > 0 || appliedCreditCents > 0
-      // If amountDue > 0, shouldProcessCheckout is always true.
-      // So this else-if is effectively unreachable in normal flow. But
-      // the branch still needs coverage to confirm the guard works.
-      // Let's test by ensuring no selectedCard and credits cover partial amount.
+    it('disables confirmation when credits leave a remaining balance without a card', async () => {
       const goToStep = jest.fn();
       const createBookingMock = jest
         .fn()
@@ -11041,6 +11118,7 @@ describe('PaymentSection', () => {
         totalAmount: 50,
       };
 
+      confirmationMockHasSelectableSavedCard = false;
       render(<PaymentSection {...defaultProps} bookingData={lowAmountBooking} />, {
         wrapper: createWrapper(),
       });
@@ -11049,11 +11127,13 @@ describe('PaymentSection', () => {
         expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
       });
 
+      expect(latestPaymentConfirmationProps?.isMissingRequiredPaymentMethod).toBe(true);
+      expect(screen.getByText('Add a payment method to continue')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Payment')).toBeDisabled();
       fireEvent.click(screen.getByText('Confirm Payment'));
 
-      await waitFor(() => {
-        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
-      });
+      expect(createBookingMock).not.toHaveBeenCalled();
+      expect(goToStep).not.toHaveBeenCalled();
     });
 
     it('handleCreditToggle exercises the credits-off path with active slider', async () => {
@@ -12114,6 +12194,7 @@ describe('PaymentSection', () => {
         lastAppliedCreditCents: 2500,
       });
 
+      confirmationMockHasSelectableSavedCard = false;
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       await waitFor(() => {

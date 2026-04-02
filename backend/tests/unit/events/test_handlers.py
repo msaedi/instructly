@@ -150,7 +150,7 @@ class TestHandleBookingCancelledWithCancelledBy:
     def test_passes_cancelled_by_instructor(self, monkeypatch):
         """Should pass cancelled_by='instructor' to notification service."""
         called = {"cancelled_by": None}
-        booking = SimpleNamespace(id="b1")
+        booking = SimpleNamespace(id="b1", confirmed_at="2026-04-02T12:00:00Z")
 
         class MockNotificationService:
             def __init__(self, db):
@@ -172,7 +172,7 @@ class TestHandleBookingCancelledWithCancelledBy:
     def test_passes_cancelled_by_system(self, monkeypatch):
         """Should pass cancelled_by='system' for auto-cancellations."""
         called = {"cancelled_by": None}
-        booking = SimpleNamespace(id="b2")
+        booking = SimpleNamespace(id="b2", confirmed_at="2026-04-02T12:00:00Z")
 
         class MockNotificationService:
             def __init__(self, db):
@@ -194,7 +194,7 @@ class TestHandleBookingCancelledWithCancelledBy:
     def test_handles_missing_cancelled_by(self, monkeypatch):
         """Should handle payload without cancelled_by field."""
         called = {"cancelled_by": "sentinel"}
-        booking = SimpleNamespace(id="b3")
+        booking = SimpleNamespace(id="b3", confirmed_at="2026-04-02T12:00:00Z")
 
         class MockNotificationService:
             def __init__(self, db):
@@ -212,6 +212,28 @@ class TestHandleBookingCancelledWithCancelledBy:
         )
 
         assert called["cancelled_by"] is None
+
+    def test_skips_never_confirmed_booking(self, monkeypatch):
+        """Should not send notifications for bookings that were never confirmed."""
+        called = {"notification_sent": False}
+        booking = SimpleNamespace(id="b4", confirmed_at=None)
+
+        class MockNotificationService:
+            def __init__(self, db):
+                pass
+
+            def send_cancellation_notification(self, booking, cancelled_by=None):
+                called["notification_sent"] = True
+
+        monkeypatch.setattr(handlers, "_load_booking", lambda db, id: booking)
+        monkeypatch.setattr(handlers, "NotificationService", MockNotificationService)
+
+        handle_booking_cancelled(
+            json.dumps({"booking_id": "b4", "cancelled_by": "student"}),
+            db=MagicMock(),
+        )
+
+        assert called["notification_sent"] is False
 
 
 class TestHandleBookingReminderTypes:
@@ -390,7 +412,7 @@ class TestHandlerLogging:
         """Should log info when cancellation notification sent."""
         import logging
 
-        booking = SimpleNamespace(id="log-test-2")
+        booking = SimpleNamespace(id="log-test-2", confirmed_at="2026-04-02T12:00:00Z")
 
         class MockNotificationService:
             def __init__(self, db):

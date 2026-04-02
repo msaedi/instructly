@@ -44,7 +44,7 @@ def test_handle_booking_created_success(monkeypatch) -> None:
 
 def test_handle_booking_cancelled_success(monkeypatch) -> None:
     called = {"cancel": None}
-    booking = SimpleNamespace(id="b3")
+    booking = SimpleNamespace(id="b3", confirmed_at="2026-04-02T12:00:00Z")
 
     class _NotificationService:
         def __init__(self, _db) -> None:
@@ -61,6 +61,27 @@ def test_handle_booking_cancelled_success(monkeypatch) -> None:
         db=object(),
     )
     assert called["cancel"] == (booking, "student")
+
+
+def test_handle_booking_cancelled_skips_never_confirmed(monkeypatch) -> None:
+    called = {"cancel": False}
+    booking = SimpleNamespace(id="b4", confirmed_at=None)
+
+    class _NotificationService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def send_cancellation_notification(self, booking, cancelled_by=None) -> None:
+            called["cancel"] = True
+
+    monkeypatch.setattr(handlers, "_load_booking", lambda _db, _id: booking)
+    monkeypatch.setattr(handlers, "NotificationService", _NotificationService)
+
+    handlers.handle_booking_cancelled(
+        json.dumps({"booking_id": "b4", "cancelled_by": "student"}),
+        db=object(),
+    )
+    assert called["cancel"] is False
 
 
 def test_handle_booking_reminder_default_type(monkeypatch) -> None:

@@ -126,6 +126,10 @@ class BookingCancellationCleanupMixin:
                 exc,
             )
 
+    def _was_ever_confirmed(self, booking: Booking) -> bool:
+        """Return whether the booking ever reached a confirmed state."""
+        return getattr(booking, "confirmed_at", None) is not None
+
     def _post_cancellation_actions(self, booking: Booking, cancelled_by_role: str) -> None:
         """Post-transaction actions for cancellation."""
         booking_service_module = _booking_service_module()
@@ -143,23 +147,29 @@ class BookingCancellationCleanupMixin:
         except Exception as e:
             logger.error("Failed to send cancellation notification event: %s", str(e))
 
-        try:
-            self.system_message_service.create_booking_cancelled_message(
-                student_id=booking.student_id,
-                instructor_id=booking.instructor_id,
-                booking_id=booking.id,
-                booking_date=booking.booking_date,
-                start_time=booking.start_time,
-                cancelled_by=cancelled_by_role,
-            )
-        except Exception as e:
-            logger.error(
-                "Failed to create cancellation system message for booking %s: %s",
-                booking.id,
-                str(e),
-            )
+        if self._was_ever_confirmed(booking):
+            try:
+                self.system_message_service.create_booking_cancelled_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                    cancelled_by=cancelled_by_role,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to create cancellation system message for booking %s: %s",
+                    booking.id,
+                    str(e),
+                )
 
-        self._send_cancellation_notifications(booking, cancelled_by_role)
+            self._send_cancellation_notifications(booking, cancelled_by_role)
+        else:
+            logger.info(
+                "Skipping user-facing cancellation notifications for never-confirmed booking %s",
+                booking.id,
+            )
         self._invalidate_booking_caches(booking)
 
         refund_hook_outcomes = {

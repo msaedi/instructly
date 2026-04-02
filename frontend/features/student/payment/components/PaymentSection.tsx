@@ -23,7 +23,6 @@ import { queryKeys } from '@/lib/react-query/queryClient';
 import { queryKeys as apiQueryKeys } from '@/src/api/queryKeys';
 import {
   fetchBookingDetails,
-  cancelBookingImperative,
   useCheckAvailability,
 } from '@/src/api/services/bookings';
 import type {
@@ -1346,14 +1345,31 @@ export function PaymentSection({
     }
   }, [showPaymentMethodInline, currentStep, selectPaymentMethod, userCards, userChangingPayment]);
 
+  useEffect(() => {
+    if (
+      currentStep === PaymentStep.CONFIRMATION &&
+      !selectedCardId &&
+      userCards.length > 0 &&
+      (paymentMethod === PaymentMethod.CREDIT_CARD || paymentMethod === PaymentMethod.MIXED)
+    ) {
+      const defaultCard = userCards.find((card) => card.isDefault) || userCards[0];
+      if (defaultCard?.id) {
+        setSelectedCardId(defaultCard.id);
+      }
+    }
+  }, [currentStep, paymentMethod, selectedCardId, userCards]);
+
+  const appliedCreditCents = Math.max(0, Math.round(creditSliderCents));
+  const appliedCreditDollars = appliedCreditCents / 100;
+  const normalizedTotalAmount = updatedBookingData.totalAmount ?? bookingData.totalAmount ?? 0;
+  const referralDollars = referralAppliedCents / 100;
+  const amountDue = Math.max(0, normalizedTotalAmount - appliedCreditDollars - referralDollars);
+  const isMissingRequiredPaymentMethod = amountDue > 0 && !selectedCardId;
+
   // Override processPayment to create booking and process payment
   // Note: This function has many dependencies. We use a ref pattern to keep a stable
   // reference for React.memo while always using the latest closure values.
   const processPaymentImpl = async () => {
-    const appliedCreditCents = Math.max(0, Math.round(creditSliderCents));
-    const appliedCreditDollars = appliedCreditCents / 100;
-    const normalizedTotalAmount = updatedBookingData.totalAmount ?? bookingData.totalAmount ?? 0;
-    const referralDollars = referralAppliedCents / 100;
     const bookingForSubmit: BookingWithMetadata = {
       ...bookingData,
       ...updatedBookingData,
@@ -1475,7 +1491,6 @@ export function PaymentSection({
       });
 
       // Step 2: Process payment if there's an amount due
-      const amountDue = Math.max(0, normalizedTotalAmount - appliedCreditDollars - referralDollars);
       const shouldProcessCheckout = amountDue > 0 || appliedCreditCents > 0;
 
       try {
@@ -1527,18 +1542,10 @@ export function PaymentSection({
           }
         }
       } catch (paymentError: unknown) {
-        logger.warn('Payment failed, cancelling booking', {
+        logger.warn('Payment failed after booking creation; leaving booking pending for backend cleanup', {
           bookingId: booking.id,
           error: paymentError,
         });
-
-        try {
-          // Use v1 bookings service
-          await cancelBookingImperative(String(booking.id), { reason: 'Payment failed' });
-          logDevInfo('Booking cancelled after payment failure', { bookingId: booking.id });
-        } catch (cancelError) {
-          logger.error('Failed to cancel booking after payment failure', cancelError as Error);
-        }
 
         const errorMessage =
           (paymentError as Record<string, unknown>)?.['message'] || 'Payment failed';
@@ -1688,6 +1695,7 @@ export function PaymentSection({
             onDismissAvailabilityWarnings={dismissAvailabilityWarnings}
             onClearFloorViolation={handleClearFloorViolation}
             onTimeSelectionCommitted={handleTimeSelectionCommitted}
+            isMissingRequiredPaymentMethod={isMissingRequiredPaymentMethod}
             onConfirm={processPayment}
             onBack={handleBackToMethodSelection}
             onChangePaymentMethod={handleChangePaymentMethodInline}
@@ -1766,6 +1774,7 @@ export function PaymentSection({
                 onDismissAvailabilityWarnings={dismissAvailabilityWarnings}
                 onClearFloorViolation={handleClearFloorViolation}
                 onTimeSelectionCommitted={handleTimeSelectionCommitted}
+                isMissingRequiredPaymentMethod={isMissingRequiredPaymentMethod}
                 onConfirm={processPayment}
                 onBack={handleBackToMethodSelection}
                 onChangePaymentMethod={handleChangePaymentMethodStepwise}

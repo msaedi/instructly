@@ -1171,6 +1171,21 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Book now!');
     });
 
+    it('disables the CTA and shows helper text when a payment method is required', async () => {
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          isMissingRequiredPaymentMethod
+        />
+      );
+
+      expect(screen.getByText('Add a payment method to continue')).toBeInTheDocument();
+      expect(screen.getByTestId('booking-confirm-cta')).toBeDisabled();
+      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Book now!');
+    });
+
     it('calls the dismiss handler for advisory availability warnings', async () => {
       const onDismissAvailabilityWarnings = jest.fn();
       const user = setupUser();
