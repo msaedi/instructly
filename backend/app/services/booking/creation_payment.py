@@ -112,6 +112,8 @@ class BookingCreationPaymentMixin:
             service: InstructorService,
             instructor_profile: InstructorProfile,
             selected_duration: int,
+            *,
+            initial_status: BookingStatus = BookingStatus.CONFIRMED,
         ) -> Booking:
             ...
 
@@ -243,13 +245,17 @@ class BookingCreationPaymentMixin:
                 )
                 self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
-                    student, booking_data, service, instructor_profile, selected_duration
+                    student,
+                    booking_data,
+                    service,
+                    instructor_profile,
+                    selected_duration,
+                    initial_status=BookingStatus.PENDING,
                 )
                 if rescheduled_from_booking_id:
                     booking = self._persist_payment_setup_reschedule_linkage(
                         booking, rescheduled_from_booking_id
                     )
-                booking.status = BookingStatus.PENDING
                 bp = self.repository.ensure_payment(booking.id)
                 bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                 self._enqueue_booking_outbox_event(booking, "booking.created")

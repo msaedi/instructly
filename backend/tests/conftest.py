@@ -782,6 +782,37 @@ def _prepare_database() -> None:
 
     Base.metadata.create_all(bind=test_engine)
 
+    # Keep bookings schema aligned with ORM models (tests reuse an existing DB, so create_all
+    # will not update legacy check constraints or server defaults).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ALTER COLUMN confirmed_at DROP DEFAULT
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    DROP CONSTRAINT IF EXISTS ck_bookings_status
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE bookings
+                    ADD CONSTRAINT ck_bookings_status
+                    CHECK (status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'PAYMENT_FAILED', 'NO_SHOW'))
+                    """
+                )
+            )
+            conn.commit()
+
     # Ensure outbox table exists (guarded to prevent conflicts)
     ensure_outbox_table()
 

@@ -109,7 +109,7 @@ def test_time_conflict_and_opportunities(
         booking_date=target_date,
         start_time=time(9, 0),
         end_time=time(10, 0),
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         offset_index=0,
     )
     db.commit()
@@ -309,7 +309,7 @@ def test_payment_and_status_updates(
         booking_date=today + timedelta(days=1),
         start_time=time(10, 0),
         end_time=time(11, 0),
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.PENDING,
         offset_index=6,
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_retry",

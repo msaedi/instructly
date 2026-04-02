@@ -1,6 +1,6 @@
 """Booking status changes — complete, cancel, refund, and no-show."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, cast
 
 from sqlalchemy import or_
@@ -23,8 +23,7 @@ class BookingStatusMutationMixin(BookingRepositoryMixinBase):
             if not booking:
                 raise NotFoundException(f"Booking with id {booking_id} not found")
 
-            booking.status = BookingStatus.COMPLETED
-            booking.completed_at = datetime.now(timezone.utc)
+            booking.complete()
 
             self.db.flush()
             self.logger.info("Marked booking %s as completed", booking_id)
@@ -50,10 +49,7 @@ class BookingStatusMutationMixin(BookingRepositoryMixinBase):
             if not booking:
                 raise NotFoundException(f"Booking with id {booking_id} not found")
 
-            booking.status = BookingStatus.CANCELLED
-            booking.cancelled_at = datetime.now(timezone.utc)
-            booking.cancelled_by_id = cancelled_by_id
-            booking.cancellation_reason = reason
+            booking.cancel(cancelled_by_id, reason)
 
             self.db.flush()
             self.logger.info("Cancelled booking %s by user %s", booking_id, cancelled_by_id)
@@ -118,7 +114,7 @@ class BookingStatusMutationMixin(BookingRepositoryMixinBase):
             if not booking:
                 raise NotFoundException(f"Booking with id {booking_id} not found")
 
-            booking.status = BookingStatus.NO_SHOW
+            booking.mark_no_show()
 
             self.db.flush()
             self.logger.info("Marked booking %s as no-show", booking_id)
@@ -130,6 +126,30 @@ class BookingStatusMutationMixin(BookingRepositoryMixinBase):
         except Exception as e:
             self.logger.error("Error marking booking %s as no-show: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to mark booking as no-show: {str(e)}")
+
+    def mark_payment_failed(self, booking_id: str) -> Booking:
+        """Mark a pending booking as payment failed."""
+        try:
+            booking = self.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException(f"Booking with id {booking_id} not found")
+
+            booking.mark_payment_failed()
+
+            self.db.flush()
+            self.logger.info("Marked booking %s as payment failed", booking_id)
+
+            self.invalidate_entity_cache(booking_id)
+            self.invalidate_entity_cache(booking.student_id)
+            self.invalidate_entity_cache(booking.instructor_id)
+
+            return booking
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error("Error marking booking %s as payment failed: %s", booking_id, str(e))
+            raise RepositoryException(f"Failed to mark booking as payment failed: {str(e)}")
 
     def get_no_show_reports_due_for_resolution(self, *, reported_before: datetime) -> List[Booking]:
         """Return no-show reports older than cutoff, undisputed and unresolved."""

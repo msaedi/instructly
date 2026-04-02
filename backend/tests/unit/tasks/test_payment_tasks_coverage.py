@@ -74,7 +74,7 @@ class TestProcessAuthorizationForBooking:
 
         assert result["success"] is False
         assert result.get("skipped") is True
-        assert "cancelled" in result.get("reason", "")
+        assert result.get("reason") == "terminal"
 
 
 class TestRetryFailedAuthorizations:
@@ -441,7 +441,7 @@ class TestCancelBookingPaymentFailed:
         assert result is False
 
     def test_cancel_already_cancelled_booking(self) -> None:
-        """Test cancellation when booking already cancelled."""
+        """Test payment-failed marker when booking already cancelled."""
         from app.models.booking import BookingStatus
         from app.tasks.payment_tasks import _cancel_booking_payment_failed
 

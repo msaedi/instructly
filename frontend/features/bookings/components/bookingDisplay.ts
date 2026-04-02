@@ -8,6 +8,7 @@ const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: 'Confirmed',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+  PAYMENT_FAILED: 'Payment Failed',
   NO_SHOW: 'No-show',
   IN_PROGRESS: 'In Progress',
 };

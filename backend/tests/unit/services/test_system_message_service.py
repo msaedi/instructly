@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from app.models.booking import BookingStatus
 from app.models.message import (
     MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
     MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED,
@@ -117,6 +118,27 @@ class TestSystemMessageService:
         call_args = mock_message_repo.create_conversation_message.call_args
         # Now uses the instructor's actual name (Sarah) instead of role
         assert "by sarah" in call_args.kwargs["content"].lower()
+
+    def test_create_booking_cancelled_message_skips_payment_failed_booking(
+        self, service, mock_message_repo
+    ):
+        """Does not create cancellation messages for payment-failed bookings."""
+        booking_repo = Mock()
+        booking_repo.get_by_id.return_value = Mock(status=BookingStatus.PAYMENT_FAILED)
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(
+                "app.services.system_message_service.RepositoryFactory.create_booking_repository",
+                lambda _db: booking_repo,
+            )
+            service.create_booking_cancelled_message(
+                student_id="student_01ABC123DEF456GHI789JK",
+                instructor_id="instructor_01ABC123DEF456GH",
+                booking_id="booking_01ABC123DEF456GHI789",
+                booking_date=date(2025, 12, 10),
+                start_time=time(17, 0),
+            )
+
+        mock_message_repo.create_conversation_message.assert_not_called()
 
     def test_create_booking_rescheduled_message(self, service, mock_message_repo):
         """Creates system message when booking is rescheduled."""

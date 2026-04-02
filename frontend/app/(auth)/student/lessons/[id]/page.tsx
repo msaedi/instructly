@@ -146,6 +146,7 @@ export default function LessonDetailsPage() {
     lesson.status === 'COMPLETED' ||
     (lesson.status === 'CONFIRMED' && bookingEnd !== null && now >= bookingEnd);
   const isCancelled = lesson.status === 'CANCELLED';
+  const isPaymentFailed = lesson.status === 'PAYMENT_FAILED';
 
   // Check if lesson is within 12 hours (cannot reschedule)
   const hoursUntilLesson = (lessonDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -262,6 +263,12 @@ export default function LessonDetailsPage() {
               {!isInProgress && isCompleted && (
                 <StatusBadge variant="success" label="Completed" showIcon={true} />
               )}
+              {!isInProgress && !isCompleted && isCancelled && (
+                <StatusBadge variant="cancelled" label="Cancelled" showIcon={true} />
+              )}
+              {!isInProgress && !isCompleted && isPaymentFailed && (
+                <StatusBadge variant="warning" label="Payment Failed" showIcon={true} />
+              )}
             </div>
             {rescheduledFromText && (
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{rescheduledFromText}</p>
@@ -360,12 +367,27 @@ export default function LessonDetailsPage() {
               </Button>
             </div>
           )}
+          {isPaymentFailed && (
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
+                className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
         </div>
 
         <Separator />
 
         {/* Lesson Details Section */}
         <div className="mt-8 space-y-6">
+          {isPaymentFailed && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/70 dark:bg-amber-900/20 dark:text-amber-100">
+              Payment could not be processed for this booking, so it was never confirmed. Update your payment method and try booking again.
+            </div>
+          )}
           <div>
             <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Lesson Details</h2>
 
@@ -569,7 +591,7 @@ export default function LessonDetailsPage() {
                 otherUserName={lesson.instructor.first_name || 'Instructor'}
                 lessonTitle={lesson.service_name}
                 lessonDate={format(new Date(`${lesson.booking_date}T${lesson.start_time}`), 'MMM d, yyyy')}
-                isReadOnly={isCompleted || isCancelled}
+                isReadOnly={isCompleted || isCancelled || isPaymentFailed}
               />
             )}
           </>

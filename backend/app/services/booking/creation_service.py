@@ -310,6 +310,8 @@ class BookingCreationMixin:
         service: InstructorService,
         instructor_profile: InstructorProfile,
         selected_duration: int,
+        *,
+        initial_status: BookingStatus = BookingStatus.CONFIRMED,
     ) -> Booking:
         """Create the booking record with pricing calculation."""
         booking_service_module = _booking_service_module()
@@ -350,7 +352,7 @@ class BookingCreationMixin:
             hourly_rate=hourly_rate,
             total_price=total_price,
             duration_minutes=selected_duration,
-            status=BookingStatus.CONFIRMED,
+            status=initial_status,
             service_area=service_area_summary,
             meeting_location=booking_data.location_address or booking_data.meeting_location,
             location_type=booking_data.location_type,
@@ -359,6 +361,11 @@ class BookingCreationMixin:
             location_lng=booking_data.location_lng,
             location_place_id=booking_data.location_place_id,
             student_note=booking_data.student_note,
+            confirmed_at=(
+                booking_service_module.datetime.now(booking_service_module.timezone.utc)
+                if initial_status == BookingStatus.CONFIRMED
+                else None
+            ),
         )
 
         detailed_booking = self.repository.get_booking_with_details(booking.id)

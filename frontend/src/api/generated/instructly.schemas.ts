@@ -1969,6 +1969,7 @@ export const BookingStatus = {
   CONFIRMED: 'CONFIRMED',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
+  PAYMENT_FAILED: 'PAYMENT_FAILED',
   NO_SHOW: 'NO_SHOW',
 } as const;
 

@@ -16,6 +16,7 @@ from typing import Any, Callable, Coroutine, Optional
 
 from sqlalchemy.orm import Session
 
+from ..models.booking import BookingStatus
 from ..models.conversation import Conversation
 from ..models.message import (
     MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
@@ -133,6 +134,14 @@ class SystemMessageService(BaseService):
             start_time: Start time of the booking
             cancelled_by: Who cancelled ('student', 'instructor', or None)
         """
+        booking = RepositoryFactory.create_booking_repository(self.db).get_by_id(booking_id)
+        if booking and booking.status == BookingStatus.PAYMENT_FAILED:
+            self.logger.info(
+                "Skipping booking_cancelled system message for payment-failed booking %s",
+                booking_id,
+            )
+            return
+
         conversation = self._get_or_create_conversation(student_id, instructor_id)
 
         # Skip cancellation message if this appears to be part of a recent reschedule

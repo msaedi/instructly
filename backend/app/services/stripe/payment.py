@@ -126,6 +126,12 @@ class StripePaymentMixin(BaseService):
             raise BookingCancelledException(
                 "This booking was cancelled by the instructor during checkout. Your payment has been refunded."
             )
+        if fresh_booking.status == BookingStatus.PAYMENT_FAILED.value:
+            self._void_or_refund_payment(payment_intent_id)
+            raise ServiceException(
+                "Payment could not be processed for this booking. Any charge has been refunded.",
+                code="payment_failed",
+            )
         if fresh_booking.status not in {BookingStatus.PENDING.value, BookingStatus.CONFIRMED.value}:
             self._void_or_refund_payment(payment_intent_id)
             raise ServiceException(

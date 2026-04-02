@@ -198,6 +198,7 @@ def test_retry_failed_authorizations_cancels_and_retries(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
         payment_method_id="pm_cancel",
     )
     bp_cancel = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_cancel.id).first()
@@ -211,6 +212,7 @@ def test_retry_failed_authorizations_cancels_and_retries(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
         payment_method_id="pm_retry",
     )
     bp_retry = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_retry.id).first()
@@ -233,7 +235,7 @@ def test_retry_failed_authorizations_cancels_and_retries(
     )
 
     with patch("app.tasks.payment_tasks.StripeService", return_value=mock_stripe), patch(
-        "app.tasks.payment_tasks.NotificationService.send_booking_cancelled_payment_failed"
+        "app.tasks.payment_tasks.NotificationService.send_payment_failed_notification"
     ):
         results = retry_failed_authorizations()
 
@@ -243,9 +245,10 @@ def test_retry_failed_authorizations_cancels_and_retries(
     bp_retry = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_retry.id).first()
     assert results["cancelled"] == 1
     assert results["retried"] == 1
-    assert booking_cancel.status == BookingStatus.CANCELLED
+    assert booking_cancel.status == BookingStatus.PAYMENT_FAILED
     assert bp_cancel is not None
     assert bp_cancel.payment_status == PaymentStatus.SETTLED.value
+    assert bp_cancel.settlement_outcome == "payment_failed_no_charge"
     assert bp_retry is not None
     assert bp_retry.payment_status == PaymentStatus.AUTHORIZED.value
     assert bp_retry.payment_intent_id == "pi_retry_success"
@@ -262,6 +265,7 @@ def test_retry_failed_authorizations_warn_only_sends_warning(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=12, minutes=30),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
         payment_method_id="pm_warn_only",
     )
     bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
@@ -281,7 +285,7 @@ def test_retry_failed_authorizations_warn_only_sends_warning(
     mock_warning.assert_called()
 
 
-def test_check_immediate_auth_timeout_cancels_after_window(
+def test_check_immediate_auth_timeout_marks_payment_failed_after_window(
     db: Session, test_student: User, test_instructor_with_availability: User
 ) -> None:
     now = datetime.now(timezone.utc)
@@ -291,20 +295,19 @@ def test_check_immediate_auth_timeout_cancels_after_window(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
     bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert bp is not None
     bp.auth_attempted_at = now - timedelta(minutes=31)
     db.commit()
 
-    with patch(
-        "app.tasks.payment_tasks.NotificationService.send_booking_cancelled_payment_failed"
-    ):
+    with patch("app.tasks.payment_tasks.NotificationService.send_payment_failed_notification"):
         result = check_immediate_auth_timeout(booking.id)
 
     db.refresh(booking)
-    assert result.get("cancelled") is True
-    assert booking.status == BookingStatus.CANCELLED
+    assert result.get("payment_failed") is True
+    assert booking.status == BookingStatus.PAYMENT_FAILED
 
 
 def test_retry_failed_captures_escalates_after_72h(
@@ -563,7 +566,7 @@ def test_process_capture_cancelled_skipped(
     result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_process_capture_missing_payment_intent(
@@ -870,7 +873,7 @@ def test_auto_complete_booking_cancelled_skipped(
     result = _auto_complete_booking(booking.id, now)
 
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_auto_complete_booking_manual_review_skipped(
@@ -1115,7 +1118,7 @@ def test_process_authorization_cancelled_skipped(
     result = _process_authorization_for_booking(booking.id, 30.0)
 
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_process_retry_authorization_failure_updates_booking(
@@ -1129,6 +1132,7 @@ def test_process_retry_authorization_failure_updates_booking(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
     bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert bp is not None
@@ -1181,7 +1185,7 @@ def test_process_retry_authorization_cancelled_skipped(
     result = _process_retry_authorization(booking.id, 20.0)
 
     assert result.get("skipped") is True
-    assert result.get("reason") == "cancelled"
+    assert result.get("reason") == "terminal"
 
 
 def test_process_retry_authorization_not_eligible_skipped(
@@ -1214,6 +1218,7 @@ def test_process_retry_authorization_missing_customer(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
 
     payment_repo = PaymentRepository(db)
@@ -1239,6 +1244,7 @@ def test_process_retry_authorization_missing_instructor_profile(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1262,6 +1268,7 @@ def test_process_retry_authorization_missing_connected_account(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1291,6 +1298,7 @@ def test_process_retry_authorization_credits_only(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1465,7 +1473,7 @@ def test_cancel_booking_payment_failed_already_cancelled(
 def test_cancel_booking_payment_failed_credit_release_failure(
     db: Session, test_student: User, test_instructor_with_availability: User
 ) -> None:
-    """Credit release failures should not block cancellation."""
+    """Credit release failures should not block marking payment failed."""
     now = datetime.now(timezone.utc)
     booking = _create_booking(
         db,
@@ -1473,6 +1481,7 @@ def test_cancel_booking_payment_failed_credit_release_failure(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
     bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     if bp:
@@ -1483,13 +1492,13 @@ def test_cancel_booking_payment_failed_credit_release_failure(
         "app.services.credit_service.CreditService.release_credits_for_booking",
         side_effect=Exception("release failed"),
     ), patch(
-        "app.tasks.payment_tasks.NotificationService.send_booking_cancelled_payment_failed"
+        "app.tasks.payment_tasks.NotificationService.send_payment_failed_notification"
     ):
         result = _cancel_booking_payment_failed(booking.id, 8.0, now)
 
     db.refresh(booking)
     assert result is True
-    assert booking.status == BookingStatus.CANCELLED
+    assert booking.status == BookingStatus.PAYMENT_FAILED
 
 
 def test_cancel_booking_payment_failed_notification_failure_returns_false(
@@ -1503,10 +1512,11 @@ def test_cancel_booking_payment_failed_notification_failure_returns_false(
         instructor=test_instructor_with_availability,
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        status=BookingStatus.PENDING,
     )
 
     with patch(
-        "app.tasks.payment_tasks.NotificationService.send_booking_cancelled_payment_failed",
+        "app.tasks.payment_tasks.NotificationService.send_payment_failed_notification",
         side_effect=Exception("notify failed"),
     ):
         result = _cancel_booking_payment_failed(booking.id, 8.0, now)

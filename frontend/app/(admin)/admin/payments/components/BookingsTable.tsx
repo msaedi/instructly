@@ -30,7 +30,16 @@ const statusStyles: Record<BookingStatus, string> = {
   CONFIRMED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
   COMPLETED: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
   CANCELLED: 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
+  PAYMENT_FAILED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
   NO_SHOW: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
+};
+
+const statusLabels: Record<BookingStatus, string> = {
+  CONFIRMED: 'Confirmed',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  PAYMENT_FAILED: 'Payment Failed',
+  NO_SHOW: 'No-show',
 };
 
 const paymentStyles: Record<PaymentStatus, string> = {
@@ -54,7 +63,7 @@ const paymentLabels: Record<PaymentStatus, string> = {
 function StatusBadge({ value }: { value: BookingStatus }) {
   return (
     <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold', statusStyles[value])}>
-      {value}
+      {statusLabels[value]}
     </span>
   );
 }

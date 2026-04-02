@@ -202,6 +202,8 @@ class StripeWebhookRouterMixin(BaseService):
 
             if booking.status == "PENDING":
                 booking.status = "CONFIRMED"
+                if getattr(booking, "confirmed_at", None) is None:
+                    booking.confirmed_at = datetime.now(timezone.utc)
                 self.booking_repository.flush()
 
             from ..booking_service import BookingService

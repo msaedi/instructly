@@ -166,17 +166,26 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     return authorization.process_scheduled_authorizations_impl(_facade_api())
 
 
-def _cancel_booking_payment_failed(
+def _mark_booking_payment_failed(
     booking_id: str,
     hours_until_lesson: float,
     now: datetime,
 ) -> bool:
-    return authorization_retry.cancel_booking_payment_failed_impl(
+    return authorization_retry.mark_booking_payment_failed_impl(
         _facade_api(),
         booking_id,
         hours_until_lesson,
         now,
     )
+
+
+def _cancel_booking_payment_failed(
+    booking_id: str,
+    hours_until_lesson: float,
+    now: datetime,
+) -> bool:
+    """Backward-compatible alias for tests and older call sites."""
+    return _mark_booking_payment_failed(booking_id, hours_until_lesson, now)
 
 
 def _process_retry_authorization(
@@ -454,6 +463,7 @@ __all__ = [
     "TimezoneService",
     "_auto_complete_booking",
     "_cancel_booking_payment_failed",
+    "_mark_booking_payment_failed",
     "_escalate_capture_failure",
     "_facade_api",
     "_get_booking_end_utc",

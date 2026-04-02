@@ -22,8 +22,8 @@ def load_auth_booking_context(
     booking = api.BookingRepository(db).get_by_id(booking_id)
     if not booking:
         return {"result": {"success": False, "error": "Booking not found"}}
-    if booking.status == BookingStatus.CANCELLED:
-        return {"result": {"success": False, "skipped": True, "reason": "cancelled"}}
+    if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
+        return {"result": {"success": False, "skipped": True, "reason": "terminal"}}
     payment = booking.payment_detail
     if booking.status not in {BookingStatus.CONFIRMED, BookingStatus.PENDING}:
         return {"result": {"success": False, "skipped": True, "reason": "not_eligible"}}
@@ -386,7 +386,7 @@ def check_immediate_auth_timeout_impl(
     api: PaymentTasksFacadeApi,
     booking_id: str,
 ) -> Dict[str, Any]:
-    """Auto-cancel immediate auth failures after 30 minutes."""
+    """Auto-mark immediate auth failures as payment failed after 30 minutes."""
     from app.database import SessionLocal
 
     db: Session = SessionLocal()
@@ -398,8 +398,10 @@ def check_immediate_auth_timeout_impl(
             booking = api.BookingRepository(db).get_by_id(booking_id)
             if not booking:
                 return {"error": "Booking not found"}
-            if booking.status == BookingStatus.CANCELLED:
-                return {"skipped": True, "reason": "cancelled"}
+            if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
+                return {"skipped": True, "reason": "terminal"}
+            if booking.status != BookingStatus.PENDING:
+                return {"skipped": True, "reason": "not_eligible"}
             payment = booking.payment_detail
             if (
                 getattr(payment, "payment_status", None)
@@ -416,7 +418,11 @@ def check_immediate_auth_timeout_impl(
                 api._get_booking_start_utc(booking)
             )
             return {
-                "cancelled": api._cancel_booking_payment_failed(booking_id, hours_until_lesson, now)
+                "payment_failed": api._mark_booking_payment_failed(
+                    booking_id,
+                    hours_until_lesson,
+                    now,
+                )
             }
     finally:
         db.close()
