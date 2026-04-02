@@ -99,6 +99,8 @@ body {
   --color-brand: #7C3AED;
   --color-brand-dark: #7E22CE;
   --color-brand-lavender: #F3E8FF;
+  --color-brand-light: var(--color-brand-lavender);
+  --color-brand-surface: #FAF5FF;
   --color-star-amber: #FFD93D;
   --color-online-green: #059669;
   --color-online-green-light: #D1FAE5;

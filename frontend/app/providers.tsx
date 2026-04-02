@@ -41,8 +41,8 @@ export function Providers({ children }: { children: ReactNode }) {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#5b21b6',
-              color: '#fdf4ff',
+              background: '#7C3AED',
+              color: '#ffffff',
               padding: '12px 16px',
               borderRadius: '12px',
               width: 'auto',
