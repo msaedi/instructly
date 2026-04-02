@@ -1,6 +1,6 @@
 ---
 name: instainstru-verify
-description: Runs the full iNSTAiNSTRU verification suite (pytest, mypy, pre-commit, eslint, TypeScript strict, type-coverage, npm audit) and enforces quality gates. Use after every code change, bug fix, feature implementation, test update, or dependency change — before reporting any task as complete. Also use when asked to "verify", "check", "validate", "run tests", "is it passing", or "are we green". Includes a deterministic verification script, forbidden suppression patterns, and self-check protocol.
+description: Runs the full iNSTAiNSTRU verification suite (ruff, mypy, pre-commit, pytest, eslint, TypeScript strict, type-coverage, npm audit) and enforces quality gates. Use after every code change, bug fix, feature implementation, test update, or dependency change — before reporting any task as complete. Also use when asked to "verify", "check", "validate", "run tests", "is it passing", or "are we green". Includes a deterministic, fail-fast verification script, forbidden suppression patterns, and self-check protocol.
 ---
 
 # iNSTAiNSTRU Verification & Quality Gates
@@ -25,9 +25,24 @@ bash scripts/verify.sh frontend
 bash scripts/verify.sh all
 ```
 
-The script is at `scripts/verify.sh` inside this skill's directory. It runs every check in order and outputs a structured report with pass/fail per step.
+The script is at `scripts/verify.sh` inside this skill's directory. It runs every check in order, stops after the first failed step in a scope, and outputs a structured report with pass/fail per step.
 
-**If any step fails, stop and fix before reporting.**
+### Execution Rules
+
+- **Step-gated verification.** Do not start step N+1 until step N has passed.
+- **Never interrupt a running step.** Let the current command finish naturally. If `pytest` or `jest` is running and failures appear in the output, wait for the full test step to complete so you can fix all failures from that step in one pass.
+- **After a failed step, fix first, then rerun the same scope from the top.**
+  - If `verify.sh backend` fails, fix the backend issue and rerun `verify.sh backend`.
+  - If `verify.sh frontend` fails, fix the frontend issue and rerun `verify.sh frontend`.
+- **`verify.sh all` is sequential, not sticky.** It runs backend first, then frontend.
+  - If backend fails, stop immediately. Fix backend and rerun `verify.sh backend`.
+  - If backend passes and frontend fails, fix frontend and rerun `verify.sh frontend` only.
+  - Do not rerun backend after a frontend-only fix unless the fix touched backend code or another shared cross-stack dependency.
+
+### Check Order
+
+- **Backend:** `ruff check backend/` → `mypy` → `pre-commit` → `pytest`
+- **Frontend:** `jest --coverage` → `eslint` → `typecheck:strict-all` → `audit:typecov` → `npm audit --omit=dev`
 
 ### When to run which
 
@@ -91,9 +106,10 @@ When reporting task completion, include:
 ## Verification Results
 
 ### Backend
-- Tests: [count] passed, [count] failed, [count] skipped
+- Ruff: [clean / N errors]
 - mypy: [clean / N errors]
 - Pre-commit: [all passed / N failures]
+- Tests: [count] passed, [count] failed, [count] skipped
 
 ### Frontend
 - Tests: [count] passed across [count] suites
