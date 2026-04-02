@@ -26,6 +26,8 @@ type InstructorBookingDetailViewProps = {
   needsAction: boolean;
   onMarkComplete: () => Promise<void> | void;
   onReportNoShow: () => void;
+  canReportNoShow: boolean;
+  noShowUnavailableReason?: string | null;
   isActionPending: boolean;
 };
 
@@ -74,6 +76,8 @@ export function InstructorBookingDetailView({
   needsAction,
   onMarkComplete,
   onReportNoShow,
+  canReportNoShow,
+  noShowUnavailableReason,
   isActionPending,
 }: InstructorBookingDetailViewProps) {
   const studentName = formatStudentDisplayName(
@@ -230,7 +234,7 @@ export function InstructorBookingDetailView({
                     type="button"
                     variant="outline"
                     onClick={onReportNoShow}
-                    disabled={isActionPending}
+                    disabled={isActionPending || !canReportNoShow}
                     className="border-amber-400 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30 dark:hover:text-amber-200"
                   >
                     Report No-Show
@@ -238,6 +242,11 @@ export function InstructorBookingDetailView({
                 </>
               ) : null}
             </div>
+            {needsAction && !canReportNoShow && noShowUnavailableReason ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {noShowUnavailableReason}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

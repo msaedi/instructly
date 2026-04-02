@@ -10,6 +10,7 @@ import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
+import { extractUnknownErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
 import { formatStudentDisplayName } from '@/lib/studentName';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
@@ -22,6 +23,9 @@ type InstructorBookingDetail = BookingResponse | InstructorBookingResponse;
 type BookingStudentWithLastInitial = InstructorBookingDetail['student'] & {
   last_initial?: string | null;
 };
+
+const NO_SHOW_WINDOW_PASSED_MESSAGE =
+  'No-show window has passed (24 hours after lesson end).';
 
 function BookingsPageHeader() {
   return (
@@ -37,6 +41,34 @@ function BookingsPageHeader() {
 function getStudentLastInitial(student: InstructorBookingDetail['student']): string {
   const studentWithLastInitial = student as BookingStudentWithLastInitial;
   return studentWithLastInitial.last_initial ?? '';
+}
+
+function getBookingEndTime(booking: InstructorBookingDetail): Date | null {
+  if (booking.booking_end_utc) {
+    const bookingEndUtc = new Date(booking.booking_end_utc);
+    if (!Number.isNaN(bookingEndUtc.getTime())) {
+      return bookingEndUtc;
+    }
+  }
+
+  const { end } = resolveBookingDateTimes(booking);
+  if (end === null || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  return end;
+}
+
+function hasNoShowWindowPassed(
+  booking: InstructorBookingDetail,
+  now: Date = new Date()
+): boolean {
+  const bookingEndTime = getBookingEndTime(booking);
+  if (bookingEndTime === null) {
+    return false;
+  }
+
+  return now.getTime() > bookingEndTime.getTime() + 24 * 60 * 60 * 1000;
 }
 
 export default function BookingDetailsPage() {
@@ -71,6 +103,16 @@ export default function BookingDetailsPage() {
   };
 
   const handleMarkNoShow = async () => {
+    if (!booking) {
+      return;
+    }
+
+    if (hasNoShowWindowPassed(booking, new Date())) {
+      setShowNoShowModal(false);
+      toast.error(NO_SHOW_WINDOW_PASSED_MESSAGE, { duration: 4000 });
+      return;
+    }
+
     try {
       await markNoShow.mutateAsync({
         bookingId,
@@ -81,8 +123,10 @@ export default function BookingDetailsPage() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
     } catch (error) {
+      const message =
+        extractUnknownErrorMessage(error) ?? 'Failed to mark lesson as no-show';
       logger.error('Failed to mark lesson as no-show', error);
-      toast.error('Failed to mark lesson as no-show', { duration: 4000 });
+      toast.error(message, { duration: 4000 });
     }
   };
 
@@ -146,6 +190,8 @@ export default function BookingDetailsPage() {
     getStudentLastInitial(booking.student),
   );
   const needsAction = booking.status === 'CONFIRMED' && isPastLesson();
+  const noShowWindowPassed = hasNoShowWindowPassed(booking);
+  const canReportNoShow = !noShowWindowPassed;
   const isActionPending = completeBooking.isPending || markNoShow.isPending;
 
   return (
@@ -159,6 +205,10 @@ export default function BookingDetailsPage() {
           needsAction={needsAction}
           onMarkComplete={handleMarkComplete}
           onReportNoShow={() => setShowNoShowModal(true)}
+          canReportNoShow={canReportNoShow}
+          noShowUnavailableReason={
+            noShowWindowPassed ? NO_SHOW_WINDOW_PASSED_MESSAGE : null
+          }
           isActionPending={isActionPending}
         />
       </InstructorDashboardShell>
@@ -202,11 +252,16 @@ export default function BookingDetailsPage() {
                 type="button"
                 className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleMarkNoShow}
-                disabled={markNoShow.isPending}
+                disabled={markNoShow.isPending || noShowWindowPassed}
               >
                 {markNoShow.isPending ? 'Marking...' : 'Confirm No-Show'}
               </button>
             </div>
+            {noShowWindowPassed ? (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                {NO_SHOW_WINDOW_PASSED_MESSAGE}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

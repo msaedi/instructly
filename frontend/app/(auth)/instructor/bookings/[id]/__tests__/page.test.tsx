@@ -301,7 +301,9 @@ describe('Instructor Booking Details Page', () => {
   it('shows action buttons for past confirmed bookings and marks them complete', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
     mockUseBooking.mockReturnValue({
-      data: createMockBooking(),
+      data: createMockBooking({
+        booking_end_utc: '2026-03-20T10:00:00Z',
+      }),
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useBooking>);
@@ -318,7 +320,11 @@ describe('Instructor Booking Details Page', () => {
     );
     expect(screen.getByRole('button', { name: 'Mark Complete' })).toHaveClass('bg-(--color-brand)');
     expect(screen.getByRole('button', { name: 'Mark Complete' }).querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Report No-Show' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Report No-Show' }).querySelector('svg')).toBeNull();
+    expect(
+      screen.getByText('No-show window has passed (24 hours after lesson end).')
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mark Complete' }));
 
@@ -361,9 +367,11 @@ describe('Instructor Booking Details Page', () => {
   });
 
   it('opens and closes the no-show modal, then submits a no-show', async () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-17T12:00:00Z'));
     mockUseBooking.mockReturnValue({
-      data: createMockBooking(),
+      data: createMockBooking({
+        booking_end_utc: '2026-03-16T17:15:00Z',
+      }),
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useBooking>);
@@ -404,10 +412,14 @@ describe('Instructor Booking Details Page', () => {
   });
 
   it('shows an error toast when reporting a no-show fails', async () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
-    markNoShowMutateAsyncMock.mockRejectedValueOnce(new Error('Server error'));
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-17T12:00:00Z'));
+    markNoShowMutateAsyncMock.mockRejectedValueOnce(
+      new Error('No-show can only be reported between lesson start and 24 hours after lesson end')
+    );
     mockUseBooking.mockReturnValue({
-      data: createMockBooking(),
+      data: createMockBooking({
+        booking_end_utc: '2026-03-16T17:15:00Z',
+      }),
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useBooking>);
@@ -419,7 +431,7 @@ describe('Instructor Booking Details Page', () => {
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        'Failed to mark lesson as no-show',
+        'No-show can only be reported between lesson start and 24 hours after lesson end',
         expect.any(Object)
       );
     });
