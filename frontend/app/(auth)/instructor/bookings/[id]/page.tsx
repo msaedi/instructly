@@ -1,18 +1,19 @@
 "use client";
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, Calendar } from 'lucide-react';
+import { Calendar, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useCompleteBooking, useBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { useBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { useMarkLessonComplete } from '@/src/api/services/instructor-bookings';
 import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
+import { formatBookingLongDate } from '@/features/bookings/components/bookingDisplay';
 import { extractUnknownErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
-import { formatStudentDisplayName } from '@/lib/studentName';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
 import { InstructorDashboardShell } from '@/components/dashboard/InstructorDashboardShell';
@@ -22,6 +23,7 @@ type InstructorBookingDetail = BookingResponse | InstructorBookingResponse;
 
 type BookingStudentWithLastInitial = InstructorBookingDetail['student'] & {
   last_initial?: string | null;
+  last_name?: string | null;
 };
 
 const NO_SHOW_WINDOW_PASSED_MESSAGE =
@@ -43,12 +45,19 @@ function getStudentLastInitial(student: InstructorBookingDetail['student']): str
   return studentWithLastInitial.last_initial ?? '';
 }
 
+function parseOptionalDate(value?: string | null): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function getBookingEndTime(booking: InstructorBookingDetail): Date | null {
-  if (booking.booking_end_utc) {
-    const bookingEndUtc = new Date(booking.booking_end_utc);
-    if (!Number.isNaN(bookingEndUtc.getTime())) {
-      return bookingEndUtc;
-    }
+  const bookingEndUtc = parseOptionalDate(booking.booking_end_utc);
+  if (bookingEndUtc) {
+    return bookingEndUtc;
   }
 
   const { end } = resolveBookingDateTimes(booking);
@@ -71,18 +80,39 @@ function hasNoShowWindowPassed(
   return now.getTime() > bookingEndTime.getTime() + 24 * 60 * 60 * 1000;
 }
 
+function formatNoShowStudentName(student: InstructorBookingDetail['student']): string {
+  const studentWithFallbackLastName = student as BookingStudentWithLastInitial;
+  const firstName = studentWithFallbackLastName.first_name?.trim().toUpperCase() || 'STUDENT';
+  const explicitLastInitial = getStudentLastInitial(studentWithFallbackLastName)
+    .trim()
+    .replace(/\.$/, '');
+  const fallbackLastInitial = studentWithFallbackLastName.last_name?.trim()?.charAt(0) ?? '';
+  const lastInitial = (explicitLastInitial || fallbackLastInitial).toUpperCase();
+
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
+
 export default function BookingDetailsPage() {
   const params = useParams();
   const bookingId = params['id'] as string;
   const queryClient = useQueryClient();
   const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const noShowModalRef = useRef<HTMLDivElement | null>(null);
   const noShowTitleId = useId();
 
   const { data: booking, isLoading, error: queryError } = useBooking(bookingId);
-  const completeBooking = useCompleteBooking();
+  const completeBooking = useMarkLessonComplete();
   const markNoShow = useMarkBookingNoShow();
   const { createConversation, isCreating: isMessagePending } = useCreateConversation();
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 30_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useFocusTrap({
     isOpen: showNoShowModal,
@@ -92,7 +122,7 @@ export default function BookingDetailsPage() {
 
   const handleMarkComplete = async () => {
     try {
-      await completeBooking.mutateAsync({ bookingId });
+      await completeBooking.mutateAsync({ bookingId, data: {} });
       toast.success('Lesson marked as complete', { duration: 3000 });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
@@ -130,33 +160,24 @@ export default function BookingDetailsPage() {
     }
   };
 
-  const handleMessageStudent = async () => {
+  const openStudentConversation = async (initialMessage?: string) => {
     if (!booking) {
       return;
     }
 
     try {
-      await createConversation(booking.student.id, { navigateToMessages: true });
+      await createConversation(booking.student.id, {
+        navigateToMessages: true,
+        ...(initialMessage ? { initialMessage } : {}),
+      });
     } catch (error) {
       logger.error('Failed to open messages', error);
       toast.error('Failed to open messages', { duration: 4000 });
     }
   };
 
-  const isPastLesson = (): boolean => {
-    if (!booking) {
-      return false;
-    }
-
-    if (booking.booking_end_utc) {
-      const bookingEndUtc = new Date(booking.booking_end_utc);
-      if (!Number.isNaN(bookingEndUtc.getTime())) {
-        return bookingEndUtc < new Date();
-      }
-    }
-
-    const { end } = resolveBookingDateTimes(booking);
-    return end !== null && end < new Date();
+  const handleMessageStudent = async () => {
+    await openStudentConversation();
   };
 
   if (isLoading) {
@@ -185,14 +206,48 @@ export default function BookingDetailsPage() {
     );
   }
 
-  const studentName = formatStudentDisplayName(
-    booking.student.first_name,
-    getStudentLastInitial(booking.student),
-  );
-  const needsAction = booking.status === 'CONFIRMED' && isPastLesson();
-  const noShowWindowPassed = hasNoShowWindowPassed(booking);
+  const lessonDate = formatBookingLongDate(booking.booking_date, booking.start_time);
+  const noShowStudentName = formatNoShowStudentName(booking.student);
+  const bookingEndTime = getBookingEndTime(booking);
+  const joinOpensAt = parseOptionalDate(booking.join_opens_at);
+  const joinClosesAt = parseOptionalDate(booking.join_closes_at);
+  const isPastLesson = bookingEndTime !== null && bookingEndTime < now;
+  const isOnlineConfirmedBooking =
+    booking.location_type === 'online' && booking.status === 'CONFIRMED';
+  const showJoinLesson =
+    isOnlineConfirmedBooking && joinClosesAt !== null && now <= joinClosesAt;
+  const isJoinLessonActive =
+    showJoinLesson &&
+    joinOpensAt !== null &&
+    joinClosesAt !== null &&
+    now >= joinOpensAt &&
+    now <= joinClosesAt;
+  const showActionRequired =
+    booking.status === 'CONFIRMED' && isPastLesson && !booking.no_show_reported_at;
+  const showReportIssueLink =
+    booking.status !== 'CANCELLED' && booking.status !== 'PAYMENT_FAILED';
+  const showCancelDiscussionLink = booking.status === 'CONFIRMED' && !isPastLesson;
+  const noShowWindowPassed = hasNoShowWindowPassed(booking, now);
   const canReportNoShow = !noShowWindowPassed;
   const isActionPending = completeBooking.isPending || markNoShow.isPending;
+
+  const reportIssueMessage = `Hi ${booking.student.first_name}, I need to report an issue with our ${booking.service_name} lesson on ${lessonDate}. `;
+  const cancelLessonMessage = `Hi ${booking.student.first_name}, I need to discuss cancelling our ${booking.service_name} lesson on ${lessonDate}. `;
+
+  const handleReportIssue = async () => {
+    await openStudentConversation(reportIssueMessage);
+  };
+
+  const handleCancelDiscussion = async () => {
+    await openStudentConversation(cancelLessonMessage);
+  };
+
+  const isJoinVisible = showJoinLesson;
+  const isJoinActive = isJoinLessonActive;
+  const shouldShowActionRequired = showActionRequired;
+  const shouldShowReportIssueLink = showReportIssueLink;
+  const shouldShowCancelDiscussionLink = showCancelDiscussionLink;
+  const shouldAllowNoShow = canReportNoShow;
 
   return (
     <>
@@ -202,14 +257,18 @@ export default function BookingDetailsPage() {
           booking={booking}
           onMessageStudent={handleMessageStudent}
           isMessagePending={isMessagePending}
-          needsAction={needsAction}
+          isPastLesson={isPastLesson}
+          showJoinLesson={isJoinVisible}
+          isJoinLessonActive={isJoinActive}
+          showActionRequired={shouldShowActionRequired}
           onMarkComplete={handleMarkComplete}
           onReportNoShow={() => setShowNoShowModal(true)}
-          canReportNoShow={canReportNoShow}
-          noShowUnavailableReason={
-            noShowWindowPassed ? NO_SHOW_WINDOW_PASSED_MESSAGE : null
-          }
+          canReportNoShow={shouldAllowNoShow}
           isActionPending={isActionPending}
+          showReportIssueLink={shouldShowReportIssueLink}
+          onReportIssue={handleReportIssue}
+          showCancelDiscussionLink={shouldShowCancelDiscussionLink}
+          onRequestCancellation={handleCancelDiscussion}
         />
       </InstructorDashboardShell>
 
@@ -221,47 +280,38 @@ export default function BookingDetailsPage() {
             aria-modal="true"
             aria-labelledby={noShowTitleId}
             tabIndex={-1}
-            className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-gray-800"
           >
-            <div className="mb-4">
-              <div className="mb-2 flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="h-6 w-6" />
-                <h3 id={noShowTitleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Report No-Show
-                </h3>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Are you sure you want to mark this lesson as a no-show? This indicates that
-                <span className="font-medium"> {studentName || 'the student'}</span> did not
-                attend the scheduled lesson.
-              </p>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                The student will still be charged for the lesson.
-              </p>
-            </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex items-start justify-between gap-4">
+              <h3 id={noShowTitleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Report no-show
+              </h3>
               <button
                 type="button"
-                className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                aria-label="Close report no-show modal"
+                className="rounded-full p-1 text-[#7C3AED] transition-colors hover:bg-[#F5F3FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4B5FD] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#2D174D]/40"
                 onClick={() => setShowNoShowModal(false)}
                 disabled={markNoShow.isPending}
               >
-                Cancel
+                <X className="h-5 w-5" />
               </button>
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              Confirm that <span className="font-semibold text-gray-900 dark:text-gray-100">{noShowStudentName}</span>{' '}
+              was a no-show. They will still be charged for the lesson.
+            </p>
+
+            <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-[#DC2626] px-4 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/20"
                 onClick={handleMarkNoShow}
                 disabled={markNoShow.isPending || noShowWindowPassed}
               >
-                {markNoShow.isPending ? 'Marking...' : 'Confirm No-Show'}
+                Confirm no-show
               </button>
             </div>
-            {noShowWindowPassed ? (
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                {NO_SHOW_WINDOW_PASSED_MESSAGE}
-              </p>
-            ) : null}
           </div>
         </div>
       ) : null}

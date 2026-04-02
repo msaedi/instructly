@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Calendar, Clock, MapPin } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Calendar, Clock, MapPin, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
 import { shortenBookingId } from '@/lib/bookingId';
 import { formatBookingLocationDetail } from '@/lib/bookingLocation';
 import { formatPrice } from '@/lib/price';
 import { formatStudentDisplayName } from '@/lib/studentName';
 import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
+import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from './BookingStatusBadge';
 import {
   formatBookingCreatedDate,
@@ -23,12 +24,18 @@ type InstructorBookingDetailViewProps = {
   booking: BookingResponse | InstructorBookingResponse;
   onMessageStudent: () => Promise<void> | void;
   isMessagePending: boolean;
-  needsAction: boolean;
+  isPastLesson: boolean;
+  showJoinLesson: boolean;
+  isJoinLessonActive: boolean;
+  showActionRequired: boolean;
   onMarkComplete: () => Promise<void> | void;
   onReportNoShow: () => void;
   canReportNoShow: boolean;
-  noShowUnavailableReason?: string | null;
   isActionPending: boolean;
+  showReportIssueLink: boolean;
+  onReportIssue: () => Promise<void> | void;
+  showCancelDiscussionLink: boolean;
+  onRequestCancellation: () => Promise<void> | void;
 };
 
 type BookingDetail = BookingResponse | InstructorBookingResponse;
@@ -57,41 +64,65 @@ function getPayoutStatusSummary(booking: BookingDetail): string | null {
 function DetailRow({
   icon,
   value,
+  className,
+  valueClassName,
+  dataTestId,
 }: {
   icon: ReactNode;
   value: string;
+  className?: string;
+  valueClassName?: string;
+  dataTestId?: string;
 }) {
   return (
-    <div className="flex items-start gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+    <div
+      className={cn(
+        'flex items-start gap-2 text-sm font-medium text-gray-900 dark:text-gray-100',
+        className,
+      )}
+      data-testid={dataTestId}
+    >
       <span className="mt-0.5 shrink-0">{icon}</span>
-      <span className="min-w-0 break-words">{value}</span>
+      <span className={cn('min-w-0 break-words', valueClassName)}>{value}</span>
     </div>
   );
 }
 
-export function InstructorBookingDetailView({
-  booking,
-  onMessageStudent,
-  isMessagePending,
-  needsAction,
-  onMarkComplete,
-  onReportNoShow,
-  canReportNoShow,
-  noShowUnavailableReason,
-  isActionPending,
-}: InstructorBookingDetailViewProps) {
+export function InstructorBookingDetailView(props: InstructorBookingDetailViewProps) {
+  const {
+    booking,
+    onMessageStudent,
+    isMessagePending,
+    showJoinLesson,
+    isJoinLessonActive,
+    showActionRequired,
+    onMarkComplete,
+    onReportNoShow,
+    canReportNoShow,
+    isActionPending,
+    showReportIssueLink,
+    onReportIssue,
+    showCancelDiscussionLink,
+    onRequestCancellation,
+  } = props;
   const studentName = formatStudentDisplayName(
     booking.student.first_name,
     getStudentLastInitial(booking.student),
   );
   const payoutSummary = getPayoutStatusSummary(booking);
-  const showJoinLessonAction =
-    booking.status === 'CONFIRMED' &&
-    booking.location_type === 'online' &&
-    booking.can_join_lesson === true &&
-    typeof booking.join_opens_at === 'string' &&
-    typeof booking.join_closes_at === 'string';
-  const showActionSection = showJoinLessonAction || needsAction;
+  const isOnlineBooking = booking.location_type === 'online';
+  const isOnlineLocationHighlighted =
+    isOnlineBooking && booking.status === 'CONFIRMED' && isJoinLessonActive;
+  const locationValue = isOnlineBooking
+    ? 'Online lesson'
+    : formatBookingLocationDetail(
+        booking.location_type,
+        booking.location_address,
+        booking.meeting_location,
+        booking.service_area,
+      );
+  const showBottomLinks = showReportIssueLink || showCancelDiscussionLink;
+  const showPostPricingSection = showActionRequired || showBottomLinks;
 
   return (
     <div className="mt-6">
@@ -123,16 +154,42 @@ export function InstructorBookingDetailView({
               <p className="text-sm text-gray-600 dark:text-gray-400">{booking.service_name}</p>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="min-w-[108px] rounded-full border-(--color-brand) bg-white text-(--color-brand) hover:bg-(--color-brand-lavender) hover:text-(--color-brand) focus-visible:ring-(--color-brand) dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
-              onClick={onMessageStudent}
-              disabled={isMessagePending}
+            <div
+              className="flex flex-wrap items-center justify-end gap-3 self-start"
+              data-testid="booking-card-actions"
             >
-              {isMessagePending ? 'Opening...' : 'Message'}
-            </Button>
+              {showJoinLesson ? (
+                isJoinLessonActive ? (
+                  <Link
+                    href={`/lessons/${booking.id}`}
+                    data-testid="join-lesson-button"
+                    className="inline-flex min-w-[116px] cursor-pointer items-center justify-center rounded-full bg-(--color-brand) px-4 py-2 text-sm font-medium text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand)"
+                  >
+                    Join lesson
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    data-testid="join-lesson-button"
+                    className="inline-flex min-w-[116px] cursor-not-allowed items-center justify-center rounded-full bg-[#F3F4F6] px-4 py-2 text-sm font-medium text-[#9CA3AF]"
+                  >
+                    Join lesson
+                  </button>
+                )
+              ) : null}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-w-[108px] rounded-full border-(--color-brand) bg-white text-(--color-brand) hover:bg-(--color-brand-lavender) hover:text-(--color-brand) focus-visible:ring-(--color-brand) dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
+                onClick={onMessageStudent}
+                disabled={isMessagePending}
+              >
+                {isMessagePending ? 'Opening...' : 'Message'}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -152,38 +209,128 @@ export function InstructorBookingDetailView({
             </div>
 
             <DetailRow
-              icon={<MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500" />}
-              value={formatBookingLocationDetail(
-                booking.location_type,
-                booking.location_address,
-                booking.meeting_location,
-                booking.service_area,
-              )}
+              icon={
+                isOnlineBooking ? (
+                  <Monitor
+                    className={cn(
+                      'h-4 w-4',
+                      isOnlineLocationHighlighted
+                        ? 'text-(--color-brand)'
+                        : 'text-gray-400 dark:text-gray-500',
+                    )}
+                  />
+                ) : (
+                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                )
+              }
+              value={locationValue}
+              {...(isOnlineLocationHighlighted
+                ? { valueClassName: 'text-(--color-brand)' }
+                : {})}
+              dataTestId="booking-location-row"
             />
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
+            <div
+              data-testid="pricing-tile-rate"
+              className="rounded-xl p-4 dark:bg-[#2D174D]/40"
+              style={{ backgroundColor: '#FAF5FF' }}
+            >
               <p className="text-sm text-gray-500 dark:text-gray-400">Rate</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatPrice(booking.hourly_rate)}/hr
               </p>
             </div>
 
-            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
+            <div
+              data-testid="pricing-tile-duration"
+              className="rounded-xl p-4 dark:bg-[#2D174D]/40"
+              style={{ backgroundColor: '#FAF5FF' }}
+            >
               <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatDurationMinutes(booking.duration_minutes)}
               </p>
             </div>
 
-            <div className="rounded-xl bg-(--color-brand-lavender) p-4 dark:bg-[#2D174D]/40">
+            <div
+              data-testid="pricing-tile-lesson-price"
+              className="rounded-xl p-4 dark:bg-[#2D174D]/40"
+              style={{ backgroundColor: '#FAF5FF' }}
+            >
               <p className="text-sm text-gray-500 dark:text-gray-400">Lesson price</p>
               <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatPrice(booking.total_price)}
               </p>
             </div>
           </div>
+
+          {showPostPricingSection ? (
+            <div className="space-y-4">
+              <Separator className={sectionDividerClassName} />
+
+              {showActionRequired ? (
+                <div
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                  data-testid="booking-action-row"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <AlertTriangle className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                    <span>Action required · Did the lesson occur?</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <Button
+                      type="button"
+                      onClick={onMarkComplete}
+                      disabled={isActionPending}
+                      className="rounded-full bg-(--color-brand) px-5 text-white hover:opacity-95 dark:bg-(--color-brand)"
+                    >
+                      Mark complete
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onReportNoShow}
+                      disabled={isActionPending || !canReportNoShow}
+                      className="rounded-full border-red-600 px-5 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-red-400 dark:text-red-400 dark:hover:bg-red-950/20 dark:hover:text-red-300"
+                    >
+                      Report no-show
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {showBottomLinks ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                  {showReportIssueLink ? (
+                    <button
+                      type="button"
+                      data-testid="report-issue-link"
+                      onClick={onReportIssue}
+                      className="text-gray-400 transition-colors hover:text-gray-500"
+                    >
+                      Report an issue
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+
+                  {showCancelDiscussionLink ? (
+                    <button
+                      type="button"
+                      data-testid="cancel-lesson-link"
+                      onClick={onRequestCancellation}
+                      className="text-gray-400 transition-colors hover:text-gray-500"
+                    >
+                      I need to cancel this lesson
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {booking.status === 'COMPLETED' && payoutSummary ? (
             <div className="rounded-xl border border-gray-200 px-4 py-3 text-sm dark:border-gray-700">
@@ -192,63 +339,6 @@ export function InstructorBookingDetailView({
             </div>
           ) : null}
         </div>
-
-        {showActionSection ? (
-          <div className="space-y-4 px-6 pb-5">
-            {needsAction ? (
-              <div
-                className="rounded-xl border border-(--color-brand)/20 bg-(--color-brand-lavender) p-4 dark:border-[#A78BFA]/25 dark:bg-[#2D174D]/40"
-                data-testid="booking-action-banner"
-              >
-                <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="font-medium text-gray-700 dark:text-gray-200">
-                    Action Required
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                  This lesson time has passed. Did it take place?
-                </p>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap gap-3">
-              {showJoinLessonAction ? (
-                <JoinLessonButton
-                  bookingId={booking.id}
-                  joinOpensAt={booking.join_opens_at}
-                  joinClosesAt={booking.join_closes_at}
-                />
-              ) : null}
-              {needsAction ? (
-                <>
-                  <Button
-                    type="button"
-                    onClick={onMarkComplete}
-                    disabled={isActionPending}
-                    className="bg-(--color-brand) text-white hover:bg-[#6D28D9] dark:bg-(--color-brand) dark:hover:bg-[#6D28D9]"
-                  >
-                    Mark Complete
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onReportNoShow}
-                    disabled={isActionPending || !canReportNoShow}
-                    className="border-amber-400 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30 dark:hover:text-amber-200"
-                  >
-                    Report No-Show
-                  </Button>
-                </>
-              ) : null}
-            </div>
-            {needsAction && !canReportNoShow && noShowUnavailableReason ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {noShowUnavailableReason}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
 
         {booking.video_session_duration_seconds != null ? (
           <div className="space-y-3 px-6 pb-5">
