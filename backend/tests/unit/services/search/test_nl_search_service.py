@@ -30,21 +30,29 @@ from app.schemas.nl_search import (
 )
 from app.services.search.filter_service import FilterResult
 from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
-from app.services.search.nl_search_service import (
-    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
-    TEXT_SKIP_VECTOR_MIN_RESULTS,
-    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
-    TOP_MATCH_SUBCATEGORY_CANDIDATES,
-    TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS,
-    NLSearchService,
+from app.services.search.nl_pipeline import (
+    hydration,
+    location_helpers,
+    postflight,
+    preflight,
+    response as response_mod,
+    taxonomy,
+)
+from app.services.search.nl_pipeline.models import (
     PipelineTimer,
     PostOpenAIData,
     PreOpenAIData,
     SearchMetrics,
 )
+from app.services.search.nl_search_service import NLSearchService
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.ranking_service import RankedResult, RankingResult
-from app.services.search.retriever import ServiceCandidate
+from app.services.search.retriever import (
+    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+    TEXT_SKIP_VECTOR_MIN_RESULTS,
+    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+    ServiceCandidate,
+)
 
 
 @pytest.fixture
@@ -242,7 +250,7 @@ class TestCacheCheck:
         mock_search_cache.get_cached_response.return_value = None
 
         service = NLSearchService(search_cache=mock_search_cache)
-        result = await service._check_cache("piano lessons", None, limit=20)
+        result = await response_mod.check_cache_for_service(service, "piano lessons", None, limit=20)
 
         assert result is None
 
@@ -253,7 +261,7 @@ class TestCacheCheck:
         mock_search_cache.get_cached_response.return_value = cached
 
         service = NLSearchService(search_cache=mock_search_cache)
-        result = await service._check_cache("piano lessons", None, limit=20)
+        result = await response_mod.check_cache_for_service(service, "piano lessons", None, limit=20)
 
         assert result == cached
 
@@ -263,7 +271,7 @@ class TestCacheCheck:
         mock_search_cache.get_cached_response.side_effect = Exception("Cache error")
 
         service = NLSearchService(search_cache=mock_search_cache)
-        result = await service._check_cache("piano lessons", None, limit=20)
+        result = await response_mod.check_cache_for_service(service, "piano lessons", None, limit=20)
 
         assert result is None
 
@@ -272,7 +280,7 @@ class TestCacheCheck:
         service = NLSearchService(search_cache=mock_search_cache)
         filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
 
-        await service._check_cache("piano lessons", None, limit=20, filters=filters)
+        await response_mod.check_cache_for_service(service, "piano lessons", None, limit=20, filters=filters)
 
         mock_search_cache.get_cached_response.assert_awaited_once_with(
             "piano lessons",
@@ -292,10 +300,10 @@ class TestBuildInstructorResponse:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should build response with instructor-level results."""
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics(total_latency_ms=150)
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano lessons",
             sample_parsed_query,
             sample_instructor_results,
@@ -317,10 +325,10 @@ class TestBuildInstructorResponse:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should respect limit parameter."""
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano",
             sample_parsed_query,
             sample_instructor_results,
@@ -333,10 +341,10 @@ class TestBuildInstructorResponse:
 
     def test_builds_empty_response(self, sample_parsed_query: ParsedQuery) -> None:
         """Should build response with no results."""
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "nonexistent service",
             sample_parsed_query,
             [],
@@ -353,13 +361,13 @@ class TestBuildInstructorResponse:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should include degradation information in meta."""
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics(
             degraded=True,
             degradation_reasons=["embedding_unavailable", "filter_fallback"],
         )
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano",
             sample_parsed_query,
             sample_instructor_results,
@@ -377,7 +385,7 @@ class TestBuildInstructorResponse:
         """Should include parsed query info in meta."""
         from datetime import date
 
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics()
 
         parsed = ParsedQuery(
@@ -388,7 +396,7 @@ class TestBuildInstructorResponse:
             parsing_mode="llm",
         )
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "cheap piano lessons tomorrow",
             parsed,
             sample_instructor_results,
@@ -404,10 +412,10 @@ class TestBuildInstructorResponse:
     def test_includes_inferred_filters_in_meta(
         self, sample_parsed_query: ParsedQuery, sample_instructor_results: List[NLSearchResultItem]
     ) -> None:
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "ap math",
             sample_parsed_query,
             sample_instructor_results,
@@ -421,10 +429,10 @@ class TestBuildInstructorResponse:
     def test_includes_effective_subcategory_and_available_filters_in_meta(
         self, sample_parsed_query: ParsedQuery, sample_instructor_results: List[NLSearchResultItem]
     ) -> None:
-        service = NLSearchService()
+        NLSearchService()
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "ap math",
             sample_parsed_query,
             sample_instructor_results,
@@ -534,7 +542,7 @@ class TestTransformInstructorResults:
             },
         ]
 
-        results = service._transform_instructor_results(raw_results, parsed)
+        results = hydration.transform_instructor_results_for_service(service, raw_results, parsed)
         results.sort(key=lambda r: r.relevance_score, reverse=True)
 
         assert [r.instructor_id for r in results] == ["usr_B", "usr_A"]
@@ -642,13 +650,13 @@ class TestHydrateInstructorResults:
 
         with (
             patch(
-                "app.services.search.nl_search_service.get_db_session",
+                "app.database.get_db_session",
                 return_value=_DummySessionCtx(),
             ),
             patch("app.repositories.retriever_repository.RetrieverRepository") as mock_repo_cls,
         ):
             mock_repo_cls.return_value.get_instructor_cards = Mock(return_value=instructor_cards)
-            results = await service._hydrate_instructor_results(ranked, limit=2)
+            results = await hydration.hydrate_instructor_results_for_service(service, ranked, limit=2)
 
         assert [r.instructor_id for r in results] == ["usr_A", "usr_B"]
         assert results[0].best_match.service_id == "svc_a2"
@@ -740,18 +748,18 @@ class TestSearchPipeline:
         )
 
         with (
-            patch.object(service, "_run_pre_openai_burst", return_value=pre_data) as mock_pre,
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data) as mock_pre,
             patch.object(
-                service,
-                "_embed_query_with_timeout",
+                preflight,
+                "embed_query_with_timeout",
                 new_callable=AsyncMock,
                 return_value=([0.1], 5, None),
             ) as mock_embed,
-            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(postflight, "run_post_openai_burst_for_service", return_value=post_data) as mock_post,
             patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
+                hydration, "hydrate_instructor_results_for_service", new_callable=AsyncMock
             ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics") as mock_metrics,
+            patch("app.services.search.metrics.record_search_metrics") as mock_metrics,
         ):
             mock_hydrate.return_value = sample_instructor_results
 
@@ -822,18 +830,18 @@ class TestSearchPipeline:
         )
 
         with (
-            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data),
             patch.object(
-                service,
-                "_embed_query_with_timeout",
+                preflight,
+                "embed_query_with_timeout",
                 new_callable=AsyncMock,
                 return_value=([0.1], 5, None),
             ),
-            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(postflight, "run_post_openai_burst_for_service", return_value=post_data) as mock_post,
             patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
+                hydration, "hydrate_instructor_results_for_service", new_callable=AsyncMock
             ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics"),
+            patch("app.services.search.metrics.record_search_metrics"),
         ):
             mock_hydrate.return_value = sample_instructor_results
 
@@ -844,7 +852,7 @@ class TestSearchPipeline:
                 subcategory_id="sub-1",
             )
 
-        assert mock_post.call_args.args[1].skill_level is None
+        assert mock_post.call_args.args[2].skill_level is None
         assert mock_post.call_args.kwargs["taxonomy_filter_selections"] == {
             "goal": ["enrichment"],
             "skill_level": ["advanced", "intermediate"],
@@ -908,22 +916,22 @@ class TestSearchPipeline:
         )
 
         with (
-            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data),
             patch.object(
-                service,
-                "_embed_query_with_timeout",
+                preflight,
+                "embed_query_with_timeout",
                 new_callable=AsyncMock,
                 return_value=([0.1], 5, None),
             ),
-            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(postflight, "run_post_openai_burst_for_service", return_value=post_data) as mock_post,
             patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock, return_value=[]
+                hydration, "hydrate_instructor_results_for_service", new_callable=AsyncMock, return_value=[]
             ),
-            patch("app.services.search.nl_search_service.record_search_metrics"),
+            patch("app.services.search.metrics.record_search_metrics"),
         ):
             await service.search("piano", explicit_skill_levels=["advanced"])
 
-        assert mock_post.call_args.args[1].skill_level == "advanced"
+        assert mock_post.call_args.args[2].skill_level == "advanced"
         assert mock_post.call_args.kwargs["taxonomy_filter_selections"] == {
             "skill_level": ["advanced"]
         }
@@ -979,18 +987,18 @@ class TestSearchPipeline:
         )
 
         with (
-            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data),
             patch.object(
-                service,
-                "_embed_query_with_timeout",
+                preflight,
+                "embed_query_with_timeout",
                 new_callable=AsyncMock,
                 return_value=(None, 5, "embedding_service_unavailable"),
             ),
-            patch.object(service, "_run_post_openai_burst", return_value=post_data),
+            patch.object(postflight, "run_post_openai_burst_for_service", return_value=post_data),
             patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
+                hydration, "hydrate_instructor_results_for_service", new_callable=AsyncMock
             ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics"),
+            patch("app.services.search.metrics.record_search_metrics"),
         ):
             mock_hydrate.return_value = sample_instructor_results
 
@@ -1014,17 +1022,17 @@ class TestSearchPipeline:
 
         with (
             patch(
-                "app.services.search.nl_search_service.hybrid_parse",
+                "app.services.search.llm_parser.hybrid_parse",
                 new_callable=AsyncMock,
             ) as mock_hybrid_parse,
-            patch("app.services.search.nl_search_service.QueryParser") as mock_parser_cls,
-            patch("app.services.search.nl_search_service.get_db_session") as mock_session_ctx,
+            patch("app.services.search.query_parser.QueryParser") as mock_parser_cls,
+            patch("app.database.get_db_session") as mock_session_ctx,
         ):
             mock_hybrid_parse.side_effect = Exception("Parse error")
             mock_parser_cls.return_value.parse.return_value = sample_parsed_query
             mock_session_ctx.return_value.__enter__.return_value = Mock()
 
-            parsed = await service._parse_query("piano", metrics)
+            parsed = await preflight.parse_query(service, "piano", metrics)
 
             assert parsed == sample_parsed_query
             assert metrics.degraded is True
@@ -1084,25 +1092,25 @@ class TestLocationHandling:
         )
 
         with (
-            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data),
             patch.object(
-                service,
-                "_embed_query_with_timeout",
+                preflight,
+                "embed_query_with_timeout",
                 new_callable=AsyncMock,
                 return_value=([0.1], 5, None),
             ),
-            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(postflight, "run_post_openai_burst_for_service", return_value=post_data) as mock_post,
             patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
+                hydration, "hydrate_instructor_results_for_service", new_callable=AsyncMock
             ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics"),
+            patch("app.services.search.metrics.record_search_metrics"),
         ):
             mock_hydrate.return_value = []
 
             user_location = (-73.95, 40.68)  # Brooklyn
             await service.search("piano", user_location=user_location)
 
-            assert mock_post.call_args.args[6] == user_location
+            assert mock_post.call_args.args[7] == user_location
 
 
 class TestResponseCaching:
@@ -1119,7 +1127,7 @@ class TestResponseCaching:
         service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano",
             sample_parsed_query,
             sample_instructor_results,
@@ -1127,7 +1135,7 @@ class TestResponseCaching:
             metrics=metrics,
         )
 
-        await service._cache_response("piano", None, response, limit=20)
+        await response_mod.cache_response_for_service(service, "piano", None, response, limit=20)
 
         mock_search_cache.cache_response.assert_awaited_once()
 
@@ -1144,7 +1152,7 @@ class TestResponseCaching:
         service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
 
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano",
             sample_parsed_query,
             sample_instructor_results,
@@ -1153,7 +1161,7 @@ class TestResponseCaching:
         )
 
         # Should not raise
-        await service._cache_response("piano", None, response, limit=20)
+        await response_mod.cache_response_for_service(service, "piano", None, response, limit=20)
 
     @pytest.mark.asyncio
     async def test_passes_filters_to_cache_response(
@@ -1164,7 +1172,7 @@ class TestResponseCaching:
     ) -> None:
         service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
-        response = service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "piano",
             sample_parsed_query,
             sample_instructor_results,
@@ -1173,7 +1181,7 @@ class TestResponseCaching:
         )
         filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
 
-        await service._cache_response("piano", None, response, limit=20, filters=filters)
+        await response_mod.cache_response_for_service(service, "piano", None, response, limit=20, filters=filters)
 
         mock_search_cache.cache_response.assert_awaited_once_with(
             "piano",
@@ -1203,10 +1211,10 @@ class TestNLSearchServiceHelpers:
         assert timer.stages[0]["details"] == {"ok": True}
 
     def test_normalize_location_text_strips_wrappers_and_suffixes(self) -> None:
-        normalized = NLSearchService._normalize_location_text(" Near  Tribeca  Area ")
+        normalized = location_helpers.normalize_location_text(" Near  Tribeca  Area ")
         assert normalized == "tribeca"
 
-        normalized = NLSearchService._normalize_location_text("Upper East Side North")
+        normalized = location_helpers.normalize_location_text("Upper East Side North")
         assert normalized == "upper east side"
 
     def test_record_pre_location_tiers_records_resolution(self) -> None:
@@ -1219,7 +1227,7 @@ class TestNLSearchServiceHelpers:
             confidence=0.92,
         )
 
-        NLSearchService._record_pre_location_tiers(timer, location)
+        location_helpers.record_pre_location_tiers(timer, location)
 
         assert len(timer.location_tiers) == 3
         assert timer.location_tiers[0]["tier"] == 1
@@ -1231,7 +1239,7 @@ class TestNLSearchServiceHelpers:
     def test_record_pre_location_tiers_handles_missing_location(self) -> None:
         timer = PipelineTimer()
 
-        NLSearchService._record_pre_location_tiers(timer, None)
+        location_helpers.record_pre_location_tiers(timer, None)
 
         assert len(timer.location_tiers) == 3
         assert {entry["status"] for entry in timer.location_tiers} == {StageStatus.MISS.value}
@@ -1242,7 +1250,7 @@ class TestNLSearchServiceHelpers:
             for i in range(TEXT_SKIP_VECTOR_MIN_RESULTS)
         }
 
-        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags(
+        best_score, require_text_match, skip_vector = preflight.compute_text_match_flags(
             "harpsichord baroque",
             text_results,
         )
@@ -1251,7 +1259,7 @@ class TestNLSearchServiceHelpers:
         assert require_text_match is True
         assert skip_vector is True
 
-        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags(
+        best_score, require_text_match, skip_vector = preflight.compute_text_match_flags(
             "", {}
         )
 
@@ -1276,7 +1284,7 @@ class TestNLSearchServiceHelpers:
             region_id=None,
             candidate_region_ids=[region_a.region_id, region_b.region_id],
         )
-        result = NLSearchService._resolve_cached_alias(ambiguous, lookup)
+        result = location_helpers.resolve_cached_alias(ambiguous, lookup)
 
         assert result is not None
         assert result.requires_clarification is True
@@ -1290,14 +1298,14 @@ class TestNLSearchServiceHelpers:
             region_id=region_a.region_id,
             candidate_region_ids=[],
         )
-        result = NLSearchService._resolve_cached_alias(resolved, lookup)
+        result = location_helpers.resolve_cached_alias(resolved, lookup)
 
         assert result is not None
         assert result.resolved is True
         assert result.region_name == "Tribeca"
 
     def test_resolve_effective_subcategory_id_prefers_explicit_value(self) -> None:
-        service = NLSearchService()
+        NLSearchService()
         candidates = [
             ServiceCandidate(
                 service_id=f"svc_{index}",
@@ -1314,7 +1322,7 @@ class TestNLSearchServiceHelpers:
             for index in range(5)
         ]
 
-        effective_subcategory = service._resolve_effective_subcategory_id(
+        effective_subcategory = taxonomy.resolve_effective_subcategory_id(
             candidates,
             explicit_subcategory_id="sub_explicit",
         )
@@ -1322,7 +1330,7 @@ class TestNLSearchServiceHelpers:
         assert effective_subcategory == "sub_explicit"
 
     def test_resolve_effective_subcategory_id_uses_top_match_consensus(self) -> None:
-        service = NLSearchService()
+        NLSearchService()
         candidates = [
             ServiceCandidate(
                 service_id=f"svc_{index}",
@@ -1339,17 +1347,17 @@ class TestNLSearchServiceHelpers:
             for index in range(3)
         ]
 
-        effective_subcategory = service._resolve_effective_subcategory_id(
+        effective_subcategory = taxonomy.resolve_effective_subcategory_id(
             candidates,
             explicit_subcategory_id=None,
         )
 
         assert effective_subcategory == "sub_math"
-        assert TOP_MATCH_SUBCATEGORY_CANDIDATES == 5
-        assert TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS == 2
+        assert taxonomy.TOP_MATCH_SUBCATEGORY_CANDIDATES == 5
+        assert taxonomy.TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS == 2
 
     def test_resolve_effective_subcategory_id_returns_none_when_top_results_mixed(self) -> None:
-        service = NLSearchService()
+        NLSearchService()
         candidates = [
             ServiceCandidate(
                 service_id=f"svc_{index}",
@@ -1366,7 +1374,7 @@ class TestNLSearchServiceHelpers:
             for index, subcategory_id in enumerate(["sub_a", "sub_b", "sub_c"])
         ]
 
-        effective_subcategory = service._resolve_effective_subcategory_id(
+        effective_subcategory = taxonomy.resolve_effective_subcategory_id(
             candidates,
             explicit_subcategory_id=None,
         )
@@ -1374,7 +1382,7 @@ class TestNLSearchServiceHelpers:
         assert effective_subcategory is None
 
     def test_resolve_effective_subcategory_id_single_result_uses_result_subcategory(self) -> None:
-        service = NLSearchService()
+        NLSearchService()
         candidates = [
             ServiceCandidate(
                 service_id="svc_1",
@@ -1390,7 +1398,7 @@ class TestNLSearchServiceHelpers:
             )
         ]
 
-        effective_subcategory = service._resolve_effective_subcategory_id(
+        effective_subcategory = taxonomy.resolve_effective_subcategory_id(
             candidates,
             explicit_subcategory_id=None,
         )
@@ -1484,11 +1492,11 @@ class TestPostOpenAIBurstTaxonomyInference:
         taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.get_db_session",
+            "app.database.get_db_session",
             lambda: _DummySessionCtx(),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.SearchBatchRepository",
+            "app.repositories.search_batch_repository.SearchBatchRepository",
             lambda *_args, **_kwargs: Mock(),
         )
         monkeypatch.setattr(
@@ -1512,20 +1520,20 @@ class TestPostOpenAIBurstTaxonomyInference:
             lambda *_args, **_kwargs: Mock(repository=Mock()),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.FilterService",
+            "app.services.search.filter_service.FilterService",
             _FakeFilterService,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.RankingService",
+            "app.services.search.ranking_service.RankingService",
             _FakeRankingService,
         )
         monkeypatch.setattr(
-            service,
-            "_resolve_effective_subcategory_id",
+            taxonomy,
+            "resolve_effective_subcategory_id",
             lambda *_args, **_kwargs: "sub_tutoring",
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.extract_inferred_filters",
+            "app.services.search.taxonomy_filter_extractor.extract_inferred_filters",
             lambda **_kwargs: {"course_level": ["ap"]},
         )
         monkeypatch.setattr(
@@ -1534,7 +1542,7 @@ class TestPostOpenAIBurstTaxonomyInference:
             Mock(return_value=[candidate]),
         )
 
-        post_data = service._run_post_openai_burst(
+        post_data = postflight.run_post_openai_burst_for_service(service,
             pre_data,
             parsed_query,
             query_embedding=None,
@@ -1672,11 +1680,11 @@ class TestPostOpenAIBurstTaxonomyInference:
         }
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.get_db_session",
+            "app.database.get_db_session",
             lambda: _DummySessionCtx(),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.SearchBatchRepository",
+            "app.repositories.search_batch_repository.SearchBatchRepository",
             lambda *_args, **_kwargs: Mock(),
         )
         monkeypatch.setattr(
@@ -1700,15 +1708,15 @@ class TestPostOpenAIBurstTaxonomyInference:
             lambda *_args, **_kwargs: Mock(repository=Mock()),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.FilterService",
+            "app.services.search.filter_service.FilterService",
             _FakeFilterService,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.RankingService",
+            "app.services.search.ranking_service.RankingService",
             _FakeRankingService,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.extract_inferred_filters",
+            "app.services.search.taxonomy_filter_extractor.extract_inferred_filters",
             lambda **_kwargs: {"course_level": ["ap"]},
         )
         monkeypatch.setattr(
@@ -1717,7 +1725,7 @@ class TestPostOpenAIBurstTaxonomyInference:
             Mock(return_value=candidates),
         )
 
-        post_data = service._run_post_openai_burst(
+        post_data = postflight.run_post_openai_burst_for_service(service,
             pre_data,
             parsed_query,
             query_embedding=None,
@@ -1815,11 +1823,11 @@ class TestPostOpenAIBurstTaxonomyInference:
         taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.get_db_session",
+            "app.database.get_db_session",
             lambda: _DummySessionCtx(),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.SearchBatchRepository",
+            "app.repositories.search_batch_repository.SearchBatchRepository",
             lambda *_args, **_kwargs: Mock(),
         )
         monkeypatch.setattr(
@@ -1843,16 +1851,16 @@ class TestPostOpenAIBurstTaxonomyInference:
             lambda *_args, **_kwargs: Mock(repository=Mock()),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.FilterService",
+            "app.services.search.filter_service.FilterService",
             _FakeFilterService,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.RankingService",
+            "app.services.search.ranking_service.RankingService",
             _FakeRankingService,
         )
         monkeypatch.setattr(
-            service,
-            "_resolve_effective_subcategory_id",
+            taxonomy,
+            "resolve_effective_subcategory_id",
             lambda *_args, **_kwargs: None,
         )
         monkeypatch.setattr(
@@ -1861,7 +1869,7 @@ class TestPostOpenAIBurstTaxonomyInference:
             Mock(return_value=[candidate]),
         )
 
-        post_data = service._run_post_openai_burst(
+        post_data = postflight.run_post_openai_burst_for_service(service,
             pre_data,
             parsed_query,
             query_embedding=None,
@@ -1957,11 +1965,11 @@ class TestPostOpenAIBurstTaxonomyInference:
         taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.get_db_session",
+            "app.database.get_db_session",
             lambda: _DummySessionCtx(),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.SearchBatchRepository",
+            "app.repositories.search_batch_repository.SearchBatchRepository",
             lambda *_args, **_kwargs: Mock(),
         )
         monkeypatch.setattr(
@@ -1985,11 +1993,11 @@ class TestPostOpenAIBurstTaxonomyInference:
             lambda *_args, **_kwargs: Mock(repository=Mock()),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.FilterService",
+            "app.services.search.filter_service.FilterService",
             _FakeFilterService,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.RankingService",
+            "app.services.search.ranking_service.RankingService",
             _FakeRankingService,
         )
         monkeypatch.setattr(
@@ -1998,7 +2006,7 @@ class TestPostOpenAIBurstTaxonomyInference:
             Mock(return_value=[candidate]),
         )
 
-        post_data = service._run_post_openai_burst(
+        post_data = postflight.run_post_openai_burst_for_service(service,
             pre_data,
             parsed_query,
             query_embedding=None,
@@ -2053,19 +2061,17 @@ class TestNLSearchServiceSearchFlow:
             return _DummyTask(RuntimeError("embedding cancel failed"))
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service._increment_search_inflight",
+            "app.services.search.nl_pipeline.runtime._increment_search_inflight",
             AsyncMock(return_value=1),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service._decrement_search_inflight",
+            "app.services.search.nl_pipeline.runtime._decrement_search_inflight",
             AsyncMock(),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.asyncio.to_thread", _fail_to_thread
+            preflight.asyncio, "to_thread", _fail_to_thread
         )
-        monkeypatch.setattr(
-            "app.services.search.nl_search_service.asyncio.create_task", _create_task
-        )
+        monkeypatch.setattr(preflight.asyncio, "create_task", _create_task)
 
         with pytest.raises(RuntimeError, match="pre-openai failed"):
             await service.search("guitar lessons", budget_ms=1000)
@@ -2134,11 +2140,11 @@ class TestNLSearchServiceSearchFlow:
             return next(call_states)
 
         monkeypatch.setattr(
-            "app.services.search.nl_search_service._increment_search_inflight",
+            "app.services.search.nl_pipeline.runtime._increment_search_inflight",
             AsyncMock(return_value=1),
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service._decrement_search_inflight",
+            "app.services.search.nl_pipeline.runtime._decrement_search_inflight",
             AsyncMock(),
         )
         monkeypatch.setattr(
@@ -2146,14 +2152,17 @@ class TestNLSearchServiceSearchFlow:
             _can_afford_vector_search,
         )
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.asyncio.to_thread", _call_to_thread
+            preflight.asyncio, "to_thread", _call_to_thread
         )
+        monkeypatch.setattr(postflight.asyncio, "to_thread", _call_to_thread)
+        monkeypatch.setattr(preflight.asyncio, "create_task", _create_task)
+        monkeypatch.setattr(preflight, "run_pre_openai_burst_for_service", Mock(return_value=pre_data))
+        monkeypatch.setattr(postflight, "run_post_openai_burst_for_service", Mock(return_value=post_data))
         monkeypatch.setattr(
-            "app.services.search.nl_search_service.asyncio.create_task", _create_task
+            hydration,
+            "hydrate_instructor_results_for_service",
+            AsyncMock(return_value=[]),
         )
-        monkeypatch.setattr(service, "_run_pre_openai_burst", Mock(return_value=pre_data))
-        monkeypatch.setattr(service, "_run_post_openai_burst", Mock(return_value=post_data))
-        monkeypatch.setattr(service, "_hydrate_instructor_results", AsyncMock(return_value=[]))
 
         response = await service.search("guitar lessons", budget_ms=1000)
 

@@ -6,17 +6,23 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 
 from app.repositories.taxonomy_filter_repository import TaxonomyFilterRepository
 from app.schemas.nl_search import NLSearchContentFilterDefinition, NLSearchContentFilterOption
+from app.services.search.nl_pipeline import runtime
 from app.services.search.retriever import ServiceCandidate
+
+TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
+TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
 
 
 def load_subcategory_filter_metadata(
     taxonomy_repository: object,
     subcategory_id: str,
     *,
-    get_cached_value: Callable[[str], Tuple[bool, object]],
-    set_cached_value: Callable[[str, object], None],
+    get_cached_value: Optional[Callable[[str], Tuple[bool, object]]] = None,
+    set_cached_value: Optional[Callable[[str, object], None]] = None,
 ) -> Tuple[List[Dict[str, object]], Optional[str]]:
     """Return cached taxonomy filter definitions and subcategory name."""
+    get_cached_value = get_cached_value or runtime._get_cached_subcategory_filter_value
+    set_cached_value = set_cached_value or runtime._set_cached_subcategory_filter_value
     filters_cache_key = f"filters:{subcategory_id}"
     name_cache_key = f"name:{subcategory_id}"
     has_cached_filters, cached_filters = get_cached_value(filters_cache_key)
@@ -74,10 +80,9 @@ def build_available_content_filters(
 
 def resolve_effective_subcategory_id(
     candidates: List[ServiceCandidate],
-    *,
-    explicit_subcategory_id: Optional[str],
-    top_match_subcategory_candidates: int,
-    top_match_subcategory_min_consensus: int,
+    explicit_subcategory_id: Optional[str] = None,
+    top_match_subcategory_candidates: int = TOP_MATCH_SUBCATEGORY_CANDIDATES,
+    top_match_subcategory_min_consensus: int = TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS,
 ) -> Optional[str]:
     """Resolve subcategory context with explicit-param priority then consensus."""
     if explicit_subcategory_id:

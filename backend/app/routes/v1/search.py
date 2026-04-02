@@ -52,7 +52,8 @@ from ...schemas.nl_search import (
 from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
 from ...services.search.config import get_search_config
-from ...services.search.nl_search_service import NLSearchService, get_search_inflight_count
+from ...services.search.nl_pipeline.runtime import get_search_inflight_count
+from ...services.search.nl_search_service import NLSearchService
 from ...services.search.patterns import NEAR_ME
 from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
@@ -235,7 +236,7 @@ async def nl_search(
             def _check_permission() -> bool:
                 with get_db_session() as db:
                     service = PermissionService(db)
-                    return service.user_has_permission(current_user.id, "admin:read")
+                    return bool(service.user_has_permission(current_user.id, "admin:read"))
 
             has_permission = await asyncio.to_thread(_check_permission)
             if not has_permission:

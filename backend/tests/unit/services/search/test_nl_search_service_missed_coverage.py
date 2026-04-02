@@ -14,72 +14,69 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.services.search.nl_pipeline import (
+    location,
+    location_helpers,
+    postflight,
+    response as response_mod,
+    runtime,
+    taxonomy,
+)
+from app.services.search.nl_pipeline.models import (
+    LocationLLMCache,
+    PipelineTimer,
+    PostOpenAIData,
+    PreOpenAIData,
+    SearchMetrics,
+    UnresolvedLocationInfo,
+)
+from app.services.search.nl_search_service import NLSearchService
+
 
 @pytest.mark.unit
 class TestSubcategoryFilterCache:
     def test_cache_miss(self):
-        from app.services.search.nl_search_service import _get_cached_subcategory_filter_value
-
-        hit, value = _get_cached_subcategory_filter_value("nonexistent_key_12345")
+        hit, value = runtime._get_cached_subcategory_filter_value("nonexistent_key_12345")
         assert hit is False
         assert value is None
 
     def test_cache_hit(self):
-        from app.services.search.nl_search_service import (
-            _get_cached_subcategory_filter_value,
-            _set_cached_subcategory_filter_value,
-        )
-
-        _set_cached_subcategory_filter_value("test_key_hit", {"filters": [1, 2]})
-        hit, value = _get_cached_subcategory_filter_value("test_key_hit")
+        runtime._set_cached_subcategory_filter_value("test_key_hit", {"filters": [1, 2]})
+        hit, value = runtime._get_cached_subcategory_filter_value("test_key_hit")
         assert hit is True
         assert value == {"filters": [1, 2]}
 
     def test_cache_expired(self):
-        from app.services.search.nl_search_service import (
-            SUBCATEGORY_FILTER_CACHE_TTL_SECONDS,
-            _get_cached_subcategory_filter_value,
-            _subcategory_filter_cache,
-            _subcategory_filter_cache_lock,
-        )
-
         # Insert with expired timestamp
-        with _subcategory_filter_cache_lock:
-            _subcategory_filter_cache["expired_key_test"] = (
-                time_mod.monotonic() - SUBCATEGORY_FILTER_CACHE_TTL_SECONDS - 10,
+        with runtime._subcategory_filter_cache_lock:
+            runtime._subcategory_filter_cache["expired_key_test"] = (
+                time_mod.monotonic() - runtime.SUBCATEGORY_FILTER_CACHE_TTL_SECONDS - 10,
                 "old_value",
             )
-        hit, value = _get_cached_subcategory_filter_value("expired_key_test")
+        hit, value = runtime._get_cached_subcategory_filter_value("expired_key_test")
         assert hit is False
 
     def test_cache_eviction_on_full(self):
-        from app.services.search.nl_search_service import (
-            SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES,
-            _set_cached_subcategory_filter_value,
-            _subcategory_filter_cache,
-            _subcategory_filter_cache_lock,
-        )
-
         # Save original state and fill the cache
-        original = dict(_subcategory_filter_cache)
+        original = dict(runtime._subcategory_filter_cache)
         try:
-            with _subcategory_filter_cache_lock:
-                _subcategory_filter_cache.clear()
-                for i in range(SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES):
-                    _subcategory_filter_cache[f"fill_{i}"] = (time_mod.monotonic(), i)
+            with runtime._subcategory_filter_cache_lock:
+                runtime._subcategory_filter_cache.clear()
+                for i in range(runtime.SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES):
+                    runtime._subcategory_filter_cache[f"fill_{i}"] = (time_mod.monotonic(), i)
             # This should trigger eviction
-            _set_cached_subcategory_filter_value("new_entry_after_full", "new_value")
+            runtime._set_cached_subcategory_filter_value("new_entry_after_full", "new_value")
             # After eviction, cache should be smaller than max
-            assert len(_subcategory_filter_cache) <= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES
+            assert len(runtime._subcategory_filter_cache) <= runtime.SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES
         finally:
-            with _subcategory_filter_cache_lock:
-                _subcategory_filter_cache.clear()
-                _subcategory_filter_cache.update(original)
+            with runtime._subcategory_filter_cache_lock:
+                runtime._subcategory_filter_cache.clear()
+                runtime._subcategory_filter_cache.update(original)
 
 
 @pytest.mark.unit
 class TestAdaptiveBudget:
-    @patch("app.services.search.nl_search_service.get_search_config")
+    @patch("app.services.search.config.get_search_config")
     def test_low_load(self, mock_config):
         config = MagicMock()
         config.high_load_threshold = 10
@@ -87,12 +84,10 @@ class TestAdaptiveBudget:
         config.search_budget_ms = 2000
         mock_config.return_value = config
 
-        from app.services.search.nl_search_service import _get_adaptive_budget
-
-        result = _get_adaptive_budget(3)
+        result = runtime._get_adaptive_budget(3)
         assert result == 2000
 
-    @patch("app.services.search.nl_search_service.get_search_config")
+    @patch("app.services.search.config.get_search_config")
     def test_high_load(self, mock_config):
         config = MagicMock()
         config.high_load_threshold = 5
@@ -100,12 +95,10 @@ class TestAdaptiveBudget:
         config.search_budget_ms = 2000
         mock_config.return_value = config
 
-        from app.services.search.nl_search_service import _get_adaptive_budget
-
-        result = _get_adaptive_budget(10)
+        result = runtime._get_adaptive_budget(10)
         assert result == 500
 
-    @patch("app.services.search.nl_search_service.get_search_config")
+    @patch("app.services.search.config.get_search_config")
     def test_force_high_load(self, mock_config):
         config = MagicMock()
         config.high_load_threshold = 100
@@ -113,9 +106,7 @@ class TestAdaptiveBudget:
         config.search_budget_ms = 2000
         mock_config.return_value = config
 
-        from app.services.search.nl_search_service import _get_adaptive_budget
-
-        result = _get_adaptive_budget(1, force_high_load=True)
+        result = runtime._get_adaptive_budget(1, force_high_load=True)
         assert result == 500
 
 
@@ -123,51 +114,37 @@ class TestAdaptiveBudget:
 class TestInflightCounting:
     @pytest.mark.asyncio
     async def test_increment_and_decrement(self):
-        from app.services.search.nl_search_service import (
-            _decrement_search_inflight,
-            _increment_search_inflight,
-            get_search_inflight_count,
-        )
-
-        initial = await get_search_inflight_count()
-        val = await _increment_search_inflight()
+        initial = await runtime.get_search_inflight_count()
+        val = await runtime._increment_search_inflight()
         assert val == initial + 1
-        after = await get_search_inflight_count()
+        after = await runtime.get_search_inflight_count()
         assert after == initial + 1
-        await _decrement_search_inflight()
-        final = await get_search_inflight_count()
+        await runtime._decrement_search_inflight()
+        final = await runtime.get_search_inflight_count()
         assert final == initial
 
     @pytest.mark.asyncio
     async def test_decrement_floor_zero(self):
-        from app.services.search.nl_search_service import (
-            _decrement_search_inflight,
-        )
-
         # Force to zero via multiple decrements (safe floor)
         for _ in range(5):
-            await _decrement_search_inflight()
+            await runtime._decrement_search_inflight()
 
 
 @pytest.mark.unit
 class TestSetConcurrencyLimit:
     @pytest.mark.asyncio
     async def test_min_one(self):
-        from app.services.search.nl_search_service import set_uncached_search_concurrency_limit
-
-        result = await set_uncached_search_concurrency_limit(0)
+        result = await runtime.set_uncached_search_concurrency_limit(0)
         assert result == 1
-        result = await set_uncached_search_concurrency_limit(-5)
+        result = await runtime.set_uncached_search_concurrency_limit(-5)
         assert result == 1
-        result = await set_uncached_search_concurrency_limit(10)
+        result = await runtime.set_uncached_search_concurrency_limit(10)
         assert result == 10
 
 
 @pytest.mark.unit
 class TestPipelineTimer:
     def test_start_and_end_stage(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.start_stage("parse")
         timer.end_stage("success", {"tokens": 5})
@@ -176,38 +153,28 @@ class TestPipelineTimer:
         assert timer.stages[0]["status"] == "success"
 
     def test_end_without_start(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.end_stage("success")  # Should not raise or add a stage
         assert len(timer.stages) == 0
 
     def test_record_stage(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.record_stage("embed", 150, "success", {"model": "ada"})
         assert len(timer.stages) == 1
         assert timer.stages[0]["duration_ms"] == 150
 
     def test_negative_duration_clamped(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.record_stage("test", -50, "error")
         assert timer.stages[0]["duration_ms"] == 0
 
     def test_skip_stage(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.skip_stage("vector", "disabled by config")
         assert len(timer.stages) == 1
         assert timer.stages[0]["duration_ms"] == 0
 
     def test_record_location_tier(self):
-        from app.services.search.nl_search_service import PipelineTimer
-
         timer = PipelineTimer()
         timer.record_location_tier(
             tier=3,
@@ -225,8 +192,6 @@ class TestPipelineTimer:
 @pytest.mark.unit
 class TestSearchMetrics:
     def test_defaults(self):
-        from app.services.search.nl_search_service import SearchMetrics
-
         m = SearchMetrics()
         assert m.cache_hit is False
         assert m.degraded is False
@@ -237,7 +202,6 @@ class TestSearchMetrics:
 @pytest.mark.unit
 class TestPreOpenAIData:
     def test_default_fields(self):
-        from app.services.search.nl_search_service import PreOpenAIData
         from app.services.search.query_parser import ParsedQuery
 
         parsed = MagicMock(spec=ParsedQuery)
@@ -263,8 +227,6 @@ class TestPreOpenAIData:
 @pytest.mark.unit
 class TestPostOpenAIData:
     def test_default_fields(self):
-        from app.services.search.nl_search_service import PostOpenAIData
-
         data = PostOpenAIData(
             filter_result=MagicMock(),
             ranking_result=MagicMock(),
@@ -289,8 +251,6 @@ class TestPostOpenAIData:
 @pytest.mark.unit
 class TestLocationLLMCache:
     def test_frozen(self):
-        from app.services.search.nl_search_service import LocationLLMCache
-
         cache = LocationLLMCache(normalized="manhattan", confidence=0.9, region_ids=["R1"])
         assert cache.normalized == "manhattan"
         with pytest.raises(AttributeError):
@@ -300,8 +260,6 @@ class TestLocationLLMCache:
 @pytest.mark.unit
 class TestUnresolvedLocationInfo:
     def test_frozen(self):
-        from app.services.search.nl_search_service import UnresolvedLocationInfo
-
         info = UnresolvedLocationInfo(normalized="downtown", original_query="piano downtown")
         assert info.original_query == "piano downtown"
         with pytest.raises(AttributeError):
@@ -356,38 +314,34 @@ class TestNLSearchServiceInit:
 class TestResolveEffectiveSubcategoryId:
     def test_explicit_empty_string_falls_through(self):
         """L1252->1255: explicit_subcategory_id is whitespace-only -> falls to consensus."""
-        from app.services.search.nl_search_service import NLSearchService
 
-        result = NLSearchService._resolve_effective_subcategory_id(
+        result = taxonomy.resolve_effective_subcategory_id(
             [],
             explicit_subcategory_id="   ",
         )
         assert result is None
 
     def test_explicit_nonempty_returns_stripped(self):
-        from app.services.search.nl_search_service import NLSearchService
 
-        result = NLSearchService._resolve_effective_subcategory_id(
+        result = taxonomy.resolve_effective_subcategory_id(
             [],
             explicit_subcategory_id="  SUB123  ",
         )
         assert result == "SUB123"
 
     def test_no_candidates_returns_none(self):
-        from app.services.search.nl_search_service import NLSearchService
 
-        result = NLSearchService._resolve_effective_subcategory_id(
+        result = taxonomy.resolve_effective_subcategory_id(
             [],
             explicit_subcategory_id=None,
         )
         assert result is None
 
     def test_single_candidate_returns_its_subcategory(self):
-        from app.services.search.nl_search_service import NLSearchService
 
         candidate = MagicMock()
         candidate.subcategory_id = "SUB_A"
-        result = NLSearchService._resolve_effective_subcategory_id(
+        result = taxonomy.resolve_effective_subcategory_id(
             [candidate],
             explicit_subcategory_id=None,
         )
@@ -401,7 +355,6 @@ class TestResolveEffectiveSubcategoryId:
 class TestResolveCachedAlias:
     def test_resolved_alias_with_region_id_found(self):
         """L1387-1396: is_resolved=True, region_id matched in lookup -> returns region."""
-        from app.services.search.nl_search_service import NLSearchService
 
         cached_alias = MagicMock()
         cached_alias.is_ambiguous = False
@@ -417,13 +370,12 @@ class TestResolveCachedAlias:
         region_lookup = MagicMock()
         region_lookup.by_id = {"R1": region_info}
 
-        result = NLSearchService._resolve_cached_alias(cached_alias, region_lookup)
+        result = location_helpers.resolve_cached_alias(cached_alias, region_lookup)
         assert result is not None
         assert result.region_name == "Astoria"
 
     def test_resolved_alias_region_not_in_lookup(self):
         """L1389->1397: is_resolved but region_id not in lookup -> returns None."""
-        from app.services.search.nl_search_service import NLSearchService
 
         cached_alias = MagicMock()
         cached_alias.is_ambiguous = False
@@ -434,12 +386,11 @@ class TestResolveCachedAlias:
         region_lookup = MagicMock()
         region_lookup.by_id = {}
 
-        result = NLSearchService._resolve_cached_alias(cached_alias, region_lookup)
+        result = location_helpers.resolve_cached_alias(cached_alias, region_lookup)
         assert result is None
 
     def test_ambiguous_alias_fewer_than_two_candidates(self):
         """Ambiguous alias but only 1 region found -> no resolution."""
-        from app.services.search.nl_search_service import NLSearchService
 
         cached_alias = MagicMock()
         cached_alias.is_ambiguous = True
@@ -456,7 +407,7 @@ class TestResolveCachedAlias:
         region_lookup = MagicMock()
         region_lookup.by_id = {"R1": region_info}
 
-        result = NLSearchService._resolve_cached_alias(cached_alias, region_lookup)
+        result = location_helpers.resolve_cached_alias(cached_alias, region_lookup)
         # Only 1 candidate found (R_MISSING not in lookup) -> None
         assert result is None
 
@@ -469,36 +420,36 @@ class TestFormatLocationResolved:
     def test_none_input(self):
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
-        assert svc._format_location_resolved(None) is None
+        NLSearchService(cache_service=None)
+        assert response_mod.format_location_resolved(None) is None
 
     def test_resolved_returns_region_name(self):
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         loc = MagicMock()
         loc.resolved = True
         loc.region_name = "Williamsburg"
         loc.borough = "Brooklyn"
-        result = svc._format_location_resolved(loc)
+        result = response_mod.format_location_resolved(loc)
         assert result == "Williamsburg"
 
     def test_resolved_fallback_to_borough(self):
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         loc = MagicMock()
         loc.resolved = True
         loc.region_name = None
         loc.borough = "Brooklyn"
-        result = svc._format_location_resolved(loc)
+        result = response_mod.format_location_resolved(loc)
         assert result == "Brooklyn"
 
     def test_clarification_with_candidates(self):
         """L3107-3115: candidates with region_name -> joined string."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         loc = MagicMock()
         loc.resolved = False
         loc.requires_clarification = True
@@ -506,7 +457,7 @@ class TestFormatLocationResolved:
             {"region_id": "R1", "region_name": "Astoria", "borough": "Queens"},
             {"region_id": "R2", "region_name": "Astoria Heights", "borough": "Queens"},
         ]
-        result = svc._format_location_resolved(loc)
+        result = response_mod.format_location_resolved(loc)
         assert result is not None
         assert "Astoria" in result
 
@@ -514,26 +465,26 @@ class TestFormatLocationResolved:
         """L3108: non-dict candidate -> skipped."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         loc = MagicMock()
         loc.resolved = False
         loc.requires_clarification = True
         loc.candidates = ["not_a_dict", 123]
-        result = svc._format_location_resolved(loc)
+        result = response_mod.format_location_resolved(loc)
         assert result is None
 
     def test_clarification_candidate_empty_name(self):
         """L3114->3107: candidate with empty region_name -> skipped."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         loc = MagicMock()
         loc.resolved = False
         loc.requires_clarification = True
         loc.candidates = [
             {"region_id": "R1", "region_name": "  "},
         ]
-        result = svc._format_location_resolved(loc)
+        result = response_mod.format_location_resolved(loc)
         assert result is None
 
 
@@ -546,7 +497,7 @@ class TestGenerateSoftFilterMessage:
         """L3163-3164: location_text present and location not_found."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed = MagicMock()
         parsed.location_text = "narnia"
         parsed.date = None
@@ -556,7 +507,7 @@ class TestGenerateSoftFilterMessage:
         loc = MagicMock()
         loc.not_found = True
 
-        msg = svc._generate_soft_filter_message(
+        msg = response_mod.generate_soft_filter_message(
             parsed,
             {},
             loc,
@@ -571,7 +522,7 @@ class TestGenerateSoftFilterMessage:
         """L3165->3171: after_location==0 -> message about no instructors."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed = MagicMock()
         parsed.location_text = "williamsburg"
         parsed.date = None
@@ -581,7 +532,7 @@ class TestGenerateSoftFilterMessage:
         loc = MagicMock()
         loc.not_found = False
 
-        msg = svc._generate_soft_filter_message(
+        msg = response_mod.generate_soft_filter_message(
             parsed,
             {"after_location": 0},
             loc,
@@ -598,14 +549,14 @@ class TestGenerateSoftFilterMessage:
 
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed = MagicMock()
         parsed.location_text = None
         parsed.date = datetime.date(2024, 6, 15)
         parsed.time_after = None
         parsed.max_price = None
 
-        msg = svc._generate_soft_filter_message(
+        msg = response_mod.generate_soft_filter_message(
             parsed,
             {"after_availability": 0},
             None,
@@ -620,14 +571,14 @@ class TestGenerateSoftFilterMessage:
         """L3178-3179: max_price set and after_price==0."""
         from app.services.search.nl_search_service import NLSearchService
 
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed = MagicMock()
         parsed.location_text = None
         parsed.date = None
         parsed.time_after = None
         parsed.max_price = 30
 
-        msg = svc._generate_soft_filter_message(
+        msg = response_mod.generate_soft_filter_message(
             parsed,
             {"after_price": 0},
             None,
@@ -645,56 +596,40 @@ class TestGenerateSoftFilterMessage:
 @pytest.mark.unit
 class TestPickBestLocation:
     def test_both_none_returns_none(self):
-        from app.services.search.nl_search_service import NLSearchService
-
-        result = NLSearchService._pick_best_location(None, None)
+        result = location_helpers.pick_best_location(None, None)
         assert result is None
 
     def test_tier4_high_confidence(self):
         """tier4 resolved + high confidence -> tier4 wins."""
-        from app.services.search.nl_search_service import (
-            LOCATION_TIER4_HIGH_CONFIDENCE,
-            NLSearchService,
-        )
-
         tier4 = MagicMock()
         tier4.resolved = True
-        tier4.confidence = LOCATION_TIER4_HIGH_CONFIDENCE + 0.01
+        tier4.confidence = location.LOCATION_TIER4_HIGH_CONFIDENCE + 0.01
         tier5 = MagicMock()
-        result = NLSearchService._pick_best_location(tier4, tier5)
+        result = location_helpers.pick_best_location(tier4, tier5)
         assert result is tier4
 
     def test_tier5_high_confidence_wins_over_low_tier4(self):
-        from app.services.search.nl_search_service import (
-            LOCATION_LLM_CONFIDENCE_THRESHOLD,
-            NLSearchService,
-        )
-
         tier4 = MagicMock()
         tier4.resolved = False
         tier4.confidence = 0.5
         tier5 = MagicMock()
-        tier5.confidence = LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01
-        result = NLSearchService._pick_best_location(tier4, tier5)
+        tier5.confidence = location.LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01
+        result = location_helpers.pick_best_location(tier4, tier5)
         assert result is tier5
 
     def test_tier5_low_confidence_but_no_tier4(self):
-        from app.services.search.nl_search_service import NLSearchService
-
         tier5 = MagicMock()
         tier5.confidence = 0.1
-        result = NLSearchService._pick_best_location(None, tier5)
+        result = location_helpers.pick_best_location(None, tier5)
         assert result is tier5
 
     def test_fallback_to_tier4(self):
-        from app.services.search.nl_search_service import NLSearchService
-
         tier4 = MagicMock()
         tier4.resolved = False
         tier4.confidence = 0.3
         tier5 = MagicMock()
         tier5.confidence = 0.1
-        result = NLSearchService._pick_best_location(tier4, tier5)
+        result = location_helpers.pick_best_location(tier4, tier5)
         assert result is tier4
 
 
@@ -704,28 +639,20 @@ class TestPickBestLocation:
 @pytest.mark.unit
 class TestNormalizeLocationText:
     def test_strips_prefix_preposition(self):
-        from app.services.search.nl_search_service import NLSearchService
-
-        result = NLSearchService._normalize_location_text("near Astoria")
+        result = location_helpers.normalize_location_text("near Astoria")
         assert result == "astoria"
 
     def test_strips_area_suffix(self):
-        from app.services.search.nl_search_service import NLSearchService
-
-        result = NLSearchService._normalize_location_text("Midtown area")
+        result = location_helpers.normalize_location_text("Midtown area")
         assert result == "midtown"
 
     def test_strips_trailing_direction(self):
-        from app.services.search.nl_search_service import NLSearchService
-
-        result = NLSearchService._normalize_location_text("upper west side east")
+        result = location_helpers.normalize_location_text("upper west side east")
         assert result == "upper west side"
 
     def test_two_token_keeps_direction(self):
         """Fewer than 3 tokens -> direction not stripped."""
-        from app.services.search.nl_search_service import NLSearchService
-
-        result = NLSearchService._normalize_location_text("east harlem")
+        result = location_helpers.normalize_location_text("east harlem")
         assert result == "east harlem"
 
 
@@ -735,14 +662,13 @@ class TestNormalizeLocationText:
 @pytest.mark.unit
 class TestSelectInstructorIds:
     def test_deduplicates_and_limits(self):
-        from app.services.search.nl_search_service import NLSearchService
 
         r1 = MagicMock(instructor_id="I1")
         r2 = MagicMock(instructor_id="I1")  # duplicate
         r3 = MagicMock(instructor_id="I2")
         r4 = MagicMock(instructor_id="I3")
 
-        result = NLSearchService._select_instructor_ids([r1, r2, r3, r4], limit=2)
+        result = postflight.select_instructor_ids([r1, r2, r3, r4], limit=2)
         assert result == ["I1", "I2"]
 
 
@@ -753,7 +679,6 @@ class TestSelectInstructorIds:
 class TestConsumeTaskResult:
     @pytest.mark.asyncio
     async def test_consume_cancelled_task(self):
-        from app.services.search.nl_search_service import NLSearchService
 
         async def _cancel():
             raise asyncio.CancelledError()
@@ -764,22 +689,20 @@ class TestConsumeTaskResult:
         except asyncio.CancelledError:
             pass
         # Should not raise
-        NLSearchService._consume_task_result(task, label="test")
+        location_helpers.consume_task_result(task, label="test")
 
     @pytest.mark.asyncio
     async def test_consume_successful_task(self):
-        from app.services.search.nl_search_service import NLSearchService
 
         async def _ok():
             return 42
 
         task = asyncio.create_task(_ok())
         await task
-        NLSearchService._consume_task_result(task, label="test")
+        location_helpers.consume_task_result(task, label="test")
 
     @pytest.mark.asyncio
     async def test_consume_failed_task(self):
-        from app.services.search.nl_search_service import NLSearchService
 
         async def _fail():
             raise ValueError("boom")
@@ -789,7 +712,7 @@ class TestConsumeTaskResult:
             await task
         except ValueError:
             pass
-        NLSearchService._consume_task_result(task, label="test")
+        location_helpers.consume_task_result(task, label="test")
 
 
 # ---------------------------------------------------------------------------
@@ -799,9 +722,7 @@ class TestConsumeTaskResult:
 class TestBuildDiagnosticsLocationBranch:
     def test_with_location_resolution_candidates(self):
         """L3042-3063: location_resolution with candidates -> builds location_info."""
-        from app.services.search.nl_search_service import NLSearchService, PipelineTimer
-
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed_query = MagicMock()
         parsed_query.location_text = "astoria"
 
@@ -828,7 +749,7 @@ class TestBuildDiagnosticsLocationBranch:
             "after_availability": 3,
         }
 
-        diag = svc._build_search_diagnostics(
+        diag = response_mod.build_search_diagnostics(
             timer=timer,
             budget=None,
             candidates_flow={"final_results": 3},
@@ -847,9 +768,7 @@ class TestBuildDiagnosticsLocationBranch:
 
     def test_with_non_dict_candidates_skipped(self):
         """L3055-3056: non-dict candidate -> skipped in resolved_regions."""
-        from app.services.search.nl_search_service import NLSearchService, PipelineTimer
-
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed_query = MagicMock()
         parsed_query.location_text = "test"
 
@@ -861,7 +780,7 @@ class TestBuildDiagnosticsLocationBranch:
         loc_resolution.candidates = ["not_a_dict"]
 
         timer = PipelineTimer()
-        diag = svc._build_search_diagnostics(
+        diag = response_mod.build_search_diagnostics(
             timer=timer,
             budget=None,
             candidates_flow={},
@@ -879,9 +798,7 @@ class TestBuildDiagnosticsLocationBranch:
 
     def test_tier_value_conversion_error(self):
         """L3048-3051: tier.value raises -> successful_tier=None."""
-        from app.services.search.nl_search_service import NLSearchService, PipelineTimer
-
-        svc = NLSearchService(cache_service=None)
+        NLSearchService(cache_service=None)
         parsed_query = MagicMock()
         parsed_query.location_text = "wherever"
 
@@ -906,7 +823,7 @@ class TestBuildDiagnosticsLocationBranch:
 
         # Simpler: set tier.value to an object that fails int()
         tier_obj.value = object()
-        diag = svc._build_search_diagnostics(
+        diag = response_mod.build_search_diagnostics(
             timer=timer,
             budget=None,
             candidates_flow={},
