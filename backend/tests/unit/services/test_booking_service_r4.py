@@ -691,6 +691,52 @@ def test_report_no_show_invalid_reporter_for_instructor_no_show(
         )
 
 
+def test_report_no_show_instructor_can_report_student_no_show(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(status=BookingStatus.CONFIRMED)
+    reporter = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
+    mock_repository.get_booking_with_details.return_value = booking
+
+    booking_service._get_booking_start_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(hours=1))
+    booking_service._get_booking_end_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(minutes=30))
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+
+    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+        payment_repo.return_value.create_payment_event = Mock()
+        result = booking_service.report_no_show(
+            booking_id=booking.id,
+            reporter=reporter,
+            no_show_type="student",
+            reason="Student did not arrive",
+        )
+
+    assert result["success"] is True
+    assert result["no_show_type"] == "student"
+    assert mock_repository.ensure_no_show.return_value.no_show_type == "student"
+
+
+def test_report_no_show_invalid_reporter_for_student_no_show(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(status=BookingStatus.CONFIRMED)
+    reporter = make_user(RoleName.INSTRUCTOR)
+    mock_repository.get_booking_with_details.return_value = booking
+
+    booking_service._get_booking_start_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(hours=1))
+    booking_service._get_booking_end_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(minutes=30))
+
+    with pytest.raises(ForbiddenException):
+        booking_service.report_no_show(
+            booking_id=booking.id,
+            reporter=reporter,
+            no_show_type="student",
+            reason=None,
+        )
+
+
 def test_report_no_show_invalid_no_show_type(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:

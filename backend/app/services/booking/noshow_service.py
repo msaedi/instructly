@@ -136,14 +136,17 @@ class BookingNoShowMixin:
         booking_service_module = _booking_service_module()
         is_admin = report_ctx["is_admin"]
         is_student = report_ctx["is_student"]
+        is_instructor = report_ctx["is_instructor"]
         if no_show_type == "instructor":
             if not (is_student or is_admin):
                 raise ForbiddenException(
                     "Only the student or admin can report an instructor no-show"
                 )
         elif no_show_type == "student":
-            if not is_admin:
-                raise ForbiddenException("Only admin can report a student no-show")
+            if not (is_instructor or is_admin):
+                raise ForbiddenException(
+                    "Only the instructor or admin can report a student no-show"
+                )
         else:
             raise ValidationException("Invalid no_show_type")
 

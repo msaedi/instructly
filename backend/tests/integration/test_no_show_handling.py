@@ -125,7 +125,7 @@ class TestNoShowReporting:
         data = response.json()
         assert data["no_show_type"] == "student"
 
-    def test_instructor_cannot_report_student_no_show(
+    def test_instructor_can_report_student_no_show(
         self, client, db, test_booking, auth_headers_instructor
     ):
         now = datetime.now(timezone.utc)
@@ -136,6 +136,31 @@ class TestNoShowReporting:
             f"/api/v1/bookings/{test_booking.id}/no-show",
             json={"no_show_type": "student", "reason": "Student did not show"},
             headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["no_show_type"] == "student"
+
+        db.refresh(test_booking)
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        no_show = _get_no_show(db, test_booking.id)
+        assert bp is not None
+        assert bp.payment_status == "manual_review"
+        assert no_show is not None
+        assert no_show.no_show_type == "student"
+
+    def test_other_instructor_cannot_report_student_no_show(
+        self, client, db, test_booking, auth_headers_instructor_2
+    ):
+        now = datetime.now(timezone.utc)
+        _set_booking_times(test_booking, _safe_recent_start(now))
+        db.commit()
+
+        response = client.post(
+            f"/api/v1/bookings/{test_booking.id}/no-show",
+            json={"no_show_type": "student", "reason": "Student did not show"},
+            headers=auth_headers_instructor_2,
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
