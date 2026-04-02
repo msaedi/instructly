@@ -1,23 +1,30 @@
-"""Response, diagnostics, and cache helpers for the NL search pipeline."""
+"""Response assembly, caching, and perf-log helpers for NL search."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, cast
+import logging
+import time
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, cast
 
 from app.schemas.nl_search import (
-    BudgetInfo,
-    LocationResolutionInfo,
-    LocationTierResult,
     NLSearchContentFilterDefinition,
     NLSearchMeta,
     NLSearchResponse,
     NLSearchResultItem,
     ParsedQueryInfo,
-    PipelineStage,
-    SearchDiagnostics,
 )
-from app.services.search.config import SearchConfig
-from app.services.search.nl_pipeline.protocols import LoggerLike
+from app.services.search import metrics as metrics_module
+from app.services.search.nl_pipeline import runtime
+from app.services.search.nl_pipeline.protocols import LoggerLike, SearchServiceLike
+from app.services.search.nl_pipeline.response_diagnostics import (
+    build_budget_diagnostics,
+    build_candidate_flow_diagnostics,
+    build_candidates_flow,
+    build_location_diagnostics,
+    build_search_diagnostics,
+    format_location_resolved,
+    generate_soft_filter_message,
+)
 from app.services.search.search_cache import SearchCacheService
 
 if TYPE_CHECKING:
@@ -31,6 +38,8 @@ if TYPE_CHECKING:
     )
     from app.services.search.query_parser import ParsedQuery
     from app.services.search.request_budget import RequestBudget
+
+logger = logging.getLogger(__name__)
 
 
 async def check_cache(
@@ -60,6 +69,25 @@ async def check_cache(
         return None
 
 
+async def check_cache_for_service(
+    service: SearchServiceLike,
+    query: str,
+    user_location: Optional[tuple[float, float]],
+    limit: int,
+    *,
+    filters: Optional[Dict[str, object]] = None,
+) -> Optional[Dict[str, object]]:
+    return await check_cache(
+        search_cache=service.search_cache,
+        query=query,
+        user_location=user_location,
+        limit=limit,
+        region_code=service._region_code,
+        logger=logger,
+        filters=filters,
+    )
+
+
 async def cache_response(
     *,
     search_cache: SearchCacheService,
@@ -87,181 +115,30 @@ async def cache_response(
         logger.warning("Failed to cache response: %s", exc)
 
 
-def format_location_resolved(location_resolution: Optional[ResolvedLocation]) -> Optional[str]:
-    """Format a human-friendly resolved location string for UI/debug."""
-    if not location_resolution:
-        return None
-    if location_resolution.resolved:
-        resolved_name = location_resolution.region_name or location_resolution.borough
-        return str(resolved_name) if resolved_name is not None else None
-    if not (location_resolution.requires_clarification and location_resolution.candidates):
-        return None
-    candidate_names = [
-        str(candidate.get("region_name")).strip()
-        for candidate in location_resolution.candidates
-        if isinstance(candidate, dict) and candidate.get("region_name")
-    ]
-    candidate_names = [name for name in candidate_names if name]
-    if not candidate_names:
-        return None
-    ordered_unique_names: List[str] = []
-    seen: set[str] = set()
-    for name in candidate_names:
-        key = name.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        ordered_unique_names.append(name)
-
-    def _split(name: str) -> tuple[str, str]:
-        if "-" in name:
-            base, suffix = name.split("-", 1)
-            return base.strip(), suffix.strip()
-        if " (" in name and name.endswith(")"):
-            base, rest = name.split(" (", 1)
-            return base.strip(), rest[:-1].strip()
-        return "", ""
-
-    split_parts = [_split(name) for name in ordered_unique_names]
-    prefixes = {prefix for prefix, suffix in split_parts if prefix and suffix}
-    if prefixes and len(prefixes) == 1 and all(suffix for _, suffix in split_parts):
-        prefix = next(iter(prefixes))
-        suffixes = sorted({suffix for _, suffix in split_parts}, key=lambda value: value.lower())
-        return f"{prefix} ({', '.join(suffixes)})"
-    return ", ".join(ordered_unique_names[:5])
-
-
-def generate_soft_filter_message(
+async def cache_response_for_service(
+    service: SearchServiceLike,
+    query: str,
+    user_location: Optional[tuple[float, float]],
+    response_obj: NLSearchResponse,
+    limit: int,
     *,
-    parsed: ParsedQuery,
-    filter_stats: Dict[str, int],
-    location_resolution: Optional[ResolvedLocation],
-    location_resolved: Optional[str],
-    relaxed_constraints: List[str],
-    result_count: int,
-) -> Optional[str]:
-    """Generate a user-facing message when soft filtering/relaxation is used."""
-    messages: List[str] = []
-    if parsed.location_text:
-        if location_resolution and location_resolution.not_found:
-            messages.append(f"Couldn't find location '{parsed.location_text}'")
-        elif filter_stats.get("after_location") == 0:
-            messages.append(f"No instructors found in {location_resolved or parsed.location_text}")
-    if (parsed.date or parsed.time_after) and filter_stats.get("after_availability") == 0:
-        if parsed.date:
-            messages.append(f"No availability on {parsed.date.strftime('%A, %b %d')}")
-        else:
-            messages.append("No availability matching your time constraints")
-    if parsed.max_price is not None and filter_stats.get("after_price") == 0:
-        messages.append(f"No instructors under ${parsed.max_price}")
-    if not messages:
-        messages.append("No exact matches")
-    location_related = any(
-        message.startswith("No instructors found in")
-        or message.startswith("Couldn't find location")
-        for message in messages
-    ) or ("location" in relaxed_constraints)
-    relaxed = [constraint for constraint in relaxed_constraints if constraint]
-    relaxed_text = f"Relaxed: {', '.join(relaxed)}." if relaxed else None
-    lead = (
-        f"Showing {result_count} results from nearby areas."
-        if result_count > 0 and location_related
-        else f"Showing {result_count} results."
-        if result_count > 0
-        else "No results found."
-    )
-    parts = [lead, ". ".join(messages) + ".", relaxed_text]
-    return " ".join(part for part in parts if part).strip()
-
-
-def build_budget_diagnostics(
-    *,
-    budget: Optional[RequestBudget],
-    get_search_config: Callable[[], SearchConfig],
-) -> BudgetInfo:
-    if budget is None:
-        fallback_budget = int(get_search_config().search_budget_ms)
-        return BudgetInfo(
-            initial_ms=fallback_budget,
-            remaining_ms=fallback_budget,
-            over_budget=False,
-            skipped_operations=[],
-            degradation_level="none",
-        )
-    return BudgetInfo(
-        initial_ms=budget.total_ms,
-        remaining_ms=budget.remaining_ms,
-        over_budget=budget.is_over_budget,
-        skipped_operations=list(budget.skipped_operations),
-        degradation_level=budget.degradation_level.value,
-    )
-
-
-def build_candidate_flow_diagnostics(
-    *,
-    pre_data: Optional[PreOpenAIData],
-    post_data: Optional[PostOpenAIData],
-    candidates_flow: Dict[str, int],
-    results_count: int,
-) -> Dict[str, int]:
-    merged = dict(candidates_flow)
-    if merged.get("after_text_search") is None and pre_data is not None:
-        merged["after_text_search"] = len(pre_data.text_results or {})
-    if merged.get("after_vector_search") is None and post_data is not None:
-        merged["after_vector_search"] = int(post_data.total_candidates)
-    if merged.get("initial_candidates") is None and post_data is not None:
-        merged["initial_candidates"] = int(post_data.total_candidates)
-    if post_data is not None and post_data.filter_result.filter_stats:
-        stats = post_data.filter_result.filter_stats
-        for key, stat_key in {
-            "after_location_filter": "after_location",
-            "after_price_filter": "after_price",
-            "after_availability_filter": "after_availability",
-        }.items():
-            if merged.get(key) is None:
-                merged[key] = int(stats.get(stat_key) or 0)
-    if merged.get("final_results") is None:
-        merged["final_results"] = results_count
-    return merged
-
-
-def build_location_diagnostics(
-    *,
-    timer: PipelineTimer,
-    parsed_query: Optional[ParsedQuery],
-    location_resolution: Optional[ResolvedLocation],
-) -> Optional[LocationResolutionInfo]:
-    if not parsed_query or not parsed_query.location_text:
-        return None
-    resolved_name = None
-    resolved_regions: Optional[List[str]] = None
-    successful_tier: Optional[int] = None
-    if location_resolution:
-        resolved_name = location_resolution.region_name or location_resolution.borough
-        if location_resolution.tier is not None:
-            try:
-                successful_tier = int(location_resolution.tier.value)
-            except Exception:
-                successful_tier = None
-        if location_resolution.candidates:
-            names = [
-                str(candidate.get("region_name"))
-                for candidate in location_resolution.candidates
-                if isinstance(candidate, dict) and candidate.get("region_name")
-            ]
-            if names:
-                resolved_regions = list(dict.fromkeys(names))
-    return LocationResolutionInfo(
-        query=parsed_query.location_text,
-        resolved_name=resolved_name,
-        resolved_regions=resolved_regions,
-        successful_tier=successful_tier,
-        tiers=[LocationTierResult(**tier) for tier in timer.location_tiers],
+    ttl: Optional[int] = None,
+    filters: Optional[Dict[str, object]] = None,
+) -> None:
+    await cache_response(
+        search_cache=service.search_cache,
+        query=query,
+        user_location=user_location,
+        response=response_obj,
+        limit=limit,
+        region_code=service._region_code,
+        logger=logger,
+        ttl=ttl,
+        filters=filters,
     )
 
 
 def build_instructor_response(
-    *,
     query: str,
     parsed_query: ParsedQuery,
     results: Sequence[NLSearchResultItem],
@@ -325,50 +202,222 @@ def build_instructor_response(
     return NLSearchResponse(results=list(results[:limit]), meta=meta)
 
 
-def build_search_diagnostics(
+async def get_cached_search_response(
+    service: SearchServiceLike,
     *,
-    timer: PipelineTimer,
-    budget: Optional[RequestBudget],
-    parsed_query: Optional[ParsedQuery],
-    pre_data: Optional[PreOpenAIData],
-    post_data: Optional[PostOpenAIData],
+    query: str,
+    user_location: Optional[tuple[float, float]],
+    limit: int,
+    timer: Optional[PipelineTimer],
+    cache_filters: Optional[Dict[str, object]],
+) -> tuple[Optional[Dict[str, object]], int]:
+    if timer:
+        timer.start_stage("cache_check")
+    cache_check_start = time.perf_counter()
+    cached = await check_cache(
+        search_cache=service.search_cache,
+        query=query,
+        user_location=user_location,
+        limit=limit,
+        region_code=service._region_code,
+        logger=logger,
+        filters=cache_filters,
+    )
+    cache_check_ms = int((time.perf_counter() - cache_check_start) * 1000)
+    if timer:
+        timer.end_stage(
+            status="cache_hit" if cached else "success",
+            details={"latency_ms": cache_check_ms},
+        )
+    return cached, cache_check_ms
+
+
+def build_cached_response(
+    service: SearchServiceLike,
+    *,
+    cached: Dict[str, object],
+    perf_start: float,
+    cache_check_ms: int,
+    timer: Optional[PipelineTimer],
+    candidates_flow: Dict[str, int],
+    include_diagnostics: bool,
+) -> NLSearchResponse:
+    cached_total_ms = int((time.perf_counter() - perf_start) * 1000)
+    meta_obj = cached.get("meta")
+    if not isinstance(meta_obj, dict):
+        meta_obj = {}
+        cached["meta"] = meta_obj
+    meta = cast(Dict[str, object], meta_obj)
+    meta["cache_hit"] = True
+    meta["latency_ms"] = cached_total_ms
+    results_obj = cached.get("results")
+    cached_results = results_obj if isinstance(results_obj, list) else []
+    metrics_module.record_search_metrics(
+        total_latency_ms=cached_total_ms,
+        stage_latencies={"cache_check": cache_check_ms},
+        cache_hit=True,
+        parsing_mode=str(meta.get("parsing_mode") or "regex"),
+        result_count=len(cached_results),
+        degraded=False,
+        degradation_reasons=[],
+    )
+    if runtime._PERF_LOG_ENABLED and cached_total_ms >= runtime._PERF_LOG_SLOW_MS:
+        logger.info(
+            "NL search timings (cache_hit): %s",
+            {
+                "cache_check_ms": cache_check_ms,
+                "total_ms": cached_total_ms,
+                "limit": meta.get("limit", 0),
+                "region": service._region_code,
+            },
+        )
+    response_obj = NLSearchResponse(**cached)
+    if include_diagnostics and timer:
+        response_obj.meta.diagnostics = build_search_diagnostics(
+            timer=timer,
+            budget=None,
+            parsed_query=None,
+            pre_data=None,
+            post_data=None,
+            location_resolution=None,
+            query_embedding=None,
+            results_count=len(response_obj.results),
+            cache_hit=True,
+            parsing_mode=str(response_obj.meta.parsing_mode or "regex"),
+            candidates_flow=candidates_flow,
+            total_latency_ms=cached_total_ms,
+        )
+    return response_obj
+
+
+async def record_metrics_and_cache(
+    service: SearchServiceLike,
+    *,
+    query: str,
+    user_location: Optional[tuple[float, float]],
+    limit: int,
+    parsed_query: ParsedQuery,
+    response_obj: NLSearchResponse,
+    metrics: SearchMetrics,
+    cache_check_ms: int,
+    hydrate_ms: int,
+    response_build_ms: int,
+    cache_filters: Optional[Dict[str, object]],
+) -> int:
+    metrics_module.record_search_metrics(
+        total_latency_ms=metrics.total_latency_ms,
+        stage_latencies={
+            "cache_check": cache_check_ms,
+            "parsing": metrics.parse_latency_ms,
+            "embedding": metrics.embed_latency_ms,
+            "retrieval": metrics.retrieve_latency_ms,
+            "filtering": metrics.filter_latency_ms,
+            "ranking": metrics.rank_latency_ms,
+            "hydration": hydrate_ms,
+            "response_build": response_build_ms,
+        },
+        cache_hit=metrics.cache_hit,
+        parsing_mode=parsed_query.parsing_mode,
+        result_count=len(response_obj.results),
+        degraded=metrics.degraded,
+        degradation_reasons=metrics.degradation_reasons,
+    )
+    degraded_ttl = 30 if metrics.degraded else None
+    cache_write_start = time.perf_counter()
+    await cache_response(
+        search_cache=service.search_cache,
+        query=query,
+        user_location=user_location,
+        response=response_obj,
+        limit=limit,
+        region_code=service._region_code,
+        logger=logger,
+        ttl=degraded_ttl,
+        filters=cache_filters,
+    )
+    return int((time.perf_counter() - cache_write_start) * 1000)
+
+
+def attach_diagnostics_and_perf_log(
+    service: SearchServiceLike,
+    *,
+    response_obj: NLSearchResponse,
+    timer: Optional[PipelineTimer],
+    budget: RequestBudget,
+    parsed_query: ParsedQuery,
+    pre_data: PreOpenAIData,
+    post_data: PostOpenAIData,
     location_resolution: Optional[ResolvedLocation],
     query_embedding: Optional[List[float]],
-    results_count: int,
-    cache_hit: bool,
-    parsing_mode: str,
     candidates_flow: Dict[str, int],
-    get_search_config: Callable[[], SearchConfig],
-    total_latency_ms: Optional[int] = None,
-) -> SearchDiagnostics:
-    budget_info = build_budget_diagnostics(budget=budget, get_search_config=get_search_config)
-    merged_candidates = build_candidate_flow_diagnostics(
-        pre_data=pre_data,
-        post_data=post_data,
-        candidates_flow=candidates_flow,
-        results_count=results_count,
-    )
-    location_info = build_location_diagnostics(
-        timer=timer,
-        parsed_query=parsed_query,
-        location_resolution=location_resolution,
-    )
-    return SearchDiagnostics(
-        total_latency_ms=int(total_latency_ms)
-        if total_latency_ms is not None
-        else (budget.elapsed_ms if budget else 0),
-        pipeline_stages=[PipelineStage(**stage) for stage in timer.stages],
-        budget=budget_info,
-        location_resolution=location_info,
-        initial_candidates=int(merged_candidates.get("initial_candidates") or 0),
-        after_text_search=int(merged_candidates.get("after_text_search") or 0),
-        after_vector_search=int(merged_candidates.get("after_vector_search") or 0),
-        after_location_filter=int(merged_candidates.get("after_location_filter") or 0),
-        after_price_filter=int(merged_candidates.get("after_price_filter") or 0),
-        after_availability_filter=int(merged_candidates.get("after_availability_filter") or 0),
-        final_results=int(merged_candidates.get("final_results") or 0),
-        cache_hit=cache_hit,
-        parsing_mode=parsing_mode,
-        embedding_used=bool(query_embedding),
-        vector_search_used=bool(post_data.vector_search_used) if post_data else False,
-    )
+    metrics: SearchMetrics,
+    retrieval_result: object,
+    cache_check_ms: int,
+    hydrate_ms: int,
+    response_build_ms: int,
+    cache_write_ms: int,
+    limit: int,
+    include_diagnostics: bool,
+) -> None:
+    if include_diagnostics and timer:
+        response_obj.meta.diagnostics = build_search_diagnostics(
+            timer=timer,
+            budget=budget,
+            parsed_query=parsed_query,
+            pre_data=pre_data,
+            post_data=post_data,
+            location_resolution=location_resolution,
+            query_embedding=query_embedding,
+            results_count=len(response_obj.results),
+            cache_hit=False,
+            parsing_mode=parsed_query.parsing_mode,
+            candidates_flow=candidates_flow,
+            total_latency_ms=metrics.total_latency_ms,
+        )
+    if runtime._PERF_LOG_ENABLED and metrics.total_latency_ms >= runtime._PERF_LOG_SLOW_MS:
+        retrieval_stats = {
+            "text_search_ms": int(getattr(retrieval_result, "text_search_latency_ms", 0) or 0),
+            "vector_search_ms": int(getattr(retrieval_result, "vector_search_latency_ms", 0) or 0),
+            "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
+            "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
+        }
+        logger.info(
+            "NL search timings: %s",
+            {
+                "cache_check_ms": cache_check_ms,
+                "parse_ms": metrics.parse_latency_ms,
+                "embed_ms": metrics.embed_latency_ms,
+                "retrieve_db_ms": metrics.retrieve_latency_ms,
+                "retrieve": retrieval_stats,
+                "filter_ms": metrics.filter_latency_ms,
+                "rank_ms": metrics.rank_latency_ms,
+                "hydrate_ms": hydrate_ms,
+                "response_build_ms": response_build_ms,
+                "cache_write_ms": cache_write_ms,
+                "total_ms": metrics.total_latency_ms,
+                "degraded": metrics.degraded,
+                "reasons": list(metrics.degradation_reasons),
+                "limit": limit,
+                "region": service._region_code,
+            },
+        )
+
+
+__all__ = [
+    "build_budget_diagnostics",
+    "build_candidate_flow_diagnostics",
+    "build_candidates_flow",
+    "build_cached_response",
+    "build_instructor_response",
+    "build_location_diagnostics",
+    "build_search_diagnostics",
+    "cache_response",
+    "cache_response_for_service",
+    "check_cache",
+    "check_cache_for_service",
+    "format_location_resolved",
+    "generate_soft_filter_message",
+    "get_cached_search_response",
+    "record_metrics_and_cache",
+    "attach_diagnostics_and_perf_log",
+]

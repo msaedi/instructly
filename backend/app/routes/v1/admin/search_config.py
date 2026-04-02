@@ -17,7 +17,7 @@ from app.services.search.config import (
     reset_search_config,
     update_search_config,
 )
-from app.services.search.nl_search_service import (
+from app.services.search.nl_pipeline.runtime import (
     get_search_inflight_count,
     set_uncached_search_concurrency_limit,
 )

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import app.services.search.nl_search_service as nl_mod
+from app.services.search.nl_pipeline import runtime as nl_mod
+from app.services.search.nl_pipeline.models import PipelineTimer
 
 
 def setup_function() -> None:
@@ -25,10 +26,10 @@ def test_subcategory_cache_get_miss_and_hit_paths():
 def test_subcategory_cache_expired_entries_are_removed(monkeypatch):
     monkeypatch.setattr(nl_mod, "SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", 10)
 
-    with patch("app.services.search.nl_search_service.time.monotonic", return_value=0):
+    with patch("app.services.search.nl_pipeline.runtime.time.monotonic", return_value=0):
         nl_mod._set_cached_subcategory_filter_value("k1", "v1")
 
-    with patch("app.services.search.nl_search_service.time.monotonic", return_value=20):
+    with patch("app.services.search.nl_pipeline.runtime.time.monotonic", return_value=20):
         hit, value = nl_mod._get_cached_subcategory_filter_value("k1")
 
     assert hit is False
@@ -41,7 +42,7 @@ def test_subcategory_cache_bounded_eviction_trims_oldest_half(monkeypatch):
     monkeypatch.setattr(nl_mod, "SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", 1000)
 
     with patch(
-        "app.services.search.nl_search_service.time.monotonic",
+        "app.services.search.nl_pipeline.runtime.time.monotonic",
         side_effect=[1, 2, 3],
     ):
         nl_mod._set_cached_subcategory_filter_value("a", 1)
@@ -54,7 +55,7 @@ def test_subcategory_cache_bounded_eviction_trims_oldest_half(monkeypatch):
 
 
 def test_pipeline_timer_end_stage_is_noop_without_start():
-    timer = nl_mod.PipelineTimer()
+    timer = PipelineTimer()
 
     timer.end_stage(status="success")
 
@@ -62,7 +63,7 @@ def test_pipeline_timer_end_stage_is_noop_without_start():
 
 
 def test_pipeline_timer_records_stage_after_start():
-    timer = nl_mod.PipelineTimer()
+    timer = PipelineTimer()
 
     timer.start_stage("burst-1")
     timer.end_stage(status="success", details={"count": 1})

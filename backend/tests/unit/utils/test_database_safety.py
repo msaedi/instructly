@@ -113,7 +113,21 @@ def test_ci_uses_provided_test_database(monkeypatch) -> None:
 
 def test_ci_without_database_url_uses_int_database(monkeypatch) -> None:
     monkeypatch.setenv("CI", "true")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    for var in [
+        "DATABASE_URL",
+        "database_url",
+        "STG_DATABASE_URL",
+        "stg_database_url",
+        "LOCAL_DATABASE_URL",
+        "local_database_url",
+        "PREVIEW_DATABASE_URL",
+        "preview_database_url",
+        "PROD_DATABASE_URL",
+        "prod_database_url",
+        "TEST_DATABASE_URL",
+        "test_database_url",
+    ]:
+        monkeypatch.delenv(var, raising=False)
 
     from app.core.database_config import DatabaseConfig
 

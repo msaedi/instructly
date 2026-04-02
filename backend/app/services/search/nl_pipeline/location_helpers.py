@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING, List, Mapping, Optional
 
@@ -21,6 +22,8 @@ from app.services.search.nl_pipeline.protocols import LoggerLike
 
 if TYPE_CHECKING:
     from app.repositories.search_batch_repository import CachedAliasInfo, RegionInfo, RegionLookup
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_location_text(text_value: str) -> str:
@@ -130,8 +133,14 @@ def distance_region_ids(location_resolution: Optional[ResolvedLocation]) -> Opti
     return None
 
 
-def consume_task_result(task: asyncio.Task[object], *, label: str, logger: LoggerLike) -> None:
+def consume_task_result(
+    task: asyncio.Task[object],
+    *,
+    label: str,
+    logger: Optional[LoggerLike] = None,
+) -> None:
     """Ensure background task exceptions are surfaced without blocking."""
+    logger = logger or globals()["logger"]
 
     def _done(finished: asyncio.Task[object]) -> None:
         try:
@@ -148,9 +157,22 @@ def pick_best_location(
     tier4_result: Optional[ResolvedLocation],
     tier5_result: Optional[ResolvedLocation],
     *,
-    tier4_high_confidence: float,
-    llm_confidence_threshold: float,
+    tier4_high_confidence: Optional[float] = None,
+    llm_confidence_threshold: Optional[float] = None,
 ) -> Optional[ResolvedLocation]:
+    if tier4_high_confidence is None or llm_confidence_threshold is None:
+        from app.services.search.nl_pipeline import location as location_module
+
+        tier4_high_confidence = (
+            tier4_high_confidence
+            if tier4_high_confidence is not None
+            else location_module.LOCATION_TIER4_HIGH_CONFIDENCE
+        )
+        llm_confidence_threshold = (
+            llm_confidence_threshold
+            if llm_confidence_threshold is not None
+            else location_module.LOCATION_LLM_CONFIDENCE_THRESHOLD
+        )
     if tier4_result and tier4_result.resolved and tier4_result.confidence >= tier4_high_confidence:
         return tier4_result
     if tier5_result and (tier5_result.confidence >= llm_confidence_threshold or not tier4_result):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from logging import Logger
-from typing import Awaitable, Callable, Protocol, TypeVar
+from typing import Any, Awaitable, Callable, Protocol, TypeVar
 
 from sqlalchemy.orm import Session
 
@@ -31,3 +31,16 @@ LoggerLike = Logger
 
 
 DBSessionFactory = Callable[[], AbstractContextManager[Session]]
+
+
+class SearchServiceLike(Protocol):
+    """Subset of the NL search facade accessed by pipeline helpers."""
+
+    _region_code: str
+    search_cache: Any
+    embedding_service: Any
+    retriever: Any
+    filter_service: Any
+    ranking_service: Any
+    location_embedding_service: Any
+    location_llm_service: Any

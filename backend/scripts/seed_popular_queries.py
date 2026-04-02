@@ -76,7 +76,7 @@ async def warm_queries(
     from app.services.search.nl_search_service import NLSearchService
 
     cache_service = get_cache_service(db)
-    search_service = NLSearchService(db, cache_service=cache_service, region_code=region_code)
+    search_service = NLSearchService(cache_service=cache_service, region_code=region_code)
 
     success = 0
     failed = 0

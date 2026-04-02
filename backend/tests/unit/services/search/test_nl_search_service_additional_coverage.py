@@ -11,7 +11,7 @@ Focus on uncovered lines: 490-531, 585-671, 744-769
 """
 
 import asyncio
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import date, time as dtime
 import logging
 import time
@@ -30,25 +30,34 @@ from app.schemas.nl_search import (
 )
 from app.services.search.filter_service import FilteredCandidate, FilterResult
 from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
-from app.services.search.nl_pipeline import hydration
-from app.services.search.nl_search_service import (
-    LOCATION_LLM_CONFIDENCE_THRESHOLD,
-    LOCATION_TIER4_HIGH_CONFIDENCE,
-    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
-    TEXT_SKIP_VECTOR_MIN_RESULTS,
-    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+from app.services.search.nl_pipeline import (
+    hydration,
+    location,
+    location_helpers,
+    postflight,
+    preflight,
+    response as response_mod,
+    taxonomy,
+)
+from app.services.search.nl_pipeline.models import (
     LocationLLMCache,
-    NLSearchService,
     PipelineTimer,
     PostOpenAIData,
     PreOpenAIData,
     SearchMetrics,
     UnresolvedLocationInfo,
 )
+from app.services.search.nl_search_service import NLSearchService
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.ranking_service import RankedResult, RankingResult
 from app.services.search.request_budget import RequestBudget
-from app.services.search.retriever import RetrievalResult, ServiceCandidate
+from app.services.search.retriever import (
+    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+    TEXT_SKIP_VECTOR_MIN_RESULTS,
+    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+    RetrievalResult,
+    ServiceCandidate,
+)
 
 
 @contextmanager
@@ -130,6 +139,66 @@ def _hydrate_to_thread_side_effect(
         raise AssertionError(f"Unexpected to_thread call: {name}")
 
     return _to_thread
+
+
+_UNSET = object()
+
+
+def _empty_retrieval_result() -> RetrievalResult:
+    return RetrievalResult(
+        candidates=[],
+        total_candidates=0,
+        vector_search_used=False,
+        degraded=False,
+        degradation_reason=None,
+    )
+
+
+@contextmanager
+def _patch_search_pipeline(
+    *,
+    pre_data: PreOpenAIData,
+    post_data: PostOpenAIData,
+    embed_result: object = _UNSET,
+    embed_side_effect: object = _UNSET,
+    location_stage_result: object = _UNSET,
+    hydrated_results: list[NLSearchResultItem] | None = None,
+):
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch.object(preflight, "run_pre_openai_burst_for_service", return_value=pre_data)
+        )
+        if embed_side_effect is not _UNSET:
+            stack.enter_context(
+                patch.object(preflight, "embed_query_with_timeout", AsyncMock(side_effect=embed_side_effect))
+            )
+        elif embed_result is not _UNSET:
+            stack.enter_context(
+                patch.object(preflight, "embed_query_with_timeout", AsyncMock(return_value=embed_result))
+            )
+        if location_stage_result is not _UNSET:
+            stack.enter_context(
+                patch.object(
+                    location,
+                    "resolve_location_stage_for_service",
+                    AsyncMock(return_value=location_stage_result),
+                )
+            )
+        stack.enter_context(
+            patch.object(
+                postflight,
+                "run_postflight_stage_for_service",
+                AsyncMock(return_value=(post_data, _empty_retrieval_result())),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                hydration,
+                "hydrate_results_for_service",
+                AsyncMock(return_value=(hydrated_results or [], 0)),
+            )
+        )
+        yield
 
 
 @pytest.mark.asyncio
@@ -622,13 +691,13 @@ class TestNlSearchHelpers:
     """Coverage for NLSearchService helper methods."""
 
     def test_normalize_location_text_strips_wrappers(self):
-        normalized = NLSearchService._normalize_location_text(
+        normalized = location_helpers.normalize_location_text(
             "  near  Manhattan south area  "
         )
         assert normalized == "manhattan south"
 
     def test_normalize_location_text_drops_direction_suffix(self):
-        normalized = NLSearchService._normalize_location_text("in upper east side north")
+        normalized = location_helpers.normalize_location_text("in upper east side north")
         assert normalized == "upper east side"
 
     def test_record_pre_location_tiers_records_resolution(self):
@@ -641,7 +710,7 @@ class TestNlSearchHelpers:
             requires_clarification=False,
         )
 
-        NLSearchService._record_pre_location_tiers(timer, location_resolution)
+        location_helpers.record_pre_location_tiers(timer, location_resolution)
 
         assert len(timer.location_tiers) == 3
         assert timer.location_tiers[0]["status"] == StageStatus.SUCCESS.value
@@ -658,7 +727,7 @@ class TestNlSearchHelpers:
             requires_clarification=True,
         )
 
-        NLSearchService._record_pre_location_tiers(timer, location_resolution)
+        location_helpers.record_pre_location_tiers(timer, location_resolution)
 
         assert timer.location_tiers[1]["details"] == "ambiguous"
 
@@ -667,7 +736,7 @@ class TestNlSearchHelpers:
             f"svc_{idx}": (TEXT_SKIP_VECTOR_SCORE_THRESHOLD + 0.1, {})
             for idx in range(TEXT_SKIP_VECTOR_MIN_RESULTS)
         }
-        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags(
+        best_score, require_text_match, skip_vector = preflight.compute_text_match_flags(
             "piano lessons", text_results
         )
 
@@ -693,7 +762,7 @@ class TestNlSearchHelpers:
             candidate_region_ids=["r1", "r2"],
         )
 
-        resolved = NLSearchService._resolve_cached_alias(cached_ambiguous, region_lookup)
+        resolved = location_helpers.resolve_cached_alias(cached_ambiguous, region_lookup)
         assert resolved is not None
         assert resolved.requires_clarification is True
         assert resolved.candidates and len(resolved.candidates) == 2
@@ -706,7 +775,7 @@ class TestNlSearchHelpers:
             candidate_region_ids=[],
         )
 
-        resolved = NLSearchService._resolve_cached_alias(cached_resolved, region_lookup)
+        resolved = location_helpers.resolve_cached_alias(cached_resolved, region_lookup)
         assert resolved is not None
         assert resolved.resolved is True
         assert resolved.region_id == "r1"
@@ -731,7 +800,7 @@ class TestNlSearchHelpers:
             )
 
         ranked = [_ranked("inst_1", 1), _ranked("inst_1", 2), _ranked("inst_2", 3)]
-        ordered = NLSearchService._select_instructor_ids(ranked, limit=2)
+        ordered = postflight.select_instructor_ids(ranked, limit=2)
 
         assert ordered == ["inst_1", "inst_2"]
 
@@ -742,7 +811,7 @@ class TestNlSearchHelpers:
             tier=ResolutionTier.EXACT,
             confidence=1.0,
         )
-        assert NLSearchService._distance_region_ids(resolved) == ["r1"]
+        assert location_helpers.distance_region_ids(resolved) == ["r1"]
 
         ambiguous = ResolvedLocation(
             resolved=False,
@@ -755,8 +824,8 @@ class TestNlSearchHelpers:
             tier=ResolutionTier.LLM,
             confidence=0.5,
         )
-        assert NLSearchService._distance_region_ids(ambiguous) == ["r1", "r2"]
-        assert NLSearchService._distance_region_ids(None) is None
+        assert location_helpers.distance_region_ids(ambiguous) == ["r1", "r2"]
+        assert location_helpers.distance_region_ids(None) is None
 
     @pytest.mark.asyncio
     async def test_consume_task_result_allows_exception(self):
@@ -764,7 +833,7 @@ class TestNlSearchHelpers:
             raise ValueError("boom")
 
         task = asyncio.create_task(_boom())
-        NLSearchService._consume_task_result(task, label="unit")
+        location_helpers.consume_task_result(task, label="unit")
 
         with pytest.raises(ValueError):
             await task
@@ -776,49 +845,49 @@ class TestNlSearchHelpers:
             resolved=True,
             region_id="r1",
             tier=ResolutionTier.EMBEDDING,
-            confidence=LOCATION_TIER4_HIGH_CONFIDENCE + 0.01,
+            confidence=location.LOCATION_TIER4_HIGH_CONFIDENCE + 0.01,
         )
         tier5 = ResolvedLocation(
             resolved=True,
             region_id="r2",
             tier=ResolutionTier.LLM,
-            confidence=LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01,
+            confidence=location.LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01,
         )
 
-        assert NLSearchService._pick_best_location(tier4, tier5) == tier4
+        assert location_helpers.pick_best_location(tier4, tier5) == tier4
 
     def test_pick_best_location_prefers_tier5_when_confident(self):
         tier4 = ResolvedLocation(
             resolved=True,
             region_id="r1",
             tier=ResolutionTier.EMBEDDING,
-            confidence=LOCATION_TIER4_HIGH_CONFIDENCE - 0.2,
+            confidence=location.LOCATION_TIER4_HIGH_CONFIDENCE - 0.2,
         )
         tier5 = ResolvedLocation(
             resolved=True,
             region_id="r2",
             tier=ResolutionTier.LLM,
-            confidence=LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01,
+            confidence=location.LOCATION_LLM_CONFIDENCE_THRESHOLD + 0.01,
         )
 
-        assert NLSearchService._pick_best_location(tier4, tier5) == tier5
+        assert location_helpers.pick_best_location(tier4, tier5) == tier5
 
     def test_pick_best_location_falls_back_to_tier4_or_none(self):
         tier4 = ResolvedLocation(
             resolved=True,
             region_id="r1",
             tier=ResolutionTier.EMBEDDING,
-            confidence=LOCATION_TIER4_HIGH_CONFIDENCE - 0.2,
+            confidence=location.LOCATION_TIER4_HIGH_CONFIDENCE - 0.2,
         )
         tier5 = ResolvedLocation(
             resolved=False,
             region_id=None,
             tier=ResolutionTier.LLM,
-            confidence=LOCATION_LLM_CONFIDENCE_THRESHOLD - 0.2,
+            confidence=location.LOCATION_LLM_CONFIDENCE_THRESHOLD - 0.2,
         )
 
-        assert NLSearchService._pick_best_location(tier4, tier5) == tier4
-        assert NLSearchService._pick_best_location(None, None) is None
+        assert location_helpers.pick_best_location(tier4, tier5) == tier4
+        assert location_helpers.pick_best_location(None, None) is None
 
 
 class TestNlSearchServiceCore:
@@ -834,7 +903,7 @@ class TestNlSearchServiceCore:
         nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=cached)
 
         metrics = SearchMetrics()
-        result = await nl_service._parse_query("cached", metrics)
+        result = await preflight.parse_query(nl_service, "cached", metrics)
 
         assert result is cached
         assert metrics.parse_latency_ms >= 0
@@ -849,14 +918,14 @@ class TestNlSearchServiceCore:
         nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
 
         with patch(
-            "app.services.search.nl_search_service.hybrid_parse",
+            "app.services.search.llm_parser.hybrid_parse",
             side_effect=RuntimeError("boom"),
         ):
-            with patch("app.services.search.nl_search_service.get_db_session", return_value=_db_ctx()):
-                with patch("app.services.search.nl_search_service.QueryParser") as parser:
+            with patch("app.database.get_db_session", return_value=_db_ctx()):
+                with patch("app.services.search.query_parser.QueryParser") as parser:
                     parser.return_value.parse.return_value = fallback
                     metrics = SearchMetrics()
-                    result = await nl_service._parse_query("query", metrics)
+                    result = await preflight.parse_query(nl_service, "query", metrics)
 
         assert result == fallback
         assert metrics.degraded is True
@@ -875,7 +944,7 @@ class TestNlSearchServiceCore:
 
         metrics = SearchMetrics()
         parsed = ParsedQuery(original_query="q", service_query="q", parsing_mode="regex")
-        result = await nl_service._retrieve_candidates(parsed, metrics)
+        result = await postflight.retrieve_candidates(nl_service, parsed, metrics)
 
         assert result.degraded is True
         assert metrics.degraded is True
@@ -887,7 +956,7 @@ class TestNlSearchServiceCore:
 
         metrics = SearchMetrics()
         parsed = ParsedQuery(original_query="q", service_query="q", parsing_mode="regex")
-        result = await nl_service._retrieve_candidates(parsed, metrics)
+        result = await postflight.retrieve_candidates(nl_service, parsed, metrics)
 
         assert result.degradation_reason == "retrieval_error"
         assert metrics.degraded is True
@@ -918,7 +987,7 @@ class TestNlSearchServiceCore:
         parsed = ParsedQuery(original_query="q", service_query="q", parsing_mode="regex")
         metrics = SearchMetrics()
 
-        result = await nl_service._filter_candidates(retrieval, parsed, None, metrics)
+        result = await postflight.filter_candidates(nl_service, retrieval, parsed, None, metrics)
 
         assert len(result.candidates) == 1
         assert metrics.degraded is True
@@ -944,7 +1013,7 @@ class TestNlSearchServiceCore:
         parsed = ParsedQuery(original_query="q", service_query="q", parsing_mode="regex")
         metrics = SearchMetrics()
 
-        result = nl_service._rank_results(filter_result, parsed, None, metrics)
+        result = postflight.rank_results(nl_service, filter_result, parsed, None, metrics)
 
         assert isinstance(result, RankingResult)
         assert metrics.degraded is True
@@ -1002,7 +1071,7 @@ class TestNlSearchServiceCore:
             },
         ]
 
-        results = nl_service._transform_instructor_results(raw_results, parsed)
+        results = hydration.transform_instructor_results_for_service(nl_service, raw_results, parsed)
 
         assert len(results) == 1
         assert results[0].instructor_id == "inst_2"
@@ -1059,7 +1128,7 @@ class TestNlSearchServiceCore:
         ]
         metrics = SearchMetrics(total_latency_ms=123)
 
-        response = nl_service._build_instructor_response(
+        response = response_mod.build_instructor_response(
             "query", parsed, results, limit=5, metrics=metrics, filter_result=filter_result
         )
 
@@ -1129,7 +1198,7 @@ class TestNlSearchServiceCore:
             skip_vector=False,
         )
 
-        diagnostics = nl_service._build_search_diagnostics(
+        diagnostics = response_mod.build_search_diagnostics(
             timer=timer,
             budget=None,
             parsed_query=parsed,
@@ -1158,7 +1227,7 @@ class TestNlSearchServiceCore:
             ],
         )
 
-        resolved = nl_service._format_location_resolved(location_resolution)
+        resolved = response_mod.format_location_resolved(location_resolution)
 
         assert resolved == "Midtown (East, Times Square)"
 
@@ -1171,7 +1240,7 @@ class TestNlSearchServiceCore:
             max_price=25,
         )
         location_resolution = ResolvedLocation(not_found=True)
-        message = nl_service._generate_soft_filter_message(
+        message = response_mod.generate_soft_filter_message(
             parsed,
             {"after_location": 0, "after_availability": 0, "after_price": 0},
             location_resolution,
@@ -1186,7 +1255,7 @@ class TestNlSearchServiceCore:
             service_query="q",
             parsing_mode="regex",
         )
-        message = nl_service._generate_soft_filter_message(
+        message = response_mod.generate_soft_filter_message(
             parsed,
             {"after_location": 1, "after_availability": 1, "after_price": 1},
             None,
@@ -1205,7 +1274,7 @@ class TestResolveLocationOpenAI:
         timer = PipelineTimer()
         tier5_task = asyncio.create_task(asyncio.sleep(0))
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "  ",
             region_lookup=None,
             fuzzy_score=None,
@@ -1243,7 +1312,7 @@ class TestResolveLocationOpenAI:
             ],
         )
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "Manhattan",
             region_lookup=region_lookup,
             fuzzy_score=None,
@@ -1281,19 +1350,19 @@ class TestResolveLocationOpenAI:
             "region_id": "r1",
             "region_name": "Manhattan",
             "borough": None,
-            "similarity": LOCATION_TIER4_HIGH_CONFIDENCE + 0.05,
+            "similarity": location.LOCATION_TIER4_HIGH_CONFIDENCE + 0.05,
         }
         with patch(
-            "app.services.search.nl_search_service.LocationEmbeddingService.build_candidates_from_embeddings",
+            "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
             side_effect=[[candidate], [candidate]],
         ):
             with patch(
-                "app.services.search.nl_search_service.LocationEmbeddingService.pick_best_or_ambiguous",
+                "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
                 return_value=(candidate, []),
             ):
                 timer = PipelineTimer()
                 tier5_task = asyncio.create_task(asyncio.sleep(0))
-                result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+                result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
                     "Manhattan",
                     region_lookup=region_lookup,
                     fuzzy_score=0.9,
@@ -1317,10 +1386,10 @@ class TestResolveLocationOpenAI:
         tier5_task = asyncio.create_task(asyncio.sleep(1))
 
         with patch(
-            "app.services.search.nl_search_service.get_search_config",
+            "app.services.search.config.get_search_config",
             return_value=SimpleNamespace(location_timeout_ms=5),
         ):
-            result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+            result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
                 "Queens",
                 region_lookup=region_lookup,
                 fuzzy_score=None,
@@ -1347,7 +1416,7 @@ class TestResolveLocationOpenAI:
         task = asyncio.create_task(asyncio.sleep(0))
         task.cancel()
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "Queens",
             region_lookup=region_lookup,
             fuzzy_score=None,
@@ -1373,7 +1442,7 @@ class TestResolveLocationOpenAI:
         timer = PipelineTimer()
         task = asyncio.create_task(_boom())
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "Queens",
             region_lookup=region_lookup,
             fuzzy_score=None,
@@ -1401,18 +1470,22 @@ class TestResolveLocationOpenAI:
             confidence=0.9,
         )
         llm_cache = LocationLLMCache(normalized="queens", confidence=0.8, region_ids=["r1"])
-        nl_service._resolve_location_llm = AsyncMock(return_value=(resolved, llm_cache, None))
-
-        result, cache, unresolved = await nl_service._resolve_location_openai(
-            "Queens",
-            region_lookup=region_lookup,
-            fuzzy_score=None,
-            original_query=None,
-            llm_candidates=["Queens"],
-            allow_tier4=False,
-            allow_tier5=True,
-            diagnostics=timer,
-        )
+        with patch.object(
+            location,
+            "resolve_location_llm_for_service",
+            AsyncMock(return_value=(resolved, llm_cache, None)),
+        ):
+            result, cache, unresolved = await location.resolve_location_openai_for_service(
+                nl_service,
+                "Queens",
+                region_lookup=region_lookup,
+                fuzzy_score=None,
+                original_query=None,
+                llm_candidates=["Queens"],
+                allow_tier4=False,
+                allow_tier5=True,
+                diagnostics=timer,
+            )
 
         assert result.resolved is True
         assert cache == llm_cache
@@ -1424,7 +1497,7 @@ class TestResolveLocationOpenAI:
         region_lookup = RegionLookup(region_names=[], by_name={}, by_id={}, embeddings=[])
         timer = PipelineTimer()
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "Queens",
             region_lookup=region_lookup,
             fuzzy_score=None,
@@ -1444,7 +1517,7 @@ class TestResolveLocationOpenAI:
     async def test_resolve_location_openai_no_best_returns_unresolved(self, nl_service):
         region_lookup = RegionLookup(region_names=["queens"], by_name={}, by_id={}, embeddings=[])
 
-        result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
             "Queens",
             region_lookup=region_lookup,
             fuzzy_score=None,
@@ -1482,29 +1555,33 @@ class TestResolveLocationOpenAI:
         llm_embedding_candidates = [{"region_name": "Queens"}]
         captured = {}
 
-        async def _fake_resolve_location_llm(**kwargs):
+        async def _fake_resolve_location_llm(*_args, **kwargs):
             captured["candidate_names"] = kwargs.get("candidate_names", [])
             return ResolvedLocation.from_not_found(), None, None
 
-        nl_service._resolve_location_llm = AsyncMock(side_effect=_fake_resolve_location_llm)
-
-        with patch(
-            "app.services.search.nl_search_service.LocationEmbeddingService.build_candidates_from_embeddings",
-            side_effect=[embedding_candidates, llm_embedding_candidates],
+        with patch.object(
+            location,
+            "resolve_location_llm_for_service",
+            AsyncMock(side_effect=_fake_resolve_location_llm),
         ):
             with patch(
-                "app.services.search.nl_search_service.LocationEmbeddingService.pick_best_or_ambiguous",
-                return_value=(None, None),
+                "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
+                side_effect=[embedding_candidates, llm_embedding_candidates],
             ):
-                await nl_service._resolve_location_openai(
-                    "Queens",
-                    region_lookup=region_lookup,
-                    fuzzy_score=None,
-                    original_query=None,
-                    llm_candidates=["Brooklyn"],
-                    allow_tier4=True,
-                    allow_tier5=True,
-                )
+                with patch(
+                    "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
+                    return_value=(None, None),
+                ):
+                    await location.resolve_location_openai_for_service(
+                        nl_service,
+                        "Queens",
+                        region_lookup=region_lookup,
+                        fuzzy_score=None,
+                        original_query=None,
+                        llm_candidates=["Brooklyn"],
+                        allow_tier4=True,
+                        allow_tier5=True,
+                    )
 
         assert "Queens" in captured["candidate_names"]
         assert "Brooklyn" in captured["candidate_names"]
@@ -1573,13 +1650,13 @@ def test_resolve_cached_alias_missing_region_returns_none() -> None:
         candidate_region_ids=["missing"],
     )
 
-    assert NLSearchService._resolve_cached_alias(cached_alias, region_lookup) is None
+    assert location_helpers.resolve_cached_alias(cached_alias, region_lookup) is None
 
 
 @pytest.mark.asyncio
 async def test_consume_task_result_handles_cancelled() -> None:
     task = asyncio.create_task(asyncio.sleep(0.01))
-    NLSearchService._consume_task_result(task, label="cancelled")
+    location_helpers.consume_task_result(task, label="cancelled")
     task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
@@ -1593,7 +1670,7 @@ async def test_resolve_location_llm_invalid_neighborhoods_returns_unresolved(nl_
     nl_service.location_llm_service.resolve = AsyncMock(return_value={"neighborhoods": "bad"})
     region_lookup = RegionLookup(region_names=[], by_name={}, by_id={}, embeddings=[])
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_llm(
+    result, llm_cache, unresolved = await location.resolve_location_llm_for_service(nl_service,
         location_text="Queens",
         original_query=None,
         region_lookup=region_lookup,
@@ -1619,7 +1696,7 @@ async def test_resolve_location_llm_filters_invalid_names(nl_service):
         embeddings=[],
     )
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_llm(
+    result, llm_cache, unresolved = await location.resolve_location_llm_for_service(nl_service,
         location_text="Queens",
         original_query=None,
         region_lookup=region_lookup,
@@ -1640,7 +1717,7 @@ async def test_resolve_location_llm_no_regions_returns_unresolved(nl_service):
     )
     region_lookup = RegionLookup(region_names=[], by_name={}, by_id={}, embeddings=[])
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_llm(
+    result, llm_cache, unresolved = await location.resolve_location_llm_for_service(nl_service,
         location_text="Nowhere",
         original_query=None,
         region_lookup=region_lookup,
@@ -1656,11 +1733,11 @@ async def test_resolve_location_llm_no_regions_returns_unresolved(nl_service):
 async def test_embed_query_with_timeout_no_timeout_marks_unavailable(nl_service, monkeypatch):
     nl_service.embedding_service.embed_query = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.get_search_config",
+        "app.services.search.config.get_search_config",
         lambda: SimpleNamespace(embedding_timeout_ms=0),
     )
 
-    embedding, latency_ms, reason = await nl_service._embed_query_with_timeout("piano")
+    embedding, latency_ms, reason = await preflight.embed_query_with_timeout_for_service(nl_service, "piano")
 
     assert embedding is None
     assert latency_ms >= 0
@@ -1728,15 +1805,15 @@ def test_run_pre_openai_burst_cached_alias_and_notify_error(monkeypatch, nl_serv
         raise RuntimeError("notify failed")
 
     nl_service.retriever._normalize_query_for_trigram = MagicMock(return_value="piano")
-    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _ctx)
+    monkeypatch.setattr("app.database.get_db_session", _ctx)
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.SearchBatchRepository", DummyBatch
+        "app.repositories.search_batch_repository.SearchBatchRepository", DummyBatch
     )
     monkeypatch.setattr(
         "app.services.search.location_resolver.LocationResolver", DummyResolver
     )
 
-    pre_data = nl_service._run_pre_openai_burst(
+    pre_data = preflight.run_pre_openai_burst_for_service(nl_service,
         "piano in queens",
         parsed_query=parsed,
         user_id=None,
@@ -1797,15 +1874,15 @@ def test_run_pre_openai_burst_fuzzy_candidates_override(monkeypatch, nl_service)
         yield MagicMock()
 
     nl_service.retriever._normalize_query_for_trigram = MagicMock(return_value="piano")
-    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _ctx)
+    monkeypatch.setattr("app.database.get_db_session", _ctx)
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.SearchBatchRepository", DummyBatch
+        "app.repositories.search_batch_repository.SearchBatchRepository", DummyBatch
     )
     monkeypatch.setattr(
         "app.services.search.location_resolver.LocationResolver", DummyResolver
     )
 
-    pre_data = nl_service._run_pre_openai_burst(
+    pre_data = preflight.run_pre_openai_burst_for_service(nl_service,
         "piano in nyc",
         parsed_query=parsed,
         user_id=None,
@@ -1821,7 +1898,7 @@ async def test_resolve_location_openai_missing_region_lookup_with_normalized(nl_
     timer = PipelineTimer()
     tier5_task = asyncio.create_task(asyncio.sleep(0))
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+    result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
         "Queens",
         region_lookup=None,
         fuzzy_score=None,
@@ -1872,15 +1949,15 @@ async def test_resolve_location_openai_embedding_candidates_handle_missing_and_a
         {"region_id": "r3", "region_name": "Gamma", "borough": None, "similarity": 0.2},
     ]
     with patch(
-        "app.services.search.nl_search_service.LocationEmbeddingService.build_candidates_from_embeddings",
+        "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
         side_effect=[embedding_candidates, llm_embedding_candidates],
     ):
         with patch(
-            "app.services.search.nl_search_service.LocationEmbeddingService.pick_best_or_ambiguous",
+            "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
             return_value=(None, ambiguous),
         ):
             timer = PipelineTimer()
-            result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+            result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
                 "Alpha",
                 region_lookup=region_lookup,
                 fuzzy_score=None,
@@ -1900,7 +1977,7 @@ async def test_resolve_location_openai_skips_tier4_when_no_embeddings(nl_service
     region_lookup = RegionLookup(region_names=["Queens"], by_name={}, by_id={}, embeddings=[])
     timer = PipelineTimer()
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+    result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
         "Queens",
         region_lookup=region_lookup,
         fuzzy_score=None,
@@ -1923,7 +2000,7 @@ async def test_resolve_location_openai_budget_skips_tier5_task(nl_service):
     budget = RequestBudget(total_ms=1)
     tier5_task = asyncio.create_task(asyncio.sleep(0))
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+    result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
         "Queens",
         region_lookup=region_lookup,
         fuzzy_score=None,
@@ -1949,7 +2026,7 @@ async def test_resolve_location_openai_disabled_tier5_consumes_task(nl_service):
     timer = PipelineTimer()
     tier5_task = asyncio.create_task(asyncio.sleep(0))
 
-    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+    result, llm_cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
         "Queens",
         region_lookup=region_lookup,
         fuzzy_score=None,
@@ -1981,7 +2058,7 @@ async def test_resolve_location_openai_tier5_task_success(nl_service):
     llm_cache = LocationLLMCache(normalized="queens", confidence=0.9, region_ids=["r1"])
     tier5_task = asyncio.create_task(asyncio.sleep(0, result=(resolved, llm_cache, None)))
 
-    result, cache, unresolved = await nl_service._resolve_location_openai(
+    result, cache, unresolved = await location.resolve_location_openai_for_service(nl_service,
         "Queens",
         region_lookup=region_lookup,
         fuzzy_score=None,
@@ -2010,11 +2087,11 @@ async def test_parse_query_caches_hybrid_result(nl_service):
     nl_service.search_cache.cache_parsed_query = AsyncMock(return_value=True)
 
     with patch(
-        "app.services.search.nl_search_service.hybrid_parse",
+        "app.services.search.llm_parser.hybrid_parse",
         new=AsyncMock(return_value=parsed),
     ):
         metrics = SearchMetrics()
-        result = await nl_service._parse_query("piano lessons", metrics)
+        result = await preflight.parse_query(nl_service, "piano lessons", metrics)
 
     assert result == parsed
     nl_service.search_cache.cache_parsed_query.assert_called_once()
@@ -2037,7 +2114,7 @@ def test_transform_instructor_results_skips_empty_services(nl_service):
         }
     ]
 
-    assert nl_service._transform_instructor_results(raw_results, parsed) == []
+    assert hydration.transform_instructor_results_for_service(nl_service, raw_results, parsed) == []
 
 
 def test_build_search_diagnostics_includes_candidate_regions(nl_service):
@@ -2069,7 +2146,7 @@ def test_build_search_diagnostics_includes_candidate_regions(nl_service):
     pre_data = _make_pre_data(parsed, region_lookup=None)
     post_data = _make_post_data()
 
-    diagnostics = nl_service._build_search_diagnostics(
+    diagnostics = response_mod.build_search_diagnostics(
         timer=timer,
         budget=None,
         parsed_query=parsed,
@@ -2097,7 +2174,7 @@ def test_format_location_resolved_handles_empty_candidates(nl_service):
         ],
     )
 
-    assert nl_service._format_location_resolved(location_resolution) is None
+    assert response_mod.format_location_resolved(location_resolution) is None
 
 
 def test_format_location_resolved_handles_parentheses(nl_service):
@@ -2109,7 +2186,7 @@ def test_format_location_resolved_handles_parentheses(nl_service):
         ],
     )
 
-    assert nl_service._format_location_resolved(location_resolution) == "Astoria (North, Queens)"
+    assert response_mod.format_location_resolved(location_resolution) == "Astoria (North, Queens)"
 
 
 def test_generate_soft_filter_message_availability_date(nl_service):
@@ -2119,7 +2196,7 @@ def test_generate_soft_filter_message_availability_date(nl_service):
         parsing_mode="regex",
         date=date(2025, 1, 1),
     )
-    message = nl_service._generate_soft_filter_message(
+    message = response_mod.generate_soft_filter_message(
         parsed,
         {"after_location": 1, "after_availability": 0, "after_price": 1},
         None,
@@ -2218,12 +2295,12 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
     distance_meters = {"inst_1": 1000.0, "inst_2": 2000.0}
 
     with patch(
-        "app.services.search.nl_search_service.asyncio.to_thread",
+        "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(
             return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
-        results = await nl_service._hydrate_instructor_results(
+        results = await hydration.hydrate_instructor_results_for_service(nl_service,
             ranked,
             limit=1,
             location_resolution=location_resolution,
@@ -2267,11 +2344,11 @@ async def test_hydrate_instructor_results_raises_when_hydration_rows_missing(nl_
         return next(thread_results)
 
     with patch(
-        "app.services.search.nl_search_service.asyncio.to_thread",
+        "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(side_effect=_to_thread),
     ):
         with pytest.raises(RuntimeError, match="Instructor hydration returned no rows"):
-            await nl_service._hydrate_instructor_results(
+            await hydration.hydrate_instructor_results_for_service(nl_service,
                 ranked,
                 limit=1,
                 location_resolution=ResolvedLocation(region_id="region-1"),
@@ -2360,10 +2437,10 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
         )
 
     with patch(
-        "app.services.search.nl_search_service.asyncio.to_thread",
+        "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(side_effect=_to_thread),
     ):
-        results = await nl_service._hydrate_instructor_results(
+        results = await hydration.hydrate_instructor_results_for_service(nl_service,
             ranked,
             limit=2,
             location_resolution=location_resolution,
@@ -2402,17 +2479,15 @@ async def test_search_llm_parse_cancels_embedding_task_on_failure(nl_service):
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=cached_parsed)
     nl_service.search_cache.cache_parsed_query = AsyncMock(side_effect=RuntimeError("cache"))
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._embed_query_with_timeout = AsyncMock(
-        side_effect=[RuntimeError("embed"), (None, 0, None)]
-    )
-
-    with patch("app.services.search.llm_parser.LLMParser") as mock_parser:
-        mock_parser.return_value.parse = AsyncMock(return_value=llm_parsed)
-        with patch("app.services.search.nl_search_service.record_search_metrics"):
-            response = await nl_service.search("query", budget_ms=500)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        embed_side_effect=[RuntimeError("embed"), (None, 0, None)],
+    ):
+        with patch("app.services.search.llm_parser.LLMParser") as mock_parser:
+            mock_parser.return_value.parse = AsyncMock(return_value=llm_parsed)
+            with patch("app.services.search.metrics.record_search_metrics"):
+                response = await nl_service.search("query", budget_ms=500)
 
     assert response.results == []
 
@@ -2431,24 +2506,24 @@ async def test_search_embedding_task_exception_records_error(nl_service, monkeyp
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._embed_query_with_timeout = AsyncMock(side_effect=RuntimeError("embed"))
-
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.RequestBudget.is_over_budget",
+        "app.services.search.request_budget.RequestBudget.is_over_budget",
         property(lambda self: True),
     )
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.RequestBudget.is_exhausted",
+        "app.services.search.request_budget.RequestBudget.is_exhausted",
         lambda self: True,
     )
-    monkeypatch.setattr("app.services.search.nl_search_service._PERF_LOG_ENABLED", True)
-    monkeypatch.setattr("app.services.search.nl_search_service._PERF_LOG_SLOW_MS", 0)
+    monkeypatch.setattr("app.services.search.nl_pipeline.runtime._PERF_LOG_ENABLED", True)
+    monkeypatch.setattr("app.services.search.nl_pipeline.runtime._PERF_LOG_SLOW_MS", 0)
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        embed_side_effect=RuntimeError("embed"),
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
 
     assert response.results == []
     assert response.meta.diagnostics is not None
@@ -2468,13 +2543,13 @@ async def test_search_embedding_timeout_records_timeout(nl_service):
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._embed_query_with_timeout = AsyncMock(return_value=(None, 1, "embedding_timeout"))
-
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        embed_result=(None, 1, "embedding_timeout"),
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
 
     assert response.results == []
 
@@ -2497,13 +2572,14 @@ async def test_search_cancels_embedding_task_when_skip_vector(nl_service):
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._embed_query_with_timeout = AsyncMock(side_effect=_slow_embed)
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=500)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        embed_side_effect=_slow_embed,
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=500)
 
     assert response.results == []
 
@@ -2526,13 +2602,14 @@ async def test_search_no_embeddings_clears_degradation(nl_service):
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._embed_query_with_timeout = AsyncMock(side_effect=_slow_embed)
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        embed_side_effect=_slow_embed,
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
 
     assert response.results == []
 
@@ -2552,19 +2629,20 @@ async def test_search_force_skip_embedding_and_budget_skips_location(nl_service)
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._resolve_location_openai = AsyncMock(return_value=(None, None, None))
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search(
-            "query",
-            budget_ms=1,
-            include_diagnostics=True,
-            force_skip_embedding=True,
-            force_skip_tier5=True,
-        )
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        location_stage_result=(None, None, None),
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search(
+                "query",
+                budget_ms=1,
+                include_diagnostics=True,
+                force_skip_embedding=True,
+                force_skip_tier5=True,
+            )
 
     assert response.results == []
 
@@ -2583,12 +2661,10 @@ async def test_search_budget_skips_vector_when_insufficient(nl_service):
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=1, include_diagnostics=True)
+    with _patch_search_pipeline(pre_data=pre_data, post_data=post_data):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=1, include_diagnostics=True)
 
     assert response.results == []
 
@@ -2610,31 +2686,30 @@ async def test_search_location_resolution_tier_parse_error(nl_service):
     nl_service.search_cache.get_cached_response = AsyncMock(return_value=None)
     nl_service.search_cache.get_cached_parsed_query = AsyncMock(return_value=None)
     nl_service.search_cache.cache_response = AsyncMock(return_value=True)
-    nl_service._run_pre_openai_burst = MagicMock(return_value=pre_data)
-    nl_service._run_post_openai_burst = MagicMock(return_value=post_data)
-    nl_service._hydrate_instructor_results = AsyncMock(return_value=[])
-    nl_service._resolve_location_openai = AsyncMock(
-        return_value=(location_resolution, None, None)
-    )
 
-    with patch("app.services.search.nl_search_service.record_search_metrics"):
-        response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
+    with _patch_search_pipeline(
+        pre_data=pre_data,
+        post_data=post_data,
+        location_stage_result=(location_resolution, None, None),
+    ):
+        with patch("app.services.search.metrics.record_search_metrics"):
+            response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
 
     assert response.results == []
 
 
 def test_filter_normalization_and_content_filter_construction(nl_service):
-    assert nl_service._normalize_filter_values(["  Beginner ", "BEGINNER", "", "advanced"]) == [
+    assert preflight.normalize_filter_values(["  Beginner ", "BEGINNER", "", "advanced"]) == [
         "beginner",
         "advanced",
     ]
 
-    normalized = nl_service._normalize_taxonomy_filter_selections(
+    normalized = preflight.normalize_taxonomy_filter_selections(
         {" Level ": ["Beginner", "beginner"], "": ["x"], "instrument": []}
     )
     assert normalized == {"level": ["beginner"]}
 
-    available = nl_service._build_available_content_filters(
+    available = taxonomy.build_available_content_filters(
         [
             {
                 "filter_key": "level",
@@ -2665,11 +2740,11 @@ def test_load_subcategory_filter_metadata_caches_on_miss(monkeypatch, nl_service
         cache_state[key] = value
 
     monkeypatch.setattr(
-        "app.services.search.nl_search_service._get_cached_subcategory_filter_value",
+        "app.services.search.nl_pipeline.runtime._get_cached_subcategory_filter_value",
         _get_cached,
     )
     monkeypatch.setattr(
-        "app.services.search.nl_search_service._set_cached_subcategory_filter_value",
+        "app.services.search.nl_pipeline.runtime._set_cached_subcategory_filter_value",
         _set_cached,
     )
 
@@ -2677,7 +2752,7 @@ def test_load_subcategory_filter_metadata_caches_on_miss(monkeypatch, nl_service
     taxonomy_repo.get_filters_for_subcategory.return_value = [{"filter_key": "level"}]
     taxonomy_repo.get_subcategory_name.return_value = "Piano"
 
-    filters, name = nl_service._load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
+    filters, name = taxonomy.load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
     assert filters == [{"filter_key": "level"}]
     assert name == "Piano"
     taxonomy_repo.get_filters_for_subcategory.assert_called_once_with("sub_1")
@@ -2685,7 +2760,7 @@ def test_load_subcategory_filter_metadata_caches_on_miss(monkeypatch, nl_service
 
     taxonomy_repo.get_filters_for_subcategory.reset_mock()
     taxonomy_repo.get_subcategory_name.reset_mock()
-    filters_cached, name_cached = nl_service._load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
+    filters_cached, name_cached = taxonomy.load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
     assert filters_cached == filters
     assert name_cached == name
     taxonomy_repo.get_filters_for_subcategory.assert_not_called()
@@ -2762,12 +2837,12 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
     ]
 
     with patch(
-        "app.services.search.nl_search_service.asyncio.to_thread",
+        "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(
             return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
-        results = await nl_service._hydrate_instructor_results(
+        results = await hydration.hydrate_instructor_results_for_service(nl_service,
             ranked,
             limit=3,
             instructor_rows=instructor_rows,
@@ -2805,7 +2880,7 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
     )
 
     with patch(
-        "app.services.search.nl_search_service.asyncio.to_thread",
+        "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(
             side_effect=_hydrate_to_thread_side_effect(
                 format_prices=_format_price_map({"svc_1": 50.0}),
@@ -2828,7 +2903,7 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
             )
         ),
     ):
-        results = await nl_service._hydrate_instructor_results(
+        results = await hydration.hydrate_instructor_results_for_service(nl_service,
             ranked,
             limit=1,
             location_resolution=location_resolution,
@@ -2847,7 +2922,7 @@ def test_location_resolved_format_and_soft_filter_time_message(nl_service):
             {"region_name": "Brooklyn Heights"},
         ],
     )
-    formatted = nl_service._format_location_resolved(location_resolution)
+    formatted = response_mod.format_location_resolved(location_resolution)
     assert formatted == "Upper East Side, Brooklyn Heights"
 
     parsed = ParsedQuery(
@@ -2856,7 +2931,7 @@ def test_location_resolved_format_and_soft_filter_time_message(nl_service):
         parsing_mode="regex",
         time_after=dtime(18, 0),
     )
-    message = nl_service._generate_soft_filter_message(
+    message = response_mod.generate_soft_filter_message(
         parsed,
         {"after_location": 1, "after_availability": 0, "after_price": 1},
         None,
@@ -2868,7 +2943,7 @@ def test_location_resolved_format_and_soft_filter_time_message(nl_service):
 
 
 def test_set_cached_subcategory_filter_value_evicts_expired_entries(monkeypatch):
-    import app.services.search.nl_search_service as nl_module
+    from app.services.search.nl_pipeline import runtime as nl_module
 
     with nl_module._subcategory_filter_cache_lock:
         nl_module._subcategory_filter_cache.clear()
@@ -2889,18 +2964,22 @@ def test_set_cached_subcategory_filter_value_evicts_expired_entries(monkeypatch)
 async def test_resolve_location_openai_direct_llm_timeout_records_timeout(nl_service):
     region_lookup = RegionLookup(region_names=["Queens"], by_name={}, by_id={}, embeddings=[])
     diagnostics = PipelineTimer()
-    nl_service._resolve_location_llm = AsyncMock(side_effect=asyncio.TimeoutError())
-
-    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
-        "queens",
-        region_lookup=region_lookup,
-        fuzzy_score=0.95,
-        original_query="queens lessons",
-        llm_candidates=["Queens"],
-        allow_tier4=False,
-        allow_tier5=True,
-        diagnostics=diagnostics,
-    )
+    with patch.object(
+        location,
+        "resolve_location_llm_for_service",
+        AsyncMock(side_effect=asyncio.TimeoutError()),
+    ):
+        result, llm_cache, unresolved = await location.resolve_location_openai_for_service(
+            nl_service,
+            "queens",
+            region_lookup=region_lookup,
+            fuzzy_score=0.95,
+            original_query="queens lessons",
+            llm_candidates=["Queens"],
+            allow_tier4=False,
+            allow_tier5=True,
+            diagnostics=diagnostics,
+        )
 
     assert llm_cache is None
     assert unresolved is not None
@@ -2960,9 +3039,9 @@ def test_run_post_openai_burst_handles_taxonomy_metadata_failure(monkeypatch):
     retriever_repo = MagicMock()
     retriever_repo.get_instructor_cards.return_value = []
 
-    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr("app.database.get_db_session", _db_ctx)
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.SearchBatchRepository",
+        "app.repositories.search_batch_repository.SearchBatchRepository",
         lambda *_args, **_kwargs: MagicMock(),
     )
     monkeypatch.setattr(
@@ -2985,27 +3064,23 @@ def test_run_post_openai_burst_handles_taxonomy_metadata_failure(monkeypatch):
         "app.services.search.location_resolver.LocationResolver",
         lambda *_args, **_kwargs: MagicMock(repository=MagicMock()),
     )
-    monkeypatch.setattr("app.services.search.nl_search_service.FilterService", _FakeFilterService)
-    monkeypatch.setattr("app.services.search.nl_search_service.RankingService", _FakeRankingService)
+    monkeypatch.setattr("app.services.search.filter_service.FilterService", _FakeFilterService)
+    monkeypatch.setattr("app.services.search.ranking_service.RankingService", _FakeRankingService)
     monkeypatch.setattr(service.retriever, "fuse_results", MagicMock(return_value=[candidate]))
-    monkeypatch.setattr(
-        service,
-        "_resolve_effective_subcategory_id",
-        lambda *_args, **_kwargs: "sub_1",
-    )
-
-    post_data = service._run_post_openai_burst(
-        pre_data,
-        parsed_query,
-        query_embedding=None,
-        location_resolution=None,
-        location_llm_cache=None,
-        unresolved_info=None,
-        user_location=None,
-        limit=10,
-        taxonomy_filter_selections={"level": ["beginner"]},
-        subcategory_id=None,
-    )
+    with patch.object(taxonomy, "resolve_effective_subcategory_id", return_value="sub_1"):
+        post_data = postflight.run_post_openai_burst_for_service(
+            service,
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=10,
+            taxonomy_filter_selections={"level": ["beginner"]},
+            subcategory_id=None,
+        )
 
     assert post_data.available_content_filters == []
     assert post_data.effective_subcategory_id == "sub_1"
@@ -3059,9 +3134,9 @@ def test_run_post_openai_burst_handles_empty_and_failing_taxonomy_matches(monkey
     taxonomy_repo.get_filters_for_subcategory.return_value = []
     taxonomy_repo.get_subcategory_name.return_value = "Voice"
 
-    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr("app.database.get_db_session", _db_ctx)
     monkeypatch.setattr(
-        "app.services.search.nl_search_service.SearchBatchRepository",
+        "app.repositories.search_batch_repository.SearchBatchRepository",
         lambda *_args, **_kwargs: MagicMock(),
     )
     monkeypatch.setattr(
@@ -3084,43 +3159,40 @@ def test_run_post_openai_burst_handles_empty_and_failing_taxonomy_matches(monkey
         "app.services.search.location_resolver.LocationResolver",
         lambda *_args, **_kwargs: MagicMock(repository=MagicMock()),
     )
-    monkeypatch.setattr("app.services.search.nl_search_service.FilterService", _FakeFilterService)
-    monkeypatch.setattr("app.services.search.nl_search_service.RankingService", _FakeRankingService)
+    monkeypatch.setattr("app.services.search.filter_service.FilterService", _FakeFilterService)
+    monkeypatch.setattr("app.services.search.ranking_service.RankingService", _FakeRankingService)
     monkeypatch.setattr(service.retriever, "fuse_results", MagicMock(return_value=[candidate]))
-    monkeypatch.setattr(
-        service,
-        "_resolve_effective_subcategory_id",
-        lambda *_args, **_kwargs: "sub_voice",
-    )
-
     taxonomy_repo.find_matching_service_ids.return_value = set()
-    empty_post_data = service._run_post_openai_burst(
-        pre_data,
-        parsed_query,
-        query_embedding=None,
-        location_resolution=None,
-        location_llm_cache=None,
-        unresolved_info=None,
-        user_location=None,
-        limit=10,
-        taxonomy_filter_selections={"level": ["advanced"]},
-        subcategory_id="sub_voice",
-    )
-    assert empty_post_data.retrieval_candidates == []
+    with patch.object(taxonomy, "resolve_effective_subcategory_id", return_value="sub_voice"):
+        empty_post_data = postflight.run_post_openai_burst_for_service(
+            service,
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=10,
+            taxonomy_filter_selections={"level": ["advanced"]},
+            subcategory_id="sub_voice",
+        )
+        assert empty_post_data.retrieval_candidates == []
 
-    taxonomy_repo.find_matching_service_ids.side_effect = RuntimeError("taxonomy matching failed")
-    failed_post_data = service._run_post_openai_burst(
-        pre_data,
-        parsed_query,
-        query_embedding=None,
-        location_resolution=None,
-        location_llm_cache=None,
-        unresolved_info=None,
-        user_location=None,
-        limit=10,
-        taxonomy_filter_selections={"level": ["advanced"]},
-        subcategory_id="sub_voice",
-    )
+        taxonomy_repo.find_matching_service_ids.side_effect = RuntimeError("taxonomy matching failed")
+        failed_post_data = postflight.run_post_openai_burst_for_service(
+            service,
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=10,
+            taxonomy_filter_selections={"level": ["advanced"]},
+            subcategory_id="sub_voice",
+        )
     assert len(failed_post_data.retrieval_candidates) == 1
 
 
@@ -3176,7 +3248,7 @@ async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypa
         def get_instructor_min_distance_to_regions(self, _instructor_ids, _region_ids):
             return {"inst_distance": 250.0}
 
-    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr("app.database.get_db_session", _db_ctx)
     monkeypatch.setattr(
         "app.repositories.retriever_repository.RetrieverRepository",
         _RetrieverRepo,
@@ -3189,7 +3261,7 @@ async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypa
         tier=ResolutionTier.EXACT,
         confidence=1.0,
     )
-    results = await nl_service._hydrate_instructor_results(
+    results = await hydration.hydrate_instructor_results_for_service(nl_service,
         ranked,
         limit=1,
         location_resolution=location_resolution,
