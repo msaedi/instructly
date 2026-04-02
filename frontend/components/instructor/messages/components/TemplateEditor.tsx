@@ -121,7 +121,7 @@ export function TemplateEditor({
 
   return (
     <div className="insta-surface-card overflow-hidden">
-      <div className="flex h-[600px]">
+      <div className="flex h-[550px]" data-testid="template-editor-panel">
         {/* Template list */}
         <div className="w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">

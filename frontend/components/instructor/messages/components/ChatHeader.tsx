@@ -10,7 +10,6 @@ import { MoreVertical, X, Calendar } from 'lucide-react';
 import type { ConversationEntry, ConversationBooking } from '../types';
 import { ConversationBookingCard } from './ConversationBookingCard';
 import { formatBookingInfo, getBookingStatus, getBookingStatusLabel } from '../utils';
-import { shortenBookingId } from '@/lib/bookingId';
 
 export type ChatHeaderProps = {
   isComposeView: boolean;
@@ -173,7 +172,7 @@ export function ChatHeader({
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-700">
               <Calendar className="w-3 h-3" />
               <span className="truncate max-w-[220px]">
-                {formatBookingInfo(primaryBooking)} · #{shortenBookingId(primaryBooking.id)}
+                {formatBookingInfo(primaryBooking)}
               </span>
               {remainingBookingCount > 0 && (
                 <span className="text-purple-500">+{remainingBookingCount} more</span>
@@ -194,7 +193,7 @@ export function ChatHeader({
               {showThreadMenu && (
                 <div
                   role="menu"
-                  className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-40"
+                  className="absolute right-0 z-40 mt-2 max-h-[400px] w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                 >
                   <div className="p-3">
                     {primaryBooking ? (
@@ -208,7 +207,7 @@ export function ChatHeader({
                         />
 
                         {/* Expand/collapse for more bookings */}
-                        {remainingBookingCount > 0 && (
+                        {remainingBookingCount > 0 && !showUpcomingBookings && (
                           hasExpandableBookingDetails ? (
                             <button
                               type="button"

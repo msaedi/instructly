@@ -1,6 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
 import { ConversationBookingCard } from '../ConversationBookingCard';
-import { shortenBookingId } from '@/lib/bookingId';
 
 describe('ConversationBookingCard', () => {
   const booking = {
@@ -11,7 +10,7 @@ describe('ConversationBookingCard', () => {
     status: 'CONFIRMED',
   };
 
-  it('renders the primary booking card with the highlighted treatment and shortened id', () => {
+  it('renders the primary booking card with the highlighted treatment', () => {
     render(
       <ConversationBookingCard
         booking={booking}
@@ -26,7 +25,7 @@ describe('ConversationBookingCard', () => {
     expect(card).toHaveClass('bg-(--color-brand-lavender)');
     expect(card).toHaveAttribute('href', `/instructor/bookings/${booking.id}`);
     expect(within(card).getByText('Confirmed')).toBeInTheDocument();
-    expect(within(card).getByText(`#${shortenBookingId(booking.id)}`)).toBeInTheDocument();
+    expect(within(card).queryByText(/#/)).not.toBeInTheDocument();
   });
 
   it('renders completed bookings with the gray surface variant', () => {

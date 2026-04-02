@@ -241,6 +241,42 @@ describe('useMessageThread', () => {
     });
   });
 
+  describe('clearThreadMessages', () => {
+    it('clears the visible thread messages without mutating compose flow behavior', async () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [makeConversation()],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv-001',
+          messageText: 'Visible thread message',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [makeConversation()],
+          getPrimaryBookingId: () => 'bk-001',
+          onSuccess: jest.fn(),
+        });
+      });
+
+      expect(result.current.threadMessages.length).toBeGreaterThan(0);
+
+      act(() => {
+        result.current.clearThreadMessages();
+      });
+
+      expect(result.current.threadMessages).toEqual([]);
+    });
+  });
+
   // -------------------------------------------------------------------
   // handleArchiveConversation
   // -------------------------------------------------------------------

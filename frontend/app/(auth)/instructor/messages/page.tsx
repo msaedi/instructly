@@ -150,6 +150,7 @@ export function MessagesPanelContent({
     threadMessages,
     archivedMessagesByThread,
     trashMessagesByThread,
+    clearThreadMessages,
     loadThreadMessages,
     handleSSEMessage,
     handleSendMessage: sendMessage,
@@ -620,10 +621,15 @@ export function MessagesPanelContent({
 
   // Update thread messages on display mode change
   useEffect(() => {
-    if (selectedChat && selectedChat !== COMPOSE_THREAD_ID) {
+    if (selectedChat === COMPOSE_THREAD_ID) {
+      clearThreadMessages();
+      return;
+    }
+
+    if (selectedChat) {
       setThreadMessagesForDisplay(selectedChat, messageDisplay);
     }
-  }, [messageDisplay, selectedChat, setThreadMessagesForDisplay]);
+  }, [messageDisplay, selectedChat, clearThreadMessages, setThreadMessagesForDisplay]);
 
   // Auto-scroll to bottom when messages change OR when conversation changes
   useEffect(() => {
@@ -845,14 +851,14 @@ export function MessagesPanelContent({
                     {/* Messages */}
                     <div
                       ref={messagesContainerRef}
-                      className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+                      className="min-h-[400px] flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+                      data-testid="messages-thread-container"
                     >
-                      {isComposeView && threadMessages.length === 0 && (
+                      {isComposeView ? (
                         <div className="flex items-center justify-center py-12">
                           <p className="text-sm text-gray-500 dark:text-gray-400">Draft your message and choose who to send it to.</p>
                         </div>
-                      )}
-                      {normalizedThreadMessages.map((message) => {
+                      ) : normalizedThreadMessages.map((message) => {
                         const raw = message._raw as MessageWithAttachments | undefined;
                         const canModify = messageDisplay === 'inbox' && raw ? canModifyMessage(raw) : false;
 

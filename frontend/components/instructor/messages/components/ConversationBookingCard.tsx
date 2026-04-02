@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { ConversationBooking } from '../types';
 import { formatBookingDateTime } from '../utils';
-import { shortenBookingId } from '@/lib/bookingId';
 import { getBookingStatusBadgeClasses } from '@/lib/bookingStatus';
 
 export type ConversationBookingCardProps = {
@@ -44,9 +43,6 @@ export function ConversationBookingCard({
       </div>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {formatBookingDateTime(booking)}
-      </p>
-      <p className="mt-2 text-[10px] font-mono uppercase tracking-[0.18em] text-gray-400 dark:text-gray-300">
-        #{shortenBookingId(booking.id)}
       </p>
     </Link>
   );

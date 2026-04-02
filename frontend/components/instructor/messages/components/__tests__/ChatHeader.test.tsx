@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ChatHeader, type ChatHeaderProps } from '../ChatHeader';
 import type { ConversationEntry } from '../../types';
-import { shortenBookingId } from '@/lib/bookingId';
 
 describe('ChatHeader', () => {
   const mockConversation = {
@@ -119,7 +118,9 @@ describe('ChatHeader', () => {
       const menuButton = screen.getByRole('button', { expanded: false });
       fireEvent.click(menuButton);
 
-      expect(screen.getByRole('menu')).toBeInTheDocument();
+      const menu = screen.getByRole('menu');
+      expect(menu).toBeInTheDocument();
+      expect(menu).toHaveClass('max-h-[400px]', 'overflow-y-auto');
       expect(screen.queryByText('Booking Info')).not.toBeInTheDocument();
     });
 
@@ -160,7 +161,6 @@ describe('ChatHeader', () => {
       expect(primaryCard).toHaveClass('bg-(--color-brand-lavender)');
       expect(within(primaryCard).getByText('Piano Lesson')).toBeInTheDocument();
       expect(within(primaryCard).getByText('Confirmed')).toHaveClass('bg-emerald-50', 'text-emerald-700');
-      expect(within(primaryCard).getByText(`#${shortenBookingId('01KKQKWD9V9QF0J2T0AB3124')}`)).toBeInTheDocument();
       expect(screen.queryByText('Next booking')).not.toBeInTheDocument();
       expect(screen.queryByText('Upcoming')).not.toBeInTheDocument();
       expect(screen.queryByText('01KKQKWD9V9QF0J2T0AB3124')).not.toBeInTheDocument();
@@ -220,6 +220,7 @@ describe('ChatHeader', () => {
       fireEvent.click(expandButton);
 
       expect(screen.getByText('Guitar Lesson')).toBeInTheDocument();
+      expect(screen.queryByText(/\+1 more booking$/)).not.toBeInTheDocument();
     });
 
     it('links booking cards to the booking detail page', () => {
@@ -272,9 +273,6 @@ describe('ChatHeader', () => {
       const primaryPastCard = screen.getByTestId('chat-header-booking-card-01KZZZZZ9V9QF0J2T0AB3124');
       expect(primaryPastCard).toHaveClass('bg-gray-100');
       expect(within(primaryPastCard).getByText('Completed')).toHaveClass('bg-blue-50', 'text-blue-700');
-      expect(
-        within(primaryPastCard).getByText(`#${shortenBookingId('01KZZZZZ9V9QF0J2T0AB3124')}`)
-      ).toBeInTheDocument();
 
       fireEvent.click(screen.getByText(/\+1 more booking$/));
       expect(screen.getByTestId('chat-header-booking-card-01KYYYYY1234567890ABCDXYZ')).toBeInTheDocument();

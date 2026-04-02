@@ -55,6 +55,12 @@ describe('TemplateEditor', () => {
   });
 
   describe('template list', () => {
+    it('uses the tuned split-panel height reserved for the templates surface', () => {
+      render(<TemplateEditor {...defaultProps} />);
+
+      expect(screen.getByTestId('template-editor-panel')).toHaveClass('h-[550px]');
+    });
+
     it('renders all templates in the list', () => {
       render(<TemplateEditor {...defaultProps} />);
 

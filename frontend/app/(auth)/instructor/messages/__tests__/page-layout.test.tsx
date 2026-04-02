@@ -60,6 +60,7 @@ jest.mock('@/components/instructor/messages/hooks', () => ({
     threadMessages: [],
     archivedMessagesByThread: {},
     trashMessagesByThread: {},
+    clearThreadMessages: jest.fn(),
     loadThreadMessages: jest.fn(),
     handleSSEMessage: jest.fn(),
     handleSendMessage: jest.fn(),
@@ -193,7 +194,7 @@ describe('MessagesPage layout', () => {
     expect(screen.getByText('Template editor')).toBeInTheDocument();
   });
 
-  it('uses the reduced whitespace inbox shell classes', () => {
+  it('uses the reduced whitespace inbox shell classes and reserves message area height', async () => {
     render(
       <EmbeddedContext.Provider value={true}>
         <MessagesPage />
@@ -202,6 +203,8 @@ describe('MessagesPage layout', () => {
 
     const inboxShell = screen.getByTestId('messages-inbox-shell');
     expect(inboxShell).toHaveClass('min-h-0', 'flex-1');
-    expect(inboxShell).not.toHaveClass('min-h-[680px]');
+
+    const threadContainer = await screen.findByTestId('messages-thread-container');
+    expect(threadContainer).toHaveClass('min-h-[400px]', 'flex-1');
   });
 });

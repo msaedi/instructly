@@ -41,6 +41,7 @@ export type UseMessageThreadResult = {
   messagesByThread: Record<string, MessageWithAttachments[]>;
   archivedMessagesByThread: Record<string, MessageWithAttachments[]>;
   trashMessagesByThread: Record<string, MessageWithAttachments[]>;
+  clearThreadMessages: () => void;
   loadThreadMessages: (
     selectedChat: string,
     activeConversation: ConversationEntry | null,
@@ -239,6 +240,10 @@ export function useMessageThread({
     } else {
       setThreadMessages(messagesByThreadRef.current[selectedChat] ?? []);
     }
+  }, []);
+
+  const clearThreadMessages = useCallback(() => {
+    setThreadMessages([]);
   }, []);
 
   // Load thread messages from API
@@ -649,6 +654,7 @@ export function useMessageThread({
     messagesByThread,
     archivedMessagesByThread,
     trashMessagesByThread,
+    clearThreadMessages,
     loadThreadMessages,
     handleSSEMessage,
     handleSendMessage,
