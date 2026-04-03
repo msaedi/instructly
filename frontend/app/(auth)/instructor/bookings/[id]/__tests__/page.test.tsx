@@ -265,6 +265,24 @@ describe('Instructor Booking Details Page', () => {
     expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
   });
 
+  it('shows In Progress while a confirmed lesson is live', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:40:00Z'));
+    mockBookingData({
+      booking_start_utc: '2026-03-16T16:30:00Z',
+      booking_end_utc: '2026-03-16T17:15:00Z',
+      location_type: 'online',
+      location_address: null,
+      meeting_location: 'Online',
+      service_area: null,
+    });
+
+    render(<BookingDetailsPage />);
+
+    const badge = screen.getByText('In Progress');
+    expect(badge).toHaveClass('bg-purple-50', 'text-purple-700');
+    expect(screen.queryByText('Confirmed')).not.toBeInTheDocument();
+  });
+
   it('opens standard messaging from the Message button without a prefilled message', async () => {
     mockBookingData();
 
@@ -357,6 +375,7 @@ describe('Instructor Booking Details Page', () => {
 
     render(<BookingDetailsPage />);
 
+    expect(screen.queryByText('In Progress')).not.toBeInTheDocument();
     expect(screen.getByTestId('booking-action-row')).toBeInTheDocument();
     expect(screen.getByText('Action required · Did the lesson occur?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass(

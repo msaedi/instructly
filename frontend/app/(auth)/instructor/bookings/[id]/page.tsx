@@ -13,9 +13,12 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useCountdown } from '@/hooks/useCountdown';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
 import { formatBookingLongDate } from '@/features/bookings/components/bookingDisplay';
+import {
+  getInstructorBookingDisplayStatus,
+  getInstructorBookingEndTime,
+} from '@/features/bookings/components/instructorBookingDisplayStatus';
 import { extractUnknownErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
-import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 import type { BookingResponse, InstructorBookingResponse } from '@/features/shared/api/types';
 import { InstructorDashboardShell } from '@/components/dashboard/InstructorDashboardShell';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
@@ -55,25 +58,11 @@ function parseOptionalDate(value?: string | null): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getBookingEndTime(booking: InstructorBookingDetail): Date | null {
-  const bookingEndUtc = parseOptionalDate(booking.booking_end_utc);
-  if (bookingEndUtc) {
-    return bookingEndUtc;
-  }
-
-  const { end } = resolveBookingDateTimes(booking);
-  if (end === null || Number.isNaN(end.getTime())) {
-    return null;
-  }
-
-  return end;
-}
-
 function hasNoShowWindowPassed(
   booking: InstructorBookingDetail,
   now: Date = new Date()
 ): boolean {
-  const bookingEndTime = getBookingEndTime(booking);
+  const bookingEndTime = getInstructorBookingEndTime(booking);
   if (bookingEndTime === null) {
     return false;
   }
@@ -211,9 +200,10 @@ export default function BookingDetailsPage() {
 
   const lessonDate = formatBookingLongDate(booking.booking_date, booking.start_time);
   const noShowStudentName = formatNoShowStudentName(booking.student);
-  const bookingEndTime = getBookingEndTime(booking);
+  const bookingEndTime = getInstructorBookingEndTime(booking);
   const joinOpensAt = parseOptionalDate(booking.join_opens_at);
   const joinClosesAt = parseOptionalDate(booking.join_closes_at);
+  const displayStatus = getInstructorBookingDisplayStatus(booking, now);
   const isPastLesson = bookingEndTime !== null && bookingEndTime < now;
   const isOnlineConfirmedBooking =
     booking.location_type === 'online' && booking.status === 'CONFIRMED';
@@ -261,6 +251,7 @@ export default function BookingDetailsPage() {
         <BookingsPageHeader />
         <InstructorBookingDetailView
           booking={booking}
+          displayStatus={displayStatus}
           onMessageStudent={handleMessageStudent}
           isMessagePending={isMessagePending}
           isPastLesson={isPastLesson}

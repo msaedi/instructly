@@ -1907,7 +1907,10 @@ class TestReportAutomatedNoShow:
                 booking_id="B1", no_show_type="student", reason="No video join"
             )
 
-    def test_successful_report(self):
+    @pytest.mark.parametrize("no_show_type", ["student", "instructor", "mutual"])
+    def test_successful_report_sets_booking_to_no_show_and_enqueues_outbox(
+        self, no_show_type: str
+    ):
         svc = _make_service()
         svc.transaction = MagicMock(
             return_value=MagicMock(
@@ -1915,6 +1918,7 @@ class TestReportAutomatedNoShow:
             )
         )
         booking = _fake_booking(status=BookingStatus.CONFIRMED.value)
+        booking.mark_no_show.side_effect = lambda: setattr(booking, "status", BookingStatus.NO_SHOW)
         svc.repository.get_booking_with_details.return_value = booking
         svc.log_operation = MagicMock()
 
@@ -1932,10 +1936,16 @@ class TestReportAutomatedNoShow:
         with patch("app.repositories.payment_repository.PaymentRepository") as mock_pr_cls:
             mock_pr_cls.return_value = MagicMock()
             result = svc.report_automated_no_show(
-                booking_id=booking.id, no_show_type="student", reason="No video join"
+                booking_id=booking.id, no_show_type=no_show_type, reason="No video join"
             )
 
         assert result["success"] is True
+        assert booking.status == BookingStatus.NO_SHOW
+        booking.mark_no_show.assert_called_once_with()
+        svc.event_outbox_repository.enqueue.assert_called_once()
+        enqueue_kwargs = svc.event_outbox_repository.enqueue.call_args.kwargs
+        assert enqueue_kwargs["event_type"] == "booking.no_show"
+        assert enqueue_kwargs["aggregate_id"] == booking.id
 
 
 @pytest.mark.unit

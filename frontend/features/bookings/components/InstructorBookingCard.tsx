@@ -5,15 +5,18 @@ import { Card } from '@/components/ui/card';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { formatBookingLocationLabel } from '@/lib/bookingLocation';
 import { formatStudentDisplayName } from '@/lib/studentName';
-import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 import { BookingStatusBadge } from './BookingStatusBadge';
 import {
   formatBookingCardDate,
   formatBookingTimeRange,
   formatDurationWithService,
 } from './bookingDisplay';
+import {
+  getInstructorBookingDisplayStatus,
+  getInstructorBookingEndTime,
+} from './instructorBookingDisplayStatus';
 
-export type InstructorBookingCardBooking = Pick<
+type InstructorBookingCardRequiredFields = Pick<
   InstructorBookingResponse,
   | 'id'
   | 'booking_date'
@@ -30,6 +33,13 @@ export type InstructorBookingCardBooking = Pick<
   | 'student'
 >;
 
+type InstructorBookingCardOptionalFields = Partial<
+  Pick<InstructorBookingResponse, 'lesson_timezone' | 'booking_start_utc'>
+>;
+
+export type InstructorBookingCardBooking =
+  InstructorBookingCardRequiredFields & InstructorBookingCardOptionalFields;
+
 type InstructorBookingCardProps = {
   booking: InstructorBookingCardBooking;
 };
@@ -43,29 +53,6 @@ const GENERIC_LOCATION_LABELS = new Set([
 
 function isGenericLocationLabel(value: string): boolean {
   return GENERIC_LOCATION_LABELS.has(value.trim().toLowerCase());
-}
-
-function parseOptionalDate(value?: string | null): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function getBookingEndTime(booking: InstructorBookingCardBooking): Date | null {
-  const bookingEndUtc = parseOptionalDate(booking.booking_end_utc);
-  if (bookingEndUtc) {
-    return bookingEndUtc;
-  }
-
-  const { end } = resolveBookingDateTimes(booking);
-  if (end === null || Number.isNaN(end.getTime())) {
-    return null;
-  }
-
-  return end;
 }
 
 export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
@@ -89,7 +76,8 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
     booking.location_type !== 'online' && resolvedMappableAddress
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(resolvedMappableAddress)}`
       : null;
-  const bookingEndTime = getBookingEndTime(booking);
+  const bookingEndTime = getInstructorBookingEndTime(booking);
+  const displayStatus = getInstructorBookingDisplayStatus(booking);
   const needsAction =
     booking.status === 'CONFIRMED' &&
     booking.no_show_reported_at == null &&
@@ -128,7 +116,7 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
                 {studentName}
               </p>
               <div className="flex shrink-0 flex-col items-end gap-2">
-                <BookingStatusBadge status={booking.status} className="shrink-0" />
+                <BookingStatusBadge status={displayStatus} className="shrink-0" />
                 {needsAction ? (
                   <span
                     data-testid="booking-action-needed-badge"

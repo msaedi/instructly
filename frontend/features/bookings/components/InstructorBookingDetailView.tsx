@@ -13,6 +13,7 @@ import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSessio
 import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from './BookingStatusBadge';
 import {
+  type BookingStatusDisplay,
   formatBookingCreatedDate,
   formatBookingLongDate,
   formatBookingTimeRange,
@@ -22,6 +23,7 @@ import {
 
 type InstructorBookingDetailViewProps = {
   booking: BookingResponse | InstructorBookingResponse;
+  displayStatus: BookingStatusDisplay;
   onMessageStudent: () => Promise<void> | void;
   isMessagePending: boolean;
   isPastLesson: boolean;
@@ -92,6 +94,7 @@ function DetailRow({
 export function InstructorBookingDetailView(props: InstructorBookingDetailViewProps) {
   const {
     booking,
+    displayStatus,
     onMessageStudent,
     isMessagePending,
     showJoinLesson,
@@ -139,7 +142,7 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
                 Created on {formatBookingCreatedDate(booking.created_at)}
               </p>
             </div>
-            <BookingStatusBadge status={booking.status} className="self-start" />
+            <BookingStatusBadge status={displayStatus} className="self-start" />
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { Card } from '@/components/ui/card';
 import { InstructorBookingCard } from './InstructorBookingCard';
 
-export type BookingListItem = Pick<
+type BookingListRequiredFields = Pick<
   InstructorBookingResponse,
   | 'id'
   | 'booking_date'
@@ -18,6 +18,12 @@ export type BookingListItem = Pick<
   | 'no_show_reported_at'
   | 'student'
 >;
+
+type BookingListOptionalFields = Partial<
+  Pick<InstructorBookingResponse, 'lesson_timezone' | 'booking_start_utc'>
+>;
+
+export type BookingListItem = BookingListRequiredFields & BookingListOptionalFields;
 
 type BookingListProps = {
   data: BookingListItem[];
