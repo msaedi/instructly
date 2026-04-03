@@ -46,7 +46,7 @@ class _Unset:
     """Sentinel for 'caller did not pass this argument'."""
 
 
-_BOOKING_TIMESTAMP_UNSET: Final = _Unset()
+_UNSET: Final = _Unset()
 
 
 class BookingStatus(str, Enum):
@@ -323,6 +323,7 @@ class Booking(Base):
     _ALLOWED_TRANSITIONS: dict[BookingStatus, set[BookingStatus]] = {
         BookingStatus.PENDING: {
             BookingStatus.CONFIRMED,
+            # Admin override — skip CONFIRMED for manual completion.
             BookingStatus.COMPLETED,
             BookingStatus.CANCELLED,
             BookingStatus.PAYMENT_FAILED,
@@ -333,14 +334,19 @@ class Booking(Base):
             BookingStatus.NO_SHOW,
         },
         BookingStatus.COMPLETED: {
+            # Admin refund — post-completion cancellation with refund.
             BookingStatus.CANCELLED,
+            # Admin correction — dispute resolution can reverse a completion.
             BookingStatus.NO_SHOW,
         },
         BookingStatus.CANCELLED: set(),
         BookingStatus.PAYMENT_FAILED: set(),
         BookingStatus.NO_SHOW: {
+            # No-show resolution — cancelled dispute restores original state.
             BookingStatus.CONFIRMED,
+            # No-show resolution — dispute upheld, lesson actually occurred.
             BookingStatus.COMPLETED,
+            # No-show resolution — admin cancels after no-show.
             BookingStatus.CANCELLED,
         },
     }
@@ -371,49 +377,45 @@ class Booking(Base):
             raise ValueError(f"Invalid booking status transition: {self.status} -> {target.value}")
         return target
 
-    def mark_confirmed(
-        self, *, confirmed_at: datetime | None | _Unset = _BOOKING_TIMESTAMP_UNSET
-    ) -> None:
+    def mark_confirmed(self, *, confirmed_at: datetime | None | _Unset = _UNSET) -> None:
         """Mark booking as confirmed."""
         self.assert_can_transition_to(BookingStatus.CONFIRMED)
         self.status = BookingStatus.CONFIRMED
-        if confirmed_at is _BOOKING_TIMESTAMP_UNSET:
+        if confirmed_at is _UNSET:
             if self.confirmed_at is None:
                 self.confirmed_at = datetime.now(timezone.utc)
         else:
             self.confirmed_at = cast(datetime | None, confirmed_at)
         logger.info("Booking %s marked as confirmed", self.id)
 
-    def mark_pending(
-        self, *, confirmed_at: datetime | None | _Unset = _BOOKING_TIMESTAMP_UNSET
-    ) -> None:
+    def mark_pending(self, *, confirmed_at: datetime | None | _Unset = _UNSET) -> None:
         """Mark booking as pending."""
         # Intentionally same-state-only: this is used to clear confirmed_at on
         # already-PENDING bookings during payment setup/retry flows.
         self.assert_can_transition_to(BookingStatus.PENDING)
         self.status = BookingStatus.PENDING
-        if confirmed_at is not _BOOKING_TIMESTAMP_UNSET:
+        if confirmed_at is not _UNSET:
             self.confirmed_at = cast(datetime | None, confirmed_at)
         logger.info("Booking %s marked as pending", self.id)
 
     def mark_cancelled(
         self,
         *,
-        cancelled_at: datetime | None | _Unset = _BOOKING_TIMESTAMP_UNSET,
-        cancelled_by_user_id: str | None | _Unset = _BOOKING_TIMESTAMP_UNSET,
-        reason: Optional[str] | _Unset = _BOOKING_TIMESTAMP_UNSET,
+        cancelled_at: datetime | None | _Unset = _UNSET,
+        cancelled_by_user_id: str | None | _Unset = _UNSET,
+        reason: Optional[str] | _Unset = _UNSET,
     ) -> None:
         """Mark booking as cancelled."""
         self.assert_can_transition_to(BookingStatus.CANCELLED)
         self.status = BookingStatus.CANCELLED
         self.cancelled_at = (
             datetime.now(timezone.utc)
-            if cancelled_at is _BOOKING_TIMESTAMP_UNSET
+            if cancelled_at is _UNSET
             else cast(datetime | None, cancelled_at)
         )
-        if cancelled_by_user_id is not _BOOKING_TIMESTAMP_UNSET:
+        if cancelled_by_user_id is not _UNSET:
             self.cancelled_by_id = cast(str | None, cancelled_by_user_id)
-        if reason is not _BOOKING_TIMESTAMP_UNSET:
+        if reason is not _UNSET:
             self.cancellation_reason = cast(Optional[str], reason)
         logger.info("Booking %s marked as cancelled", self.id)
 
@@ -424,15 +426,13 @@ class Booking(Base):
             reason=reason,
         )
 
-    def mark_completed(
-        self, *, completed_at: datetime | None | _Unset = _BOOKING_TIMESTAMP_UNSET
-    ) -> None:
+    def mark_completed(self, *, completed_at: datetime | None | _Unset = _UNSET) -> None:
         """Mark booking as completed."""
         self.assert_can_transition_to(BookingStatus.COMPLETED)
         self.status = BookingStatus.COMPLETED
         self.completed_at = (
             datetime.now(timezone.utc)
-            if completed_at is _BOOKING_TIMESTAMP_UNSET
+            if completed_at is _UNSET
             else cast(datetime | None, completed_at)
         )
         logger.info("Booking %s marked as completed", self.id)
@@ -444,15 +444,15 @@ class Booking(Base):
     def mark_no_show(
         self,
         *,
-        cancelled_at: datetime | None | _Unset = _BOOKING_TIMESTAMP_UNSET,
-        cancelled_by_user_id: str | None | _Unset = _BOOKING_TIMESTAMP_UNSET,
+        cancelled_at: datetime | None | _Unset = _UNSET,
+        cancelled_by_user_id: str | None | _Unset = _UNSET,
     ) -> None:
         """Mark booking as no-show."""
         self.assert_can_transition_to(BookingStatus.NO_SHOW)
         self.status = BookingStatus.NO_SHOW
-        if cancelled_at is not _BOOKING_TIMESTAMP_UNSET:
+        if cancelled_at is not _UNSET:
             self.cancelled_at = cast(datetime | None, cancelled_at)
-        if cancelled_by_user_id is not _BOOKING_TIMESTAMP_UNSET:
+        if cancelled_by_user_id is not _UNSET:
             self.cancelled_by_id = cast(str | None, cancelled_by_user_id)
         logger.info("Booking %s marked as no-show", self.id)
 
