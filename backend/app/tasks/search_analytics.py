@@ -8,12 +8,11 @@ search events asynchronously, and generating search insights.
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from celery.app.task import Task
-from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db_session
 from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.search_event_repository import SearchEventRepository
 from app.tasks.celery_app import typed_task
@@ -41,42 +40,37 @@ def process_search_event(self: "Task[Any, Any]", event_id: str | int) -> Dict[st
     Returns:
         dict: Processing summary
     """
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
-        search_repo = SearchEventRepository(db)
+        with get_db_session() as db:
+            search_repo = SearchEventRepository(db)
 
-        event_key = str(event_id)
+            event_key = str(event_id)
 
-        # Get the search event
-        event = search_repo.get_by_id(event_key)
-        if not event:
-            logger.warning("Search event %s not found", event_id)
-            return {"status": "error", "message": f"Event {event_id} not found"}
+            # Get the search event
+            event = search_repo.get_by_id(event_key)
+            if not event:
+                logger.warning("Search event %s not found", event_id)
+                return {"status": "error", "message": f"Event {event_id} not found"}
 
-        # Calculate search quality score using repository method
-        quality_score = search_repo.calculate_search_quality_score(event_key)
+            # Calculate search quality score using repository method
+            quality_score = search_repo.calculate_search_quality_score(event_key)
 
-        # Update event with calculated data (attribute may be added dynamically)
-        setattr(event, "quality_score", quality_score)
-        db.commit()
+            # Update event with calculated data (attribute may be added dynamically)
+            setattr(event, "quality_score", quality_score)
+            db.commit()
 
-        logger.info("Processed search event %s with quality score %s", event_id, quality_score)
+            logger.info("Processed search event %s with quality score %s", event_id, quality_score)
 
-        return {
-            "status": "success",
-            "event_id": event_id,
-            "quality_score": quality_score,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
+            return {
+                "status": "success",
+                "event_id": event_id,
+                "quality_score": quality_score,
+                "processed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     except Exception as exc:
         logger.error("Failed to process search event %s: %s", event_id, exc)
         raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
-
-    finally:
-        if db:
-            db.close()
 
 
 @typed_task(
@@ -100,52 +94,47 @@ def calculate_search_metrics(self: "Task[Any, Any]", hours_back: int = 24) -> Di
     Returns:
         dict: Calculated metrics
     """
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
-        search_repo = SearchEventRepository(db)
+        with get_db_session() as db:
+            search_repo = SearchEventRepository(db)
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
 
-        # Use repository methods for all data access
-        popular_searches = search_repo.get_popular_searches_with_avg_results(
-            hours=hours_back, limit=20
-        )
-        type_distribution = search_repo.get_search_type_distribution(hours=hours_back)
-        total_searches = search_repo.count_searches_since(cutoff_time)
-        searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
+            # Use repository methods for all data access
+            popular_searches = search_repo.get_popular_searches_with_avg_results(
+                hours=hours_back, limit=20
+            )
+            type_distribution = search_repo.get_search_type_distribution(hours=hours_back)
+            total_searches = search_repo.count_searches_since(cutoff_time)
+            searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
 
-        conversion_rate = (
-            searches_with_interactions / total_searches * 100 if total_searches > 0 else 0
-        )
+            conversion_rate = (
+                searches_with_interactions / total_searches * 100 if total_searches > 0 else 0
+            )
 
-        metrics = {
-            "period": {
-                "start": cutoff_time.isoformat(),
-                "end": datetime.now(timezone.utc).isoformat(),
-                "hours": hours_back,
-            },
-            "popular_searches": popular_searches,
-            "search_type_distribution": type_distribution,
-            "engagement": {
-                "total_searches": total_searches,
-                "searches_with_interactions": searches_with_interactions,
-                "conversion_rate": round(conversion_rate, 2),
-            },
-            "calculated_at": datetime.now(timezone.utc).isoformat(),
-        }
+            metrics = {
+                "period": {
+                    "start": cutoff_time.isoformat(),
+                    "end": datetime.now(timezone.utc).isoformat(),
+                    "hours": hours_back,
+                },
+                "popular_searches": popular_searches,
+                "search_type_distribution": type_distribution,
+                "engagement": {
+                    "total_searches": total_searches,
+                    "searches_with_interactions": searches_with_interactions,
+                    "conversion_rate": round(conversion_rate, 2),
+                },
+                "calculated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        logger.info("Calculated search metrics for last %s hours", hours_back)
+            logger.info("Calculated search metrics for last %s hours", hours_back)
 
-        return metrics
+            return metrics
 
     except Exception as exc:
         logger.error("Failed to calculate search metrics: %s", exc)
         raise
-
-    finally:
-        if db:
-            db.close()
 
 
 @typed_task(
@@ -169,61 +158,56 @@ def generate_search_insights(self: "Task[Any, Any]", days_back: int = 7) -> Dict
     Returns:
         dict: Generated insights
     """
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
-        search_repo = SearchEventRepository(db)
+        with get_db_session() as db:
+            search_repo = SearchEventRepository(db)
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_back)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_back)
 
-        # Calculate insights using repository methods
-        total_searches = search_repo.count_searches_since(cutoff_time)
-        searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
+            # Calculate insights using repository methods
+            total_searches = search_repo.count_searches_since(cutoff_time)
+            searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
 
-        # Calculate abandonment rate
-        abandonment_rate = 0.0
-        if total_searches > 0:
-            abandonment_rate = round(
-                (total_searches - searches_with_interactions) / total_searches * 100, 2
-            )
+            # Calculate abandonment rate
+            abandonment_rate = 0.0
+            if total_searches > 0:
+                abandonment_rate = round(
+                    (total_searches - searches_with_interactions) / total_searches * 100, 2
+                )
 
-        # Get peak search hours using repository
-        try:
-            peak_search_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
-        except AttributeError:
-            logger.exception(
-                "SearchEventRepository missing get_hourly_search_counts; returning empty peak_search_hours"
-            )
-            peak_search_hours = []
+            # Get peak search hours using repository
+            try:
+                peak_search_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
+            except AttributeError:
+                logger.exception(
+                    "SearchEventRepository missing get_hourly_search_counts; returning empty peak_search_hours"
+                )
+                peak_search_hours = []
 
-        # Trending searches can be approximated using popular searches
-        # In a real implementation, you'd compare time periods
-        trending = search_repo.get_popular_searches(days=days_back, limit=10)
+            # Trending searches can be approximated using popular searches
+            # In a real implementation, you'd compare time periods
+            trending = search_repo.get_popular_searches(days=days_back, limit=10)
 
-        insights = {
-            "period": {
-                "start": cutoff_time.isoformat(),
-                "end": datetime.now(timezone.utc).isoformat(),
-                "days": days_back,
-            },
-            "trending_searches": trending,
-            "abandonment": {
-                "rate": abandonment_rate,
-                "description": "Percentage of searches with no follow-up interaction",
-            },
-            "peak_search_hours": peak_search_hours,
-            "common_search_paths": [],  # Placeholder - would need session analysis
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
+            insights = {
+                "period": {
+                    "start": cutoff_time.isoformat(),
+                    "end": datetime.now(timezone.utc).isoformat(),
+                    "days": days_back,
+                },
+                "trending_searches": trending,
+                "abandonment": {
+                    "rate": abandonment_rate,
+                    "description": "Percentage of searches with no follow-up interaction",
+                },
+                "peak_search_hours": peak_search_hours,
+                "common_search_paths": [],  # Placeholder - would need session analysis
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        logger.info("Generated search insights for last %s days", days_back)
+            logger.info("Generated search insights for last %s days", days_back)
 
-        return insights
+            return insights
 
     except Exception as exc:
         logger.error("Failed to generate search insights: %s", exc, exc_info=True)
         raise
-
-    finally:
-        if db:
-            db.close()

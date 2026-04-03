@@ -4,10 +4,23 @@ Tests for privacy_tasks.py execution paths - targeting uncovered lines.
 Covers lines: 87-112, 126-143, 157-187, 206-229, 251-266, 291-321.
 """
 
+from contextlib import contextmanager
 from datetime import datetime
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 class TestApplyRetentionPoliciesExecution:
@@ -15,7 +28,7 @@ class TestApplyRetentionPoliciesExecution:
 
     def test_successful_retention_policy_application(self) -> None:
         """Test successful execution of apply_retention_policies task."""
-        from app.tasks.privacy_tasks import DatabaseTask, apply_retention_policies
+        from app.tasks.privacy_tasks import apply_retention_policies
 
         mock_db = MagicMock()
 
@@ -30,10 +43,9 @@ class TestApplyRetentionPoliciesExecution:
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
              patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             result = apply_retention_policies.run()
 
@@ -46,7 +58,7 @@ class TestApplyRetentionPoliciesExecution:
 
     def test_retention_policy_exception_propagated(self) -> None:
         """Test exception handling in apply_retention_policies (lines 110-112)."""
-        from app.tasks.privacy_tasks import DatabaseTask, apply_retention_policies
+        from app.tasks.privacy_tasks import apply_retention_policies
 
         mock_db = MagicMock()
 
@@ -54,16 +66,15 @@ class TestApplyRetentionPoliciesExecution:
         mock_privacy_service.apply_retention_policies.side_effect = Exception("Database error")
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
                 apply_retention_policies.run()
 
     def test_cleanup_service_exception_propagated(self) -> None:
         """Test exception from cleanup service is propagated."""
-        from app.tasks.privacy_tasks import DatabaseTask, apply_retention_policies
+        from app.tasks.privacy_tasks import apply_retention_policies
 
         mock_db = MagicMock()
 
@@ -78,10 +89,9 @@ class TestApplyRetentionPoliciesExecution:
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
              patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Cleanup failed"):
                 apply_retention_policies.run()
@@ -92,7 +102,7 @@ class TestCleanupSearchHistoryExecution:
 
     def test_successful_search_history_cleanup(self) -> None:
         """Test successful execution of cleanup_search_history task."""
-        from app.tasks.privacy_tasks import DatabaseTask, cleanup_search_history
+        from app.tasks.privacy_tasks import cleanup_search_history
 
         mock_db = MagicMock()
 
@@ -100,9 +110,8 @@ class TestCleanupSearchHistoryExecution:
         mock_cleanup_service.cleanup_all.return_value = (50, 25)
 
         with patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             result = cleanup_search_history.run()
 
@@ -114,7 +123,7 @@ class TestCleanupSearchHistoryExecution:
 
     def test_search_history_cleanup_exception_propagated(self) -> None:
         """Test exception handling in cleanup_search_history (lines 141-143)."""
-        from app.tasks.privacy_tasks import DatabaseTask, cleanup_search_history
+        from app.tasks.privacy_tasks import cleanup_search_history
 
         mock_db = MagicMock()
 
@@ -122,16 +131,15 @@ class TestCleanupSearchHistoryExecution:
         mock_cleanup_service.cleanup_all.side_effect = Exception("Cleanup failed")
 
         with patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Cleanup failed"):
                 cleanup_search_history.run()
 
     def test_search_history_cleanup_with_zero_records(self) -> None:
         """Test cleanup when no records need to be cleaned."""
-        from app.tasks.privacy_tasks import DatabaseTask, cleanup_search_history
+        from app.tasks.privacy_tasks import cleanup_search_history
 
         mock_db = MagicMock()
 
@@ -139,9 +147,8 @@ class TestCleanupSearchHistoryExecution:
         mock_cleanup_service.cleanup_all.return_value = (0, 0)
 
         with patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             result = cleanup_search_history.run()
 
@@ -154,7 +161,7 @@ class TestGeneratePrivacyReportExecution:
 
     def test_successful_privacy_report_generation(self) -> None:
         """Test successful execution of generate_privacy_report task."""
-        from app.tasks.privacy_tasks import DatabaseTask, generate_privacy_report
+        from app.tasks.privacy_tasks import generate_privacy_report
 
         mock_db = MagicMock()
 
@@ -172,10 +179,9 @@ class TestGeneratePrivacyReportExecution:
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
              patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             result = generate_privacy_report.run()
 
@@ -188,7 +194,7 @@ class TestGeneratePrivacyReportExecution:
 
     def test_privacy_report_exception_propagated(self) -> None:
         """Test exception handling in generate_privacy_report (lines 185-187)."""
-        from app.tasks.privacy_tasks import DatabaseTask, generate_privacy_report
+        from app.tasks.privacy_tasks import generate_privacy_report
 
         mock_db = MagicMock()
 
@@ -196,16 +202,15 @@ class TestGeneratePrivacyReportExecution:
         mock_privacy_service.get_privacy_statistics.side_effect = Exception("Stats error")
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Stats error"):
                 generate_privacy_report.run()
 
     def test_privacy_report_cleanup_stats_exception(self) -> None:
         """Test exception from cleanup stats is propagated."""
-        from app.tasks.privacy_tasks import DatabaseTask, generate_privacy_report
+        from app.tasks.privacy_tasks import generate_privacy_report
 
         mock_db = MagicMock()
 
@@ -217,10 +222,9 @@ class TestGeneratePrivacyReportExecution:
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
              patch("app.tasks.privacy_tasks.SearchHistoryCleanupService") as mock_cleanup_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
             mock_cleanup_class.return_value = mock_cleanup_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Cleanup stats error"):
                 generate_privacy_report.run()
@@ -231,7 +235,7 @@ class TestAnonymizeOldBookingsExecution:
 
     def test_successful_booking_anonymization(self) -> None:
         """Test successful execution of anonymize_old_bookings task."""
-        from app.tasks.privacy_tasks import DatabaseTask, anonymize_old_bookings
+        from app.tasks.privacy_tasks import anonymize_old_bookings
 
         mock_db = MagicMock()
 
@@ -241,9 +245,8 @@ class TestAnonymizeOldBookingsExecution:
         mock_privacy_service.apply_retention_policies.return_value = mock_retention_stats
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = anonymize_old_bookings.run()
 
@@ -253,7 +256,7 @@ class TestAnonymizeOldBookingsExecution:
     def test_booking_anonymization_with_custom_days_logs_warning(self) -> None:
         """Test that custom days_old logs a warning (lines 211-216)."""
         from app.core.config import settings
-        from app.tasks.privacy_tasks import DatabaseTask, anonymize_old_bookings
+        from app.tasks.privacy_tasks import anonymize_old_bookings
 
         mock_db = MagicMock()
 
@@ -263,10 +266,9 @@ class TestAnonymizeOldBookingsExecution:
         mock_privacy_service.apply_retention_policies.return_value = mock_retention_stats
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop, \
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)), \
              patch("app.tasks.privacy_tasks.logger") as mock_logger:
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             # Pass a custom days_old value that differs from default
             result = anonymize_old_bookings.run(days_old=365)
@@ -284,7 +286,7 @@ class TestAnonymizeOldBookingsExecution:
 
     def test_booking_anonymization_with_same_days_no_warning(self) -> None:
         """Test that matching days_old does not log a warning."""
-        from app.tasks.privacy_tasks import DatabaseTask, anonymize_old_bookings
+        from app.tasks.privacy_tasks import anonymize_old_bookings
 
         mock_db = MagicMock()
 
@@ -294,10 +296,9 @@ class TestAnonymizeOldBookingsExecution:
         mock_privacy_service.apply_retention_policies.return_value = mock_retention_stats
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop, \
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)), \
              patch("app.tasks.privacy_tasks.logger") as mock_logger:
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             # Pass the default value (2555) - should not trigger warning
             result = anonymize_old_bookings.run(days_old=2555)
@@ -308,7 +309,7 @@ class TestAnonymizeOldBookingsExecution:
 
     def test_booking_anonymization_exception_propagated(self) -> None:
         """Test exception handling in anonymize_old_bookings (lines 227-229)."""
-        from app.tasks.privacy_tasks import DatabaseTask, anonymize_old_bookings
+        from app.tasks.privacy_tasks import anonymize_old_bookings
 
         mock_db = MagicMock()
 
@@ -316,9 +317,8 @@ class TestAnonymizeOldBookingsExecution:
         mock_privacy_service.apply_retention_policies.side_effect = Exception("Anonymization error")
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Anonymization error"):
                 anonymize_old_bookings.run()
@@ -329,7 +329,7 @@ class TestProcessDataExportRequestExecution:
 
     def test_successful_data_export_request(self) -> None:
         """Test successful execution of process_data_export_request task."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_export_request
+        from app.tasks.privacy_tasks import process_data_export_request
 
         mock_db = MagicMock()
 
@@ -341,9 +341,8 @@ class TestProcessDataExportRequestExecution:
         }
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_export_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -359,7 +358,7 @@ class TestProcessDataExportRequestExecution:
 
     def test_data_export_without_request_id(self) -> None:
         """Test data export without optional request_id."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_export_request
+        from app.tasks.privacy_tasks import process_data_export_request
 
         mock_db = MagicMock()
 
@@ -367,9 +366,8 @@ class TestProcessDataExportRequestExecution:
         mock_privacy_service.export_user_data.return_value = {"user_profile": {}}
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_export_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -380,7 +378,7 @@ class TestProcessDataExportRequestExecution:
 
     def test_data_export_exception_propagated(self) -> None:
         """Test exception handling in process_data_export_request (lines 264-266)."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_export_request
+        from app.tasks.privacy_tasks import process_data_export_request
 
         mock_db = MagicMock()
 
@@ -388,9 +386,8 @@ class TestProcessDataExportRequestExecution:
         mock_privacy_service.export_user_data.side_effect = Exception("Export failed")
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Export failed"):
                 process_data_export_request.run(
@@ -403,7 +400,7 @@ class TestProcessDataDeletionRequestExecution:
 
     def test_successful_data_deletion_with_account_delete(self) -> None:
         """Test data deletion with delete_account=True (lines 299-302)."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_deletion_request
+        from app.tasks.privacy_tasks import process_data_deletion_request
 
         mock_db = MagicMock()
 
@@ -415,9 +412,8 @@ class TestProcessDataDeletionRequestExecution:
         }
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_deletion_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -436,7 +432,7 @@ class TestProcessDataDeletionRequestExecution:
 
     def test_successful_data_anonymization_without_account_delete(self) -> None:
         """Test data anonymization with delete_account=False (lines 303-306)."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_deletion_request
+        from app.tasks.privacy_tasks import process_data_deletion_request
 
         mock_db = MagicMock()
 
@@ -444,9 +440,8 @@ class TestProcessDataDeletionRequestExecution:
         mock_privacy_service.anonymize_user.return_value = True
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_deletion_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -462,7 +457,7 @@ class TestProcessDataDeletionRequestExecution:
 
     def test_anonymization_failure_returns_zero(self) -> None:
         """Test that failed anonymization returns 0."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_deletion_request
+        from app.tasks.privacy_tasks import process_data_deletion_request
 
         mock_db = MagicMock()
 
@@ -470,9 +465,8 @@ class TestProcessDataDeletionRequestExecution:
         mock_privacy_service.anonymize_user.return_value = False
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_deletion_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -483,7 +477,7 @@ class TestProcessDataDeletionRequestExecution:
 
     def test_data_deletion_without_request_id(self) -> None:
         """Test data deletion without optional request_id."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_deletion_request
+        from app.tasks.privacy_tasks import process_data_deletion_request
 
         mock_db = MagicMock()
 
@@ -491,9 +485,8 @@ class TestProcessDataDeletionRequestExecution:
         mock_privacy_service.anonymize_user.return_value = True
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             result = process_data_deletion_request.run(
                 user_id="01K2MAY484FQGFEQVN3VKGYZ58",
@@ -503,7 +496,7 @@ class TestProcessDataDeletionRequestExecution:
 
     def test_data_deletion_exception_propagated(self) -> None:
         """Test exception handling in process_data_deletion_request (lines 319-321)."""
-        from app.tasks.privacy_tasks import DatabaseTask, process_data_deletion_request
+        from app.tasks.privacy_tasks import process_data_deletion_request
 
         mock_db = MagicMock()
 
@@ -511,9 +504,8 @@ class TestProcessDataDeletionRequestExecution:
         mock_privacy_service.delete_user_data.side_effect = Exception("Deletion failed")
 
         with patch("app.tasks.privacy_tasks.PrivacyService") as mock_privacy_class, \
-             patch.object(DatabaseTask, "db", new_callable=PropertyMock) as mock_db_prop:
+             patch("app.tasks.privacy_tasks.get_db_session", return_value=_db_session_ctx(mock_db)):
             mock_privacy_class.return_value = mock_privacy_service
-            mock_db_prop.return_value = mock_db
 
             with pytest.raises(Exception, match="Deletion failed"):
                 process_data_deletion_request.run(
@@ -525,108 +517,28 @@ class TestProcessDataDeletionRequestExecution:
 class TestDatabaseTaskBaseClass:
     """Tests for DatabaseTask base class methods."""
 
-    def test_db_property_creates_session(self) -> None:
-        """Test that db property creates a session when none exists."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        mock_session = MagicMock()
-
-        with patch("app.tasks.privacy_tasks.get_db") as mock_get_db:
-            mock_get_db.return_value = iter([mock_session])
-
-            task = DatabaseTask()
-            task._db = None
-
-            db = task.db
-
-            assert db is mock_session
-            mock_get_db.assert_called_once()
-
-    def test_db_property_reuses_existing_session(self) -> None:
-        """Test that db property reuses existing session."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        mock_session = MagicMock()
-
-        task = DatabaseTask()
-        task._db = mock_session
-
-        with patch("app.tasks.privacy_tasks.get_db") as mock_get_db:
-            db = task.db
-
-            assert db is mock_session
-            mock_get_db.assert_not_called()
-
-    def test_on_failure_closes_session(self) -> None:
-        """Test that on_failure closes the session."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        mock_session = MagicMock()
-
-        task = DatabaseTask()
-        task._db = mock_session
-
-        task.on_failure(
-            exc=Exception("Test error"),
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-            einfo=None,
-        )
-
-        mock_session.close.assert_called_once()
-        assert task._db is None
-
-    def test_on_failure_with_no_session(self) -> None:
-        """Test that on_failure handles no session gracefully."""
+    def test_database_task_can_be_instantiated(self) -> None:
+        """Test that DatabaseTask can still be instantiated."""
         from app.tasks.privacy_tasks import DatabaseTask
 
         task = DatabaseTask()
-        task._db = None
 
-        # Should not raise
-        task.on_failure(
-            exc=Exception("Test error"),
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-            einfo=None,
-        )
+        assert isinstance(task, DatabaseTask)
 
-        assert task._db is None
-
-    def test_on_success_closes_session(self) -> None:
-        """Test that on_success closes the session."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        mock_session = MagicMock()
-
-        task = DatabaseTask()
-        task._db = mock_session
-
-        task.on_success(
-            retval={"result": "success"},
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-        )
-
-        mock_session.close.assert_called_once()
-        assert task._db is None
-
-    def test_on_success_with_no_session(self) -> None:
-        """Test that on_success handles no session gracefully."""
+    def test_database_task_has_no_custom_db_property(self) -> None:
+        """Test that DatabaseTask no longer owns a custom db property."""
         from app.tasks.privacy_tasks import DatabaseTask
 
         task = DatabaseTask()
-        task._db = None
 
-        # Should not raise
-        task.on_success(
-            retval={"result": "success"},
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-        )
+        assert "db" not in DatabaseTask.__dict__
+        assert "_db" not in task.__dict__
 
-        assert task._db is None
+    def test_database_task_uses_default_task_hooks(self) -> None:
+        """Test that DatabaseTask falls back to Celery Task hooks."""
+        from app.tasks.privacy_tasks import DatabaseTask
+
+        task = DatabaseTask()
+
+        assert callable(task.on_failure)
+        assert callable(task.on_success)

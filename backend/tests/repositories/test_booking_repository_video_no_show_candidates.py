@@ -41,6 +41,8 @@ def _create_online_confirmed_booking(
         meeting_location="Online",
         service_area="Manhattan",
         instructor_timezone="UTC",
+        booking_start_utc=start_utc.replace(microsecond=0),
+        booking_end_utc=(start_utc + timedelta(minutes=60)).replace(microsecond=0),
         allow_overlap=True,
     )
 

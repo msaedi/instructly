@@ -2,8 +2,21 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 # ---------------------------------------------------------------------------
 # Helper: _determine_no_show_type
@@ -105,7 +118,7 @@ class TestDetectVideoNoShows:
         return vs
 
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_feature_flag_disabled_returns_early(self, mock_get_db, mock_factory) -> None:
         from app.tasks import video_tasks
 
@@ -121,14 +134,14 @@ class TestDetectVideoNoShows:
 
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_empty_candidates(
         self, mock_get_db, mock_factory, mock_svc_cls
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = []
         mock_factory.create_booking_repository.return_value = mock_repo
@@ -143,14 +156,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_reports_instructor_no_show(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -180,14 +193,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_reports_student_no_show(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=True, student_joined=False)
@@ -214,14 +227,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_both_joined_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=True, student_joined=True)
@@ -237,14 +250,14 @@ class TestDetectVideoNoShows:
 
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_before_scheduled_end_skipped_even_after_old_grace_window(
         self, mock_get_db, mock_factory, mock_svc_cls
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # 60-min lesson started 30 min ago: old grace window would have passed,
         # but the session has not ended yet, so no-show detection must skip it.
@@ -262,14 +275,14 @@ class TestDetectVideoNoShows:
 
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_30min_lesson_reported_after_scheduled_end(
         self, mock_get_db, mock_factory, mock_svc_cls
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # 30-min lesson that ended 10 minutes ago should now be eligible.
         booking = self._make_booking(start_minutes_ago=40, duration_minutes=30)
@@ -297,14 +310,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_lock_not_acquired_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -325,14 +338,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_already_reported_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -358,14 +371,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_booking_deleted_under_lock_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -391,14 +404,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_status_changed_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -424,7 +437,7 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_mutual_no_show_no_video_session(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
@@ -432,7 +445,7 @@ class TestDetectVideoNoShows:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
 
@@ -458,7 +471,7 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_mutual_no_show_both_clicked_neither_connected(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
@@ -466,7 +479,7 @@ class TestDetectVideoNoShows:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=False)
@@ -493,14 +506,14 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_exception_handled(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking = self._make_booking(start_minutes_ago=90, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
@@ -526,7 +539,7 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
-    @patch("app.tasks.video_tasks.get_db")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_rollback_isolates_failure_across_bookings(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:
@@ -534,7 +547,7 @@ class TestDetectVideoNoShows:
         from app.tasks.video_tasks import detect_video_no_shows
 
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         booking1 = self._make_booking(
             booking_id="01AAAA", start_minutes_ago=90, duration_minutes=60,

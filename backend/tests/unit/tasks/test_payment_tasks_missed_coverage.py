@@ -63,7 +63,7 @@ class TestCancelBookingPaymentFailed:
     @patch("app.tasks.payment_tasks.BookingRepository")
     @patch("app.tasks.payment_tasks.RepositoryFactory")
     def test_booking_not_found(self, mock_factory, mock_repo_cls, mock_session):
-        from app.tasks.payment_tasks import _cancel_booking_payment_failed
+        from app.tasks.payment_tasks import _mark_booking_payment_failed
 
         mock_db = MagicMock()
         mock_session.return_value = mock_db
@@ -71,7 +71,7 @@ class TestCancelBookingPaymentFailed:
         mock_repo.get_by_id.return_value = None
         mock_repo_cls.return_value = mock_repo
 
-        result = _cancel_booking_payment_failed(
+        result = _mark_booking_payment_failed(
             "B1", 10.0, datetime.now(timezone.utc)
         )
         assert result is False
@@ -80,7 +80,7 @@ class TestCancelBookingPaymentFailed:
     @patch("app.tasks.payment_tasks.BookingRepository")
     @patch("app.tasks.payment_tasks.RepositoryFactory")
     def test_already_cancelled(self, mock_factory, mock_repo_cls, mock_session):
-        from app.tasks.payment_tasks import _cancel_booking_payment_failed
+        from app.tasks.payment_tasks import _mark_booking_payment_failed
 
         mock_db = MagicMock()
         mock_session.return_value = mock_db
@@ -89,7 +89,7 @@ class TestCancelBookingPaymentFailed:
         mock_repo.get_by_id.return_value = b
         mock_repo_cls.return_value = mock_repo
 
-        result = _cancel_booking_payment_failed(
+        result = _mark_booking_payment_failed(
             "B1", 10.0, datetime.now(timezone.utc)
         )
         assert result is False
@@ -98,7 +98,7 @@ class TestCancelBookingPaymentFailed:
     @patch("app.tasks.payment_tasks.BookingRepository")
     @patch("app.tasks.payment_tasks.RepositoryFactory")
     def test_success(self, mock_factory, mock_repo_cls, mock_session):
-        from app.tasks.payment_tasks import _cancel_booking_payment_failed
+        from app.tasks.payment_tasks import _mark_booking_payment_failed
 
         mock_db = MagicMock()
         mock_session.return_value = mock_db
@@ -115,7 +115,7 @@ class TestCancelBookingPaymentFailed:
         now = datetime.now(timezone.utc)
         with patch("app.services.credit_service.CreditService"):
             with patch("app.tasks.payment_tasks.NotificationService"):
-                result = _cancel_booking_payment_failed("B1", 10.0, now)
+                result = _mark_booking_payment_failed("B1", 10.0, now)
 
         assert result is True
         mock_repo.mark_payment_failed.assert_called_once_with("B1")

@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 import stripe
 
 from app.core.config import settings
+from app.core.exceptions import RepositoryException
 from app.models.booking import Booking
 from app.models.payment import PaymentEvent
 from app.tasks.celery_app import celery_app
@@ -241,6 +242,55 @@ def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: s
         payment_repo.get_payment_events_for_booking(booking_id),
     )
     return any(event.event_type == event_type for event in events)
+
+
+def notify_payment_failed_once(
+    api: PaymentTasksFacadeApi,
+    db: Session,
+    booking: Booking,
+    booking_id: str,
+    previous_retry_count: int,
+) -> None:
+    """Send the payment failed notification only on the first failure."""
+    if previous_retry_count > 0:
+        return
+    try:
+        api.NotificationService(db).send_payment_failed_notification(booking)
+    except Exception as exc:
+        api.logger.warning(
+            "Failed to send payment failed notification for booking %s: %s",
+            booking_id,
+            exc,
+        )
+
+
+def resolve_payout_cents(
+    api: PaymentTasksFacadeApi,
+    payment_repo: Any,
+    booking_id: str,
+    *,
+    context: str = "capture",
+) -> int | None:
+    """Resolve instructor payout cents from the stored payment record."""
+    try:
+        payment_record = payment_repo.get_payment_by_booking_id(booking_id)
+    except RepositoryException:
+        api.logger.warning(
+            "Failed to load payment record for booking %s during %s",
+            booking_id,
+            context,
+            exc_info=True,
+        )
+        return None
+    payout_cents = (
+        getattr(payment_record, "instructor_payout_cents", None) if payment_record else None
+    )
+    if payout_cents is None:
+        return None
+    try:
+        return int(payout_cents)
+    except (TypeError, ValueError):
+        return None
 
 
 def resolve_locked_booking_from_task_impl(

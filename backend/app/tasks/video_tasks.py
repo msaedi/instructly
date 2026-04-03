@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Callable, Optional, ParamSpec, Protocol, TypedDict, TypeVar, cast
-
-from sqlalchemy.orm import Session
+from typing import Any, Callable, ParamSpec, Protocol, TypedDict, TypeVar, cast
 
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
-from app.database import get_db
+from app.database import get_db_session
 from app.domain.video_utils import compute_join_closes_at
 from app.models.booking import BookingStatus
 from app.monitoring.sentry_crons import monitor_if_configured
@@ -112,9 +110,7 @@ def detect_video_no_shows() -> VideoNoShowResults:
     if not settings.hundredms_enabled:
         return results
 
-    db: Optional[Session] = None
-    try:
-        db = cast(Session, next(get_db()))
+    with get_db_session() as db:
         booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_service = BookingService(db)
 
@@ -193,6 +189,3 @@ def detect_video_no_shows() -> VideoNoShowResults:
                 results["failed"] += 1
 
         return results
-    finally:
-        if db is not None:
-            db.close()

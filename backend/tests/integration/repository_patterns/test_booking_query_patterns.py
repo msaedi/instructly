@@ -180,14 +180,16 @@ class TestBookingQueryPatterns:
         assert booking.instructor is not None
 
     def test_query_pattern_get_instructor_stats(self, db: Session, test_instructor_with_bookings: User):
-        """Document query for getting all bookings for statistics."""
+        """Document query for aggregate instructor booking statistics."""
         instructor_id = test_instructor_with_bookings.id
 
         # Document the exact query pattern
         bookings = db.query(Booking).filter(Booking.instructor_id == instructor_id).all()
 
         # Repository method signature:
-        # def get_instructor_bookings_for_stats(self, instructor_id: int) -> List[Booking]
+        # def get_instructor_booking_stats_aggregate(
+        #     self, instructor_id: int, *, today: date, month_start: date
+        # ) -> Dict[str, int | Decimal]
 
         assert len(bookings) > 0
         for booking in bookings:
@@ -372,7 +374,9 @@ class TestBookingQueryPatterns:
         4. get_instructor_bookings(instructor_id: int, status: BookingStatus = None,
                                   upcoming_only: bool = False, limit: int = None) -> List[Booking]
         5. get_booking_with_details(booking_id: int) -> Optional[Booking]
-        6. get_instructor_bookings_for_stats(instructor_id: int) -> List[Booking]
+        6. get_instructor_booking_stats_aggregate(
+               instructor_id: int, *, today: date, month_start: date
+           ) -> Dict[str, int | Decimal]
         7. get_bookings_for_date(booking_date: date, status: BookingStatus = None,
                                with_relationships: bool = False) -> List[Booking]
         8. get_upcoming_bookings(limit: int = None) -> List[Booking]

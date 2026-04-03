@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session
 
+from app.database import get_db_session
 from app.models.booking import Booking
 from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
 from app.tasks.payment.common import PaymentTasksFacadeApi
@@ -54,31 +55,30 @@ def _get_minutes_since_last_auth(
 
 def check_authorization_health_impl(api: PaymentTasksFacadeApi) -> Dict[str, Any]:
     """Health check for authorization system."""
-    db: Optional[Session] = None
     try:
-        db = cast(Session, next(api.get_db()))
-        now = api.datetime.now(timezone.utc)
-        booking_repo = api.RepositoryFactory.create_booking_repository(db)
-        overdue_bookings = _collect_overdue_bookings(api, booking_repo)
-        minutes_since_last_auth = _get_minutes_since_last_auth(api, db, now)
-        health_status = {
-            "healthy": True,
-            "overdue_count": len(overdue_bookings),
-            "overdue_bookings": overdue_bookings[:10],
-            "minutes_since_last_auth": minutes_since_last_auth,
-            "checked_at": now.isoformat(),
-        }
-        if len(overdue_bookings) > 5:
-            health_status["healthy"] = False
-            api.logger.error(
-                "ALERT: %s bookings are overdue for authorization", len(overdue_bookings)
-            )
-        if minutes_since_last_auth and minutes_since_last_auth > 120:
-            health_status["healthy"] = False
-            api.logger.warning(
-                "No successful authorizations in %s minutes", minutes_since_last_auth
-            )
-        return health_status
+        with get_db_session() as db:
+            now = api.datetime.now(timezone.utc)
+            booking_repo = api.RepositoryFactory.create_booking_repository(db)
+            overdue_bookings = _collect_overdue_bookings(api, booking_repo)
+            minutes_since_last_auth = _get_minutes_since_last_auth(api, db, now)
+            health_status = {
+                "healthy": True,
+                "overdue_count": len(overdue_bookings),
+                "overdue_bookings": overdue_bookings[:10],
+                "minutes_since_last_auth": minutes_since_last_auth,
+                "checked_at": now.isoformat(),
+            }
+            if len(overdue_bookings) > 5:
+                health_status["healthy"] = False
+                api.logger.error(
+                    "ALERT: %s bookings are overdue for authorization", len(overdue_bookings)
+                )
+            if minutes_since_last_auth and minutes_since_last_auth > 120:
+                health_status["healthy"] = False
+                api.logger.warning(
+                    "No successful authorizations in %s minutes", minutes_since_last_auth
+                )
+            return health_status
     except Exception as exc:
         api.logger.error("Health check failed: %s", exc)
         return {
@@ -86,9 +86,6 @@ def check_authorization_health_impl(api: PaymentTasksFacadeApi) -> Dict[str, Any
             "error": str(exc),
             "checked_at": api.datetime.now(timezone.utc).isoformat(),
         }
-    finally:
-        if db is not None:
-            db.close()
 
 
 def evaluate_instructor_tiers_impl(api: PaymentTasksFacadeApi, task_self: Any) -> Dict[str, Any]:

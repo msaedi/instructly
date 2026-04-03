@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import RepositoryException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
-from app.tasks.payment.common import PaymentTasksFacadeApi
+from app.tasks.payment.common import (
+    PaymentTasksFacadeApi,
+    notify_payment_failed_once,
+    resolve_payout_cents,
+)
 
 
 def load_capture_context(
@@ -90,46 +93,6 @@ def classify_capture_exception(api: PaymentTasksFacadeApi, exc: Exception) -> Di
     return {"success": False, "error": str(exc)}
 
 
-def notify_capture_failure_once(
-    api: PaymentTasksFacadeApi,
-    db: Session,
-    booking: Booking,
-    booking_id: str,
-    previous_capture_retry_count: int,
-) -> None:
-    if previous_capture_retry_count > 0:
-        return
-    try:
-        api.NotificationService(db).send_payment_failed_notification(booking)
-    except Exception as exc:
-        api.logger.warning(
-            "Failed to send payment failed notification for booking %s: %s",
-            booking_id,
-            exc,
-        )
-
-
-def resolve_payout_cents(
-    api: PaymentTasksFacadeApi, payment_repo: Any, booking_id: str
-) -> Optional[int]:
-    try:
-        payment_record = payment_repo.get_payment_by_booking_id(booking_id)
-    except RepositoryException:
-        api.logger.warning(
-            "Failed to load payment record for booking %s during capture", booking_id, exc_info=True
-        )
-        return None
-    if not payment_record:
-        return None
-    payout_cents = getattr(payment_record, "instructor_payout_cents", None)
-    if payout_cents is None:
-        return None
-    try:
-        return int(payout_cents)
-    except (TypeError, ValueError):
-        return None
-
-
 def _persist_capture_success(
     api: PaymentTasksFacadeApi,
     db: Session,
@@ -154,7 +117,12 @@ def _persist_capture_success(
     if booking.status == BookingStatus.COMPLETED:
         payment.settlement_outcome = "lesson_completed_full_payout"
         booking.student_credit_amount = 0
-        payment.instructor_payout_amount = resolve_payout_cents(api, payment_repo, booking_id)
+        payment.instructor_payout_amount = resolve_payout_cents(
+            api,
+            payment_repo,
+            booking_id,
+            context="capture",
+        )
         booking.refunded_to_card_amount = 0
     payment_repo.create_payment_event(
         booking_id=booking_id,
@@ -236,7 +204,7 @@ def persist_capture_result(
             payment_intent_id,
             stripe_result,
         )
-        notify_capture_failure_once(api, db, booking, booking_id, previous_capture_retry_count)
+        notify_payment_failed_once(api, db, booking, booking_id, previous_capture_retry_count)
     db.commit()
     return stripe_result
 

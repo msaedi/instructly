@@ -7,112 +7,35 @@ FIXES VERIFIED:
 2. Type hints corrected - user_id now properly typed as str (ULID).
 """
 
-from unittest.mock import MagicMock, patch
 
-from sqlalchemy.orm import Session
+from celery.app.task import Task
 
 
 class TestDatabaseTask:
     """Tests for the DatabaseTask base class."""
 
-    def test_db_property_creates_session(self) -> None:
-        """Test that db property creates a session on first access."""
+    def test_database_task_is_task_subclass(self) -> None:
+        """Test that DatabaseTask remains a Celery Task subclass."""
         from app.tasks.privacy_tasks import DatabaseTask
 
-        mock_session = MagicMock(spec=Session)
-        mock_generator = iter([mock_session])
+        assert issubclass(DatabaseTask, Task)
 
-        with patch("app.tasks.privacy_tasks.get_db", return_value=mock_generator):
-            task = DatabaseTask()
-            task._db = None
-
-            # First access should create session
-            db = task.db
-            assert db == mock_session
-
-    def test_db_property_returns_cached_session(self) -> None:
-        """Test that db property returns cached session on subsequent calls."""
+    def test_database_task_can_be_instantiated(self) -> None:
+        """Test that DatabaseTask can still be instantiated as a base task."""
         from app.tasks.privacy_tasks import DatabaseTask
 
         task = DatabaseTask()
-        mock_session = MagicMock(spec=Session)
-        task._db = mock_session
 
-        # Should return the same cached session
-        db = task.db
-        assert db == mock_session
+        assert isinstance(task, Task)
 
-    def test_on_failure_closes_session(self) -> None:
-        """Test that on_failure closes the database session."""
+    def test_database_task_no_longer_owns_db_session_state(self) -> None:
+        """Test that DatabaseTask no longer carries custom DB lifecycle helpers."""
         from app.tasks.privacy_tasks import DatabaseTask
 
         task = DatabaseTask()
-        mock_session = MagicMock(spec=Session)
-        task._db = mock_session
 
-        task.on_failure(
-            exc=Exception("Test error"),
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-            einfo=None,
-        )
-
-        mock_session.close.assert_called_once()
-        assert task._db is None
-
-    def test_on_failure_handles_no_session(self) -> None:
-        """Test that on_failure handles case when no session exists."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        task = DatabaseTask()
-        task._db = None
-
-        # Should not raise
-        task.on_failure(
-            exc=Exception("Test error"),
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-            einfo=None,
-        )
-
-        assert task._db is None
-
-    def test_on_success_closes_session(self) -> None:
-        """Test that on_success closes the database session."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        task = DatabaseTask()
-        mock_session = MagicMock(spec=Session)
-        task._db = mock_session
-
-        task.on_success(
-            retval={"result": "success"},
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-        )
-
-        mock_session.close.assert_called_once()
-        assert task._db is None
-
-    def test_on_success_handles_no_session(self) -> None:
-        """Test that on_success handles case when no session exists."""
-        from app.tasks.privacy_tasks import DatabaseTask
-
-        task = DatabaseTask()
-        task._db = None
-
-        # Should not raise
-        task.on_success(
-            retval={"result": "success"},
-            task_id="test-task-id",
-            args=(),
-            kwargs={},
-        )
-
-        assert task._db is None
+        assert "db" not in DatabaseTask.__dict__
+        assert "_db" not in task.__dict__
 
 
 class TestTaskRegistration:

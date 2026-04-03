@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from datetime import timedelta, timezone
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, Union
 
 from sqlalchemy.orm import Session
 
+from app.database import get_db_session
 from app.models.booking import PaymentStatus
 from app.tasks.payment.common import NoShowResolutionResults, PaymentTasksFacadeApi
 
 
 def load_late_cancel_context(
     api: PaymentTasksFacadeApi,
+    db: Session,
     booking_id: Union[int, str],
 ) -> Dict[str, Any]:
-    db = cast(Session, next(api.get_db()))
     payment_repo = api.RepositoryFactory.create_payment_repository(db)
     stripe_service = api.StripeService(
         db,
@@ -157,37 +158,33 @@ def capture_late_cancellation_impl(
     booking_id: Union[int, str],
 ) -> Dict[str, Any]:
     """Immediately capture payment for late cancellations."""
-    context: Optional[Dict[str, Any]] = None
     try:
         with api.booking_lock_sync(str(booking_id)) as acquired:
             if not acquired:
                 return {"success": False, "skipped": True, "error": "lock_unavailable"}
-            context = load_late_cancel_context(api, booking_id)
-            validation = validate_late_cancel_window(api, context, booking_id)
-            if not validation.get("success") or validation.get("already_captured"):
-                return validation
-            try:
-                capture_result = execute_late_cancel_capture(context)
-            except api.stripe.error.InvalidRequestError as exc:
-                if "already been captured" in str(exc).lower():
-                    context["payment"].payment_status = PaymentStatus.SETTLED.value
-                    context["db"].commit()
-                    return {"success": True, "already_captured": True}
-                return persist_late_cancel_failure(api, context, exc)
-            except Exception as exc:
-                return persist_late_cancel_failure(api, context, exc)
-            return persist_late_cancel_result(api, context, capture_result)
+            with get_db_session() as db:
+                context = load_late_cancel_context(api, db, booking_id)
+                validation = validate_late_cancel_window(api, context, booking_id)
+                if not validation.get("success") or validation.get("already_captured"):
+                    return validation
+                try:
+                    capture_result = execute_late_cancel_capture(context)
+                except api.stripe.error.InvalidRequestError as exc:
+                    if "already been captured" in str(exc).lower():
+                        context["payment"].payment_status = PaymentStatus.SETTLED.value
+                        context["db"].commit()
+                        return {"success": True, "already_captured": True}
+                    return persist_late_cancel_failure(api, context, exc)
+                except Exception as exc:
+                    return persist_late_cancel_failure(api, context, exc)
+                return persist_late_cancel_result(api, context, capture_result)
     except Exception as exc:
         api.logger.error("Late cancellation capture task failed for %s: %s", booking_id, exc)
         raise task_self.retry(exc=exc, countdown=60)
-    finally:
-        if context is not None:
-            context["db"].close()
 
 
 def resolve_undisputed_no_shows_impl(api: PaymentTasksFacadeApi) -> NoShowResolutionResults:
     """Auto-resolve no-show reports that were not disputed within 24 hours."""
-    db: Optional[Session] = None
     now = api.datetime.now(timezone.utc)
     results: NoShowResolutionResults = {
         "resolved": 0,
@@ -195,8 +192,7 @@ def resolve_undisputed_no_shows_impl(api: PaymentTasksFacadeApi) -> NoShowResolu
         "failed": 0,
         "processed_at": now.isoformat(),
     }
-    try:
-        db = cast(Session, next(api.get_db()))
+    with get_db_session() as db:
         booking_repo = api.RepositoryFactory.create_booking_repository(db)
         booking_service = api.BookingService(db)
         cutoff = now - timedelta(hours=24)
@@ -218,6 +214,3 @@ def resolve_undisputed_no_shows_impl(api: PaymentTasksFacadeApi) -> NoShowResolu
                 api.logger.error("Failed to resolve no-show for %s: %s", booking.id, exc)
                 results["failed"] += 1
         return results
-    finally:
-        if db is not None:
-            db.close()

@@ -74,7 +74,14 @@ class TestBookingServiceUnit:
         repository.update.return_value = None
         repository.get_student_bookings.return_value = []
         repository.get_instructor_bookings.return_value = []
-        repository.get_instructor_bookings_for_stats.return_value = []
+        repository.get_instructor_booking_stats_aggregate.return_value = {
+            "total_bookings": 0,
+            "upcoming_bookings": 0,
+            "completed_bookings": 0,
+            "cancelled_bookings": 0,
+            "total_earnings": 0,
+            "this_month_earnings": 0,
+        }
         repository.get_bookings_for_date.return_value = []
         repository.get_bookings_starting_between_and_status.return_value = []
         transaction_cm = MagicMock()
@@ -755,10 +762,16 @@ class TestBookingServiceUnit:
 
     def test_get_booking_stats_empty(self, booking_service, mock_instructor):
         """Test booking statistics with no bookings."""
-        booking_service.repository.get_instructor_bookings_for_stats.return_value = []
+        booking_service.repository.get_instructor_booking_stats_aggregate.return_value = {
+            "total_bookings": 0,
+            "upcoming_bookings": 0,
+            "completed_bookings": 0,
+            "cancelled_bookings": 0,
+            "total_earnings": 0,
+            "this_month_earnings": 0,
+        }
 
-        with patch("app.core.timezone_utils.get_user_today_by_id", return_value=date.today()):
-            stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
+        stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
 
         assert stats["total_bookings"] == 0
         assert stats["upcoming_bookings"] == 0
@@ -769,31 +782,16 @@ class TestBookingServiceUnit:
 
     def test_get_booking_stats_with_bookings(self, booking_service, mock_instructor):
         """Test booking statistics with various bookings."""
-        # Create different types of bookings
-        completed_booking = Mock()
-        completed_booking.status = BookingStatus.COMPLETED
-        completed_booking.is_upcoming = Mock(return_value=False)  # Mock as method
-        completed_booking.total_price = Decimal("100.00")
-        completed_booking.booking_date = date.today()
+        booking_service.repository.get_instructor_booking_stats_aggregate.return_value = {
+            "total_bookings": 3,
+            "upcoming_bookings": 1,
+            "completed_bookings": 1,
+            "cancelled_bookings": 1,
+            "total_earnings": Decimal("100.00"),
+            "this_month_earnings": Decimal("100.00"),
+        }
 
-        upcoming_booking = Mock()
-        upcoming_booking.status = BookingStatus.CONFIRMED
-        upcoming_booking.is_upcoming = Mock(return_value=True)  # Mock as method
-        upcoming_booking.total_price = Decimal("50.00")
-
-        cancelled_booking = Mock()
-        cancelled_booking.status = BookingStatus.CANCELLED
-        cancelled_booking.is_upcoming = Mock(return_value=False)  # Mock as method
-        cancelled_booking.total_price = Decimal("75.00")
-
-        booking_service.repository.get_instructor_bookings_for_stats.return_value = [
-            completed_booking,
-            upcoming_booking,
-            cancelled_booking,
-        ]
-
-        with patch("app.core.timezone_utils.get_user_today_by_id", return_value=date.today()):
-            stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
+        stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
 
         assert stats["total_bookings"] == 3
         assert stats["upcoming_bookings"] == 1

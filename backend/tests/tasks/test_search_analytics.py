@@ -1,9 +1,22 @@
+from contextlib import contextmanager
 import datetime as dt
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.tasks.search_analytics import generate_search_insights
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 class DummyRepo:
@@ -31,7 +44,7 @@ def patch_repo_and_db(monkeypatch):
 
     # Patch DB generator to avoid real DB access
     mock_db = MagicMock()
-    monkeypatch.setattr(sa, "get_db", lambda: iter([mock_db]))
+    monkeypatch.setattr(sa, "get_db_session", lambda: _db_session_ctx(mock_db))
 
     # Patch repository constructor to return our dummy repo
     monkeypatch.setattr(sa, "SearchEventRepository", lambda *a, **k: DummyRepo())

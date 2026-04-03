@@ -9,6 +9,7 @@ import types
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
 import stripe
 from tests.helpers.pricing import cents_from_pct
 import ulid
@@ -123,6 +124,18 @@ def _attach_mark_completed(booking: MagicMock) -> None:
 @contextmanager
 def _always_acquire_lock(*_args, **_kwargs):
     yield True
+
+
+@contextmanager
+def _db_session_ctx(db: MagicMock):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 class TestPaymentTasks:
@@ -958,12 +971,12 @@ class TestPaymentTasks:
         )
         assert create_kwargs["amount"] == locked_context.student_pay_cents
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_check_authorization_health_healthy(self, mock_get_db):
+    @patch("app.tasks.payment.maintenance.get_db_session")
+    def test_check_authorization_health_healthy(self, mock_get_db_session):
         """Test health check when system is healthy."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         # Mock repositories
         mock_payment_repo = MagicMock()
@@ -989,12 +1002,12 @@ class TestPaymentTasks:
         assert result["overdue_count"] == 0
         assert result["minutes_since_last_auth"] <= 31
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_check_authorization_health_unhealthy(self, mock_get_db):
+    @patch("app.tasks.payment.maintenance.get_db_session")
+    def test_check_authorization_health_unhealthy(self, mock_get_db_session):
         """Test health check when system has issues."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         # Mock many overdue bookings (health check now counts bookings, not uses count())
         overdue_bookings = [MagicMock(spec=Booking) for _ in range(10)]
@@ -1748,11 +1761,11 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_expired"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_success(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_success(self, mock_get_db_session):
         """Late cancellations capture immediately."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -1795,11 +1808,11 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "late_cancellation_captured"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_not_late(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_not_late(self, mock_get_db_session):
         """Cancellations with >=12hr notice are not captured."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -1831,11 +1844,11 @@ class TestPaymentTasks:
         assert result["error"] == "Not a late cancellation"
         mock_stripe_service.return_value.capture_booking_payment_intent.assert_not_called()
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_no_payment_intent(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_no_payment_intent(self, mock_get_db_session):
         """Late cancellations without a payment intent return an error."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -1871,11 +1884,11 @@ class TestPaymentTasks:
         assert result["error"] == "No payment intent"
         mock_stripe_service.return_value.capture_booking_payment_intent.assert_not_called()
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_already_captured(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_already_captured(self, mock_get_db_session):
         """Already captured late cancellations short-circuit."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -2202,11 +2215,11 @@ class TestPaymentTasks:
         event_call = payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "reauth_and_capture_failed"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_booking_not_found(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_booking_not_found(self, mock_get_db_session):
         """Missing bookings return a not found error."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -2226,11 +2239,11 @@ class TestPaymentTasks:
         assert result["success"] is False
         assert result["error"] == "Booking not found"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_check_authorization_health_flags_stale_authorizations(self, mock_get_db):
+    @patch("app.tasks.payment.maintenance.get_db_session")
+    def test_check_authorization_health_flags_stale_authorizations(self, mock_get_db_session):
         """Old auth activity marks the system unhealthy."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -2777,6 +2790,96 @@ class TestPaymentTasks:
         ]
         assert "auth_retry_failed" in event_types
 
+    def test_resolve_retry_accounts_missing_instructor_profile_raises_service_exception(self):
+        """Retry account resolution should fail fast when the instructor profile is missing."""
+        from app.core.exceptions import ServiceException
+        from app.tasks.payment.authorization_retry import resolve_retry_accounts
+
+        booking = MagicMock(spec=Booking)
+        booking.student_id = "student_missing_profile"
+        booking.instructor_id = "instructor_missing_profile"
+
+        payment_repo = MagicMock()
+        payment_repo.get_customer_by_user_id.return_value = MagicMock()
+
+        with patch(
+            "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+        ) as mock_instructor_repo_class:
+            mock_instructor_repo = MagicMock()
+            mock_instructor_repo.get_by_user_id.return_value = None
+            mock_instructor_repo_class.return_value = mock_instructor_repo
+
+            with pytest.raises(ServiceException) as exc_info:
+                resolve_retry_accounts(booking, payment_repo, MagicMock())
+
+        assert str(exc_info.value) == "No instructor profile for instructor_missing_profile"
+        payment_repo.get_connected_account_by_instructor_id.assert_not_called()
+
+    def test_resolve_retry_accounts_missing_stripe_account_id_raises_service_exception(self):
+        """Retry account resolution should reject account rows without a Stripe id."""
+        from app.core.exceptions import ServiceException
+        from app.tasks.payment.authorization_retry import resolve_retry_accounts
+
+        booking = MagicMock(spec=Booking)
+        booking.student_id = "student_missing_acct_id"
+        booking.instructor_id = "instructor_missing_acct_id"
+
+        payment_repo = MagicMock()
+        payment_repo.get_customer_by_user_id.return_value = MagicMock()
+        payment_repo.get_connected_account_by_instructor_id.return_value = MagicMock(
+            stripe_account_id=None
+        )
+
+        with patch(
+            "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+        ) as mock_instructor_repo_class:
+            mock_instructor_repo = MagicMock()
+            mock_instructor_repo.get_by_user_id.return_value = MagicMock(id="profile_123")
+            mock_instructor_repo_class.return_value = mock_instructor_repo
+
+            with pytest.raises(ServiceException) as exc_info:
+                resolve_retry_accounts(booking, payment_repo, MagicMock())
+
+        assert str(exc_info.value) == "No Stripe account for instructor instructor_missing_acct_id"
+
+    def test_load_retry_context_missing_stripe_account_id_returns_no_account_error(self):
+        """Phase 1 retry loading should fail fast when Stripe account id is missing."""
+        from app.tasks.payment.authorization_retry import load_retry_context
+
+        booking = MagicMock(spec=Booking)
+        booking.id = "booking_missing_acct_id"
+        booking.student_id = "student_missing_acct_id"
+        booking.instructor_id = "instructor_missing_acct_id"
+        booking.status = BookingStatus.PENDING
+        booking.payment_detail = MagicMock(payment_status="payment_method_required")
+
+        payment_repo = MagicMock()
+        payment_repo.get_customer_by_user_id.return_value = MagicMock()
+        payment_repo.get_connected_account_by_instructor_id.return_value = MagicMock(
+            stripe_account_id=None
+        )
+
+        api = MagicMock()
+        api.datetime.now.return_value = datetime.now(timezone.utc)
+        api.BookingRepository.return_value.get_by_id.return_value = booking
+        api.RepositoryFactory.create_payment_repository.return_value = payment_repo
+
+        with patch(
+            "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+        ) as mock_instructor_repo_class:
+            mock_instructor_repo = MagicMock()
+            mock_instructor_repo.get_by_user_id.return_value = MagicMock(id="profile_123")
+            mock_instructor_repo_class.return_value = mock_instructor_repo
+
+            result = load_retry_context(api, MagicMock(), booking.id)
+
+        assert result == {
+            "result": {
+                "success": False,
+                "error": "No Stripe account for instructor instructor_missing_acct_id",
+            }
+        }
+
     @patch("app.tasks.payment_tasks._process_capture_for_booking", return_value={"success": False})
     @patch("app.database.SessionLocal")
     def test_capture_completed_lessons_capture_failure(
@@ -3146,11 +3249,11 @@ class TestPaymentTasks:
         event_call = payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "capture_failed"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_invalid_request(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_invalid_request(self, mock_get_db_session):
         """Late cancellation invalid request errors log failure."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -3199,11 +3302,11 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "late_cancellation_capture_failed"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_late_cancellation_generic_exception(self, mock_get_db):
+    @patch("app.tasks.payment.late_cancel_noshow.get_db_session")
+    def test_capture_late_cancellation_generic_exception(self, mock_get_db_session):
         """Late cancellation unexpected errors log failure."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -3244,11 +3347,11 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "late_cancellation_capture_failed"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_check_authorization_health_query_error(self, mock_get_db):
+    @patch("app.tasks.payment.maintenance.get_db_session")
+    def test_check_authorization_health_query_error(self, mock_get_db_session):
         """Query errors are handled gracefully in health checks."""
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db_session.return_value = _db_session_ctx(mock_db)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -3265,10 +3368,10 @@ class TestPaymentTasks:
         assert result["healthy"] is True
         assert result["minutes_since_last_auth"] is None
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_check_authorization_health_exception(self, mock_get_db):
+    @patch("app.tasks.payment.maintenance.get_db_session")
+    def test_check_authorization_health_exception(self, mock_get_db_session):
         """Health check errors are reported in response."""
-        mock_get_db.side_effect = Exception("db unavailable")
+        mock_get_db_session.side_effect = Exception("db unavailable")
 
         result = check_authorization_health()
 

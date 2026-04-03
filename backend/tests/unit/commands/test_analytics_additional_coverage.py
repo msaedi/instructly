@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 from types import SimpleNamespace
@@ -12,8 +13,16 @@ import pytest
 import app.commands.analytics as analytics_mod
 
 
-def _db_gen(db):
-    yield db
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 class DummyAsyncResult:
@@ -59,7 +68,7 @@ def test_run_analytics_sync_success(monkeypatch):
     calc.generate_report.return_value = {"ok": True}
 
     with patch.object(analytics_mod, "AnalyticsCalculator", return_value=calc):
-        monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+        monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
         cmd = analytics_mod.AnalyticsCommand()
         result = cmd.run_analytics(days_back=7, async_mode=False)
 
@@ -77,7 +86,7 @@ def test_run_analytics_sync_failure(monkeypatch):
     calc.calculate_all_analytics.side_effect = RuntimeError("boom")
 
     with patch.object(analytics_mod, "AnalyticsCalculator", return_value=calc):
-        monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+        monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
         cmd = analytics_mod.AnalyticsCommand()
         result = cmd.run_analytics(days_back=7, async_mode=False)
 
@@ -107,7 +116,7 @@ def test_check_status_async_success_updates_cache(monkeypatch):
         last_calculated=datetime(2030, 1, 1, tzinfo=timezone.utc)
     )
 
-    monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+    monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
 
     async_result = DummyAsyncResult(
         state="SUCCESS",
@@ -133,7 +142,7 @@ def test_check_status_async_pending(monkeypatch):
     db = MagicMock()
     db.query.return_value.scalar.return_value = 0
     db.query.return_value.order_by.return_value.first.return_value = None
-    monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+    monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
 
     async_result = DummyAsyncResult(state="PENDING", success=False, failed=False, info=None)
     with patch.object(analytics_mod, "AsyncResult", return_value=async_result):
@@ -152,7 +161,7 @@ def test_check_status_async_started(monkeypatch):
     db = MagicMock()
     db.query.return_value.scalar.return_value = 1
     db.query.return_value.order_by.return_value.first.return_value = None
-    monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+    monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
 
     async_result = DummyAsyncResult(state="STARTED", success=False, failed=False, info=None)
     with patch.object(analytics_mod, "AsyncResult", return_value=async_result):
@@ -171,7 +180,7 @@ def test_check_status_async_failed(monkeypatch):
     db = MagicMock()
     db.query.return_value.scalar.return_value = 0
     db.query.return_value.order_by.return_value.first.return_value = None
-    monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+    monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
 
     async_result = DummyAsyncResult(
         state="FAILURE", success=False, failed=True, info="boom", result=None
@@ -193,7 +202,7 @@ def test_check_status_async_other_state(monkeypatch):
     db = MagicMock()
     db.query.return_value.scalar.return_value = 0
     db.query.return_value.order_by.return_value.first.return_value = None
-    monkeypatch.setattr(analytics_mod, "get_db", lambda: _db_gen(db))
+    monkeypatch.setattr(analytics_mod, "get_db_session", lambda: _db_session_ctx(db))
 
     async_result = DummyAsyncResult(state="RETRY", success=False, failed=False, info=None)
     with patch.object(analytics_mod, "AsyncResult", return_value=async_result):

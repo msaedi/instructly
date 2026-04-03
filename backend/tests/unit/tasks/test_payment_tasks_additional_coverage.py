@@ -20,6 +20,18 @@ def _lock(acquired: bool):
     yield acquired
 
 
+@contextmanager
+def _db_session_ctx(db: MagicMock):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _attach_mark_completed(booking: SimpleNamespace) -> SimpleNamespace:
     booking.completed_at = getattr(booking, "completed_at", None)
 
@@ -361,7 +373,10 @@ def test_resolve_undisputed_no_shows_handles_exception():
 
     db = MagicMock()
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.late_cancel_noshow.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch(
             "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
@@ -2083,7 +2098,10 @@ def test_resolve_undisputed_no_shows_skips_and_fails():
     def _lock_side_effect(*_args, **_kwargs):
         return _lock(next(lock_iter))
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.late_cancel_noshow.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch(
             "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
@@ -2114,7 +2132,10 @@ def test_check_authorization_health_flags_overdue():
     query.filter.return_value.order_by.return_value.first.return_value = None
     db.query.return_value = query
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.maintenance.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch(
             "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
@@ -2178,7 +2199,10 @@ def test_capture_late_cancellation_already_captured():
         param="payment_intent",
     )
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.late_cancel_noshow.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
                 "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
@@ -2230,7 +2254,10 @@ def test_capture_late_cancellation_credit_service_failure():
         amount_received=100
     )
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.late_cancel_noshow.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
                 "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
@@ -2571,7 +2598,10 @@ def test_check_authorization_health_booking_not_overdue_branch():
     )
     db.query.return_value = query
 
-    with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
+    with patch(
+        "app.tasks.payment.maintenance.get_db_session",
+        return_value=_db_session_ctx(db),
+    ):
         with patch(
             "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,

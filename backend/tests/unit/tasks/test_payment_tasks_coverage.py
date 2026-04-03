@@ -421,18 +421,18 @@ class TestHasEventType:
 
 
 class TestCancelBookingPaymentFailed:
-    """Test _cancel_booking_payment_failed function (lines 635+)."""
+    """Test _mark_booking_payment_failed function (lines 635+)."""
 
     def test_cancel_booking_not_found(self) -> None:
         """Test cancellation when booking not found."""
-        from app.tasks.payment_tasks import _cancel_booking_payment_failed
+        from app.tasks.payment_tasks import _mark_booking_payment_failed
 
         with patch("app.database.SessionLocal") as mock_session_class:
             mock_db = MagicMock()
             mock_session_class.return_value = mock_db
             mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
-            result = _cancel_booking_payment_failed(
+            result = _mark_booking_payment_failed(
                 generate_ulid(),
                 hours_until_lesson=5.0,
                 now=datetime.now(timezone.utc)
@@ -443,7 +443,7 @@ class TestCancelBookingPaymentFailed:
     def test_cancel_already_cancelled_booking(self) -> None:
         """Test payment-failed marker when booking already cancelled."""
         from app.models.booking import BookingStatus
-        from app.tasks.payment_tasks import _cancel_booking_payment_failed
+        from app.tasks.payment_tasks import _mark_booking_payment_failed
 
         with patch("app.database.SessionLocal") as mock_session_class:
             mock_db = MagicMock()
@@ -453,7 +453,7 @@ class TestCancelBookingPaymentFailed:
             mock_booking.status = BookingStatus.CANCELLED
             mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = mock_booking
 
-            result = _cancel_booking_payment_failed(
+            result = _mark_booking_payment_failed(
                 generate_ulid(),
                 hours_until_lesson=5.0,
                 now=datetime.now(timezone.utc)

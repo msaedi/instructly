@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import RepositoryException
+from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
-from app.tasks.payment.common import PaymentTasksFacadeApi
+from app.tasks.payment.common import PaymentTasksFacadeApi, resolve_payout_cents
 
 
 def run_reauth_lock_guard(
@@ -55,7 +55,9 @@ def run_reauthorization(
         )
         resolved_intent_id = intent_id or payment.payment_intent_id
         if not resolved_intent_id:
-            raise Exception(f"No payment intent id after reauthorization for booking {booking.id}")
+            raise ServiceException(
+                f"No payment intent id after reauthorization for booking {booking.id}"
+            )
         capture_result = stripe_service.capture_booking_payment_intent(
             booking_id=booking.id,
             payment_intent_id=str(resolved_intent_id),
@@ -65,31 +67,6 @@ def run_reauthorization(
         return {"resolved_intent_id": str(resolved_intent_id), "capture_result": capture_result}
     finally:
         db_stripe.close()
-
-
-def resolve_reauth_payout_cents(
-    api: PaymentTasksFacadeApi,
-    payment_repo: Any,
-    booking_id: str,
-) -> Optional[int]:
-    try:
-        payment_record = payment_repo.get_payment_by_booking_id(booking_id)
-    except RepositoryException:
-        api.logger.warning(
-            "Failed to load payment record for booking %s during reauth",
-            booking_id,
-            exc_info=True,
-        )
-        return None
-    payout_value = (
-        getattr(payment_record, "instructor_payout_cents", None) if payment_record else None
-    )
-    if payout_value is None:
-        return None
-    try:
-        return int(payout_value)
-    except (TypeError, ValueError):
-        return None
 
 
 def persist_reauth_capture_result(
@@ -116,8 +93,11 @@ def persist_reauth_capture_result(
     if booking.status == BookingStatus.COMPLETED:
         payment.settlement_outcome = "lesson_completed_full_payout"
         booking.student_credit_amount = 0
-        payment.instructor_payout_amount = resolve_reauth_payout_cents(
-            api, payment_repo, booking.id
+        payment.instructor_payout_amount = resolve_payout_cents(
+            api,
+            payment_repo,
+            booking.id,
+            context="reauth",
         )
         booking.refunded_to_card_amount = 0
     payment_repo.create_payment_event(

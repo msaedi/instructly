@@ -250,6 +250,83 @@ def test_student_instructor_filters_and_counts(
     assert week_bookings
 
 
+def test_instructor_booking_stats_aggregate_preserves_upcoming_semantics(
+    db, test_student, test_instructor_with_availability, test_booking
+):
+    repo = BookingRepository(db)
+    today = datetime.now(timezone.utc).date()
+    baseline = repo.get_instructor_booking_stats_aggregate(
+        test_instructor_with_availability.id,
+        today=today,
+        month_start=today.replace(day=1),
+    )
+
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today - timedelta(days=1),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        status=BookingStatus.COMPLETED,
+        offset_index=50,
+        allow_overlap=True,
+        total_price=120.0,
+    )
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today + timedelta(days=10),
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=51,
+        allow_overlap=True,
+    )
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today + timedelta(days=11),
+        start_time=time(13, 0),
+        end_time=time(14, 0),
+        status=BookingStatus.CANCELLED,
+        offset_index=52,
+        allow_overlap=True,
+        cancelled_at=datetime.now(timezone.utc),
+        cancellation_reason="No longer needed",
+    )
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today + timedelta(days=12),
+        start_time=time(15, 0),
+        end_time=time(16, 0),
+        status=BookingStatus.PAYMENT_FAILED,
+        offset_index=53,
+        allow_overlap=True,
+    )
+    db.commit()
+
+    stats = repo.get_instructor_booking_stats_aggregate(
+        test_instructor_with_availability.id,
+        today=today,
+        month_start=today.replace(day=1),
+    )
+
+    assert stats["total_bookings"] == baseline["total_bookings"] + 3
+    assert stats["completed_bookings"] == baseline["completed_bookings"] + 1
+    assert stats["cancelled_bookings"] == baseline["cancelled_bookings"] + 1
+    assert stats["upcoming_bookings"] == baseline["upcoming_bookings"] + 1
+    assert Decimal(stats["total_earnings"]) == Decimal(baseline["total_earnings"]) + Decimal("120.0")
+
+
 def test_completed_in_window_stats(
     db, test_student, test_instructor_with_availability, test_booking
 ):
@@ -650,9 +727,12 @@ def test_admin_and_date_filters(db, test_student, test_instructor_with_availabil
     assert pending.id in [b.id for b in needs_action_results]
 
     assert repo.count_pending_completion(future_now) >= 1
-    assert repo.get_instructor_bookings_for_stats(
-        test_instructor_with_availability.id
+    stats = repo.get_instructor_booking_stats_aggregate(
+        test_instructor_with_availability.id,
+        today=today,
+        month_start=today.replace(day=1),
     )
+    assert stats["total_bookings"] >= 1
 
     daily = repo.get_bookings_for_date(today, status=BookingStatus.CONFIRMED, with_relationships=True)
     assert pending.id in [b.id for b in daily]
@@ -1516,7 +1596,11 @@ def test_booking_repository_error_paths(
     with pytest.raises(RepositoryException):
         repo.count_pending_completion(datetime.now(timezone.utc))
     with pytest.raises(RepositoryException):
-        repo.get_instructor_bookings_for_stats(test_instructor_with_availability.id)
+        repo.get_instructor_booking_stats_aggregate(
+            test_instructor_with_availability.id,
+            today=date.today(),
+            month_start=date.today().replace(day=1),
+        )
     with pytest.raises(RepositoryException):
         repo.count_bookings_by_status(test_student.id, RoleName.STUDENT)
     with pytest.raises(RepositoryException):

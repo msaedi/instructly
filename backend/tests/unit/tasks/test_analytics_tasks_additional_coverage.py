@@ -6,6 +6,7 @@ Focus on edge cases and error paths not covered by existing tests.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -21,9 +22,21 @@ def _set_task_request(task, task_id: str = "task-analytics-123", retries: int = 
     task.request.retries = retries
 
 
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _patch_get_db(monkeypatch, db) -> None:
     """Patch get_db to return our test db session."""
-    monkeypatch.setattr(analytics, "get_db", lambda: iter([db]))
+    monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(db))
 
 
 class TestTypedTaskDecorator:
@@ -69,7 +82,7 @@ class TestCalculateAnalyticsEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         calculator.calculate_all_analytics.return_value = 0
@@ -86,7 +99,7 @@ class TestCalculateAnalyticsEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         calculator.calculate_all_analytics.side_effect = RuntimeError("Test error")
@@ -155,7 +168,7 @@ class TestGenerateDailyReportEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         calculator.generate_report.return_value = {}
@@ -171,7 +184,7 @@ class TestGenerateDailyReportEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         calculator.generate_report.side_effect = RuntimeError("Test error")
@@ -226,7 +239,7 @@ class TestUpdateServiceMetricsEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         calculator.calculate_booking_stats.return_value = {"count_7d": 0, "count_30d": 0}
@@ -259,7 +272,7 @@ class TestUpdateServiceMetricsEdgeCases:
 
         mock_db = MagicMock()
         mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(mock_db))
 
         calculator = MagicMock()
         monkeypatch.setattr(analytics, "AnalyticsCalculator", lambda _db: calculator)
@@ -343,10 +356,9 @@ class TestUpdateServiceMetricsEdgeCases:
 class TestRecordTaskExecutionEdgeCases:
     """Edge case tests for record_task_execution task."""
 
-    def test_logs_task_execution_info(self, db, monkeypatch, caplog) -> None:
+    def test_logs_task_execution_info(self, caplog) -> None:
         """Test that task execution is logged."""
         _set_task_request(analytics.record_task_execution)
-        _patch_get_db(monkeypatch, db)
 
         analytics.record_task_execution.run(
             task_name="test_task",
@@ -363,12 +375,10 @@ class TestRecordTaskExecutionEdgeCases:
         """Test that database exceptions are handled gracefully."""
         _set_task_request(analytics.record_task_execution)
 
-        # Return an iterator that raises when consumed
-        def bad_get_db():
+        def bad_log(*args, **kwargs):
             raise RuntimeError("DB connection failed")
-            yield  # Make it a generator
 
-        monkeypatch.setattr(analytics, "get_db", bad_get_db)
+        monkeypatch.setattr(analytics.logger, "info", bad_log)
 
         # Should not raise, just log the error
         analytics.record_task_execution.run(
@@ -382,13 +392,11 @@ class TestRecordTaskExecutionEdgeCases:
         # Should log the failure
         assert any("Failed to record task execution" in record.message for record in caplog.records)
 
-    def test_db_session_closes_when_available(self, monkeypatch) -> None:
-        """Test that database session is closed when available."""
+    def test_logs_without_db_session_dependency(self, monkeypatch) -> None:
+        """Test that task only logs and does not touch get_db_session."""
         _set_task_request(analytics.record_task_execution)
-
-        mock_db = MagicMock()
-        mock_db.close = MagicMock()
-        monkeypatch.setattr(analytics, "get_db", lambda: iter([mock_db]))
+        mock_info = MagicMock()
+        monkeypatch.setattr(analytics.logger, "info", mock_info)
 
         analytics.record_task_execution.run(
             task_name="test_task",
@@ -396,4 +404,4 @@ class TestRecordTaskExecutionEdgeCases:
             execution_time=1.0,
         )
 
-        mock_db.close.assert_called_once()
+        mock_info.assert_called_once()

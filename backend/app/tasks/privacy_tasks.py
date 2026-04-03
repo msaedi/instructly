@@ -8,44 +8,17 @@ and apply data retention policies.
 
 from datetime import datetime, timezone
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, TypeVar, cast
 
 from celery.app.task import Task
-from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..database import get_db_session
 from ..monitoring.sentry_crons import monitor_if_configured
 from ..services.privacy_service import PrivacyService
 from ..services.search_history_cleanup_service import SearchHistoryCleanupService
 from .celery_app import celery_app
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
-if TYPE_CHECKING:
-
-    class DatabaseTaskBase:
-        _db: Optional[Session]
-
-        def on_failure(
-            self,
-            exc: BaseException,
-            task_id: str,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-            einfo: Any,
-        ) -> None:
-            ...
-
-        def on_success(
-            self,
-            retval: object,
-            task_id: str,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> None:
-            ...
-
-else:
-    DatabaseTaskBase = Task
 
 
 def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
@@ -57,43 +30,14 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
 logger = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+    DatabaseTaskBase = Task[Any, Any]
+else:
+    DatabaseTaskBase = Task
+
+
 class DatabaseTask(DatabaseTaskBase):
-    """
-    Base task class that provides database session management.
-    """
-
-    _db: Optional[Session] = None
-
-    @property
-    def db(self) -> Session:
-        if self._db is None:
-            self._db = cast(Session, next(get_db()))
-        return self._db
-
-    def on_failure(
-        self,
-        exc: BaseException,
-        task_id: str,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-        einfo: Any,
-    ) -> None:
-        """Close database session on task failure."""
-        if self._db:
-            self._db.close()
-            self._db = None
-
-    def on_success(
-        self,
-        retval: object,
-        task_id: str,
-        args: Tuple[Any, ...],
-        kwargs: Dict[str, Any],
-    ) -> None:
-        """Close database session on task success."""
-        if self._db:
-            self._db.close()
-            self._db = None
+    """Base task type for privacy tasks."""
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")
@@ -111,25 +55,26 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
     logger.info("Starting automated data retention policy application")
 
     try:
-        privacy_service = PrivacyService(self.db)
-        retention_stats = privacy_service.apply_retention_policies()
+        with get_db_session() as db:
+            privacy_service = PrivacyService(db)
+            retention_stats = privacy_service.apply_retention_policies()
 
-        logger.info("Data retention policies applied successfully: %s", retention_stats)
+            logger.info("Data retention policies applied successfully: %s", retention_stats)
 
-        # Also run search history cleanup
-        cleanup_service = SearchHistoryCleanupService(self.db)
-        soft_deleted, guest_sessions = cleanup_service.cleanup_all()
+            # Also run search history cleanup
+            cleanup_service = SearchHistoryCleanupService(db)
+            soft_deleted, guest_sessions = cleanup_service.cleanup_all()
 
-        # Combine results
-        combined_stats = {
-            "search_events_deleted": retention_stats.search_events_deleted,
-            "old_bookings_anonymized": retention_stats.old_bookings_anonymized,
-            "soft_deleted_searches_removed": soft_deleted,
-            "guest_sessions_removed": guest_sessions,
-        }
+            # Combine results
+            combined_stats = {
+                "search_events_deleted": retention_stats.search_events_deleted,
+                "old_bookings_anonymized": retention_stats.old_bookings_anonymized,
+                "soft_deleted_searches_removed": soft_deleted,
+                "guest_sessions_removed": guest_sessions,
+            }
 
-        logger.info("Complete retention cleanup finished: %s", combined_stats)
-        return combined_stats
+            logger.info("Complete retention cleanup finished: %s", combined_stats)
+            return combined_stats
 
     except Exception as e:
         logger.error("Error applying retention policies: %s", str(e), exc_info=True)
@@ -151,17 +96,18 @@ def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
     logger.info("Starting search history cleanup")
 
     try:
-        cleanup_service = SearchHistoryCleanupService(self.db)
-        soft_deleted_count, guest_session_count = cleanup_service.cleanup_all()
+        with get_db_session() as db:
+            cleanup_service = SearchHistoryCleanupService(db)
+            soft_deleted_count, guest_session_count = cleanup_service.cleanup_all()
 
-        stats = {
-            "soft_deleted_searches_removed": soft_deleted_count,
-            "guest_sessions_removed": guest_session_count,
-            "cleanup_date": datetime.now(timezone.utc).isoformat(),
-        }
+            stats = {
+                "soft_deleted_searches_removed": soft_deleted_count,
+                "guest_sessions_removed": guest_session_count,
+                "cleanup_date": datetime.now(timezone.utc).isoformat(),
+            }
 
-        logger.info("Search history cleanup completed: %s", stats)
-        return stats
+            logger.info("Search history cleanup completed: %s", stats)
+            return stats
 
     except Exception as e:
         logger.error("Error during search history cleanup: %s", str(e), exc_info=True)
@@ -183,30 +129,31 @@ def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
     logger.info("Generating privacy compliance report")
 
     try:
-        privacy_service = PrivacyService(self.db)
-        cleanup_service = SearchHistoryCleanupService(self.db)
+        with get_db_session() as db:
+            privacy_service = PrivacyService(db)
+            cleanup_service = SearchHistoryCleanupService(db)
 
-        # Get privacy statistics
-        privacy_stats = privacy_service.get_privacy_statistics()
+            # Get privacy statistics
+            privacy_stats = privacy_service.get_privacy_statistics()
 
-        # Get cleanup statistics
-        cleanup_stats = cleanup_service.get_cleanup_statistics()
+            # Get cleanup statistics
+            cleanup_stats = cleanup_service.get_cleanup_statistics()
 
-        report = {
-            "report_date": datetime.now(timezone.utc).isoformat(),
-            "privacy_statistics": privacy_stats,
-            "cleanup_statistics": cleanup_stats,
-            "compliance_status": {
-                "gdpr_data_export_enabled": True,
-                "gdpr_data_deletion_enabled": True,
-                "automated_retention_active": True,
-            },
-        }
+            report = {
+                "report_date": datetime.now(timezone.utc).isoformat(),
+                "privacy_statistics": privacy_stats,
+                "cleanup_statistics": cleanup_stats,
+                "compliance_status": {
+                    "gdpr_data_export_enabled": True,
+                    "gdpr_data_deletion_enabled": True,
+                    "automated_retention_active": True,
+                },
+            }
 
-        logger.info(
-            "Privacy report generated successfully with %s cleanup metrics", len(cleanup_stats)
-        )
-        return report
+            logger.info(
+                "Privacy report generated successfully with %s cleanup metrics", len(cleanup_stats)
+            )
+            return report
 
     except Exception as e:
         logger.error("Error generating privacy report: %s", str(e), exc_info=True)
@@ -243,12 +190,13 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
     logger.info("Starting booking anonymization for bookings older than %s days", configured_days)
 
     try:
-        privacy_service = PrivacyService(self.db)
-        retention_stats = privacy_service.apply_retention_policies()
-        anonymized_count = retention_stats.old_bookings_anonymized
+        with get_db_session() as db:
+            privacy_service = PrivacyService(db)
+            retention_stats = privacy_service.apply_retention_policies()
+            anonymized_count = retention_stats.old_bookings_anonymized
 
-        logger.info("Anonymized %s old bookings", anonymized_count)
-        return anonymized_count
+            logger.info("Anonymized %s old bookings", anonymized_count)
+            return anonymized_count
 
     except Exception as e:
         logger.error("Error anonymizing old bookings: %s", str(e), exc_info=True)
@@ -277,15 +225,16 @@ def process_data_export_request(
     logger.info("Processing data export request for user %s (request: %s)", user_id, request_id)
 
     try:
-        privacy_service = PrivacyService(self.db)
-        export_data: Dict[str, Any] = privacy_service.export_user_data(user_id)
+        with get_db_session() as db:
+            privacy_service = PrivacyService(db)
+            export_data: Dict[str, Any] = privacy_service.export_user_data(user_id)
 
-        # Add metadata
-        export_data["request_id"] = request_id
-        export_data["processed_at"] = datetime.now(timezone.utc).isoformat()
+            # Add metadata
+            export_data["request_id"] = request_id
+            export_data["processed_at"] = datetime.now(timezone.utc).isoformat()
 
-        logger.info("Data export completed for user %s", user_id)
-        return export_data
+            logger.info("Data export completed for user %s", user_id)
+            return export_data
 
     except Exception as e:
         logger.error("Error processing data export for user %s: %s", user_id, str(e), exc_info=True)
@@ -322,27 +271,28 @@ def process_data_deletion_request(
     )
 
     try:
-        privacy_service = PrivacyService(self.db)
+        with get_db_session() as db:
+            privacy_service = PrivacyService(db)
 
-        if delete_account:
-            deletion_stats: Dict[str, Any] = privacy_service.delete_user_data(
-                user_id, delete_account=True
-            )
-        else:
-            # Just anonymize
-            success = privacy_service.anonymize_user(user_id)
-            deletion_stats = {"anonymized": 1 if success else 0}
+            if delete_account:
+                deletion_stats: Dict[str, Any] = privacy_service.delete_user_data(
+                    user_id, delete_account=True
+                )
+            else:
+                # Just anonymize
+                success = privacy_service.anonymize_user(user_id)
+                deletion_stats = {"anonymized": 1 if success else 0}
 
-        result = {
-            "user_id": user_id,
-            "request_id": request_id,
-            "delete_account": delete_account,
-            "deletion_stats": deletion_stats,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
+            result = {
+                "user_id": user_id,
+                "request_id": request_id,
+                "delete_account": delete_account,
+                "deletion_stats": deletion_stats,
+                "processed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        logger.info("Data deletion completed for user %s: %s", user_id, deletion_stats)
-        return result
+            logger.info("Data deletion completed for user %s: %s", user_id, deletion_stats)
+            return result
 
     except Exception as e:
         logger.error(
