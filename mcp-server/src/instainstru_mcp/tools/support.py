@@ -13,7 +13,8 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_request
 
-from ..client import InstaInstruClient
+from ..client import BackendNotFoundError, InstaInstruClient
+from .common import register_backend_tool
 
 BookingIdentifier = Literal["email", "phone", "user_id", "booking_id"]
 
@@ -246,16 +247,28 @@ def _build_payments_section(
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
     async def _lookup_user(identifier: str) -> dict[str, Any] | None:
-        result = await client.lookup_user(identifier)
+        try:
+            result = await client.lookup_user(identifier)
+        except BackendNotFoundError:
+            return None
         if result.get("found") is False:
             return None
         return result.get("user")
 
     async def _fetch_user_bookings(user_id: str, limit: int) -> dict[str, Any]:
-        return await client.get_user_booking_history(user_id=user_id, limit=limit)
+        try:
+            return await client.get_user_booking_history(user_id=user_id, limit=limit)
+        except BackendNotFoundError:
+            return {
+                "bookings": [],
+                "total_count": 0,
+            }
 
     async def _lookup_booking_recent(booking_id: str, limit: int) -> dict[str, Any] | None:
-        recent = await client.get_recent_bookings(limit=limit, hours=168)
+        try:
+            recent = await client.get_recent_bookings(limit=limit, hours=168)
+        except BackendNotFoundError:
+            return None
         for item in recent.get("bookings", []):
             if item.get("booking_id") == booking_id:
                 return item
@@ -427,7 +440,10 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             "support_notes": support_notes,
         }
 
-    mcp.tool()(instainstru_support_lookup)
+    instainstru_support_lookup = register_backend_tool(
+        mcp,
+        instainstru_support_lookup,
+    )
     return {"instainstru_support_lookup": instainstru_support_lookup}
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -115,12 +116,36 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         return await client.get_user_booking_history(user_id=user_id, limit=limit)
 
     # Register all tools
-    mcp.tool()(instainstru_bookings_summary)
-    mcp.tool()(instainstru_bookings_recent)
-    mcp.tool()(instainstru_payments_pipeline)
-    mcp.tool()(instainstru_payments_pending_payouts)
-    mcp.tool()(instainstru_users_lookup)
-    mcp.tool()(instainstru_users_booking_history)
+    instainstru_bookings_summary = register_backend_tool(
+        mcp,
+        instainstru_bookings_summary,
+    )
+    instainstru_bookings_recent = register_backend_tool(
+        mcp,
+        instainstru_bookings_recent,
+    )
+    instainstru_payments_pipeline = register_backend_tool(
+        mcp,
+        instainstru_payments_pipeline,
+    )
+    instainstru_payments_pending_payouts = register_backend_tool(
+        mcp,
+        instainstru_payments_pending_payouts,
+    )
+    instainstru_users_lookup = register_backend_tool(
+        mcp,
+        instainstru_users_lookup,
+        error="user_not_found",
+        message="User not found.",
+        extra={"user": None},
+    )
+    instainstru_users_booking_history = register_backend_tool(
+        mcp,
+        instainstru_users_booking_history,
+        error="user_not_found",
+        message="User not found.",
+        extra={"user": None, "bookings": [], "total_count": 0},
+    )
 
     return {
         "instainstru_bookings_summary": instainstru_bookings_summary,

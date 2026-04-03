@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import instructor_actions
 
 
@@ -163,3 +164,49 @@ async def test_instructor_payout_hold_calls_client():
     name, params = client.calls[0]
     assert name == "payout_hold"
     assert params["action"] == "HOLD"
+
+
+@pytest.mark.asyncio
+async def test_instructor_suspend_preview_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def instructor_suspend_preview(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = instructor_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_instructor_suspend_preview"](
+        instructor_id="01INS404",
+        reason_code="FRAUD",
+        note="note",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "instructor_not_found",
+        "message": "Instructor not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_instructor_suspend_execute_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def instructor_suspend_execute(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = instructor_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_instructor_suspend_execute"](
+        instructor_id="01INS404",
+        confirm_token="ctok_123",
+        idempotency_key="idem_123",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }

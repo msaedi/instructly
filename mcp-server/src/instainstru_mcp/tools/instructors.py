@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -38,9 +39,21 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """Get full instructor profile details by id/email/name."""
         return await client.get_instructor_detail(identifier)
 
-    mcp.tool()(instainstru_instructors_list)
-    mcp.tool()(instainstru_instructors_coverage)
-    mcp.tool()(instainstru_instructors_detail)
+    instainstru_instructors_list = register_backend_tool(
+        mcp,
+        instainstru_instructors_list,
+    )
+    instainstru_instructors_coverage = register_backend_tool(
+        mcp,
+        instainstru_instructors_coverage,
+    )
+    instainstru_instructors_detail = register_backend_tool(
+        mcp,
+        instainstru_instructors_detail,
+        error="instructor_not_found",
+        message="Instructor not found.",
+        extra={"instructor": None},
+    )
 
     return {
         "instainstru_instructors_list": instainstru_instructors_list,

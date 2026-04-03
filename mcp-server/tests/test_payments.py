@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import payments
 
 
@@ -92,5 +93,62 @@ async def test_payment_timeline_email_not_found_returns_error():
         since_days=30,
     )
 
+    assert response["found"] is False
     assert response["error"] == "user_not_found"
     assert client.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kwargs", "expected_error"),
+    [
+        ({"booking_id": "01BOOK404", "since_days": 30}, "booking_not_found"),
+        ({"user_id": "01USER404", "since_days": 30}, "user_not_found"),
+    ],
+)
+async def test_payment_timeline_backend_not_found_returns_structured_response(
+    kwargs, expected_error
+):
+    class NotFoundClient(FakeClient):
+        async def get_payment_timeline(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = payments.register_tools(mcp, client)
+
+    response = await tools["instainstru_payment_timeline"](**kwargs)
+
+    assert response == {
+        "found": False,
+        "error": expected_error,
+        "message": "Booking not found."
+        if expected_error == "booking_not_found"
+        else "User not found.",
+    }
+
+
+def test_payment_timeline_not_found_fallback_defaults_to_backend_not_found():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = payments.register_tools(mcp, client)
+
+    wrapped = tools["instainstru_payment_timeline"]
+    assert wrapped.__closure__ is not None
+
+    on_not_found = None
+    for cell in wrapped.__closure__:
+        cell_value = cell.cell_contents
+        if (
+            callable(cell_value)
+            and getattr(cell_value, "__name__", "") == "_payment_timeline_not_found"
+        ):
+            on_not_found = cell_value
+            break
+
+    assert on_not_found is not None
+    assert on_not_found() == {
+        "found": False,
+        "error": "backend_not_found",
+        "message": "Requested resource was not found.",
+    }

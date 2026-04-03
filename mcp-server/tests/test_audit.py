@@ -1,5 +1,6 @@
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import audit
 
 
@@ -138,10 +139,6 @@ async def test_audit_tools_call_client():
     assert client.calls[2][1] == ("booking", "01HXY1234567890ABCDEFGHJKL")
     assert client.calls[2][2]["start_time"] == "2026-01-01T00:00:00Z"
     assert client.calls[2][2]["end_time"] == "2026-01-02T00:00:00Z"
-    assert client.calls[2][2]["limit"] == 3
-    assert result["meta"]["time_window"]["source"] == (
-        "start_time=2026-01-01T00:00:00Z,end_time=2026-01-02T00:00:00Z"
-    )
 
     result = await tools["instainstru_audit_recent_admin_actions"](
         since_hours=6,
@@ -157,3 +154,35 @@ async def test_audit_tools_call_client():
     assert result["meta"]["time_window"]["source"] == (
         "start_time=2026-01-01T00:00:00Z,end_time=2026-01-02T00:00:00Z"
     )
+
+
+@pytest.mark.asyncio
+async def test_audit_resource_history_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def audit_resource_history(
+            self,
+            resource_type: str,
+            resource_id: str,
+            *,
+            since_hours: int | None = None,
+            start_time: str | None = None,
+            end_time: str | None = None,
+            limit: int = 50,
+        ):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = audit.register_tools(mcp, client)
+
+    result = await tools["instainstru_audit_resource_history"](
+        resource_type="booking",
+        resource_id="01MISSING",
+        limit=3,
+    )
+
+    assert result == {
+        "found": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }

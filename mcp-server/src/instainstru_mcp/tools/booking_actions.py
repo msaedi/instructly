@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -134,12 +135,48 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             category=category,
         )
 
-    mcp.tool()(instainstru_booking_force_cancel_preview)
-    mcp.tool()(instainstru_booking_force_cancel_execute)
-    mcp.tool()(instainstru_booking_force_complete_preview)
-    mcp.tool()(instainstru_booking_force_complete_execute)
-    mcp.tool()(instainstru_booking_resend_notification)
-    mcp.tool()(instainstru_booking_add_note)
+    instainstru_booking_force_cancel_preview = register_backend_tool(
+        mcp,
+        instainstru_booking_force_cancel_preview,
+        mode="write",
+        error="booking_not_found",
+        message="Booking not found.",
+    )
+    instainstru_booking_force_cancel_execute = register_backend_tool(
+        mcp,
+        instainstru_booking_force_cancel_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_booking_force_complete_preview = register_backend_tool(
+        mcp,
+        instainstru_booking_force_complete_preview,
+        mode="write",
+        error="booking_not_found",
+        message="Booking not found.",
+    )
+    instainstru_booking_force_complete_execute = register_backend_tool(
+        mcp,
+        instainstru_booking_force_complete_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_booking_resend_notification = register_backend_tool(
+        mcp,
+        instainstru_booking_resend_notification,
+        mode="write",
+        error="booking_not_found",
+        message="Booking not found.",
+    )
+    instainstru_booking_add_note = register_backend_tool(
+        mcp,
+        instainstru_booking_add_note,
+        mode="write",
+        error="booking_not_found",
+        message="Booking not found.",
+    )
 
     return {
         "instainstru_booking_force_cancel_preview": instainstru_booking_force_cancel_preview,

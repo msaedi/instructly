@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import booking_detail
 
 
@@ -45,3 +46,23 @@ async def test_booking_detail_defaults():
     assert client.calls[0]["include_messages_summary"] is False
     assert client.calls[0]["include_webhooks"] is True
     assert client.calls[0]["include_trace_links"] is False
+
+
+@pytest.mark.asyncio
+async def test_booking_detail_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_booking_detail(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = booking_detail.register_tools(mcp, client)
+
+    result = await tools["instainstru_booking_detail"](booking_id="01BOOK404")
+
+    assert result == {
+        "found": False,
+        "error": "booking_not_found",
+        "message": "Booking not found.",
+        "booking": None,
+    }

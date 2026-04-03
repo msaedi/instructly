@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
-from .common import format_rfc3339, resolve_time_window
+from .common import format_rfc3339, register_backend_tool, resolve_time_window
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -87,10 +87,28 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """Replay a webhook event (dry-run by default)."""
         return await client.replay_webhook(event_id, dry_run=dry_run)
 
-    mcp.tool()(instainstru_webhooks_list)
-    mcp.tool()(instainstru_webhooks_failed)
-    mcp.tool()(instainstru_webhook_detail)
-    mcp.tool()(instainstru_webhook_replay)
+    instainstru_webhooks_list = register_backend_tool(
+        mcp,
+        instainstru_webhooks_list,
+    )
+    instainstru_webhooks_failed = register_backend_tool(
+        mcp,
+        instainstru_webhooks_failed,
+    )
+    instainstru_webhook_detail = register_backend_tool(
+        mcp,
+        instainstru_webhook_detail,
+        error="webhook_not_found",
+        message="Webhook not found.",
+        extra={"webhook": None},
+    )
+    instainstru_webhook_replay = register_backend_tool(
+        mcp,
+        instainstru_webhook_replay,
+        mode="write",
+        error="webhook_not_found",
+        message="Webhook not found.",
+    )
 
     return {
         "instainstru_webhooks_list": instainstru_webhooks_list,

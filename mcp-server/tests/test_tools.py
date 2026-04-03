@@ -1,5 +1,6 @@
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import (
     celery,
     founding,
@@ -206,6 +207,26 @@ async def test_instructor_tools_call_client():
 
 
 @pytest.mark.asyncio
+async def test_instructor_detail_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_instructor_detail(self, identifier):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = instructors.register_tools(mcp, client)
+
+    result = await tools["instainstru_instructors_detail"]("missing@example.com")
+
+    assert result == {
+        "found": False,
+        "error": "instructor_not_found",
+        "message": "Instructor not found.",
+        "instructor": None,
+    }
+
+
+@pytest.mark.asyncio
 async def test_invite_tools_call_client():
     client = FakeClient()
     mcp = FastMCP("test")
@@ -242,6 +263,26 @@ async def test_invite_tools_call_client():
     assert result == {"ok": True}
     assert client.calls[3][0] == "get_invite_detail"
     assert client.calls[3][1][0] == "INVITE1"
+
+
+@pytest.mark.asyncio
+async def test_invite_detail_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_invite_detail(self, identifier):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = invites.register_tools(mcp, client)
+
+    result = await tools["instainstru_invites_detail"]("INVITE404")
+
+    assert result == {
+        "found": False,
+        "error": "invite_not_found",
+        "message": "Invite not found.",
+        "invite": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -294,6 +335,26 @@ async def test_metrics_tool_call_client():
     assert result == {"ok": True}
     assert client.calls[0][0] == "get_metric"
     assert client.calls[0][1][0] == "instructor.live"
+
+
+@pytest.mark.asyncio
+async def test_metrics_describe_backend_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_metric(self, metric_name):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = metrics.register_tools(mcp, client)
+
+    result = await tools["instainstru_metrics_describe"]("missing.metric")
+
+    assert result == {
+        "found": False,
+        "error": "metric_not_found",
+        "message": "Metric not found.",
+        "metric": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -376,6 +437,48 @@ async def test_operations_tools_call_client():
     assert client.calls[3][2]["limit"] == 5
     assert client.calls[4][2]["identifier"] == "user@example.com"
     assert client.calls[5][2]["user_id"] == "01USER"
+
+
+@pytest.mark.asyncio
+async def test_operations_user_lookup_backend_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def lookup_user(self, identifier):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = operations.register_tools(mcp, client)
+
+    result = await tools["instainstru_users_lookup"](identifier="missing@example.com")
+
+    assert result == {
+        "found": False,
+        "error": "user_not_found",
+        "message": "User not found.",
+        "user": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_operations_user_booking_history_backend_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_user_booking_history(self, user_id, limit=20):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = operations.register_tools(mcp, client)
+
+    result = await tools["instainstru_users_booking_history"](user_id="01USER", limit=15)
+
+    assert result == {
+        "found": False,
+        "error": "user_not_found",
+        "message": "User not found.",
+        "user": None,
+        "bookings": [],
+        "total_count": 0,
+    }
 
 
 def test_sentry_debug_tool_raises():

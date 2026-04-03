@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import refunds
 
 
@@ -71,3 +72,47 @@ async def test_refund_preview_requires_amount_value_for_partial():
             amount_type="partial",
             amount_value=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_refund_preview_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def refund_preview(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = refunds.register_tools(mcp, client)
+
+    result = await tools["instainstru_refund_preview"](
+        booking_id="01BOOK404",
+        reason_code="GOODWILL",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "booking_not_found",
+        "message": "Booking not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_refund_execute_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def refund_execute(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = refunds.register_tools(mcp, client)
+
+    result = await tools["instainstru_refund_execute"](
+        confirm_token="ctok_123",
+        idempotency_key="idem_123",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }

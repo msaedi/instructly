@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import support
 
 
@@ -227,6 +228,23 @@ async def test_support_lookup_user_not_found(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_support_lookup_user_backend_not_found_returns_custom_not_found(monkeypatch):
+    _mock_scope(monkeypatch)
+
+    class NotFoundClient(FakeClient):
+        async def lookup_user(self, identifier: str):
+            raise BackendNotFoundError("backend_not_found")
+
+    mcp = FastMCP("test")
+    tools = support.register_tools(mcp, NotFoundClient())
+
+    result = await tools["instainstru_support_lookup"]("missing@example.com", "email")
+
+    assert "error" in result
+    assert "No user found" in result["error"]
+
+
+@pytest.mark.asyncio
 async def test_support_lookup_by_booking_id(monkeypatch):
     _mock_scope(monkeypatch)
     recent_payload = {
@@ -264,6 +282,25 @@ async def test_support_lookup_booking_not_found(monkeypatch):
 
     mcp = FastMCP("test")
     tools = support.register_tools(mcp, FakeClient(recent_payload=recent_payload))
+
+    result = await tools["instainstru_support_lookup"]("bk_404", "booking_id")
+
+    assert "error" in result
+    assert "Booking not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_support_lookup_booking_recent_backend_not_found_returns_custom_not_found(
+    monkeypatch,
+):
+    _mock_scope(monkeypatch)
+
+    class NotFoundClient(FakeClient):
+        async def get_recent_bookings(self, limit: int = 20, hours: int = 24):
+            raise BackendNotFoundError("backend_not_found")
+
+    mcp = FastMCP("test")
+    tools = support.register_tools(mcp, NotFoundClient())
 
     result = await tools["instainstru_support_lookup"]("bk_404", "booking_id")
 
@@ -330,3 +367,34 @@ async def test_support_lookup_handles_booking_history_error(monkeypatch):
     result = await tools["instainstru_support_lookup"]("john@example.com", "email")
 
     assert result["bookings"]["total_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_support_lookup_handles_booking_history_not_found(monkeypatch):
+    _mock_scope(monkeypatch)
+
+    class ErrorClient(FakeClient):
+        async def get_user_booking_history(self, user_id: str, limit: int = 10):
+            raise BackendNotFoundError("backend_not_found")
+
+    user_payload = {
+        "found": True,
+        "user": {
+            "user_id": "u1",
+            "email": "john@example.com",
+            "name": "John",
+            "role": "student",
+            "created_at": "2025-06-15T00:00:00Z",
+            "is_verified": True,
+            "total_bookings": 0,
+            "total_spent_cents": 0,
+        },
+    }
+
+    mcp = FastMCP("test")
+    tools = support.register_tools(mcp, ErrorClient(user_payload=user_payload))
+
+    result = await tools["instainstru_support_lookup"]("john@example.com", "email")
+
+    assert result["bookings"]["total_count"] == 0
+    assert result["bookings"]["recent"] == []

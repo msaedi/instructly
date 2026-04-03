@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -34,8 +35,14 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             limit=limit,
         )
 
-    mcp.tool()(instainstru_search_top_queries)
-    mcp.tool()(instainstru_search_zero_results)
+    instainstru_search_top_queries = register_backend_tool(
+        mcp,
+        instainstru_search_top_queries,
+    )
+    instainstru_search_zero_results = register_backend_tool(
+        mcp,
+        instainstru_search_zero_results,
+    )
 
     return {
         "instainstru_search_top_queries": instainstru_search_top_queries,

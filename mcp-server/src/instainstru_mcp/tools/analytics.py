@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -126,13 +127,34 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             acknowledged=acknowledged,
         )
 
-    mcp.tool()(instainstru_revenue_dashboard)
-    mcp.tool()(instainstru_booking_funnel)
-    mcp.tool()(instainstru_funnel_snapshot)
-    mcp.tool()(instainstru_supply_demand)
-    mcp.tool()(instainstru_category_performance)
-    mcp.tool()(instainstru_cohort_retention)
-    mcp.tool()(instainstru_platform_alerts)
+    instainstru_revenue_dashboard = register_backend_tool(
+        mcp,
+        instainstru_revenue_dashboard,
+    )
+    instainstru_booking_funnel = register_backend_tool(
+        mcp,
+        instainstru_booking_funnel,
+    )
+    instainstru_funnel_snapshot = register_backend_tool(
+        mcp,
+        instainstru_funnel_snapshot,
+    )
+    instainstru_supply_demand = register_backend_tool(
+        mcp,
+        instainstru_supply_demand,
+    )
+    instainstru_category_performance = register_backend_tool(
+        mcp,
+        instainstru_category_performance,
+    )
+    instainstru_cohort_retention = register_backend_tool(
+        mcp,
+        instainstru_cohort_retention,
+    )
+    instainstru_platform_alerts = register_backend_tool(
+        mcp,
+        instainstru_platform_alerts,
+    )
 
     return {
         "instainstru_revenue_dashboard": instainstru_revenue_dashboard,

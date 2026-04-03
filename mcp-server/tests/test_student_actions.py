@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import student_actions
 
 
@@ -159,3 +160,48 @@ async def test_student_refund_history_calls_client():
     name, params = client.calls[0]
     assert name == "refund_history"
     assert params["student_id"] == "01STU"
+
+
+@pytest.mark.asyncio
+async def test_student_credit_history_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def student_credit_history(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = student_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_student_credit_history"](
+        student_id="01STU404",
+        include_expired=False,
+    )
+
+    assert result == {
+        "found": False,
+        "error": "student_not_found",
+        "message": "Student not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_student_suspend_execute_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def student_suspend_execute(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = student_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_student_suspend_execute"](
+        student_id="01STU404",
+        confirm_token="ctok_123",
+        idempotency_key="idem_123",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }

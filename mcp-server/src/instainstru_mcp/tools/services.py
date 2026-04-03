@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -16,8 +17,14 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """Resolve a service name or slug to its canonical form."""
         return await client.lookup_service(query)
 
-    mcp.tool()(instainstru_services_catalog)
-    mcp.tool()(instainstru_service_lookup)
+    instainstru_services_catalog = register_backend_tool(
+        mcp,
+        instainstru_services_catalog,
+    )
+    instainstru_service_lookup = register_backend_tool(
+        mcp,
+        instainstru_service_lookup,
+    )
 
     return {
         "instainstru_services_catalog": instainstru_services_catalog,

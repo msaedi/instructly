@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -162,13 +163,45 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             test_send_to=test_send_to,
         )
 
-    mcp.tool()(instainstru_announcement_preview)
-    mcp.tool()(instainstru_announcement_execute)
-    mcp.tool()(instainstru_bulk_notification_preview)
-    mcp.tool()(instainstru_bulk_notification_execute)
-    mcp.tool()(instainstru_notification_history)
-    mcp.tool()(instainstru_notification_templates)
-    mcp.tool()(instainstru_email_preview)
+    instainstru_announcement_preview = register_backend_tool(
+        mcp,
+        instainstru_announcement_preview,
+        mode="write",
+    )
+    instainstru_announcement_execute = register_backend_tool(
+        mcp,
+        instainstru_announcement_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_bulk_notification_preview = register_backend_tool(
+        mcp,
+        instainstru_bulk_notification_preview,
+        mode="write",
+    )
+    instainstru_bulk_notification_execute = register_backend_tool(
+        mcp,
+        instainstru_bulk_notification_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_notification_history = register_backend_tool(
+        mcp,
+        instainstru_notification_history,
+    )
+    instainstru_notification_templates = register_backend_tool(
+        mcp,
+        instainstru_notification_templates,
+    )
+    instainstru_email_preview = register_backend_tool(
+        mcp,
+        instainstru_email_preview,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
 
     return {
         "instainstru_announcement_preview": instainstru_announcement_preview,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import webhooks
 
 
@@ -97,3 +98,23 @@ async def test_webhook_replay_calls_client():
         "replay_webhook",
         {"event_id": "evt_456", "dry_run": False},
     )
+
+
+@pytest.mark.asyncio
+async def test_webhook_detail_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def get_webhook_detail(self, event_id: str):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = webhooks.register_tools(mcp, client)
+
+    result = await tools["instainstru_webhook_detail"]("evt_missing")
+
+    assert result == {
+        "found": False,
+        "error": "webhook_not_found",
+        "message": "Webhook not found.",
+        "webhook": None,
+    }

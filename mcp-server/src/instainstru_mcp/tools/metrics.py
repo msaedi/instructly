@@ -7,6 +7,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 METRICS_DICTIONARY: dict[str, dict[str, Any]] = {
     # Core HTTP metrics
@@ -561,6 +562,12 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             }
         return await client.get_metric(metric_name)
 
-    mcp.tool()(instainstru_metrics_describe)
+    instainstru_metrics_describe = register_backend_tool(
+        mcp,
+        instainstru_metrics_describe,
+        error="metric_not_found",
+        message="Metric not found.",
+        extra={"metric": None},
+    )
 
     return {"instainstru_metrics_describe": instainstru_metrics_describe}

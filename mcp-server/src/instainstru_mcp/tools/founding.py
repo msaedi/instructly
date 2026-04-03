@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -23,8 +24,14 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """Find instructors stuck in onboarding."""
         return await client.get_stuck_instructors(stuck_days=stuck_days, stage=stage, limit=limit)
 
-    mcp.tool()(instainstru_founding_funnel_summary)
-    mcp.tool()(instainstru_founding_stuck_instructors)
+    instainstru_founding_funnel_summary = register_backend_tool(
+        mcp,
+        instainstru_founding_funnel_summary,
+    )
+    instainstru_founding_stuck_instructors = register_backend_tool(
+        mcp,
+        instainstru_founding_stuck_instructors,
+    )
 
     return {
         "instainstru_founding_funnel_summary": instainstru_founding_funnel_summary,

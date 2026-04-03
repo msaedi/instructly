@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -53,10 +54,29 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """Get full details of an invite by ID or code."""
         return await client.get_invite_detail(identifier)
 
-    mcp.tool()(instainstru_invites_preview)
-    mcp.tool()(instainstru_invites_send)
-    mcp.tool()(instainstru_invites_list)
-    mcp.tool()(instainstru_invites_detail)
+    instainstru_invites_preview = register_backend_tool(
+        mcp,
+        instainstru_invites_preview,
+        mode="write",
+    )
+    instainstru_invites_send = register_backend_tool(
+        mcp,
+        instainstru_invites_send,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_invites_list = register_backend_tool(
+        mcp,
+        instainstru_invites_list,
+    )
+    instainstru_invites_detail = register_backend_tool(
+        mcp,
+        instainstru_invites_detail,
+        error="invite_not_found",
+        message="Invite not found.",
+        extra={"invite": None},
+    )
 
     return {
         "instainstru_invites_preview": instainstru_invites_preview,

@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from functools import wraps
+from typing import Any, Literal, Optional, ParamSpec, Tuple
+
+from fastmcp import FastMCP
+
+from ..client import BackendNotFoundError
+
+P = ParamSpec("P")
 
 
 def _parse_rfc3339(value: str) -> datetime:
@@ -64,3 +72,48 @@ def resolve_time_window(
 
     start_dt = now - timedelta(hours=normalized_hours)
     return start_dt, now, f"since_hours={normalized_hours}"
+
+
+def build_not_found_response(
+    *,
+    mode: Literal["read", "write"],
+    error: str = "backend_not_found",
+    message: str = "Requested resource was not found.",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    response: dict[str, Any]
+    if mode == "write":
+        response = {"success": False, "error": error, "message": message}
+    else:
+        response = {"found": False, "error": error, "message": message}
+    if extra:
+        response.update(extra)
+    return response
+
+
+def register_backend_tool(
+    mcp: FastMCP,
+    func: Callable[P, Coroutine[Any, Any, dict[str, Any]]],
+    *,
+    mode: Literal["read", "write"] = "read",
+    error: str = "backend_not_found",
+    message: str = "Requested resource was not found.",
+    extra: dict[str, Any] | None = None,
+    on_not_found: Callable[P, dict[str, Any]] | None = None,
+) -> Callable[P, Coroutine[Any, Any, dict[str, Any]]]:
+    @wraps(func)
+    async def wrapped(*args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
+        try:
+            return await func(*args, **kwargs)
+        except BackendNotFoundError:
+            if on_not_found is not None:
+                return on_not_found(*args, **kwargs)
+            return build_not_found_response(
+                mode=mode,
+                error=error,
+                message=message,
+                extra=extra,
+            )
+
+    mcp.tool()(wrapped)
+    return wrapped

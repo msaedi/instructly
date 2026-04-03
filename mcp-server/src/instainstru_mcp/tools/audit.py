@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
-from .common import format_rfc3339, resolve_time_window
+from .common import format_rfc3339, register_backend_tool, resolve_time_window
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -155,10 +155,26 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         response["meta"] = meta
         return response
 
-    mcp.tool()(instainstru_audit_search)
-    mcp.tool()(instainstru_audit_user_activity)
-    mcp.tool()(instainstru_audit_resource_history)
-    mcp.tool()(instainstru_audit_recent_admin_actions)
+    instainstru_audit_search = register_backend_tool(
+        mcp,
+        instainstru_audit_search,
+    )
+    instainstru_audit_user_activity = register_backend_tool(
+        mcp,
+        instainstru_audit_user_activity,
+        error="user_not_found",
+        message="User not found.",
+    )
+    instainstru_audit_resource_history = register_backend_tool(
+        mcp,
+        instainstru_audit_resource_history,
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_audit_recent_admin_actions = register_backend_tool(
+        mcp,
+        instainstru_audit_recent_admin_actions,
+    )
 
     return {
         "instainstru_audit_search": instainstru_audit_search,

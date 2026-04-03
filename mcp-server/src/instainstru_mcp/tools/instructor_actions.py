@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -160,13 +161,55 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             reason=reason,
         )
 
-    mcp.tool()(instainstru_instructor_suspend_preview)
-    mcp.tool()(instainstru_instructor_suspend_execute)
-    mcp.tool()(instainstru_instructor_unsuspend)
-    mcp.tool()(instainstru_instructor_verify_override)
-    mcp.tool()(instainstru_instructor_update_commission_preview)
-    mcp.tool()(instainstru_instructor_update_commission_execute)
-    mcp.tool()(instainstru_instructor_payout_hold)
+    instainstru_instructor_suspend_preview = register_backend_tool(
+        mcp,
+        instainstru_instructor_suspend_preview,
+        mode="write",
+        error="instructor_not_found",
+        message="Instructor not found.",
+    )
+    instainstru_instructor_suspend_execute = register_backend_tool(
+        mcp,
+        instainstru_instructor_suspend_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_instructor_unsuspend = register_backend_tool(
+        mcp,
+        instainstru_instructor_unsuspend,
+        mode="write",
+        error="instructor_not_found",
+        message="Instructor not found.",
+    )
+    instainstru_instructor_verify_override = register_backend_tool(
+        mcp,
+        instainstru_instructor_verify_override,
+        mode="write",
+        error="instructor_not_found",
+        message="Instructor not found.",
+    )
+    instainstru_instructor_update_commission_preview = register_backend_tool(
+        mcp,
+        instainstru_instructor_update_commission_preview,
+        mode="write",
+        error="instructor_not_found",
+        message="Instructor not found.",
+    )
+    instainstru_instructor_update_commission_execute = register_backend_tool(
+        mcp,
+        instainstru_instructor_update_commission_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_instructor_payout_hold = register_backend_tool(
+        mcp,
+        instainstru_instructor_payout_hold,
+        mode="write",
+        error="instructor_not_found",
+        message="Instructor not found.",
+    )
 
     return {
         "instainstru_instructor_suspend_preview": instainstru_instructor_suspend_preview,

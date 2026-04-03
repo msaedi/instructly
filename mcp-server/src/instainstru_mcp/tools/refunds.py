@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -78,8 +79,20 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             idempotency_key=idempotency_key,
         )
 
-    mcp.tool()(instainstru_refund_preview)
-    mcp.tool()(instainstru_refund_execute)
+    instainstru_refund_preview = register_backend_tool(
+        mcp,
+        instainstru_refund_preview,
+        mode="write",
+        error="booking_not_found",
+        message="Booking not found.",
+    )
+    instainstru_refund_execute = register_backend_tool(
+        mcp,
+        instainstru_refund_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
 
     return {
         "instainstru_refund_preview": instainstru_refund_preview,

@@ -5,9 +5,35 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import build_not_found_response, register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
+    def _payment_timeline_not_found(
+        booking_id: str | None = None,
+        user_id: str | None = None,
+        email: str | None = None,
+        since_days: int = 30,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        include_capture_schedule: bool = False,
+    ) -> dict:
+        del since_days, since_hours, start_time, end_time, include_capture_schedule
+        if booking_id:
+            return build_not_found_response(
+                mode="read",
+                error="booking_not_found",
+                message="Booking not found.",
+            )
+        if user_id or email:
+            return build_not_found_response(
+                mode="read",
+                error="user_not_found",
+                message="User not found.",
+            )
+        return build_not_found_response(mode="read")
+
     async def instainstru_payment_timeline(
         booking_id: str | None = None,
         user_id: str | None = None,
@@ -51,6 +77,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             lookup = await client.lookup_user(identifier=email)
             if not lookup.get("found") or not lookup.get("user"):
                 return {
+                    "found": False,
                     "error": "user_not_found",
                     "message": f"No user found with email: {email}",
                 }
@@ -76,6 +103,10 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             response["meta"] = meta
         return response
 
-    mcp.tool()(instainstru_payment_timeline)
+    instainstru_payment_timeline = register_backend_tool(
+        mcp,
+        instainstru_payment_timeline,
+        on_not_found=_payment_timeline_not_found,
+    )
 
     return {"instainstru_payment_timeline": instainstru_payment_timeline}

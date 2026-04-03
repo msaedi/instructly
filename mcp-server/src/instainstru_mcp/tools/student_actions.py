@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -150,13 +151,53 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """
         return await client.student_refund_history(student_id=student_id)
 
-    mcp.tool()(instainstru_student_suspend_preview)
-    mcp.tool()(instainstru_student_suspend_execute)
-    mcp.tool()(instainstru_student_unsuspend)
-    mcp.tool()(instainstru_student_credit_adjust_preview)
-    mcp.tool()(instainstru_student_credit_adjust_execute)
-    mcp.tool()(instainstru_student_credit_history)
-    mcp.tool()(instainstru_student_refund_history)
+    instainstru_student_suspend_preview = register_backend_tool(
+        mcp,
+        instainstru_student_suspend_preview,
+        mode="write",
+        error="student_not_found",
+        message="Student not found.",
+    )
+    instainstru_student_suspend_execute = register_backend_tool(
+        mcp,
+        instainstru_student_suspend_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_student_unsuspend = register_backend_tool(
+        mcp,
+        instainstru_student_unsuspend,
+        mode="write",
+        error="student_not_found",
+        message="Student not found.",
+    )
+    instainstru_student_credit_adjust_preview = register_backend_tool(
+        mcp,
+        instainstru_student_credit_adjust_preview,
+        mode="write",
+        error="student_not_found",
+        message="Student not found.",
+    )
+    instainstru_student_credit_adjust_execute = register_backend_tool(
+        mcp,
+        instainstru_student_credit_adjust_execute,
+        mode="write",
+        error="resource_not_found",
+        message="Requested resource was not found.",
+    )
+    instainstru_student_credit_history = register_backend_tool(
+        mcp,
+        instainstru_student_credit_history,
+        error="student_not_found",
+        message="Student not found.",
+    )
+    instainstru_student_refund_history = register_backend_tool(
+        mcp,
+        instainstru_student_refund_history,
+        error="student_not_found",
+        message="Student not found.",
+    )
 
     return {
         "instainstru_student_suspend_preview": instainstru_student_suspend_preview,

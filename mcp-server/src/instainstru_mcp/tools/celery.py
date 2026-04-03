@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import register_backend_tool
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -118,13 +119,34 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """
         return await client.get_celery_beat_schedule()
 
-    mcp.tool()(instainstru_celery_worker_status)
-    mcp.tool()(instainstru_celery_queue_depth)
-    mcp.tool()(instainstru_celery_failed_tasks)
-    mcp.tool()(instainstru_celery_payment_health)
-    mcp.tool()(instainstru_celery_active_tasks)
-    mcp.tool()(instainstru_celery_task_history)
-    mcp.tool()(instainstru_celery_beat_schedule)
+    instainstru_celery_worker_status = register_backend_tool(
+        mcp,
+        instainstru_celery_worker_status,
+    )
+    instainstru_celery_queue_depth = register_backend_tool(
+        mcp,
+        instainstru_celery_queue_depth,
+    )
+    instainstru_celery_failed_tasks = register_backend_tool(
+        mcp,
+        instainstru_celery_failed_tasks,
+    )
+    instainstru_celery_payment_health = register_backend_tool(
+        mcp,
+        instainstru_celery_payment_health,
+    )
+    instainstru_celery_active_tasks = register_backend_tool(
+        mcp,
+        instainstru_celery_active_tasks,
+    )
+    instainstru_celery_task_history = register_backend_tool(
+        mcp,
+        instainstru_celery_task_history,
+    )
+    instainstru_celery_beat_schedule = register_backend_tool(
+        mcp,
+        instainstru_celery_beat_schedule,
+    )
 
     return {
         "instainstru_celery_worker_status": instainstru_celery_worker_status,

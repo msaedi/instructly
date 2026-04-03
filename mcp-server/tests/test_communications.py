@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import communications
 
 
@@ -164,3 +165,70 @@ async def test_email_preview_calls_client():
     name, params = client.calls[0]
     assert name == "email_preview"
     assert params["template"] == "email/auth/password_reset.html"
+
+
+@pytest.mark.asyncio
+async def test_announcement_preview_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def announcement_preview(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = communications.register_tools(mcp, client)
+
+    result = await tools["instainstru_announcement_preview"](
+        audience="all_users",
+        channels=["email"],
+        title="Title",
+        body="Body",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "backend_not_found",
+        "message": "Requested resource was not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_announcement_execute_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def announcement_execute(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = communications.register_tools(mcp, client)
+
+    result = await tools["instainstru_announcement_execute"](
+        confirm_token="ctok",
+        idempotency_key="idem",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_email_preview_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def email_preview(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = communications.register_tools(mcp, client)
+
+    result = await tools["instainstru_email_preview"](
+        template="email/auth/password_reset.html",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }

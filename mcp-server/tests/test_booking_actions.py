@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastmcp import FastMCP
+from instainstru_mcp.client import BackendNotFoundError
 from instainstru_mcp.tools import booking_actions
 
 
@@ -158,3 +159,49 @@ async def test_add_note_calls_client():
     assert params["note"] == "note"
     assert params["visibility"] == "internal"
     assert params["category"] == "general"
+
+
+@pytest.mark.asyncio
+async def test_force_cancel_preview_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def booking_force_cancel_preview(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = booking_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_booking_force_cancel_preview"](
+        booking_id="01BOOK404",
+        reason_code="ADMIN_DISCRETION",
+        note="note",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "booking_not_found",
+        "message": "Booking not found.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_force_cancel_execute_not_found_returns_structured_response():
+    class NotFoundClient(FakeClient):
+        async def booking_force_cancel_execute(self, **params):
+            raise BackendNotFoundError("backend_not_found")
+
+    client = NotFoundClient()
+    mcp = FastMCP("test")
+    tools = booking_actions.register_tools(mcp, client)
+
+    result = await tools["instainstru_booking_force_cancel_execute"](
+        booking_id="01BOOK404",
+        confirm_token="ctok_123",
+        idempotency_key="idem_123",
+    )
+
+    assert result == {
+        "success": False,
+        "error": "resource_not_found",
+        "message": "Requested resource was not found.",
+    }
