@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-MAX_GRACE_MINUTES: float = 15
 # Minutes before scheduled start that participants can join the video room.
 JOIN_WINDOW_EARLY_MINUTES: int = 5
 
@@ -23,11 +22,3 @@ def compute_join_closes_at(
     if isinstance(booking_end_utc, datetime):
         return booking_end_utc
     return booking_start_utc + timedelta(minutes=duration_minutes)
-
-
-def compute_grace_minutes(duration_minutes: int) -> float:
-    """Compute the no-show grace period for a video lesson.
-
-    Returns min(25% of lesson duration, 15 minutes).
-    """
-    return min(duration_minutes * 0.25, MAX_GRACE_MINUTES)

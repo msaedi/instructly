@@ -22,6 +22,7 @@ def _make_service(**overrides: Any) -> Any:
     svc.repository = overrides.get("repository", MagicMock())
     svc.availability_repository = overrides.get("availability_repository", MagicMock())
     svc.availability_service = overrides.get("availability_service", MagicMock())
+    svc.availability_service.bitmap_repo = svc.availability_service._bitmap_repo
     svc.conflict_checker = overrides.get("conflict_checker", MagicMock())
     svc.cache_service = overrides.get("cache_service", None)
     svc.cache = None

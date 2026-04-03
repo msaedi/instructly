@@ -6,6 +6,7 @@ import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/format
 
 import type { AdminBooking, BookingStatus } from '../hooks/useAdminBookings';
 import { formatCurrency, formatDateTime } from '../utils';
+import { bookingStatusLabels, bookingStatusStyles } from './bookingStatus';
 
 interface BookingDetailPanelProps {
   booking: AdminBooking | null;
@@ -27,28 +28,15 @@ const timelineLabels: Record<string, string> = {
   booking_payment_failed: 'Payment failed',
 };
 
-const statusStyles: Record<BookingStatus, string> = {
-  PENDING: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
-  CONFIRMED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  COMPLETED: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
-  CANCELLED: 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-  PAYMENT_FAILED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
-  NO_SHOW: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
-};
-
-const statusLabels: Record<BookingStatus, string> = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-  PAYMENT_FAILED: 'Payment Failed',
-  NO_SHOW: 'No-show',
-};
-
 function StatusBadge({ value }: { value: BookingStatus }) {
   return (
-    <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold', statusStyles[value])}>
-      {statusLabels[value]}
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+        bookingStatusStyles[value]
+      )}
+    >
+      {bookingStatusLabels[value]}
     </span>
   );
 }
@@ -71,7 +59,9 @@ export default function BookingDetailPanel({
         <Dialog.Content className="fixed right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-white dark:bg-gray-800 shadow-2xl">
           <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4">
             <div>
-              <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">Booking Details</Dialog.Title>
+              <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Booking Details
+              </Dialog.Title>
               {booking ? (
                 <div className="mt-1 flex items-center gap-2">
                   <p className="text-xs text-gray-500 dark:text-gray-400">{booking.id}</p>
@@ -80,7 +70,10 @@ export default function BookingDetailPanel({
               ) : null}
             </div>
             <Dialog.Close asChild>
-              <button className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
+              <button
+                className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Close"
+              >
                 <X className="h-4 w-4" />
               </button>
             </Dialog.Close>
@@ -93,13 +86,21 @@ export default function BookingDetailPanel({
                 <div className="mt-3 grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Student</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.student.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{booking.student.email}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {booking.student.name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {booking.student.email}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Instructor</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.instructor.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{booking.instructor.email}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {booking.instructor.name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {booking.instructor.email}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -109,7 +110,9 @@ export default function BookingDetailPanel({
                 <div className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 dark:text-gray-400">Service</span>
-                    <span>{booking.service_name} ({booking.duration_minutes ?? 60} min)</span>
+                    <span>
+                      {booking.service_name} ({booking.duration_minutes ?? 60} min)
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 dark:text-gray-400">Date</span>
@@ -180,14 +183,23 @@ export default function BookingDetailPanel({
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Timeline</h3>
                 <div className="mt-3 space-y-3 text-sm text-gray-600 dark:text-gray-400">
                   {(booking.timeline ?? []).map((item) => (
-                    <div key={`${item.timestamp}-${item.event}`} className="flex items-start justify-between">
+                    <div
+                      key={`${item.timestamp}-${item.event}`}
+                      className="flex items-start justify-between"
+                    >
                       <div>
-                        <div className="font-medium text-gray-800 dark:text-gray-200">{timelineLabels[item.event] ?? item.event}</div>
+                        <div className="font-medium text-gray-800 dark:text-gray-200">
+                          {timelineLabels[item.event] ?? item.event}
+                        </div>
                         {item.amount ? (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Amount: {formatCurrency(item.amount)}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Amount: {formatCurrency(item.amount)}
+                          </div>
                         ) : null}
                       </div>
-                      <div className="text-xs text-gray-400 dark:text-gray-300">{formatDateTime(item.timestamp)}</div>
+                      <div className="text-xs text-gray-400 dark:text-gray-300">
+                        {formatDateTime(item.timestamp)}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -222,7 +234,9 @@ export default function BookingDetailPanel({
               </div>
             </div>
           ) : (
-            <div className="p-6 text-sm text-gray-500 dark:text-gray-400">Select a booking to see details.</div>
+            <div className="p-6 text-sm text-gray-500 dark:text-gray-400">
+              Select a booking to see details.
+            </div>
           )}
         </Dialog.Content>
       </Dialog.Portal>

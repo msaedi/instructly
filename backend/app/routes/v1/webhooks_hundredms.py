@@ -443,7 +443,7 @@ def _handle_peer_join(
     join_closes_at = compute_join_closes_at(
         booking_start_utc,
         int(booking_duration),
-        booking_end_utc if isinstance(booking_end_utc, datetime) else None,
+        booking_end_utc,
     )
     if joined_at < join_opens_at or joined_at > join_closes_at:
         logger.warning(

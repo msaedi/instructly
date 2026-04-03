@@ -2820,7 +2820,7 @@ def test_post_cancellation_actions_skips_all_user_facing_side_effects_for_paymen
 
     booking_service._post_cancellation_actions(booking, "student")
 
-    booking_service.event_publisher.publish.assert_called_once()
+    booking_service.event_publisher.publish.assert_not_called()
     booking_service.system_message_service.create_booking_cancelled_message.assert_not_called()
     booking_service._send_cancellation_notifications.assert_not_called()
     booking_service._invalidate_booking_caches.assert_called_once_with(booking)

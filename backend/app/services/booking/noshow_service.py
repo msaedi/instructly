@@ -308,8 +308,8 @@ class BookingNoShowMixin:
             )
 
             booking.mark_no_show()
-            self.repository.flush()
             self._enqueue_booking_outbox_event(booking, "booking.no_show")
+            self.repository.flush()
 
             audit_after = self._snapshot_booking(booking)
             self._write_booking_audit(

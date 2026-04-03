@@ -7,6 +7,7 @@ import { isRefundable } from '@/features/shared/types/paymentStatus';
 
 import type { AdminBooking, BookingStatus, PaymentStatus } from '../hooks/useAdminBookings';
 import { formatCurrency } from '../utils';
+import { bookingStatusLabels, bookingStatusStyles } from './bookingStatus';
 
 interface BookingsTableProps {
   bookings: AdminBooking[];
@@ -25,24 +26,6 @@ interface BookingsTableProps {
   onMarkStatus: (booking: AdminBooking, status: 'COMPLETED' | 'NO_SHOW') => void;
   onViewAuditLog: (booking: AdminBooking) => void;
 }
-
-const statusStyles: Record<BookingStatus, string> = {
-  PENDING: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
-  CONFIRMED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  COMPLETED: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
-  CANCELLED: 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-  PAYMENT_FAILED: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
-  NO_SHOW: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
-};
-
-const statusLabels: Record<BookingStatus, string> = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-  PAYMENT_FAILED: 'Payment Failed',
-  NO_SHOW: 'No-show',
-};
 
 const paymentStyles: Record<PaymentStatus, string> = {
   scheduled: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-indigo-200',
@@ -64,15 +47,25 @@ const paymentLabels: Record<PaymentStatus, string> = {
 
 function StatusBadge({ value }: { value: BookingStatus }) {
   return (
-    <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold', statusStyles[value])}>
-      {statusLabels[value]}
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+        bookingStatusStyles[value]
+      )}
+    >
+      {bookingStatusLabels[value]}
     </span>
   );
 }
 
 function PaymentBadge({ value }: { value: PaymentStatus }) {
   return (
-    <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold', paymentStyles[value])}>
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+        paymentStyles[value]
+      )}
+    >
       {paymentLabels[value]}
     </span>
   );
@@ -106,7 +99,8 @@ export default function BookingsTable({
   onMarkStatus,
   onViewAuditLog,
 }: BookingsTableProps) {
-  const allSelected = bookings.length > 0 && bookings.every((booking) => selectedIds.includes(booking.id));
+  const allSelected =
+    bookings.length > 0 && bookings.every((booking) => selectedIds.includes(booking.id));
   const rangeStart = total === 0 ? 0 : (page - 1) * perPage + 1;
   const rangeEnd = Math.min(total, page * perPage);
 
@@ -150,20 +144,32 @@ export default function BookingsTable({
                     <div className="font-medium text-gray-900 dark:text-gray-100">
                       {booking.id.slice(0, 8)}...
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{booking.service_name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {booking.service_name}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{booking.student.name}</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {booking.student.name}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{booking.instructor.name}</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {booking.instructor.name}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="text-gray-900 dark:text-gray-100">{formatBookingDate(booking)}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatBookingTimeRange(booking)}</div>
+                    <div className="text-gray-900 dark:text-gray-100">
+                      {formatBookingDate(booking)}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatBookingTimeRange(booking)}
+                    </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(booking.total_price)}</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {formatCurrency(booking.total_price)}
+                    </div>
                   </td>
                   <td className="px-4 py-4 space-y-2">
                     <StatusBadge value={booking.status} />
@@ -198,7 +204,9 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canRefund ? 'text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20' : 'text-gray-300 cursor-not-allowed'
+                              canRefund
+                                ? 'text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                                : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canRefund && onIssueRefund(booking)}
                           >
@@ -226,7 +234,9 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-300 cursor-not-allowed'
+                              canMark
+                                ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canMark && onMarkStatus(booking, 'COMPLETED')}
                           >
@@ -237,7 +247,9 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-300 cursor-not-allowed'
+                              canMark
+                                ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canMark && onMarkStatus(booking, 'NO_SHOW')}
                           >
@@ -248,7 +260,9 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canCancel ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-300 cursor-not-allowed'
+                              canCancel
+                                ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canCancel && onCancelBooking(booking)}
                           >
@@ -287,7 +301,9 @@ export default function BookingsTable({
           >
             Prev
           </button>
-          <span className="text-xs">Page {page} of {totalPages}</span>
+          <span className="text-xs">
+            Page {page} of {totalPages}
+          </span>
           <button
             type="button"
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}

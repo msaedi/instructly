@@ -124,9 +124,13 @@ class AvailabilityService(
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
-    def _bitmap_repo(self) -> AvailabilityDayRepository:
+    @BaseService.measure_operation("bitmap_repo")
+    def bitmap_repo(self) -> AvailabilityDayRepository:
         repo = getattr(self, "_bitmap_repository", None)
         if repo is None:
             repo = AvailabilityDayRepository(self.db)
             self._bitmap_repository = repo
         return cast(AvailabilityDayRepository, repo)
+
+    def _bitmap_repo(self) -> AvailabilityDayRepository:
+        return self.bitmap_repo()

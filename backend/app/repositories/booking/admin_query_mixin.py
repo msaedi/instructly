@@ -21,13 +21,14 @@ def _escape_like(term: str) -> str:
 class BookingAdminQueryMixin(BookingRepositoryMixinBase):
     """Admin booking listing with search, filters, and pagination."""
 
-    def _build_admin_base_query(self) -> Query:
-        """Build the base admin booking query with eager loading."""
-        return (
-            self.db.query(Booking)
-            .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
-            .options(*standard_booking_options())
+    def _build_admin_base_query(self, *, include_options: bool = True) -> Query:
+        """Build the base admin booking query."""
+        query = self.db.query(Booking).outerjoin(
+            BookingPayment, BookingPayment.booking_id == Booking.id
         )
+        if include_options:
+            query = query.options(*standard_booking_options())
+        return query
 
     def _apply_admin_search_filter(self, query: Query, search: Optional[str]) -> Query:
         """Apply student, instructor, service, and payment search filters."""
@@ -148,7 +149,23 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
                 now=now,
             )
 
-            total = int(query.count())
+            count_query = self._build_admin_base_query(include_options=False)
+            count_query = self._apply_admin_search_filter(count_query, search)
+            count_query = self._apply_admin_status_filters(count_query, statuses, payment_statuses)
+            count_query = self._apply_admin_date_filters(
+                count_query,
+                date_from=date_from,
+                date_to=date_to,
+                needs_action=needs_action,
+                now=now,
+            )
+
+            total = int(
+                count_query.order_by(None)
+                .with_entities(func.count(func.distinct(Booking.id)))
+                .scalar()
+                or 0
+            )
             offset = max(0, (page - 1) * per_page)
             bookings = (
                 query.order_by(Booking.created_at.desc()).offset(offset).limit(per_page).all()

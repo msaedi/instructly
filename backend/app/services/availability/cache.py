@@ -93,6 +93,7 @@ class AvailabilityCacheMixin(AvailabilityMixinBase):
 
         map_candidate: Any = payload
         if isinstance(payload, dict):
+            payload = dict(payload)
             payload["_metadata"] = self._coerce_metadata_list(payload.get("_metadata"))
             if "map" in payload:
                 map_candidate = payload.get("map")

@@ -175,7 +175,7 @@ class WeekOperationService(BaseService):
             days_written = sum(1 for _, bits, _ in items if bits and bits != new_empty_bits())
 
             with self.transaction():
-                repo = self.availability_service._bitmap_repo()
+                repo = self.availability_service.bitmap_repo()
                 repo.upsert_week(instructor_id, items)
 
                 before_payload = self._build_copy_audit_payload(
@@ -410,7 +410,7 @@ class WeekOperationService(BaseService):
         """Return window counts per day for the target week using bitmap storage."""
         week_dates = [week_start + timedelta(days=offset) for offset in range(7)]
         counts: dict[str, int] = {}
-        bitmap_repo = self.availability_service._bitmap_repo()
+        bitmap_repo = self.availability_service.bitmap_repo()
         for day in week_dates:
             bits = bitmap_repo.get_day_bits(instructor_id, day)
             windows = windows_from_bits(bits) if bits else []

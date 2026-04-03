@@ -41,7 +41,7 @@ def handle_booking_cancelled(payload_str: str, db: Session) -> None:
         logger.warning("Booking %s not found for cancellation notice", payload["booking_id"])
         return
 
-    if getattr(booking, "confirmed_at", None) is None:
+    if booking.confirmed_at is None:
         logger.info("Skipping cancellation notification for never-confirmed booking %s", booking.id)
         return
 

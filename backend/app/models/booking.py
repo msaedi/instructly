@@ -313,6 +313,8 @@ class Booking(Base):
         if not self.status:
             self.status = BookingStatus.CONFIRMED
         if self.status == BookingStatus.CONFIRMED and self.confirmed_at is None:
+            # Services usually pass this explicitly; this is the fallback that keeps
+            # any other confirmed-booking creation path from missing the timestamp.
             self.confirmed_at = datetime.now(timezone.utc)
         logger.info(
             "Creating booking for student %s with instructor %s",
