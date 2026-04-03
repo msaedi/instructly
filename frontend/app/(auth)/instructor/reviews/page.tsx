@@ -272,7 +272,7 @@ function ReviewsPageImpl() {
               </div>
 
               <div
-                className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:ring-2 focus-within:ring-(--color-brand-dark)/20 ${
+                className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:border-(--color-focus-brand) ${
                   withCommentsOnly
                     ? 'border-(--color-brand) bg-(--color-brand-lavender) text-(--color-brand) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
                     : 'border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
@@ -401,7 +401,7 @@ function ReviewsPageImpl() {
                               }));
                             }}
                             rows={3}
-                            className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                            className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-(--color-focus-brand) focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                             placeholder="Write a thoughtful reply..."
                           />
                           {replyError ? (

@@ -287,7 +287,7 @@ export default function BookingDetailsPage() {
               <button
                 type="button"
                 aria-label="Close report no-show modal"
-                className="rounded-full p-1 text-[#7C3AED] transition-colors hover:bg-[#F5F3FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4B5FD] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#2D174D]/40"
+                className="rounded-full p-1 text-[#7C3AED] transition-colors hover:bg-[#F5F3FF] focus-visible:outline-none   disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#2D174D]/40"
                 onClick={() => setShowNoShowModal(false)}
                 disabled={markNoShow.isPending}
               >
@@ -303,7 +303,7 @@ export default function BookingDetailsPage() {
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                className="rounded-full border border-[#DC2626] px-4 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/20"
+                className="rounded-full border border-[#DC2626] px-4 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 focus-visible:outline-none   disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/20"
                 onClick={handleMarkNoShow}
                 disabled={markNoShow.isPending || noShowWindowPassed}
               >

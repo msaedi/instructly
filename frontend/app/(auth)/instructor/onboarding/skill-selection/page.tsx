@@ -1291,7 +1291,7 @@ function Step3SkillsPricingInner() {
                 value={skillsFilter}
                 onChange={(event) => setSkillsFilter(event.target.value)}
                 placeholder="Search skills..."
-                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none"
               />
             </div>
 
@@ -1347,7 +1347,7 @@ function Step3SkillsPricingInner() {
                           type="button"
                           onClick={() => toggleService(service)}
                           aria-pressed={selectedFlag}
-                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                          className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none transition-colors no-hover-shadow appearance-none overflow-hidden ${
                             selectedFlag
                               ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1480,7 +1480,7 @@ function Step3SkillsPricingInner() {
                                         type="button"
                                         aria-label={`${selectedFlag ? 'Remove' : 'Add'} service ${service.name}`}
                                         onClick={() => toggleService(service)}
-                                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                        className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                           selectedFlag
                                             ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1794,7 +1794,7 @@ function Step3SkillsPricingInner() {
                         </label>
                         <textarea
                           rows={2}
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none bg-white dark:bg-gray-800"
                           placeholder="Brief description of your teaching style..."
                           value={service.description || ''}
                           onChange={(event) =>
@@ -1815,7 +1815,7 @@ function Step3SkillsPricingInner() {
                         </label>
                         <textarea
                           rows={2}
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none bg-white dark:bg-gray-800"
                           placeholder="Yoga mat, tennis racket..."
                           value={service.equipment || ''}
                           onChange={(event) =>
@@ -1901,7 +1901,7 @@ function Step3SkillsPricingInner() {
               value={requestText}
               onChange={(event) => setRequestText(event.target.value)}
               placeholder="Type your skill here..."
-              className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20"
+              className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 focus:outline-none"
             />
             <button
               onClick={submitServiceRequest}
@@ -1920,7 +1920,7 @@ function Step3SkillsPricingInner() {
             onClick={() => {
               window.location.href = '/instructor/onboarding/verification';
             }}
-            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 justify-center"
+            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none justify-center"
           >
             Skip for now
           </button>

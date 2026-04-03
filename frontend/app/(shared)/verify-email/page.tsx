@@ -291,7 +291,7 @@ export function VerifyEmailPageContent() {
               </p>
               <Link
                 href="/signup"
-                className="mt-6 inline-flex items-center justify-center rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2"
+                className="mt-6 inline-flex items-center justify-center rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none "
               >
                 Back to signup
               </Link>
@@ -359,7 +359,7 @@ export function VerifyEmailPageContent() {
                   setCode(event.target.value.replace(/\D/g, ''));
                   setErrorMessage(null);
                 }}
-                className="mx-auto mt-2 block w-full max-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-center tracking-[0.35em] text-2xl font-semibold text-gray-900 shadow-sm focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/30 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="mx-auto mt-2 block w-full max-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-center tracking-[0.35em] text-2xl font-semibold text-gray-900 shadow-sm focus:border-(--color-focus-brand) focus:outline-none   dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 aria-invalid={Boolean(errorMessage)}
               />
             </div>
@@ -367,7 +367,7 @@ export function VerifyEmailPageContent() {
             <button
               type="submit"
               disabled={submitting}
-              className="insta-primary-btn flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? 'Verifying…' : 'Verify and continue'}
             </button>

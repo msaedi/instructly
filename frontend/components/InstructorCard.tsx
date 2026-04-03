@@ -820,7 +820,7 @@ const findNextAvailableSlot = (
                         value={duration}
                         checked={selectedDuration === duration}
                         onChange={() => setSelectedDuration(duration)}
-                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-(--color-brand-dark)`}
+                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700`}
                       />
                       <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700 dark:text-gray-300`}>{duration} min (${price})</span>
                     </label>

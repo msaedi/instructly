@@ -1653,7 +1653,7 @@ function PaymentConfirmationInner({
                         <input
                           type="text"
                           placeholder="1234 5678 9012 3456"
-                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                           style={{ outline: 'none' }}
                         />
                       </div>
@@ -1666,7 +1666,7 @@ function PaymentConfirmationInner({
                           <input
                             type="text"
                             placeholder="MM/YY"
-                            className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                            className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                             style={{ outline: 'none' }}
                           />
                         </div>
@@ -1679,7 +1679,7 @@ function PaymentConfirmationInner({
                         <input
                           type="text"
                           placeholder="John Doe"
-                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                          className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                           style={{ outline: 'none' }}
                         />
                       </div>
@@ -1695,7 +1695,7 @@ function PaymentConfirmationInner({
                             <input
                               type="text"
                               placeholder="Address"
-                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                               style={{ outline: 'none' }}
                             />
                           </div>
@@ -1704,28 +1704,28 @@ function PaymentConfirmationInner({
                             <input
                               type="text"
                               placeholder="City"
-                              className="col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              className="col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                               style={{ outline: 'none' }}
                             />
 
                             <input
                               type="text"
                               placeholder="State"
-                              className="col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              className="col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                               style={{ outline: 'none' }}
                             />
 
                             <input
                               type="text"
                               placeholder="ZIP Code"
-                              className="col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                              className="col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) transition-colors"
                               style={{ outline: 'none' }}
                             />
                           </div>
 
                           <div>
                             <select
-                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:border-purple-500 transition-colors"
+                              className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:border-(--color-focus-brand) transition-colors"
                               style={{ outline: 'none' }}
                               defaultValue="US"
                             >
@@ -1793,7 +1793,7 @@ function PaymentConfirmationInner({
                         <input
                           type="checkbox"
                           id="save-card"
-                          className="w-4 h-4 text-(--color-brand-dark) border-gray-300 dark:border-gray-700 rounded focus:ring-(--color-brand-dark)"
+                          className="w-4 h-4 text-(--color-brand-dark) border-gray-300 dark:border-gray-700 rounded "
                         />
                         <label
                           htmlFor="save-card"
@@ -1839,7 +1839,7 @@ function PaymentConfirmationInner({
                     value={promoCode}
                     onChange={(event) => handlePromoInputChange(event.target.value)}
                     disabled={promoActive}
-                    className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-800"
+                    className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-(--color-focus-brand) transition-colors disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-800"
                     style={{ outline: 'none' }}
                   />
                   <button
@@ -2076,7 +2076,7 @@ function PaymentConfirmationInner({
                           inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
                             inputsDisabled
                               ? 'bg-gray-100 cursor-not-allowed'
-                              : 'focus:border-purple-500'
+                              : 'focus:border-(--color-focus-brand)'
                           }`}
                           style={{ outline: 'none' }}
                           inputProps={{
@@ -2106,7 +2106,7 @@ function PaymentConfirmationInner({
                             className={`col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
                               inputsDisabled
                                 ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
-                                : 'focus:border-purple-500'
+                                : 'focus:border-(--color-focus-brand)'
                             }`}
                             style={{ outline: 'none' }}
                           />
@@ -2126,7 +2126,7 @@ function PaymentConfirmationInner({
                             className={`col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
                               inputsDisabled
                                 ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
-                                : 'focus:border-purple-500'
+                                : 'focus:border-(--color-focus-brand)'
                             }`}
                             style={{ outline: 'none' }}
                           />
@@ -2146,7 +2146,7 @@ function PaymentConfirmationInner({
                             className={`col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
                               inputsDisabled
                                 ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
-                                : 'focus:border-purple-500'
+                                : 'focus:border-(--color-focus-brand)'
                             }`}
                             style={{ outline: 'none' }}
                           />
@@ -2251,7 +2251,7 @@ function PaymentConfirmationInner({
               onClick={onConfirm}
               disabled={ctaDisabled}
               data-testid="booking-confirm-cta"
-              className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
+              className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none  ${
                 ctaDisabled
                   ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   : 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700'
@@ -2337,7 +2337,7 @@ function PaymentConfirmationInner({
             <div className="mt-4">
               <textarea
                 placeholder="What should your instructor know about this session?"
-                className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
+                className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-(--color-focus-brand) resize-none transition-colors"
                 style={{ outline: 'none', boxShadow: 'none' }}
                 onFocus={(e) => (e.target.style.boxShadow = 'none')}
                 rows={6}
@@ -2369,7 +2369,7 @@ function PaymentConfirmationInner({
                         <Tooltip.Trigger asChild>
                           <button
                             type="button"
-                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none "
                             aria-label="Learn about the Service & Support fee"
                           >
                             <Info className="h-3.5 w-3.5" aria-hidden="true" />

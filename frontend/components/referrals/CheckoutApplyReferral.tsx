@@ -165,7 +165,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
                   onClick={handleApply}
                   disabled={!canApply}
                   aria-label="Apply referral credit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isLoading ? (
                     <>

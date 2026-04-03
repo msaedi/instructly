@@ -98,6 +98,7 @@ body {
   /* Brand Colors */
   --color-brand: #7C3AED;
   --color-brand-dark: #7E22CE;
+  --color-focus-brand: var(--color-brand-dark);
   --color-brand-lavender: #F3E8FF;
   --color-brand-light: var(--color-brand-lavender);
   --color-brand-surface: #FAF5FF;
@@ -177,6 +178,7 @@ body {
 
   /* Adjusted brand colors for dark mode - match brand purple */
   --color-primary: #7E22CE; /* Brand Purple */
+  --color-focus-brand: #C084FC;
   --color-primary-hover: #7E22CE; /* Keep solid on hover */
   --color-primary-light: #312e81; /* Indigo 900 */
 
@@ -208,7 +210,7 @@ body {
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  border-color: var(--color-primary);
+  border-color: var(--color-focus-brand);
   background-color: #111827; /* Gray 900 */
 }
 
@@ -244,12 +246,41 @@ select {
 
 /* Focus Styles for Accessibility */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 1px solid var(--color-focus-brand);
   outline-offset: 2px;
 }
 
 /* Remove default focus for mouse users */
 :focus:not(:focus-visible) {
+  outline: none;
+}
+
+[class]:focus-visible {
+  outline: 1px solid var(--color-focus-brand);
+  outline-offset: 2px;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--tw-shadow, 0 0 #0000);
+}
+
+[class]:focus:not(:focus-visible) {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--tw-shadow, 0 0 #0000);
+}
+
+input[class]:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+textarea[class]:focus,
+select[class]:focus {
+  border-color: var(--color-focus-brand);
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--tw-shadow, 0 0 #0000);
+}
+
+input[class]:not([type='checkbox']):not([type='radio']):not([type='range']):focus-visible,
+textarea[class]:focus-visible,
+select[class]:focus-visible {
   outline: none;
 }
 
@@ -689,10 +720,10 @@ html {
 }
 
 .focus-link:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 1px solid var(--color-focus-brand);
   outline-offset: 2px;
-  box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.15);
-  color: #5b21b6;
+  box-shadow: none;
+  color: var(--color-focus-brand);
   font-weight: 600;
   text-decoration-thickness: 3px;
   text-underline-offset: 3px;
@@ -801,6 +832,15 @@ html {
   background-color: #7e22ce;
 }
 
+.insta-primary-btn:focus-visible,
+.insta-secondary-btn:focus-visible {
+  outline: 1px solid var(--color-focus-brand);
+  outline-offset: 2px;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--tw-shadow, 0 0 #0000);
+}
+
 .insta-form-input {
   border: 1px solid rgb(209 213 219 / 0.9);
   border-radius: 0.5rem;
@@ -815,7 +855,14 @@ html {
 }
 
 .insta-form-input:focus {
-  border-color: rgb(126 34 206 / 0.55);
+  border-color: var(--color-focus-brand);
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: var(--tw-shadow, 0 0 #0000);
+}
+
+.insta-form-input:focus-visible {
+  outline: none;
 }
 
 .dark .insta-form-input {
@@ -826,6 +873,26 @@ html {
 
 .dark .insta-form-input::placeholder {
   color: #9ca3af;
+}
+
+.insta-focus-composite {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.insta-focus-composite:focus-within {
+  border-color: var(--color-focus-brand);
+}
+
+.insta-focus-composite-input:focus,
+.insta-focus-composite-input:focus-visible,
+.insta-focus-icon-btn:focus,
+.insta-focus-icon-btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.insta-focus-icon-btn:focus-visible {
+  color: var(--color-focus-brand);
 }
 
 .insta-form-input-readonly {

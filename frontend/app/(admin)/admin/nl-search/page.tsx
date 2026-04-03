@@ -377,7 +377,7 @@ export default function NLSearchAdminPage() {
                       min={500}
                       max={10000}
                       step={100}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -407,7 +407,7 @@ export default function NLSearchAdminPage() {
                       min={500}
                       max={10000}
                       step={100}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -447,7 +447,7 @@ export default function NLSearchAdminPage() {
                       min={500}
                       max={10000}
                       step={100}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -463,7 +463,7 @@ export default function NLSearchAdminPage() {
                       min={50}
                       max={5000}
                       step={50}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -479,7 +479,7 @@ export default function NLSearchAdminPage() {
                       min={50}
                       max={5000}
                       step={50}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -495,7 +495,7 @@ export default function NLSearchAdminPage() {
                       min={1}
                       max={100}
                       step={1}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -511,7 +511,7 @@ export default function NLSearchAdminPage() {
                       min={1}
                       max={100}
                       step={1}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -527,7 +527,7 @@ export default function NLSearchAdminPage() {
                       min={0}
                       max={10}
                       step={1}
-                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
 
@@ -566,13 +566,13 @@ export default function NLSearchAdminPage() {
                       if (e.key === 'Enter') void handleSearch();
                     }}
                     placeholder="Try: piano lessons in brooklyn under $50 for kids"
-                    className="w-full px-4 py-3 text-lg ring-1 ring-gray-300/70 dark:ring-gray-700/60 rounded-xl bg-white/60 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    className="w-full px-4 py-3 text-lg ring-1 ring-gray-300/70 dark:ring-gray-700/60 rounded-xl bg-white/60 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none "
                   />
                 </div>
                 <button
                   onClick={() => void handleSearch()}
                   disabled={isSearching || !searchQuery.trim()}
-                  className="px-6 py-3 text-white bg-purple-600 rounded-full hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm font-semibold"
+                  className="px-6 py-3 text-white bg-purple-600 rounded-full hover:bg-purple-700    disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm font-semibold"
                 >
                   {isSearching ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />

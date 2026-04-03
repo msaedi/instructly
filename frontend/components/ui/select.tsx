@@ -33,8 +33,8 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'w-full inline-flex h-9 items-center justify-between gap-2 rounded-md border bg-white dark:bg-gray-800 px-3 text-sm text-gray-900 dark:text-gray-100 transition-shadow',
-      'focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]',
-      'data-[state=open]:shadow-[0_0_0_2px_rgba(212,181,240,1)]',
+      'focus:outline-none focus-visible:outline-none focus:border-(--color-focus-brand)',
+      'data-[state=open]:border-(--color-focus-brand)',
       error ? 'border-red-400' : 'border-gray-300 dark:border-gray-700',
       className
     )}

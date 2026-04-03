@@ -162,7 +162,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               type="button"
               onClick={handleShare}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-secondary-btn"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60 insta-secondary-btn"
             >
               <Share2 className="h-4 w-4" aria-hidden="true" />
               Share
@@ -171,7 +171,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               type="button"
               onClick={handleCopy}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy

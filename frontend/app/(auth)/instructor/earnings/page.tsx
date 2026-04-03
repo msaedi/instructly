@@ -74,7 +74,7 @@ function SimpleDropdown({
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
+        className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none flex items-center justify-between"
       >
         <span>{selected}</span>
         <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

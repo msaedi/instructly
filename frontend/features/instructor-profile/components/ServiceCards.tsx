@@ -191,7 +191,7 @@ function ServiceCardItem({
                         value={dur}
                         checked={selectedDuration === dur}
                         onChange={() => setSelectedDuration(dur)}
-                        className="w-3 h-3 text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-(--color-brand-dark)"
+                        className="w-3 h-3 text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700 "
                       />
                       <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {dur}min

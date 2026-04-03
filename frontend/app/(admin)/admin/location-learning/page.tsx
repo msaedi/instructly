@@ -147,7 +147,7 @@ export default function LocationLearningPage() {
                   void unresolvedQuery.refetch();
                   void pendingQuery.refetch();
                 }}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none  "
                 title="Refresh"
               >
                 <RefreshCw className="h-5 w-5" />

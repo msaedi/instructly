@@ -352,7 +352,7 @@ export default function TimeDropdown({
               : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-          ${isOpen ? 'ring-2 ring-(--color-brand-dark)' : ''}
+          ${isOpen ? 'border-(--color-focus-brand)' : ''}
         `}
         style={{
           fontSize: '16px',

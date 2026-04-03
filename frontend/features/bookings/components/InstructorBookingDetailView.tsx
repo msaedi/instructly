@@ -168,7 +168,7 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
                   <Link
                     href={`/lessons/${booking.id}`}
                     data-testid="join-lesson-button"
-                    className="inline-flex min-w-[116px] cursor-pointer items-center justify-center rounded-full bg-(--color-brand) px-4 py-2 text-sm font-medium text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand)"
+                    className="inline-flex min-w-[116px] cursor-pointer items-center justify-center rounded-full bg-(--color-brand) px-4 py-2 text-sm font-medium text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] transition-opacity hover:opacity-95 focus-visible:outline-none "
                   >
                     Join lesson
                   </Link>
@@ -199,7 +199,7 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
                 type="button"
                 variant="outline"
                 size="sm"
-                className="min-w-[108px] rounded-full border-(--color-brand) bg-white text-(--color-brand) hover:bg-(--color-brand-lavender) hover:text-(--color-brand) focus-visible:ring-(--color-brand) dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
+                className="min-w-[108px] rounded-full border-(--color-brand) bg-white text-(--color-brand) hover:bg-(--color-brand-lavender) hover:text-(--color-brand)  dark:border-[#A78BFA] dark:bg-transparent dark:text-[#C4B5FD] dark:hover:bg-[#2D174D]/40 dark:hover:text-[#E9D5FF]"
                 onClick={onMessageStudent}
                 disabled={isMessagePending}
               >

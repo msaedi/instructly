@@ -120,7 +120,7 @@ export function MessageInput({
           onKeyPress={onKeyPress}
           aria-label="Type a message"
           placeholder="Type your message..."
-          className="flex-1 resize-none border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 min-h-[2.5rem]"
+          className="flex-1 resize-none border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none min-h-[2.5rem]"
           rows={1}
         />
         <button

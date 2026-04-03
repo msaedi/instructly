@@ -358,7 +358,7 @@ function LoginForm({
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
               <div className="mt-1">
-                <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-transparent focus:border-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="you@example.com" />
+                <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-(--color-focus-brand) disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="you@example.com" />
                 {errors['email'] && (<p className="mt-1 text-sm text-red-600" role="alert">{errors['email']}</p>)}
               </div>
             </div>
@@ -366,13 +366,13 @@ function LoginForm({
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Password</label>
               <div className="mt-1">
-                <div className="relative">
-                  <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={formData.password} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-transparent focus:border-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="••••••••" />
+                <div className="relative rounded-md border border-gray-300 dark:border-gray-600 shadow-sm bg-white dark:bg-gray-700 focus-within:border-(--color-focus-brand) insta-focus-composite">
+                  <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={formData.password} onChange={handleChange} disabled={isSubmitting} className="insta-focus-composite-input appearance-none block w-full px-3 py-2 h-10 pr-10 border-0 rounded-md shadow-none placeholder-gray-400 dark:placeholder-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-transparent text-gray-900 dark:text-gray-100 autofill-fix" placeholder="••••••••" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
+                    className="insta-focus-icon-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:outline-none"
                     disabled={isSubmitting}
                   >
                     {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
@@ -420,7 +420,7 @@ function LoginForm({
               <button
                 type="submit"
                 disabled={isSubmitting || (captchaRequired && !captchaToken) || !!rateLimitedUntil}
-                className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {rateLimitedUntil
                   ? getButtonWaitLabel(rateLimitSecondsRemaining)
@@ -443,11 +443,11 @@ function LoginForm({
             </div>
             <div>
               <label htmlFor="twofa" className="block text-sm font-medium text-gray-700 dark:text-gray-300">6-digit code</label>
-              <input id="twofa" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
+              <input id="twofa" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none  focus:border-(--color-focus-brand)" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="123 456" />
             </div>
             <div>
               <label htmlFor="backup" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code (optional)</label>
-              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
+              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none  focus:border-(--color-focus-brand)" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); void handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
             </div>
             <div className="flex items-center gap-2">
               <input id="trust" type="checkbox" className="h-4 w-4" checked={trustThisBrowser} onChange={(e) => setTrustThisBrowser(e.target.checked)} />
@@ -455,7 +455,7 @@ function LoginForm({
             </div>
             {errors['twofa'] && (<p className="text-sm text-red-600" role="alert">{errors['twofa']}</p>)}
             <div>
-              <button type="submit" disabled={isVerifying2FA} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <button type="submit" disabled={isVerifying2FA} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 {isVerifying2FA ? 'Verifying…' : 'Verify & Continue'}
               </button>
             </div>

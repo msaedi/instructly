@@ -93,7 +93,7 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
       role="link"
       tabIndex={0}
       aria-label={`View lesson details for ${studentName}`}
-      className="group block cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+      className="group block cursor-pointer rounded-xl focus-visible:outline-none "
       onClick={openBookingDetail}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {

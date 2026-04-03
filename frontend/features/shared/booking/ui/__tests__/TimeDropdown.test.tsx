@@ -497,11 +497,11 @@ describe('TimeDropdown', () => {
       expect(svg).toHaveClass('rotate-180');
     });
 
-    it('applies ring styling when open', () => {
+    it('applies brand border styling when open', () => {
       render(<TimeDropdown {...defaultProps} />);
       fireEvent.click(screen.getByText('Select time'));
       const button = screen.getByText('Select time').closest('button');
-      expect(button).toHaveClass('ring-2', 'ring-(--color-brand-dark)');
+      expect(button).toHaveClass('border-(--color-focus-brand)');
     });
 
     it('toggles closed when the trigger is clicked while the dropdown is already open', () => {

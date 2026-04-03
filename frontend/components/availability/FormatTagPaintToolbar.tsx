@@ -76,7 +76,7 @@ export default function FormatTagPaintToolbar({
               aria-checked={active}
               aria-label={`${getToolbarOptionTitle(option)}${active ? ' (selected)' : ''}`}
               onClick={() => onChange(option)}
-              className={`inline-flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand) focus-visible:ring-offset-2 ${
+              className={`inline-flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none   ${
                 active ? colors.active : colors.inactive
               }`}
             >

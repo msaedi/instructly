@@ -94,7 +94,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
             placeholder="Search queries..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-full bg-white/70 dark:bg-gray-900/50 backdrop-blur ring-1 ring-gray-300/70 dark:ring-gray-700/60 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+            className="w-full pl-10 pr-4 py-2 rounded-full bg-white/70 dark:bg-gray-900/50 backdrop-blur ring-1 ring-gray-300/70 dark:ring-gray-700/60 text-gray-900 dark:text-gray-100 focus:outline-none  "
           />
         </div>
       </div>

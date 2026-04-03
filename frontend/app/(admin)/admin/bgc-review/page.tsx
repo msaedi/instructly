@@ -376,7 +376,7 @@ export default function AdminBGCReviewPage() {
                   onClick={handleRefresh}
                   disabled={isRefreshing || isLoading}
                   aria-label="Refresh review queue"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50"
                 >
                   {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 </button>
@@ -404,7 +404,7 @@ export default function AdminBGCReviewPage() {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search by instructor, email, or ID"
-                    className="w-full md:w-72 rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
+                    className="w-full md:w-72 rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none   dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -415,7 +415,7 @@ export default function AdminBGCReviewPage() {
                         key={option.value}
                         type="button"
                         onClick={() => setStatusFilter(option.value)}
-                        className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
+                        className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition focus:outline-none   ${
                           active
                             ? 'bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-sm'
                             : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/40'
@@ -1025,7 +1025,7 @@ function PreviewContent({
             onChange={(event) => onDisputeNoteChange(event.target.value)}
             rows={4}
             placeholder="Document dispute context, customer outreach, or resolution steps"
-            className="mt-1 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
+            className="mt-1 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none   dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
           />
         </dd>
       </div>

@@ -105,7 +105,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
             type="button"
             onClick={handleShare}
             disabled={isProcessing !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-80"
             aria-label="Share referral link"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
@@ -116,7 +116,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
             type="button"
             onClick={copyToClipboard}
             disabled={isProcessing !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none  disabled:cursor-not-allowed disabled:opacity-80"
             aria-label="Copy referral link"
           >
             <Copy className="h-4 w-4" aria-hidden="true" />
@@ -126,7 +126,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-gray-100 dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-gray-100 dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none "
           >
             Close
           </button>

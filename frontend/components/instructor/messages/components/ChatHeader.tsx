@@ -114,7 +114,7 @@ export function ChatHeader({
                   value={composeRecipientQuery}
                   onChange={(event) => onComposeRecipientQueryChange(event.target.value)}
                   placeholder="Search contacts..."
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-(--color-brand-dark)"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-(--color-focus-brand)"
                 />
                 {composeRecipientQuery && (
                   <ul className="absolute z-40 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">

@@ -615,7 +615,7 @@ export default function InteractiveGrid({
                     clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1
                   }
                   className={clsx(
-                    'group relative w-full flex-none cursor-pointer border-l border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-0 dark:border-gray-700',
+                    'group relative w-full flex-none cursor-pointer border-l border-b border-gray-200 transition-colors focus-visible:outline-none    dark:border-gray-700',
                     isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
                     row === 0 && 'border-t border-gray-200 dark:border-gray-700',
                     isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',

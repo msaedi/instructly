@@ -77,7 +77,7 @@ export function TimeFilter({
                 type="checkbox"
                 checked={draft.includes(option.value)}
                 onChange={() => toggleTime(option.value)}
-                className="w-4 h-4 rounded border-gray-200 dark:border-gray-700 text-purple-600 focus:ring-purple-500"
+                className="w-4 h-4 rounded border-gray-200 dark:border-gray-700 text-purple-600 "
               />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{option.label}</div>

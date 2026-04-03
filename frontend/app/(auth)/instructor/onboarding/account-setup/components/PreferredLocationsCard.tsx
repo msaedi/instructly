@@ -117,7 +117,7 @@ export function PreferredLocationsCard({
                     value={preferredAddress}
                     onValueChange={setPreferredAddress}
                     placeholder="Type address..."
-                    inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-purple-500 ${
+                    inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-(--color-focus-brand) ${
                       teachingAddressError
                         ? 'border-red-400 focus:border-red-500'
                         : 'border-gray-300'
@@ -149,7 +149,7 @@ export function PreferredLocationsCard({
                           [loc]: e.target.value,
                         }))
                       }
-                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-(--color-brand-dark) bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
+                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-(--color-brand-dark) bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none cursor-text"
                       style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
                     />
                     <span
@@ -191,7 +191,7 @@ export function PreferredLocationsCard({
                     value={neutralLocations}
                     onValueChange={setNeutralLocations}
                     placeholder="Type location..."
-                    inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
+                    inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-(--color-focus-brand)"
                   />
                   <button
                     type="button"

@@ -44,7 +44,7 @@ export function PrivacySettings({ className = '' }: PrivacySettingsProps) {
             type="checkbox"
             checked={clearDataOnLogout}
             onChange={(e) => handleToggle(e.target.checked)}
-            className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-700 rounded"
+            className="mt-1 h-4 w-4 text-blue-600  border-gray-300 dark:border-gray-700 rounded"
           />
           <div className="flex-1">
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">

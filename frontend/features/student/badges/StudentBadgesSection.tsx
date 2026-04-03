@@ -357,7 +357,7 @@ function BadgeTile({
     <article
       role="listitem"
       aria-label={ariaLabelParts.join(', ')}
-      className="rounded-xl border p-4 transition-shadow focus-within:ring-2 focus-within:ring-purple-500"
+      className="rounded-xl border p-4 transition-shadow focus-within:border-(--color-focus-brand)"
       style={getBadgeTileStyle(group, badge.earned, isDarkMode)}
     >
       <div className="flex items-start gap-3">

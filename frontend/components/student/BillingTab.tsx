@@ -255,7 +255,7 @@ const BillingTab: React.FC = () => {
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Enter code"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   void handleApplyPromoCode();

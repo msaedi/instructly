@@ -126,7 +126,7 @@ export function ServiceAreasCard({
               value={globalNeighborhoodFilter}
               onChange={(e) => onGlobalFilterChange(e.target.value)}
               placeholder={resolvedSearchPlaceholder}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100 dark:placeholder-gray-500"
+              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100 dark:placeholder-gray-500"
             />
           </div>
           {globalNeighborhoodFilter.trim().length > 0 && (
@@ -143,7 +143,7 @@ export function ServiceAreasCard({
                       type="button"
                       onClick={() => onToggleNeighborhood(nid)}
                       aria-pressed={checked}
-                      className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                      className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none transition-colors no-hover-shadow appearance-none overflow-hidden ${
                         checked
                           ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                           : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
@@ -255,7 +255,7 @@ export function ServiceAreasCard({
                                 aria-pressed={checked}
                                 data-testid={`service-area-chip-${regionCode}`}
                                 data-state={checked ? 'selected' : 'idle'}
-                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
+                                className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                   checked
                                     ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700'
                                     : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'

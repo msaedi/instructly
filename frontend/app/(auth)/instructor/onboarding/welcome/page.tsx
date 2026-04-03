@@ -53,7 +53,7 @@ export default function WelcomeStep() {
             <Link
               ref={ctaRef}
               href="/instructor/onboarding/account-setup"
-              className="insta-primary-btn inline-flex items-center justify-center w-52 h-12 rounded-lg text-white text-base font-medium focus:outline-none focus:ring-4 focus:ring-(--color-brand-dark)/20 transition"
+              className="insta-primary-btn inline-flex items-center justify-center w-52 h-12 rounded-lg text-white text-base font-medium focus:outline-none transition"
             >
               Let&apos;s get started
             </Link>

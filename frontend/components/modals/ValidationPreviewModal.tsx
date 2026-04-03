@@ -218,8 +218,8 @@ export default function ValidationPreviewModal({
           onClick={onClose}
           disabled={isSaving}
           className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                   hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-gray-500 dark:focus:ring-gray-400 transition-colors disabled:opacity-50"
+                   hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none
+                    dark: transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
@@ -228,7 +228,7 @@ export default function ValidationPreviewModal({
             onClick={handleConfirm}
             disabled={isSaving}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500
+                     focus:outline-none
                      transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isSaving ? (

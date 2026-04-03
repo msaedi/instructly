@@ -451,7 +451,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <button
           type="button"
           onClick={() => setShowChangePassword(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 insta-primary-btn"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
         >
           Change password
         </button>
@@ -528,14 +528,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       <button
         type="button"
         onClick={() => setShowPauseModal(true)}
-        className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 insta-secondary-btn"
+        className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none  insta-secondary-btn"
       >
         Pause account
       </button>
       <button
         type="button"
         onClick={() => setShowDeleteModal(true)}
-        className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 insta-primary-btn"
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
       >
         Delete account
       </button>
@@ -729,7 +729,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                           setFirstNameDraft(e.target.value);
                           setAccountFirstNameError('');
                         }}
-                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/40"
+                        className="w-full px-3 py-2 insta-form-input focus:outline-none"
                       />
                       {accountFirstNameError && (
                         <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
@@ -776,7 +776,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                         type="text"
                         value={zip}
                         onChange={(e) => setZipDraft(e.target.value)}
-                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/40"
+                        className="w-full px-3 py-2 insta-form-input focus:outline-none"
                       />
                     </div>
                     <div className="space-y-3 sm:col-span-2">
@@ -796,7 +796,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       type="button"
                       onClick={handleSaveAccount}
                       disabled={saveAccountMutation.isPending}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
                     >
                       {saveAccountMutation.isPending ? 'Saving…' : 'Save changes'}
                     </button>

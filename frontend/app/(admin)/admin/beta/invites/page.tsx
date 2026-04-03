@@ -290,7 +290,7 @@ export default function BetaInvitesAdminPage() {
                       checked={grantFoundingStatus}
                       onChange={(e) => setGrantFoundingStatus(e.target.checked)}
                       disabled={foundingAtCap}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-700 rounded"
+                      className="h-4 w-4 text-indigo-600  border-gray-300 dark:border-gray-700 rounded"
                     />
                     <label htmlFor="founding-status" className="text-sm text-gray-700 dark:text-gray-300">
                       Grant Founding Instructor status

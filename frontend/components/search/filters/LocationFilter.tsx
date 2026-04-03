@@ -75,7 +75,7 @@ export function LocationFilter({
                 name="location"
                 checked={draft === option.value}
                 onChange={() => setDraft(option.value)}
-                className="w-4 h-4 border-gray-200 dark:border-gray-700 text-purple-600 focus:ring-purple-500"
+                className="w-4 h-4 border-gray-200 dark:border-gray-700 text-purple-600 "
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">{option.label}</span>
             </label>

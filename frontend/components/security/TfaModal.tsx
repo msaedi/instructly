@@ -311,7 +311,7 @@ export default function TfaModal({ initialEnabled = null, onClose, onChanged }: 
                 </p>
                 <button
                   type="button"
-                  className="insta-primary-btn inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="insta-primary-btn inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={acknowledgeBackupCodes}
                   disabled={loading}
                 >

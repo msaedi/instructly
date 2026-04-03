@@ -235,7 +235,7 @@ export default function AdminPendingBadgesPage() {
                       type="date"
                       value={beforeFilter}
                       onChange={handleBeforeChange}
-                      className="rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                      className="rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none "
                     />
                   </div>
                 </div>

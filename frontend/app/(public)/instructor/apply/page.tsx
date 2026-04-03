@@ -334,7 +334,7 @@ export default function InstructorApplyPage() {
                         clearError('firstName');
                       }}
                       required
-                      className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none  focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="Jane"
                       aria-invalid={Boolean(errors.firstName)}
                       aria-describedby={errors.firstName ? 'first-name-error' : undefined}
@@ -359,7 +359,7 @@ export default function InstructorApplyPage() {
                       clearError('lastName');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none  focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="Doe"
                     aria-invalid={Boolean(errors.lastName)}
                     aria-describedby={errors.lastName ? 'last-name-error' : undefined}
@@ -384,7 +384,7 @@ export default function InstructorApplyPage() {
                       clearError('email');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none  focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="you@example.com"
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? 'email-error' : undefined}
@@ -410,7 +410,7 @@ export default function InstructorApplyPage() {
                       clearError('phone');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none  focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="(917) 555-0142"
                     aria-invalid={Boolean(errors.phone)}
                     aria-describedby={errors.phone ? 'phone-error' : undefined}
@@ -440,7 +440,7 @@ export default function InstructorApplyPage() {
                         setHourlyRate(event.target.value);
                         clearError('hourlyRate');
                       }}
-                      className="block w-full px-3 py-2 h-10 pl-7 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      className="block w-full px-3 py-2 h-10 pl-7 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none  focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="95"
                       aria-invalid={Boolean(errors.hourlyRate)}
                       aria-describedby={errors.hourlyRate ? 'hourly-rate-error' : undefined}
@@ -469,7 +469,7 @@ export default function InstructorApplyPage() {
                   }}
                   required
                   disabled={categoriesLoading}
-                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
+                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none  focus:border-[var(--primary)] disabled:opacity-60"
                   aria-invalid={Boolean(errors.category)}
                   aria-describedby={errors.category ? 'category-error' : undefined}
                 >
@@ -498,7 +498,7 @@ export default function InstructorApplyPage() {
                   }}
                   required
                   disabled={!category || servicesLoading}
-                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
+                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none  focus:border-[var(--primary)] disabled:opacity-60"
                   aria-invalid={Boolean(errors.subcategory)}
                   aria-describedby={errors.subcategory ? 'subcategory-error' : undefined}
                 >
@@ -633,7 +633,7 @@ export default function InstructorApplyPage() {
                     type="checkbox"
                     checked={hasExistingClients}
                     onChange={(event) => setHasExistingClients(event.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-(--color-brand-dark) focus:ring-(--color-brand-dark)"
+                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-(--color-brand-dark) "
                   />
                   I have existing clients
                 </label>
@@ -646,7 +646,7 @@ export default function InstructorApplyPage() {
                     id="referral-source"
                     value={referralSource}
                     onChange={(event) => setReferralSource(event.target.value)}
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none  focus:border-[var(--primary)]"
                   >
                     <option value="">Select one</option>
                     {REFERRAL_OPTIONS.map((option) => (
@@ -665,7 +665,7 @@ export default function InstructorApplyPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 focus:bg-(--color-brand-dark) active:bg-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
+                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 focus:bg-(--color-brand-dark) active:bg-(--color-brand-dark) focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
               >
                 {status === 'loading' && (
                   <span className="mr-2 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

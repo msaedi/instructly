@@ -76,7 +76,7 @@ export default function AccountSetupPage() {
             onClick={handleSkip}
             disabled={ctaPending}
             data-testid="skip-account-setup"
-            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 justify-center disabled:opacity-60"
+            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none justify-center disabled:opacity-60"
           >
             Skip for now
           </button>

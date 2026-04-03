@@ -783,7 +783,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                 value={skillsFilter}
                 onChange={(e) => setSkillsFilter(e.target.value)}
                 placeholder="Search skills..."
-                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none"
               />
             </div>
             {/* Selected chips */}
@@ -831,7 +831,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                             <button
                               key={svc.id}
                               onClick={() => toggleServiceSelection(svc)}
-                              className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                              className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none ${
                                 isSel ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                               type="button"
@@ -1013,7 +1013,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Description (optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none bg-white dark:bg-gray-800"
                       placeholder="Brief description of your teaching style..."
                       value={s.description || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, description: e.target.value } : x))}
@@ -1023,7 +1023,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Equipment (optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 bg-white dark:bg-gray-800"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none bg-white dark:bg-gray-800"
                       placeholder="Yoga mat, tennis racket..."
                       value={s.equipment || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, equipment: e.target.value } : x))}
@@ -1068,7 +1068,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                   if (requestSuccess) setRequestSuccess(null);
                 }}
                 placeholder="Request a new skill"
-                className="w-full min-w-[220px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/30 focus:border-(--color-brand-dark)"
+                className="w-full min-w-[220px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none"
               />
               <button
                 type="button"

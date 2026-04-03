@@ -139,7 +139,7 @@ export default function BGCWebhookLogPage() {
                   type="checkbox"
                   checked={autoRefresh}
                   onChange={(event) => setAutoRefresh(event.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-indigo-600 "
                   aria-label="Toggle auto refresh"
                 />
                 Auto-refresh every 15s
@@ -149,7 +149,7 @@ export default function BGCWebhookLogPage() {
                 onClick={() => refetch()}
                 disabled={isRefreshing || isPending}
                 aria-label="Refresh webhook log"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50"
               >
                 {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </button>
@@ -181,7 +181,7 @@ export default function BGCWebhookLogPage() {
                         key={filter.value}
                         type="button"
                         onClick={() => toggleFilter(filter.value, setEventFilters)}
-                        className={`inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
+                        className={`inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none   ${
                           active
                             ? 'bg-indigo-600 text-white shadow'
                             : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/40'
@@ -218,7 +218,7 @@ export default function BGCWebhookLogPage() {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search delivery or signature"
-                    className="flex-1 min-w-[240px] rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
+                    className="flex-1 min-w-[240px] rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none   dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">

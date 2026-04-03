@@ -1122,7 +1122,7 @@ function NotificationsTab() {
             type="button"
             onClick={handleUpdatePhone}
             disabled={updatePhone.isPending}
-            className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
           >
             {updatePhone.isPending ? 'Saving…' : 'Save'}
           </button>
@@ -1144,7 +1144,7 @@ function NotificationsTab() {
               type="button"
               onClick={handleConfirmVerification}
               disabled={confirmVerification.isPending}
-              className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
             >
               {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
             </button>
@@ -1802,17 +1802,17 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
           />
-          <div className="relative">
+          <div className="relative rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 insta-focus-composite">
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
-              className="insta-form-input w-full rounded-md px-3 py-2 pr-10 text-sm"
+              className="insta-focus-composite-input w-full rounded-md border-0 px-3 py-2 pr-10 text-sm bg-transparent dark:text-gray-100"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
+              className="insta-focus-icon-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -1937,7 +1937,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               }}
               onFocus={() => logger.debug('First name input focused')}
               placeholder="Enter first name"
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current value: {firstName || '(empty)'}</p>
           </div>
@@ -1948,7 +1948,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
             />
           </div>
 
@@ -1959,7 +1959,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(555) 123-4567"
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
             />
           </div>
 
@@ -1971,7 +1971,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               onChange={(e) => setZipCode(e.target.value)}
               placeholder="10001"
               maxLength={5}
-              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
             />
           </div>
 
@@ -2043,17 +2043,17 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Change Password</h3>
         </div>
         <div className="space-y-3">
-          <div className="relative">
+          <div className="relative rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 insta-focus-composite">
             <input
               type={showPasswords ? 'text' : 'password'}
               placeholder="Current password"
-              className="insta-form-input w-full rounded-md px-3 py-2 text-sm pr-10"
+              className="insta-focus-composite-input w-full rounded-md border-0 px-3 py-2 text-sm pr-10 bg-transparent dark:text-gray-100"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-(--color-brand-dark)"
+              className="insta-focus-icon-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

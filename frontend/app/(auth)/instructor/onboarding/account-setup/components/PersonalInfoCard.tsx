@@ -77,7 +77,7 @@ export function PersonalInfoCard({
             <input
               id="first_name"
               type="text"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white dark:bg-gray-800 autofill-fix"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-(--color-focus-brand) bg-white dark:bg-gray-800 autofill-fix"
               placeholder="John"
               value={profile.first_name}
               onChange={(e) => handleChange('first_name', e.target.value)}
@@ -88,7 +88,7 @@ export function PersonalInfoCard({
             <input
               id="last_name"
               type="text"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white dark:bg-gray-800 autofill-fix"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-(--color-focus-brand) bg-white dark:bg-gray-800 autofill-fix"
               placeholder="Smith"
               value={profile.last_name}
               onChange={(e) => handleChange('last_name', e.target.value)}
@@ -107,7 +107,7 @@ export function PersonalInfoCard({
               inputMode="numeric"
               maxLength={5}
               pattern="\\d{5}"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 bg-white dark:bg-gray-800 autofill-fix"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-(--color-focus-brand) bg-white dark:bg-gray-800 autofill-fix"
               placeholder="10001"
               value={profile.postal_code}
               onChange={(e) => {

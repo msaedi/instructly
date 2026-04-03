@@ -95,7 +95,7 @@ export default function BetaSettingsPage() {
                     id="beta-disabled"
                     checked={form.beta_disabled}
                     onCheckedChange={(v) => onChange('beta_disabled', v)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none  "
                     aria-label="Disable Beta"
                   >
                     <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
@@ -138,7 +138,7 @@ export default function BetaSettingsPage() {
                     id="allow-signup"
                     checked={form.allow_signup_without_invite}
                     onCheckedChange={(v) => onChange('allow_signup_without_invite', v)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none  "
                     aria-label="Allow signup without invite"
                   >
                     <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />

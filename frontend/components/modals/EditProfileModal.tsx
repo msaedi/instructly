@@ -805,8 +805,8 @@ export default function EditProfileModal({
                 onClose();
               }}
               className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                       hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                       focus:ring-gray-400 transition-all duration-150 font-medium"
+                       hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none
+                        transition-all duration-150 font-medium"
             >
               Cancel
             </button>
@@ -815,8 +815,8 @@ export default function EditProfileModal({
               disabled={loading || !canSubmit}
               className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
-                       duration-150 font-medium focus:outline-none focus:ring-2
-                       focus:ring-offset-2 focus:ring-(--color-brand-dark) flex items-center gap-2"
+                       duration-150 font-medium focus:outline-none
+                         flex items-center gap-2"
             >
               {loading ? (
                 <>
@@ -848,7 +848,7 @@ export default function EditProfileModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 dark:focus:ring-gray-400"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
@@ -870,7 +870,7 @@ export default function EditProfileModal({
                 type="text"
                 value={profileData.first_name}
                 onChange={(e) => setProfileData({ ...profileData, first_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none"
                 placeholder="First name"
               />
             </div>
@@ -884,7 +884,7 @@ export default function EditProfileModal({
                   setProfileData({ ...profileData, last_name: e.target.value });
                   setLastNameError('');
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none"
                 placeholder="Last name"
               />
               {lastNameError && (
@@ -903,7 +903,7 @@ export default function EditProfileModal({
                 maxLength={5}
                 value={profileData.postal_code}
                 onChange={(e) => setProfileData({ ...profileData, postal_code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none"
                 placeholder="10001"
               />
             </div>
@@ -935,7 +935,7 @@ export default function EditProfileModal({
                 value={profileData.bio}
                 onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                         focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                           focus:border-(--color-focus-brand)"
                 rows={4}
                 minLength={10}
                 maxLength={1000}
@@ -955,7 +955,7 @@ export default function EditProfileModal({
                 inputMode="numeric"
                 step={1}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                         focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 no-spinner"
+                           focus:border-(--color-focus-brand) no-spinner"
                 value={profileData.years_experience}
                 onChange={(e) => {
                   const parsed = parseInt(e.target.value, 10);
@@ -983,8 +983,8 @@ export default function EditProfileModal({
                 disabled={savingAbout}
                 className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                          disabled:opacity-50 disabled:cursor-not-allowed transition-all
-                         duration-150 font-medium focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-(--color-brand-dark)"
+                         duration-150 font-medium focus:outline-none
+                          "
               >
                 {savingAbout ? 'Saving…' : 'Save'}
               </button>
@@ -1014,7 +1014,7 @@ export default function EditProfileModal({
                     value={globalNeighborhoodFilter}
                     onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
                     placeholder="Search neighborhoods..."
-                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none"
                   />
                 </div>
                 {selectedNeighborhoodList.length > 0 && (
@@ -1045,7 +1045,7 @@ export default function EditProfileModal({
                               type="button"
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
-                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none ${
                                 checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
@@ -1125,7 +1125,7 @@ export default function EditProfileModal({
                                   type="button"
                                   onClick={() => toggleNeighborhood(nid)}
                                   aria-pressed={checked}
-                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 ${
+                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none ${
                                     checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                   }`}
                                 >
@@ -1158,7 +1158,7 @@ export default function EditProfileModal({
                           value={preferredAddress}
                           onValueChange={setPreferredAddress}
                           placeholder="Type address..."
-                          inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-purple-500 ${
+                          inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-(--color-focus-brand) ${
                             teachingAddressError
                               ? 'border-red-400 focus:border-red-500'
                               : 'border-gray-300'
@@ -1183,7 +1183,7 @@ export default function EditProfileModal({
                             value={place.label ?? ''}
                             onChange={(e) => updateTeachingLabel(index, e.target.value)}
                             placeholder="..."
-                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none focus:ring-0"
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none "
                           />
                           <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
@@ -1223,7 +1223,7 @@ export default function EditProfileModal({
                           value={neutralLocationInput}
                           onValueChange={setNeutralLocationInput}
                           placeholder="Type location..."
-                          inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-purple-500"
+                          inputClassName="h-10 border border-gray-300 pl-3 pr-12 text-sm leading-10 focus:border-(--color-focus-brand)"
                         />
                         <button
                           type="button"
@@ -1244,7 +1244,7 @@ export default function EditProfileModal({
                             value={place.label ?? ''}
                             onChange={(e) => updatePublicLabel(index, e.target.value)}
                             placeholder="Name this spot"
-                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none focus:ring-0"
+                            className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-(--color-brand-dark) focus:outline-none "
                           />
                           <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
@@ -1279,7 +1279,7 @@ export default function EditProfileModal({
                         type="checkbox"
                         checked={profileData.service_area_boroughs.includes(area)}
                         onChange={() => toggleArea(area)}
-                        className="rounded text-purple-600 focus:ring-[#D4B5F0]"
+                        className="rounded text-purple-600 "
                       />
                       <span className="text-sm">{area}</span>
                     </label>
@@ -1303,7 +1303,7 @@ export default function EditProfileModal({
                   logger.debug('Edit profile cancelled');
                   onClose();
                 }}
-                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
+                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-all duration-150 font-medium"
               >
                 Cancel
               </button>
@@ -1311,7 +1311,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={() => { void handleAreasSave(); }}
                 disabled={savingAreas}
-                className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark)"
+                className="px-4 py-2.5 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none"
               >
                 {savingAreas ? 'Saving…' : 'Save'}
               </button>

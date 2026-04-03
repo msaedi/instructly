@@ -812,7 +812,7 @@ export default function InstructorDashboardNew() {
             <UserProfileDropdown hideDashboardItem />
             <button
               type="button"
-              className="md:hidden p-2 rounded-lg text-(--color-brand-dark) border border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 hover:bg-transparent active:bg-transparent"
+              className="md:hidden p-2 rounded-lg text-(--color-brand-dark) border border-transparent focus:outline-none   hover:bg-transparent active:bg-transparent"
               aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
               aria-expanded={isMobileMenuOpen}
               onClick={() => {
@@ -998,7 +998,7 @@ export default function InstructorDashboardNew() {
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button
             onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
-            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
+            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1018,7 +1018,7 @@ export default function InstructorDashboardNew() {
           {/* Earnings card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('earnings')}
-            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none"
             aria-label="Open earnings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1034,7 +1034,7 @@ export default function InstructorDashboardNew() {
           {/* Reviews card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('reviews')}
-            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none"
             aria-label="Open reviews"
           >
             <div className="flex items-start justify-between h-full">
@@ -1076,7 +1076,7 @@ export default function InstructorDashboardNew() {
                     aria-busy={isRefreshingConnect}
                     disabled={isRefreshingConnect}
                     aria-describedby="refresh-status-tip"
-                  className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none  transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                   >
                     <SquareArrowDownLeft className={`w-6 h-6 text-(--color-brand-dark) ${isRefreshingConnect ? 'animate-spin' : 'transition-transform duration-150 ease-out group-hover:scale-110'}`} />
                   </button>
@@ -1254,7 +1254,7 @@ export default function InstructorDashboardNew() {
               <button
                 onClick={() => handlePanelChange('availability')}
                 aria-label="Manage Availability"
-                className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
+                className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none transition shrink-0 overflow-hidden"
               >
                 <span className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-700 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
                 <Calendar className="relative w-6 h-6 text-(--color-brand-dark) transition-transform duration-150 ease-out group-hover:scale-110" />

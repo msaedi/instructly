@@ -123,7 +123,7 @@ function JoinInner() {
               <input
                 id="invite"
                 data-testid="invite-code-input"
-                className="mt-1 block w-full px-3 py-2 h-10 insta-form-input focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+                className="mt-1 block w-full px-3 py-2 h-10 insta-form-input focus:outline-none  focus:border-[var(--primary)]"
                 placeholder="Enter code (e.g. ZBB5-MWQP)"
                 value={formattedCode}
                 onChange={(e) => handleInputChange(e.target.value)}
@@ -156,7 +156,7 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark) disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
+              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
             >
               {submitting ? 'Verifying…' : 'Join!'}
             </button>

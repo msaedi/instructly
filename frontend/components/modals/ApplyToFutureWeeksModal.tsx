@@ -128,7 +128,7 @@ export default function ApplyToFutureWeeksModal({
               value="end-of-year"
               checked={selectedOption === 'end-of-year'}
               onChange={() => setSelectedOption('end-of-year')}
-              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+              className="w-4 h-4 text-indigo-600 "
             />
             <span className="text-gray-700 dark:text-gray-300">Until end of this year</span>
           </label>
@@ -140,7 +140,7 @@ export default function ApplyToFutureWeeksModal({
                 value="date"
                 checked={selectedOption === 'date'}
                 onChange={() => setSelectedOption('date')}
-                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                className="w-4 h-4 text-indigo-600 "
               />
               <span className="text-gray-700 dark:text-gray-300">Until specific date</span>
             </label>
@@ -153,7 +153,7 @@ export default function ApplyToFutureWeeksModal({
                   onChange={(e) => setCustomDate(e.target.value)}
                   min={getMinDate()}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                           focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                             focus:border-(--color-focus-brand)"
                   aria-label="Select end date"
                 />
               </div>
@@ -166,7 +166,7 @@ export default function ApplyToFutureWeeksModal({
               value="indefinitely"
               checked={selectedOption === 'indefinitely'}
               onChange={() => setSelectedOption('indefinitely')}
-              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+              className="w-4 h-4 text-indigo-600 "
             />
             <span className="text-gray-700 dark:text-gray-300">Apply indefinitely (1 year)</span>
           </label>
@@ -177,15 +177,14 @@ export default function ApplyToFutureWeeksModal({
           <button
             onClick={handleClose}
             className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                     hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-gray-500 dark:focus:ring-gray-400 transition-colors"
+                     hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-brand-dark)
+                     focus:outline-none
                      transition-colors flex items-center gap-2 font-semibold"
           >
             <Calendar className="w-4 h-4" />

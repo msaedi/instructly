@@ -98,8 +98,8 @@ export default function WeekNavigator({
           disabled={disabled}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-(--color-brand-dark)"
+                   focus:outline-none
+                   "
           title="Previous week"
           aria-label="Go to previous week"
         >
@@ -127,8 +127,8 @@ export default function WeekNavigator({
           disabled={disabled}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-(--color-brand-dark)"
+                   focus:outline-none
+                   "
           title="Next week"
           aria-label="Go to next week"
         >

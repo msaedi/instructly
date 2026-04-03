@@ -220,7 +220,7 @@ export default function Step3PaymentSetup() {
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 justify-center"
+          className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none justify-center"
         >
           Skip for now
         </button>

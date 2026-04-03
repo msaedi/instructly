@@ -708,7 +708,7 @@ export default function Step4Verification() {
                   : '/instructor/onboarding/payment-setup'
               );
             }}
-            className="insta-secondary-btn w-40 justify-center rounded-lg px-5 py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20"
+            className="insta-secondary-btn w-40 justify-center rounded-lg px-5 py-2.5 transition-colors focus:outline-none"
           >
             Skip for now
           </button>

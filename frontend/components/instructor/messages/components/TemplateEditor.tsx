@@ -183,7 +183,7 @@ export function TemplateEditor({
                       onChange={(event) => onTemplateSubjectChange(current.id, event.target.value)}
                       placeholder="Template title"
                       aria-label="Template title"
-                      className="w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400 dark:text-gray-300"
+                      className="w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none  focus-visible:outline-none  placeholder:text-gray-400 dark:text-gray-300"
                     />
                   </div>
                   {updatedAtLabel ? (
@@ -228,7 +228,7 @@ export function TemplateEditor({
                     )
                   );
                 }}
-                className="flex-1 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="flex-1 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none"
               />
             </div>
           ) : (

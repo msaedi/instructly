@@ -136,7 +136,7 @@ export function BioCard({
             <div className="relative">
               <textarea
                 rows={4}
-                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${showBioWarning ? 'border-red-300 focus:border-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-purple-500'}`}
+                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${showBioWarning ? 'border-red-300 focus:border-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-(--color-focus-brand)'}`}
                 placeholder={bioPlaceholder}
                 value={profile.bio}
                 onChange={(e) => onProfileChange({ bio: e.target.value })}
@@ -175,7 +175,7 @@ export function BioCard({
                   }}
                   onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
                   onChange={(e) => handleYearsChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 no-spinner"
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none no-spinner"
                 />
               </div>
             </div>

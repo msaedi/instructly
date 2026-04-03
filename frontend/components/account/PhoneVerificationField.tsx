@@ -34,7 +34,7 @@ export function PhoneVerificationField({
             onChange={(event) => flow.handlePhoneInputChange(event.target.value)}
             disabled={flow.showPendingPhoneState}
             placeholder="(212) 555-1001"
-            className={`w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/40 ${
+            className={`w-full px-3 py-2 insta-form-input focus:outline-none ${
               flow.showPendingPhoneState
                 ? 'insta-form-input-readonly cursor-not-allowed pointer-events-none select-none'
                 : ''
@@ -55,7 +55,7 @@ export function PhoneVerificationField({
               type="button"
               onClick={() => void flow.sendCode()}
               disabled={flow.updatePhonePending || flow.sendVerificationPending}
-              className="insta-primary-btn inline-flex h-10 shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn inline-flex h-10 shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
             >
               {flow.updatePhonePending || flow.sendVerificationPending ? 'Sending…' : 'Verify'}
             </button>
@@ -84,13 +84,13 @@ export function PhoneVerificationField({
                   flow.setPhoneCode(event.target.value.replace(/\D/g, ''));
                 }}
                 placeholder="123456"
-                className="w-full px-3 py-2 insta-form-input text-center tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/40 sm:max-w-[220px]"
+                className="w-full px-3 py-2 insta-form-input text-center tracking-[0.35em] focus:outline-none sm:max-w-[220px]"
               />
               <button
                 type="button"
                 onClick={() => void flow.confirmCode()}
                 disabled={flow.confirmVerificationPending}
-                className="insta-primary-btn inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-brand-dark) focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="insta-primary-btn inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {flow.confirmVerificationPending ? 'Submitting…' : 'Submit'}
               </button>

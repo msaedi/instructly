@@ -120,7 +120,7 @@ export function FormatPricingCards({
                   disabled={!enabled || disabled}
                   aria-invalid={error ? 'true' : 'false'}
                   onChange={(e) => handleRateChange(config.format, e.target.value)}
-                  className={`w-20 rounded-md border px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 focus:border-purple-500 ${
+                  className={`w-20 rounded-md border px-2 py-1.5 text-center font-medium focus:outline-none ${
                     error
                       ? 'border-red-500'
                       : 'border-gray-300 dark:border-gray-600'

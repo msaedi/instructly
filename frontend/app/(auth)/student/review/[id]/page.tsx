@@ -291,7 +291,7 @@ export default function ReviewPage() {
               value={review}
               onChange={(e) => setReview(e.target.value)}
               placeholder={`Tell others about your experience with ${instructorFirstName}...`}
-              className="w-full min-h-[150px] p-4 border border-gray-300 dark:border-gray-700 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark) focus:border-transparent"
+              className="w-full min-h-[150px] p-4 border border-gray-300 dark:border-gray-700 rounded-lg resize-none focus:outline-none focus:border-(--color-focus-brand)"
               maxLength={500}
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
@@ -358,7 +358,7 @@ export default function ReviewPage() {
                         }
                       }}
                       placeholder="Enter amount"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark) focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:border-(--color-focus-brand)"
                       min="0"
                       max="999"
                       step="1"
@@ -382,7 +382,7 @@ export default function ReviewPage() {
                   type="checkbox"
                   checked={addToFavorites}
                   onChange={(e) => setAddToFavorites(e.target.checked)}
-                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 dark:border-gray-700 rounded focus:ring-(--color-brand-dark)"
+                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 dark:border-gray-700 rounded "
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">

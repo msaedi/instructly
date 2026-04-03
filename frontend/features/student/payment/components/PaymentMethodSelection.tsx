@@ -320,7 +320,7 @@ export default function PaymentMethodSelection({
                 <button
                   onClick={handleContinue}
                   disabled={!selectedCardId}
-                  className="w-full py-2.5 px-4 bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
+                  className="w-full py-2.5 px-4 bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none  disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
                   {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
                 </button>

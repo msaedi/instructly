@@ -221,7 +221,7 @@ export default function ReferralsAdminClient() {
                 type="button"
                 onClick={() => handleRefresh()}
                 disabled={isFetching}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50"
                 aria-label="Refresh data"
                 title="Refresh data"
               >

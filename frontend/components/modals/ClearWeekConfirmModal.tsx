@@ -97,15 +97,15 @@ export default function ClearWeekConfirmModal({
           <button
             onClick={handleCancel}
             className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                     hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-gray-500 dark:focus:ring-gray-400 transition-colors"
+                     hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none
+                      dark: transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
+                     focus:outline-none
                      transition-colors"
           >
             Clear Week

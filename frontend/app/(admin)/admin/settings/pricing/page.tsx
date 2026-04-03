@@ -459,7 +459,7 @@ export default function PricingSettingsPage() {
                             max={1}
                             value={config.student_fee_pct}
                             onChange={(e) => setConfig({ ...config, student_fee_pct: Number(e.target.value) })}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="ml-2 text-[11px] px-1.5">
                             decimal
@@ -499,7 +499,7 @@ export default function PricingSettingsPage() {
                                 min={0}
                                 value={tier.min}
                                 onChange={(e) => updateTier(index, 'min', e.target.value)}
-                                className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                                className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                               />
                               {errors.min ? <p className="mt-1 text-xs text-destructive">{errors.min}</p> : null}
                             </div>
@@ -514,7 +514,7 @@ export default function PricingSettingsPage() {
                                 value={tier.max ?? ''}
                                 placeholder="∞"
                                 onChange={(e) => updateTier(index, 'max', e.target.value)}
-                                className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                                className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                               />
                               {errors.max ? <p className="mt-1 text-xs text-destructive">{errors.max}</p> : null}
                             </div>
@@ -531,7 +531,7 @@ export default function PricingSettingsPage() {
                                   max={1}
                                   value={tier.pct}
                                   onChange={(e) => updateTier(index, 'pct', e.target.value)}
-                                  className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                                  className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                                 />
                                 <Badge variant="secondary" className="shrink-0 px-1.5 text-[11px]">
                                   decimal
@@ -563,7 +563,7 @@ export default function PricingSettingsPage() {
                           min={1}
                           value={config.tier_activity_window_days}
                           onChange={(e) => setConfig({ ...config, tier_activity_window_days: Number(e.target.value) })}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.tierWindow ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.tierWindow}</p>
@@ -579,7 +579,7 @@ export default function PricingSettingsPage() {
                           min={0}
                           value={config.tier_stepdown_max}
                           onChange={(e) => setConfig({ ...config, tier_stepdown_max: Number(e.target.value) })}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.tierStepdown ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.tierStepdown}</p>
@@ -595,7 +595,7 @@ export default function PricingSettingsPage() {
                           min={1}
                           value={config.tier_inactivity_reset_days}
                           onChange={(e) => setConfig({ ...config, tier_inactivity_reset_days: Number(e.target.value) })}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.inactivity ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.inactivity}</p>
@@ -627,7 +627,7 @@ export default function PricingSettingsPage() {
                             max={1}
                             value={config.founding_instructor_rate_pct}
                             onChange={(e) => updateFoundingConfig('founding_instructor_rate_pct', e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="shrink-0 px-1.5 text-[11px]">
                             decimal
@@ -648,7 +648,7 @@ export default function PricingSettingsPage() {
                           min={1}
                           value={config.founding_instructor_cap}
                           onChange={(e) => updateFoundingConfig('founding_instructor_cap', e.target.value)}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Max founding instructors</p>
                         {validation.errors.foundingCap ? (
@@ -667,7 +667,7 @@ export default function PricingSettingsPage() {
                           max={3}
                           value={config.founding_search_boost}
                           onChange={(e) => updateFoundingConfig('founding_search_boost', e.target.value)}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Ranking multiplier (1.0-3.0)</p>
                         {validation.errors.foundingBoost ? (
@@ -696,7 +696,7 @@ export default function PricingSettingsPage() {
                             min={0}
                             value={config.price_floor_cents.private_in_person}
                             onChange={(e) => updatePriceFloor('private_in_person', e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="ml-2 text-[11px] px-1.5">
                             cents
@@ -714,7 +714,7 @@ export default function PricingSettingsPage() {
                             min={0}
                             value={config.price_floor_cents.private_remote}
                             onChange={(e) => updatePriceFloor('private_remote', e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="ml-2 text-[11px] px-1.5">
                             cents
@@ -745,7 +745,7 @@ export default function PricingSettingsPage() {
                           min={1}
                           value={config.student_credit_cycle.cycle_len}
                           onChange={(e) => updateCreditCycle('cycle_len', e.target.value)}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.credit.cycle_len ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.credit.cycle_len}</p>
@@ -761,7 +761,7 @@ export default function PricingSettingsPage() {
                           min={0}
                           value={config.student_credit_cycle.mod10}
                           onChange={(e) => updateCreditCycle('mod10', e.target.value)}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.credit.mod10 ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.credit.mod10}</p>
@@ -778,7 +778,7 @@ export default function PricingSettingsPage() {
                             min={0}
                             value={config.student_credit_cycle.cents10}
                             onChange={(e) => updateCreditCycle('cents10', e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="ml-2 text-[11px] px-1.5">
                             cents
@@ -798,7 +798,7 @@ export default function PricingSettingsPage() {
                           min={0}
                           value={config.student_credit_cycle.mod20}
                           onChange={(e) => updateCreditCycle('mod20', e.target.value)}
-                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                         />
                         {validation.errors.credit.mod20 ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.credit.mod20}</p>
@@ -815,7 +815,7 @@ export default function PricingSettingsPage() {
                             min={0}
                             value={config.student_credit_cycle.cents20}
                             onChange={(e) => updateCreditCycle('cents20', e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none  "
                           />
                           <Badge variant="secondary" className="ml-2 text-[11px] px-1.5">
                             cents

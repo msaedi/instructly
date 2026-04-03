@@ -163,7 +163,7 @@ export function CancellationReasonModal({
                     value={reason}
                     checked={selectedReason === reason}
                     onChange={(e) => setSelectedReason(e.target.value)}
-                    className="mt-1 text-(--color-brand-dark) focus:ring-(--color-brand-dark)"
+                    className="mt-1 text-(--color-brand-dark) "
                   />
                   <span className="text-gray-700 dark:text-gray-300">{reason}</span>
                 </label>

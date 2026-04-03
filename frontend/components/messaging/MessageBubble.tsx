@@ -244,7 +244,7 @@ export function MessageBubble({
               rows={1}
               autoFocus
               className={cn(
-                'w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-(--color-brand-dark) focus:border-purple-500',
+                'w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none  focus:border-(--color-focus-brand)',
                 bubbleSide === 'right'
                   ? 'bg-transparent text-white placeholder:text-blue-100'
                   : 'bg-transparent text-gray-900 dark:text-gray-100 placeholder:text-gray-400'

@@ -906,7 +906,7 @@ export function Chat({
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-(--color-brand-dark) focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
+              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none  focus:border-(--color-focus-brand) shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
               style={{ minHeight: '40px', maxHeight: '160px' }}
             />
             {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}

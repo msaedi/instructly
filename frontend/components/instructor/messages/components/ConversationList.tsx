@@ -63,7 +63,7 @@ export function ConversationList({
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search conversations"
-            className="w-full rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-(--color-brand-dark)"
+            className="w-full rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-(--color-focus-brand)"
           />
         </div>
         <button

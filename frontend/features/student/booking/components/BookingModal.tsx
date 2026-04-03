@@ -366,7 +366,7 @@ export default function BookingModal({
                     value={bookingFormData.name}
                     onChange={handleFormChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg  dark:bg-gray-700 dark:text-white"
                     placeholder="John Doe"
                     aria-invalid={!!errors.name}
                     aria-describedby={errors.name ? 'booking-name-error' : undefined}
@@ -391,7 +391,7 @@ export default function BookingModal({
                     value={bookingFormData.email}
                     onChange={handleFormChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg  dark:bg-gray-700 dark:text-white"
                     placeholder="john@example.com"
                     aria-invalid={!!errors.email}
                     aria-describedby={errors.email ? 'booking-email-error' : undefined}
@@ -416,7 +416,7 @@ export default function BookingModal({
                     value={bookingFormData.phone}
                     onChange={handleFormChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg  dark:bg-gray-700 dark:text-white"
                     placeholder="(555) 123-4567"
                     aria-invalid={!!errors.phone}
                     aria-describedby={errors.phone ? 'booking-phone-error' : undefined}
@@ -440,7 +440,7 @@ export default function BookingModal({
                     value={bookingFormData.notes}
                     onChange={handleFormChange}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg  dark:bg-gray-700 dark:text-white"
                     placeholder="Any specific topics, learning goals, or requirements..."
                   />
                 </div>
@@ -472,7 +472,7 @@ export default function BookingModal({
                     name="agreedToTerms"
                     checked={bookingFormData.agreedToTerms}
                     onChange={handleFormChange}
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-700 rounded"
+                    className="mt-1 h-4 w-4 text-blue-600  border-gray-300 dark:border-gray-700 rounded"
                     aria-invalid={!!errors.agreedToTerms}
                     aria-describedby={errors.agreedToTerms ? 'booking-terms-error' : undefined}
                   />
@@ -551,7 +551,7 @@ export default function BookingModal({
                           value={service.id}
                           checked={selectedService?.id === service.id}
                           onChange={() => handleServiceChange(service)}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-blue-600 "
                         />
                         <div className="flex-1">
                           <div className="font-medium text-gray-900 dark:text-white">
@@ -590,7 +590,7 @@ export default function BookingModal({
                             value={minutes}
                             checked={duration === minutes}
                             onChange={() => handleDurationChange(minutes)}
-                            className="text-blue-600 focus:ring-blue-500"
+                            className="text-blue-600 "
                           />
                           <span className="text-gray-900 dark:text-white">{minutes} minutes</span>
                         </div>

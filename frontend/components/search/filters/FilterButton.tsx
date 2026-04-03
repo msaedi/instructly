@@ -72,7 +72,7 @@ export function FilterButton({
           isActive
             ? 'bg-purple-100 border-purple-300 text-purple-700'
             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-        } ${isOpen ? 'ring-2 ring-purple-500 ring-offset-1' : ''}`}
+        } ${isOpen ? 'border-(--color-focus-brand)' : ''}`}
       >
         <span>{label}</span>
         <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />

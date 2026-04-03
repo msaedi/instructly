@@ -32,7 +32,7 @@ import { useBeta } from '@/contexts/BetaContext';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 
 const LEGAL_FOOTER_LINK_CLASSES =
-  'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-(--color-brand-dark)';
+  'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300 no-underline focus-visible:outline-none   ';
 
 const HERO_PANEL_SIZE = 400;
 
