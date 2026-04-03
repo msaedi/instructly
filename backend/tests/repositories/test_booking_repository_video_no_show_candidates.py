@@ -47,27 +47,34 @@ def _create_online_confirmed_booking(
 
 @pytest.mark.integration
 def test_includes_booking_without_video_session_row(db, test_booking) -> None:
-    """LEFT JOIN should include mutual no-show candidates with no video_session row."""
+    """LEFT JOIN should include ended bookings with no video_session row."""
     repo = BookingRepository(db)
     now = datetime.now(timezone.utc)
-    start_utc = now - timedelta(minutes=30)
-    sql_cutoff = now - timedelta(minutes=8)
+    sql_cutoff = now
 
-    booking = _create_online_confirmed_booking(
+    ended_booking = _create_online_confirmed_booking(
         db,
         student_id=test_booking.student_id,
         instructor_id=test_booking.instructor_id,
         instructor_service_id=test_booking.instructor_service_id,
-        start_utc=start_utc,
+        start_utc=now - timedelta(minutes=90),
+    )
+    ongoing_booking = _create_online_confirmed_booking(
+        db,
+        student_id=test_booking.student_id,
+        instructor_id=test_booking.instructor_id,
+        instructor_service_id=test_booking.instructor_service_id,
+        start_utc=now - timedelta(minutes=30),
     )
     db.commit()
 
     rows = repo.get_video_no_show_candidates(sql_cutoff)
 
-    matching = [(b, vs) for b, vs in rows if b.id == booking.id]
+    matching = [(b, vs) for b, vs in rows if b.id == ended_booking.id]
     assert len(matching) == 1
     _, video_session = matching[0]
     assert video_session is None
+    assert all(b.id != ongoing_booking.id for b, _vs in rows)
 
 
 @pytest.mark.integration
@@ -75,14 +82,14 @@ def test_excludes_booking_with_both_participants_joined(db, test_booking) -> Non
     """Candidates should exclude bookings where both instructor and student joined."""
     repo = BookingRepository(db)
     now = datetime.now(timezone.utc)
-    sql_cutoff = now - timedelta(minutes=8)
+    sql_cutoff = now
 
     no_session_booking = _create_online_confirmed_booking(
         db,
         student_id=test_booking.student_id,
         instructor_id=test_booking.instructor_id,
         instructor_service_id=test_booking.instructor_service_id,
-        start_utc=now - timedelta(minutes=30),
+        start_utc=now - timedelta(minutes=90),
     )
 
     joined_booking = _create_online_confirmed_booking(
@@ -90,7 +97,7 @@ def test_excludes_booking_with_both_participants_joined(db, test_booking) -> Non
         student_id=test_booking.student_id,
         instructor_id=test_booking.instructor_id,
         instructor_service_id=test_booking.instructor_service_id,
-        start_utc=now - timedelta(minutes=120),
+        start_utc=now - timedelta(minutes=210),
     )
     db.add(
         BookingVideoSession(
