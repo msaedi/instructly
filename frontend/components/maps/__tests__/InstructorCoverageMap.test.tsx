@@ -58,20 +58,49 @@ jest.mock('react-leaflet', () => ({
     <div data-testid="tile-layer" data-url={url} onClick={() => eventHandlers?.tileerror?.()} />
   ),
   GeoJSON: ({ data, style, onEachFeature }: {
-    data: unknown;
+    data: { features?: Array<Record<string, unknown>> };
     style?: (feature: unknown) => object;
     onEachFeature?: (feature: unknown, layer: unknown) => void;
   }) => {
-    const mockLayer = {
-      bindPopup: jest.fn(),
-    };
-    const mockFeature = {
-      properties: { name: 'Test Region', instructors: ['inst-1'] },
-    };
-    // Trigger the callbacks for coverage
-    if (style) style(mockFeature);
-    if (onEachFeature) onEachFeature(mockFeature, mockLayer);
-    return <div data-testid="geojson-layer" data-features={JSON.stringify(data)} />;
+    const features = Array.isArray(data?.features) ? data.features : [];
+
+    return (
+      <div data-testid="geojson-layer" data-features={JSON.stringify(data)}>
+        {features.map((feature, index) => {
+          const mockLayer = {
+            bindPopup: jest.fn(),
+            on: jest.fn(),
+          };
+          if (style) {
+            style(feature);
+          }
+          if (onEachFeature) {
+            onEachFeature(feature, mockLayer);
+          }
+          const clickHandler = (
+            mockLayer.on as jest.Mock
+          ).mock.calls.find((call) => typeof call[0]?.click === 'function')?.[0]?.click as
+            | (() => void)
+            | undefined;
+          const name =
+            String((feature['properties'] as { name?: string; region_id?: string } | undefined)?.name || '') ||
+            String(
+              (feature['properties'] as { name?: string; region_id?: string } | undefined)?.region_id ||
+                `feature-${index}`
+            );
+
+          return (
+            <button
+              key={name}
+              data-testid={`geojson-feature-${index}`}
+              onClick={() => clickHandler?.()}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+    );
   },
   AttributionControl: () => <div data-testid="attribution-control" />,
   useMap: () => mockMap,
@@ -349,6 +378,22 @@ describe('InstructorCoverageMap', () => {
 
     // GeoJSON layer should be rendered with highlighting applied
     expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+  });
+
+  it('calls onAreaClick with area name and instructor ids when a polygon is clicked', () => {
+    const onAreaClick = jest.fn();
+
+    render(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        showCoverage={true}
+        onAreaClick={onAreaClick}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('geojson-feature-0'));
+
+    expect(onAreaClick).toHaveBeenCalledWith('Upper West Side', ['inst-1', 'inst-2']);
   });
 
   describe('MapBoundsTracker', () => {

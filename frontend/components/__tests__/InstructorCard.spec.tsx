@@ -1,7 +1,10 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import InstructorCard, { type InstructorAvailabilityData } from '@/components/InstructorCard';
+import InstructorCard, {
+  type InstructorAvailabilityByFormat,
+  type InstructorAvailabilityData,
+} from '@/components/InstructorCard';
 import type { Instructor } from '@/types/api';
 
 const pushMock = jest.fn();
@@ -75,8 +78,7 @@ jest.mock('@/lib/api/pricing', () => ({
   formatCentsToDisplay: jest.fn((amount: number) => `$${(amount / 100).toFixed(2)}`),
 }));
 
-
-const buildInstructor = (): Instructor => ({
+const buildInstructor = (overrides: Partial<Instructor> = {}): Instructor => ({
   id: 'instructor-profile-1',
   user_id: 'user-1',
   bio: 'Dedicated instructor',
@@ -100,12 +102,20 @@ const buildInstructor = (): Instructor => ({
   service_area_summary: 'NYC',
   rating: 4.9,
   total_reviews: 12,
+  ...overrides,
 });
 
 const buildAvailabilityData = (availability: InstructorAvailabilityData['availabilityByDate']): InstructorAvailabilityData => ({
   timezone: 'America/New_York',
   availabilityByDate: availability,
 });
+
+const buildAvailabilityByFormat = (
+  availability: Partial<Record<keyof InstructorAvailabilityByFormat, InstructorAvailabilityData['availabilityByDate']>>
+): InstructorAvailabilityByFormat =>
+  Object.fromEntries(
+    Object.entries(availability).map(([format, days]) => [format, buildAvailabilityData(days ?? {})])
+  ) as InstructorAvailabilityByFormat;
 
 describe('InstructorCard next available booking', () => {
   beforeEach(() => {
@@ -140,6 +150,7 @@ describe('InstructorCard next available booking', () => {
     expect(onBookNow.mock.calls[0]?.[1]).toEqual({
       preSelectedDate: '2024-06-01',
       initialDurationMinutes: 60,
+      initialLocationType: 'online',
     });
     expect(pushMock).not.toHaveBeenCalledWith('/student/booking/confirm');
     expect(sessionStorage.getItem('bookingData')).toBeNull();
@@ -160,7 +171,8 @@ describe('InstructorCard next available booking', () => {
     );
 
     const button = screen.getByRole('button', { name: /Next Available/i });
-    expect(button).toHaveTextContent(/Next Available: Fri, May 10/);
+    expect(button).toHaveTextContent(/Next: Fri, May 10/);
+    expect(button).toHaveTextContent(/Online/);
 
     fireEvent.click(screen.getByLabelText(/60 min/));
 
@@ -185,6 +197,261 @@ describe('InstructorCard next available booking', () => {
 
     const button = screen.getByRole('button', { name: /Next Available/i });
     expect(button).toHaveTextContent(/Wed, May 8/);
+  });
+
+  it('prefers the earliest available format across all offered formats when no specific format is selected', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'instructor_location', hourly_rate: 70 },
+                { format: 'student_location', hourly_rate: 90 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:30' }],
+            },
+          },
+          student_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '14:30', end_time: '15:30' }],
+            },
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    expect(button).toHaveTextContent(/Next: Wed, May 8, 12:30 PM · Online/);
+  });
+
+  it('breaks ties by preferring online over in-person formats for the same start time', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'instructor_location', hourly_rate: 70 },
+                { format: 'student_location', hourly_rate: 90 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:00' }],
+            },
+          },
+          instructor_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:00' }],
+            },
+          },
+          student_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:00' }],
+            },
+          },
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Next Available/i })
+    ).toHaveTextContent(/Next: Wed, May 8, 12:30 PM · Online/);
+  });
+
+  it('uses only online availability when the search format is online', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'student_location', hourly_rate: 90 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        searchLessonType="online"
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:00' }],
+            },
+          },
+          student_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '11:30', end_time: '12:00' }],
+            },
+          },
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Next Available/i })
+    ).toHaveTextContent(/Next: Wed, May 8, 12:30 PM · Online/);
+  });
+
+  it('uses only studio availability when the search format is studio', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'instructor_location', hourly_rate: 75 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        searchLessonType="studio"
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '11:30', end_time: '12:00' }],
+            },
+          },
+          instructor_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '13:00', end_time: '13:30' }],
+            },
+          },
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Next Available/i })
+    ).toHaveTextContent(/Next: Wed, May 8, 1:00 PM · Studio/);
+  });
+
+  it('uses only travel availability when the search format is travels', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'student_location', hourly_rate: 95 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        searchLessonType="travels"
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '11:30', end_time: '12:00' }],
+            },
+          },
+          student_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '14:00', end_time: '14:30' }],
+            },
+          },
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Next Available/i })
+    ).toHaveTextContent(/Next: Wed, May 8, 2:00 PM · Travels/);
+  });
+
+  it('excludes online availability for the in-person lesson filter', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor({
+          services: [
+            {
+              id: 'service-1',
+              service_catalog_id: 'catalog-1',
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'instructor_location', hourly_rate: 70 },
+                { format: 'student_location', hourly_rate: 90 },
+              ],
+              description: 'Lesson',
+              duration_options: [30],
+              is_active: true,
+              skill: 'Piano',
+            },
+          ],
+        })}
+        searchLessonType="in_person"
+        availabilityByFormat={buildAvailabilityByFormat({
+          online: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '12:30', end_time: '13:30' }],
+            },
+          },
+          instructor_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '13:30', end_time: '14:30' }],
+            },
+          },
+          student_location: {
+            '2024-05-08': {
+              available_slots: [{ start_time: '13:00', end_time: '14:00' }],
+            },
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    expect(button).toHaveTextContent(/Next: Wed, May 8, 1:00 PM · Travels/);
   });
 });
 

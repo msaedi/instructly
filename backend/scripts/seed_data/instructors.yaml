@@ -62,6 +62,77 @@ instructors:
   first_name: Sarah
   last_name: Chen
   zip_code: '10010'
+- email: emily.park@example.com
+  phone: '+12125551031'
+  profile:
+    bio: Warm, detail-oriented piano teacher who blends classical fundamentals with contemporary repertoire for kids and adults.
+    years_experience: 6
+    services:
+    - name: Piano
+      description: Piano technique, note reading, and confidence-building repertoire
+      format_prices:
+      - format: online
+        hourly_rate: 90.0
+      - format: student_location
+        hourly_rate: 120.0
+      duration_options:
+      - 30
+      - 45
+      - 60
+      age_groups:
+      - Kids
+      - Teens
+      - Adults
+      filter_selections:
+        skill_level:
+        - beginner
+        - intermediate
+  availability_pattern: evenings_weekends
+  review_fixtures:
+  - student_email: sophia.brown@example.com
+    rating: 5
+    review_text: Thoughtful pacing and very encouraging.
+    days_ago: 1
+    hours_ago: 4
+  - student_email: alex.williams@example.com
+    rating: 5
+    review_text: Clear explanations and great exercises.
+    days_ago: 3
+    hours_ago: 3
+  - student_email: david.miller@example.com
+    rating: 5
+    review_text: Helped me fix technique issues quickly.
+    days_ago: 5
+    hours_ago: 2
+  - student_email: emma.johnson@example.com
+    rating: 5
+    review_text: Super patient and organized.
+    days_ago: 7
+    hours_ago: 5
+  - student_email: john.smith@example.com
+    rating: 4
+    review_text: Great lesson structure and follow-up notes.
+    days_ago: 10
+    hours_ago: 2
+  - student_email: emma.fresh@example.com
+    rating: 4
+    review_text: Friendly teacher and easy to work with.
+    days_ago: 12
+    hours_ago: 3
+  - student_email: alex.williams@example.com
+    rating: 4
+    review_text: Good balance of technique and songs.
+    days_ago: 16
+    hours_ago: 2
+  - student_email: sophia.brown@example.com
+    rating: 4
+    review_text: Helpful and very consistent.
+    days_ago: 22
+    hours_ago: 1
+  seed_skip_random_completed_bookings: true
+  first_name: Emily
+  last_name: Park
+  zip_code: '10025'
 - email: michael.rodriguez@example.com
   phone: '+12125551002'
   profile:
@@ -111,6 +182,118 @@ instructors:
   first_name: Jason
   last_name: Park
   zip_code: '10012'
+- email: james.williams@example.com
+  phone: '+12125551032'
+  profile:
+    bio: Conservatory-trained piano instructor focused on expressive playing, audition prep, and polished fundamentals.
+    years_experience: 11
+    services:
+    - name: Piano
+      description: Piano coaching for advancing students, audition prep, and adult returners
+      format_prices:
+      - format: online
+        hourly_rate: 100.0
+      - format: instructor_location
+        hourly_rate: 110.0
+      - format: student_location
+        hourly_rate: 140.0
+      duration_options:
+      - 45
+      - 60
+      age_groups:
+      - Teens
+      - Adults
+      filter_selections:
+        skill_level:
+        - intermediate
+        - advanced
+  teaching_locations:
+  - address: 45 W 21st St, New York, NY 10010
+    lat: 40.7412
+    lng: -73.9915
+    neighborhood: Chelsea-Hudson Yards
+    label: Flatiron Studio
+  availability_pattern: standard_weekday
+  review_fixtures:
+  - student_email: john.smith@example.com
+    rating: 5
+    review_text: Excellent attention to detail.
+    days_ago: 1
+    hours_ago: 2
+  - student_email: emma.johnson@example.com
+    rating: 5
+    review_text: Challenging in the best way.
+    days_ago: 2
+    hours_ago: 3
+  - student_email: alex.williams@example.com
+    rating: 5
+    review_text: Great for technique and musicality.
+    days_ago: 3
+    hours_ago: 4
+  - student_email: sophia.brown@example.com
+    rating: 5
+    review_text: Very polished and professional.
+    days_ago: 4
+    hours_ago: 5
+  - student_email: david.miller@example.com
+    rating: 5
+    review_text: Helped me prepare confidently for an audition.
+    days_ago: 5
+    hours_ago: 2
+  - student_email: emma.fresh@example.com
+    rating: 5
+    review_text: Strong teacher with clear feedback.
+    days_ago: 6
+    hours_ago: 1
+  - student_email: john.smith@example.com
+    rating: 5
+    review_text: Thoughtful lesson plan every time.
+    days_ago: 8
+    hours_ago: 2
+  - student_email: emma.johnson@example.com
+    rating: 5
+    review_text: Really helped with expression and tone.
+    days_ago: 10
+    hours_ago: 3
+  - student_email: alex.williams@example.com
+    rating: 5
+    review_text: Clear, direct, and encouraging.
+    days_ago: 12
+    hours_ago: 2
+  - student_email: sophia.brown@example.com
+    rating: 5
+    review_text: Great mix of fundamentals and artistry.
+    days_ago: 14
+    hours_ago: 4
+  - student_email: david.miller@example.com
+    rating: 5
+    review_text: Excellent studio and strong teaching presence.
+    days_ago: 16
+    hours_ago: 2
+  - student_email: emma.fresh@example.com
+    rating: 5
+    review_text: Very focused and productive lesson.
+    days_ago: 18
+    hours_ago: 1
+  - student_email: john.smith@example.com
+    rating: 4
+    review_text: Demanding but very effective.
+    days_ago: 20
+    hours_ago: 2
+  - student_email: emma.johnson@example.com
+    rating: 4
+    review_text: Learned a lot in one session.
+    days_ago: 23
+    hours_ago: 3
+  - student_email: alex.williams@example.com
+    rating: 4
+    review_text: Strong teacher with high standards.
+    days_ago: 27
+    hours_ago: 2
+  seed_skip_random_completed_bookings: true
+  first_name: James
+  last_name: Williams
+  zip_code: '10010'
 - email: carlos.garcia@example.com
   phone: '+12125551004'
   profile:

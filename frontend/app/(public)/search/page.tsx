@@ -20,7 +20,8 @@ import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import {
   availableFormatsFromPrices,
-  lessonTypeToAvailabilityLocationType,
+  lessonTypeToFormats,
+  type ServiceFormat,
 } from '@/lib/pricing/formatPricing';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
@@ -28,6 +29,7 @@ import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hoo
 import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
+import type { LocationType } from '@/types/booking';
 import { FilterBar } from '@/components/search/FilterBar';
 import {
   type ContentFilterSelections,
@@ -465,6 +467,19 @@ type MapFeatureCollection = {
   features: GeoJSONFeature[];
 };
 
+type InstructorAvailabilitySummaryByFormat = Partial<
+  Record<ServiceFormat, InstructorAvailabilitySummary>
+>;
+
+type TimeSelectionContext = {
+  instructor: Instructor;
+  preSelectedDate: string | null;
+  preSelectedTime: string | null;
+  initialDurationMinutes: number | null;
+  initialLocationType: LocationType | null;
+  serviceId?: string;
+};
+
 const getInstructorMinRate = (instructor: Instructor): number | null => {
   const services = Array.isArray(instructor.services) ? instructor.services : [];
   const rates = services
@@ -593,6 +608,53 @@ const availabilityMatchesFilters = (
   );
 };
 
+const mergeAvailabilitySummaries = (
+  summaries: Array<InstructorAvailabilitySummary | undefined>
+): InstructorAvailabilitySummary | undefined => {
+  const days = new Map<
+    string,
+    { available_slots: Array<{ start_time: string; end_time: string }>; is_blackout?: boolean }
+  >();
+  let timezone: string | undefined;
+
+  for (const summary of summaries) {
+    if (!summary) continue;
+    timezone = timezone ?? summary.timezone;
+
+    for (const [dateKey, day] of Object.entries(summary.availabilityByDate ?? {})) {
+      if (!day) continue;
+      const existing = days.get(dateKey);
+      const combinedSlots = [...(existing?.available_slots ?? []), ...(day.available_slots ?? [])]
+        .filter(
+          (slot, index, allSlots) =>
+            allSlots.findIndex(
+              (candidate) =>
+                candidate.start_time === slot.start_time && candidate.end_time === slot.end_time
+            ) === index
+        )
+        .sort((left, right) => left.start_time.localeCompare(right.start_time));
+
+      const mergedBlackout = existing
+        ? Boolean(existing.is_blackout) && Boolean(day.is_blackout)
+        : day.is_blackout;
+
+      days.set(dateKey, {
+        available_slots: combinedSlots,
+        ...(typeof mergedBlackout === 'boolean' ? { is_blackout: mergedBlackout } : {}),
+      });
+    }
+  }
+
+  if (days.size === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(timezone ? { timezone } : {}),
+    availabilityByDate: Object.fromEntries(days.entries()),
+  };
+};
+
 function SearchPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -609,7 +671,7 @@ function SearchPageInner() {
   }, [isAuthenticated]);
   const [serviceSlug] = useState<string>('');
   const [showTimeSelection, setShowTimeSelection] = useState(false);
-  const [timeSelectionContext, setTimeSelectionContext] = useState<Record<string, unknown> | null>(null);
+  const [timeSelectionContext, setTimeSelectionContext] = useState<TimeSelectionContext | null>(null);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -621,6 +683,8 @@ function SearchPageInner() {
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [mapFilterIds, setMapFilterIds] = useState<string[] | null>(null);
+  const [lastClickedArea, setLastClickedArea] = useState<string | null>(null);
+  const [areaClickIndex, setAreaClickIndex] = useState(0);
 
   const boundsContains = useCallback((bounds: unknown, lat: number, lng: number): boolean => {
     if (!bounds || typeof bounds !== 'object') return false;
@@ -1512,10 +1576,77 @@ function SearchPageInner() {
         .filter((id): id is string => Boolean(id)),
     [instructors]
   );
-  const availabilityByInstructor = usePublicAvailability(
-    availabilityIds,
-    lessonTypeToAvailabilityLocationType(filters.location),
+  const requestedAvailabilityFormats = useMemo(
+    () => lessonTypeToFormats(filters.location),
+    [filters.location]
   );
+  const requestedAvailabilityFormatSet = useMemo(
+    () => new Set<ServiceFormat>(requestedAvailabilityFormats),
+    [requestedAvailabilityFormats]
+  );
+
+  const onlineAvailabilityByInstructor = usePublicAvailability(
+    requestedAvailabilityFormatSet.has('online') ? availabilityIds : [],
+    'online',
+  );
+  const instructorLocationAvailabilityByInstructor = usePublicAvailability(
+    requestedAvailabilityFormatSet.has('instructor_location') ? availabilityIds : [],
+    'instructor_location',
+  );
+  const studentLocationAvailabilityByInstructor = usePublicAvailability(
+    requestedAvailabilityFormatSet.has('student_location') ? availabilityIds : [],
+    'student_location',
+  );
+
+  const availabilityByInstructor = useMemo<Record<string, InstructorAvailabilitySummaryByFormat>>(() => {
+    const byInstructor: Record<string, InstructorAvailabilitySummaryByFormat> = {};
+
+    for (const instructorId of availabilityIds) {
+      const byFormat: InstructorAvailabilitySummaryByFormat = {};
+      const onlineAvailability = onlineAvailabilityByInstructor[instructorId];
+      const instructorLocationAvailability =
+        instructorLocationAvailabilityByInstructor[instructorId];
+      const studentLocationAvailability = studentLocationAvailabilityByInstructor[instructorId];
+
+      if (onlineAvailability) {
+        byFormat.online = onlineAvailability;
+      }
+      if (instructorLocationAvailability) {
+        byFormat.instructor_location = instructorLocationAvailability;
+      }
+      if (studentLocationAvailability) {
+        byFormat.student_location = studentLocationAvailability;
+      }
+
+      if (Object.keys(byFormat).length > 0) {
+        byInstructor[instructorId] = byFormat;
+      }
+    }
+
+    return byInstructor;
+  }, [
+    availabilityIds,
+    instructorLocationAvailabilityByInstructor,
+    onlineAvailabilityByInstructor,
+    studentLocationAvailabilityByInstructor,
+  ]);
+
+  const mergedAvailabilityByInstructor = useMemo<Record<string, InstructorAvailabilitySummary>>(() => {
+    const mergedByInstructor: Record<string, InstructorAvailabilitySummary> = {};
+
+    for (const instructorId of availabilityIds) {
+      const byFormat = availabilityByInstructor[instructorId];
+      if (!byFormat) continue;
+      const merged = mergeAvailabilitySummaries(
+        requestedAvailabilityFormats.map((format) => byFormat[format])
+      );
+      if (merged) {
+        mergedByInstructor[instructorId] = merged;
+      }
+    }
+
+    return mergedByInstructor;
+  }, [availabilityByInstructor, availabilityIds, requestedAvailabilityFormats]);
 
   const sidebarFilteredInstructors = useMemo(() => {
     if (instructors.length === 0) return [];
@@ -1592,12 +1723,12 @@ function SearchPageInner() {
       }
 
       const instructorId = instructor.user_id || instructor.id;
-      const availability = instructorId ? availabilityByInstructor[instructorId] : undefined;
+      const availability = instructorId ? mergedAvailabilityByInstructor[instructorId] : undefined;
       if (!availabilityMatchesFilters(availability, filters)) return false;
 
       return true;
     });
-  }, [activeAudience, availabilityByInstructor, filters, instructors, selectedSkillLevel]);
+  }, [activeAudience, filters, instructors, mergedAvailabilityByInstructor, selectedSkillLevel]);
 
   const instructorCapabilities = useMemo(() => {
     const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
@@ -1725,6 +1856,50 @@ function SearchPageInner() {
     }
     return sorted;
   }, [filteredInstructors, sortOption]);
+
+  const sortedInstructorIds = useMemo(
+    () =>
+      sortedInstructors
+        .map((instructor) => instructor.user_id || instructor.id)
+        .filter((id): id is string => Boolean(id)),
+    [sortedInstructors]
+  );
+  const sortedInstructorIdsKey = useMemo(
+    () => sortedInstructorIds.join(','),
+    [sortedInstructorIds]
+  );
+
+  useEffect(() => {
+    setLastClickedArea(null);
+    setAreaClickIndex(0);
+  }, [filters, sortOption, sortedInstructorIdsKey]);
+
+  const scrollToInstructor = useCallback((instructorId: string) => {
+    setFocusedInstructorId(instructorId);
+    const target = document.getElementById(`instructor-card-${instructorId}`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
+  const handleAreaClick = useCallback(
+    (areaName: string, instructorIds: string[]) => {
+      const visibleInstructorIds = sortedInstructorIds.filter((id) => instructorIds.includes(id));
+      if (visibleInstructorIds.length === 0) {
+        return;
+      }
+
+      const nextIndex =
+        areaName === lastClickedArea ? (areaClickIndex + 1) % visibleInstructorIds.length : 0;
+      const nextInstructorId = visibleInstructorIds[nextIndex] ?? visibleInstructorIds[0];
+      if (!nextInstructorId) {
+        return;
+      }
+
+      setLastClickedArea(areaName);
+      setAreaClickIndex(nextIndex);
+      scrollToInstructor(nextInstructorId);
+    },
+    [areaClickIndex, lastClickedArea, scrollToInstructor, sortedInstructorIds]
+  );
 
   useEffect(() => {
     if (loading) {
@@ -2132,6 +2307,7 @@ function SearchPageInner() {
                     return (
                       <div
                         key={instructor.id}
+                        id={`instructor-card-${instructor.user_id}`}
                         onMouseEnter={() => setHoveredInstructorId(instructor.user_id)}
                         onMouseLeave={() => setHoveredInstructorId(null)}
                         onClick={() => setFocusedInstructorId(instructor.user_id)}
@@ -2142,7 +2318,7 @@ function SearchPageInner() {
                           searchLessonType={filters.location}
                           {...(highlightServiceCatalogId ? { highlightServiceCatalogId } : {})}
                           {...(availabilityByInstructor[instructor.user_id] && {
-                            availabilityData: availabilityByInstructor[instructor.user_id],
+                            availabilityByFormat: availabilityByInstructor[instructor.user_id],
                           })}
                           onViewProfile={() => {
                             trackSearchClick({
@@ -2163,7 +2339,10 @@ function SearchPageInner() {
                               preSelectedDate: selection?.preSelectedDate ?? null,
                               preSelectedTime: selection?.preSelectedTime ?? null,
                               initialDurationMinutes: selection?.initialDurationMinutes ?? null,
-                              serviceId: enhancedInstructor.services?.[0]?.id,
+                              initialLocationType: selection?.initialLocationType ?? null,
+                              ...(enhancedInstructor.services?.[0]?.id
+                                ? { serviceId: enhancedInstructor.services[0].id }
+                                : {}),
                             });
                           }}
                         />
@@ -2223,6 +2402,7 @@ function SearchPageInner() {
                 onBoundsChange={handleMapBoundsChange}
                 showSearchAreaButton={showSearchAreaButton}
                 onSearchArea={handleSearchArea}
+                onAreaClick={handleAreaClick}
               />
             </div>
           </div>
@@ -2234,25 +2414,34 @@ function SearchPageInner() {
           isOpen={showTimeSelection}
           onClose={() => setShowTimeSelection(false)}
           instructor={{
-            user_id: getString(timeSelectionContext?.['instructor'], 'user_id', ''),
+            user_id: timeSelectionContext.instructor.user_id,
             user: {
-              first_name: getString(isRecord(timeSelectionContext?.['instructor']) ? timeSelectionContext['instructor']['user'] : undefined, 'first_name', ''),
-              last_initial: getString(isRecord(timeSelectionContext?.['instructor']) ? timeSelectionContext['instructor']['user'] : undefined, 'last_initial', '')
+              first_name: timeSelectionContext.instructor.user.first_name,
+              last_initial: timeSelectionContext.instructor.user.last_initial,
             },
-            services: getArray(timeSelectionContext?.['instructor'], 'services') as Array<{
+            services: (Array.isArray(timeSelectionContext.instructor.services)
+              ? timeSelectionContext.instructor.services
+              : []) as Array<{
               id?: string;
               duration_options: number[];
               min_hourly_rate: number;
               format_prices: Array<{ format: string; hourly_rate: number }>;
               skill: string;
-            }>
+            }>,
           }}
-          {...(getString(timeSelectionContext, 'preSelectedDate') && { preSelectedDate: getString(timeSelectionContext, 'preSelectedDate') })}
-          {...(getString(timeSelectionContext, 'preSelectedTime') && { preSelectedTime: getString(timeSelectionContext, 'preSelectedTime') })}
-          {...(getNumber(timeSelectionContext, 'initialDurationMinutes', 0) > 0 && {
-            initialDurationMinutes: getNumber(timeSelectionContext, 'initialDurationMinutes', 0),
+          {...(timeSelectionContext.preSelectedDate && {
+            preSelectedDate: timeSelectionContext.preSelectedDate,
           })}
-          {...(getString(timeSelectionContext, 'serviceId') && { serviceId: getString(timeSelectionContext, 'serviceId') })}
+          {...(timeSelectionContext.preSelectedTime && {
+            preSelectedTime: timeSelectionContext.preSelectedTime,
+          })}
+          {...((timeSelectionContext.initialDurationMinutes ?? 0) > 0 && {
+            initialDurationMinutes: timeSelectionContext.initialDurationMinutes ?? 0,
+          })}
+          {...(timeSelectionContext.initialLocationType && {
+            initialLocationType: timeSelectionContext.initialLocationType,
+          })}
+          {...(timeSelectionContext.serviceId && { serviceId: timeSelectionContext.serviceId })}
         />
       )}
     </div>

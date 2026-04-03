@@ -45,9 +45,10 @@ from app.core.enums import RoleName
 from app.models.address import InstructorServiceArea
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
-from app.models.instructor import BGCConsent, InstructorProfile
+from app.models.instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.rbac import Role, UserRole as UserRoleJunction
+from app.models.region_boundary import RegionBoundary
 from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import (
     SERVICE_FORMAT_INSTRUCTOR_LOCATION,
@@ -63,7 +64,39 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.services.timezone_service import TimezoneService
 from app.utils.bitset import bits_from_windows, new_empty_bits
+from app.utils.location_privacy import jitter_coordinates
 from app.utils.time_utils import time_to_minutes
+
+DEFAULT_TEACHING_LOCATIONS = [
+    {
+        "address": "123 W 72nd St, New York, NY 10023",
+        "lat": 40.7787,
+        "lng": -73.9802,
+        "neighborhood": "Upper West Side",
+        "label": "Studio",
+    },
+    {
+        "address": "45 W 21st St, New York, NY 10010",
+        "lat": 40.7412,
+        "lng": -73.9915,
+        "neighborhood": "Chelsea-Hudson Yards",
+        "label": "Studio",
+    },
+    {
+        "address": "225 Cherry Street, New York, NY 10002",
+        "lat": 40.7105,
+        "lng": -73.9792,
+        "neighborhood": "Lower East Side",
+        "label": "Studio",
+    },
+    {
+        "address": "31-00 47th Ave, Long Island City, NY 11101",
+        "lat": 40.7440,
+        "lng": -73.9370,
+        "neighborhood": "Long Island City",
+        "label": "Studio",
+    },
+]
 
 
 class DatabaseSeeder:
@@ -80,6 +113,8 @@ class DatabaseSeeder:
         "last_name",
         "zip_code",
         "account_status",
+        "teaching_locations",
+        "seed_skip_random_completed_bookings",
     }
     _PROFILE_ALLOWED_KEYS = {
         "bio",
@@ -489,6 +524,86 @@ class DatabaseSeeder:
             Decimal("0.01")
         )
 
+    def _seed_instructor_offers_instructor_location(self, instructor_data: Dict[str, Any]) -> bool:
+        profile = instructor_data.get("profile") or {}
+        services = profile.get("services") or []
+        for service_data in services:
+            if not isinstance(service_data, dict):
+                continue
+            prices = self._normalize_seed_format_prices(service_data)
+            if any(
+                str(price.get("format")) == SERVICE_FORMAT_INSTRUCTOR_LOCATION for price in prices
+            ):
+                return True
+        return False
+
+    def _resolve_seed_teaching_locations(
+        self,
+        instructor_data: Dict[str, Any],
+        *,
+        default_index: int,
+    ) -> list[dict[str, Any]]:
+        raw_locations = instructor_data.get("teaching_locations")
+        if isinstance(raw_locations, list) and raw_locations:
+            normalized_locations: list[dict[str, Any]] = []
+            for index, raw_location in enumerate(raw_locations):
+                if not isinstance(raw_location, dict):
+                    continue
+                address = str(raw_location.get("address") or "").strip()
+                if not address:
+                    continue
+                lat = raw_location.get("lat")
+                lng = raw_location.get("lng")
+                normalized_locations.append(
+                    {
+                        "address": address,
+                        "lat": float(lat) if lat is not None else None,
+                        "lng": float(lng) if lng is not None else None,
+                        "neighborhood": self._normalize_optional_seed_text(raw_location.get("neighborhood")),
+                        "label": self._normalize_optional_seed_text(raw_location.get("label"))
+                        or f"Studio {index + 1}",
+                    }
+                )
+            if normalized_locations:
+                return normalized_locations
+
+        if not self._seed_instructor_offers_instructor_location(instructor_data):
+            return []
+
+        location = DEFAULT_TEACHING_LOCATIONS[default_index % len(DEFAULT_TEACHING_LOCATIONS)]
+        return [dict(location)]
+
+    def _create_seed_teaching_locations(
+        self,
+        session: Session,
+        *,
+        instructor_id: str,
+        locations: Sequence[dict[str, Any]],
+    ) -> None:
+        for position, location in enumerate(locations):
+            lat = location.get("lat")
+            lng = location.get("lng")
+            approx_lat = None
+            approx_lng = None
+            if lat is not None and lng is not None:
+                approx_lat, approx_lng = jitter_coordinates(float(lat), float(lng))
+
+            session.add(
+                InstructorPreferredPlace(
+                    id=str(ulid.ULID()),
+                    instructor_id=instructor_id,
+                    kind="teaching_location",
+                    address=str(location["address"]),
+                    label=self._normalize_optional_seed_text(location.get("label")),
+                    position=position,
+                    lat=float(lat) if lat is not None else None,
+                    lng=float(lng) if lng is not None else None,
+                    approx_lat=approx_lat,
+                    approx_lng=approx_lng,
+                    neighborhood=self._normalize_optional_seed_text(location.get("neighborhood")),
+                )
+            )
+
     def reset_database(self):
         """Clean test data from database"""
         with self._session_scope() as session:
@@ -754,7 +869,7 @@ class DatabaseSeeder:
 
             # PHASE 1: Create all User objects first (for FK constraints)
             user_data_map = {}  # email -> (user_id, user, instructor_data)
-            for instructor_data in instructors:
+            for instructor_index, instructor_data in enumerate(instructors):
                 account_status = instructor_data.get("account_status", "active")
                 user_id = str(ulid.ULID())
                 user = User(
@@ -771,13 +886,18 @@ class DatabaseSeeder:
                     account_status=account_status,
                 )
                 session.add(user)
-                user_data_map[instructor_data["email"]] = (user_id, user, instructor_data)
+                user_data_map[instructor_data["email"]] = (
+                    user_id,
+                    user,
+                    instructor_data,
+                    instructor_index,
+                )
 
             # Flush all users at once (single round trip)
             session.flush()
 
             # PHASE 2: Create all dependent objects (roles, profiles, services)
-            for email, (user_id, user, instructor_data) in user_data_map.items():
+            for email, (user_id, user, instructor_data, instructor_index) in user_data_map.items():
                 account_status = instructor_data.get("account_status", "active")
 
                 # Assign instructor role
@@ -831,6 +951,9 @@ class DatabaseSeeder:
                     "profile_id": profile_id,
                     "review_fixtures": instructor_data.get("review_fixtures") or [],
                     "seed_completed_last_30d": seed_completed_last_30d,
+                    "skip_random_completed_bookings": bool(
+                        instructor_data.get("seed_skip_random_completed_bookings", False)
+                    ),
                     "seed_randomize_categories": seed_randomize_categories,
                     "service_ids": [],
                 }
@@ -845,6 +968,17 @@ class DatabaseSeeder:
                             consented_at=now_utc,
                             ip_address="127.0.0.1",
                         )
+                    )
+
+                teaching_locations = self._resolve_seed_teaching_locations(
+                    instructor_data,
+                    default_index=instructor_index,
+                )
+                if teaching_locations:
+                    self._create_seed_teaching_locations(
+                        session,
+                        instructor_id=user_id,
+                        locations=teaching_locations,
                     )
 
                 # Create services from catalog (using dynamic resolver + pre-built lookups)
@@ -1045,8 +1179,9 @@ class DatabaseSeeder:
         targeted_ids: set[str] = set()
         for plan in self.instructor_seed_plan.values():
             desired = int(plan.get("seed_completed_last_30d") or 0)
+            skip_random_completed = bool(plan.get("skip_random_completed_bookings"))
             user_id = plan.get("user_id")
-            if desired > 0 and user_id:
+            if (desired > 0 or skip_random_completed) and user_id:
                 targeted_ids.add(str(user_id))
         return targeted_ids
 
@@ -1335,6 +1470,22 @@ class DatabaseSeeder:
                 for cfg in ov.get("names", []):
                     all_names.append(cfg["name"])
             name_to_id = region_repo.find_region_ids_by_partial_names(list(dict.fromkeys(all_names)))
+            normalized_requested_names = {
+                str(name).strip().lower()
+                for name in all_names
+                if str(name).strip()
+            }
+            exact_name_to_id = {
+                str(region_name).strip().lower(): region_id
+                for region_name, region_id in (
+                    session.query(RegionBoundary.region_name, RegionBoundary.id)
+                    .filter(
+                        RegionBoundary.region_type == "nyc",
+                        func.lower(RegionBoundary.region_name).in_(normalized_requested_names),
+                    )
+                    .all()
+                )
+            }
 
             # Pre-load all instructors with roles in ONE query
             instructor_emails = [e for e in self.created_users.keys() if e.endswith("@example.com")]
@@ -1369,7 +1520,11 @@ class DatabaseSeeder:
                 # Pick config: override by email, else defaults
                 cfg = overrides.get(email, defaults)
                 for item in cfg.get("names", []):
-                    rid = name_to_id.get(item["name"]) if item.get("name") else None
+                    requested_name = str(item.get("name") or "").strip()
+                    rid = (
+                        exact_name_to_id.get(requested_name.lower())
+                        or name_to_id.get(requested_name)
+                    ) if requested_name else None
                     if not rid:
                         continue
 

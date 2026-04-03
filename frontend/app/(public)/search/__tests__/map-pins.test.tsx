@@ -4,8 +4,29 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SearchResultsPage from '../page';
 
 jest.mock('next/dynamic', () => () => {
-  const MockCoverageMap = ({ locationPins }: { locationPins?: unknown[] }) => (
-    <div data-testid="coverage-map" data-pins={JSON.stringify(locationPins ?? [])} />
+  const MockCoverageMap = ({
+    locationPins,
+    onAreaClick,
+  }: {
+    locationPins?: unknown[];
+    onAreaClick?: (areaName: string, instructorIds: string[]) => void;
+  }) => (
+    <div data-testid="coverage-map" data-pins={JSON.stringify(locationPins ?? [])}>
+      <button
+        type="button"
+        data-testid="coverage-area-uws"
+        onClick={() => onAreaClick?.('Upper West Side', ['inst-2', 'inst-1'])}
+      >
+        Upper West Side
+      </button>
+      <button
+        type="button"
+        data-testid="coverage-area-chelsea"
+        onClick={() => onAreaClick?.('Chelsea', ['inst-2'])}
+      >
+        Chelsea
+      </button>
+    </div>
   );
   MockCoverageMap.displayName = 'MockCoverageMap';
   return MockCoverageMap;
@@ -45,7 +66,9 @@ jest.mock('@/features/shared/hooks/useAuth', () => ({
 }));
 
 jest.mock('@/components/InstructorCard', () => {
-  const MockInstructorCard = () => <div data-testid="instructor-card" />;
+  const MockInstructorCard = ({ instructor }: { instructor?: { user_id?: string } }) => (
+    <div data-testid="instructor-card">{instructor?.user_id ?? 'unknown-instructor'}</div>
+  );
   MockInstructorCard.displayName = 'MockInstructorCard';
   return { __esModule: true, default: MockInstructorCard };
 });
@@ -116,6 +139,10 @@ describe('Search results map pins', () => {
         configurable: true,
         value: MockIntersectionObserver,
       });
+    }
+
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = jest.fn();
     }
   });
 
@@ -208,6 +235,100 @@ describe('Search results map pins', () => {
         instructorId: 'inst-1',
       });
     });
+  });
+
+  it('cycles through visible instructors when the same coverage area is clicked repeatedly', async () => {
+    mockPublicApi.searchWithNaturalLanguage.mockResolvedValue({
+      data: {
+        results: [
+          {
+            instructor_id: 'inst-1',
+            relevance_score: 0.95,
+            instructor: {
+              first_name: 'Sarah',
+              last_initial: 'C.',
+              bio_snippet: '',
+              profile_picture_url: '',
+              verified: false,
+              is_founding_instructor: false,
+              years_experience: 12,
+              teaching_locations: [],
+            },
+            rating: { average: 4.8, count: 22 },
+            coverage_areas: ['Upper West Side'],
+            best_match: {
+              service_id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              name: 'Piano Lessons',
+              description: '',
+              min_hourly_rate: 90,
+              format_prices: [{ format: 'student_location', hourly_rate: 90 }],
+            },
+            other_matches: [],
+          },
+          {
+            instructor_id: 'inst-2',
+            relevance_score: 0.9,
+            instructor: {
+              first_name: 'James',
+              last_initial: 'W.',
+              bio_snippet: '',
+              profile_picture_url: '',
+              verified: false,
+              is_founding_instructor: false,
+              years_experience: 8,
+              teaching_locations: [],
+            },
+            rating: { average: 4.7, count: 15 },
+            coverage_areas: ['Upper West Side', 'Chelsea'],
+            best_match: {
+              service_id: 'svc-2',
+              service_catalog_id: 'cat-1',
+              name: 'Piano Lessons',
+              description: '',
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'student_location', hourly_rate: 120 }],
+            },
+            other_matches: [],
+          },
+        ],
+        meta: { total_results: 2 },
+      },
+      status: 200,
+    });
+
+    const scrolledIds: string[] = [];
+    const scrollSpy = jest
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(function mockScrollIntoView(this: Element) {
+        scrolledIds.push((this as HTMLElement).id);
+      });
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(document.getElementById('instructor-card-inst-1')).toBeInTheDocument();
+      expect(document.getElementById('instructor-card-inst-2')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('coverage-area-uws'));
+    expect(scrolledIds.at(-1)).toBe('instructor-card-inst-1');
+
+    fireEvent.click(screen.getByTestId('coverage-area-uws'));
+    expect(scrolledIds.at(-1)).toBe('instructor-card-inst-2');
+
+    fireEvent.click(screen.getByTestId('coverage-area-chelsea'));
+    expect(scrolledIds.at(-1)).toBe('instructor-card-inst-2');
+
+    scrollSpy.mockRestore();
   });
 
   it('supports listbox semantics and keyboard interaction for sort options', async () => {

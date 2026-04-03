@@ -22,12 +22,17 @@ import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
-import { getContextualPrice, availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
+import {
+  getContextualPrice,
+  availableFormatsFromPrices,
+  type ServiceFormat,
+} from '@/lib/pricing/formatPricing';
 import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
+import type { LocationType } from '@/types/booking';
 
 type AvailabilitySlot = {
   start_time: string;
@@ -44,16 +49,55 @@ export interface InstructorAvailabilityData {
   availabilityByDate: Record<string, AvailabilityDay>;
 }
 
+export interface InstructorAvailabilityByFormat {
+  online?: InstructorAvailabilityData;
+  instructor_location?: InstructorAvailabilityData;
+  student_location?: InstructorAvailabilityData;
+}
+
 interface NextSlotResult {
   date: string;
   time: string;
   displayText: string;
+  locationType: ServiceFormat;
+  locationLabel: string;
+  startsAt: number;
 }
 
-type BookNowSelection = {
+export type BookNowSelection = {
   preSelectedDate?: string;
   preSelectedTime?: string;
   initialDurationMinutes?: number;
+  initialLocationType?: LocationType;
+};
+
+const NEXT_SLOT_TIE_BREAK_PRIORITY: readonly ServiceFormat[] = [
+  'online',
+  'instructor_location',
+  'student_location',
+] as const;
+
+const NEXT_AVAILABILITY_FORMAT_LABELS: Record<ServiceFormat, string> = {
+  online: 'Online',
+  instructor_location: 'Studio',
+  student_location: 'Travels',
+};
+
+const isFormatAllowedForSearch = (
+  format: ServiceFormat,
+  normalizedSearchLessonType: string
+): boolean => {
+  if (normalizedSearchLessonType === 'online') return format === 'online';
+  if (
+    normalizedSearchLessonType === 'in_person' ||
+    normalizedSearchLessonType === 'in person' ||
+    normalizedSearchLessonType === 'in-person'
+  ) {
+    return format !== 'online';
+  }
+  if (normalizedSearchLessonType === 'travels') return format === 'student_location';
+  if (normalizedSearchLessonType === 'studio') return format === 'instructor_location';
+  return true;
 };
 
 const parseIsoDateToLocal = (value: string): Date | null => {
@@ -107,6 +151,7 @@ const toHHMM = (hour: number, minute: number): string => {
 interface InstructorCardProps {
   instructor: Instructor;
   availabilityData?: InstructorAvailabilityData;
+  availabilityByFormat?: InstructorAvailabilityByFormat;
   onViewProfile?: () => void;
   onBookNow?: (e?: React.MouseEvent, selection?: BookNowSelection) => void;
   compact?: boolean;
@@ -118,6 +163,7 @@ interface InstructorCardProps {
 function InstructorCard({
   instructor,
   availabilityData,
+  availabilityByFormat,
   onViewProfile,
   onBookNow,
   compact = false,
@@ -130,6 +176,17 @@ function InstructorCard({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: serviceCatalog = [] } = useServicesCatalog();
+  const highlightId = (highlightServiceCatalogId || '').trim().toLowerCase();
+  const resolvedPrimaryService = useMemo(() => {
+    if (!Array.isArray(instructor.services) || instructor.services.length === 0) {
+      return undefined;
+    }
+    return (
+      instructor.services.find(
+        (service) => (service.service_catalog_id || '').trim().toLowerCase() === highlightId
+      ) ?? instructor.services[0]
+    );
+  }, [highlightId, instructor.services]);
 
   // Use React Query hook for favorite status (prevents duplicate API calls)
   const { data: favoriteStatus } = useFavoriteStatus(instructor.user_id);
@@ -140,13 +197,16 @@ function InstructorCard({
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
-  const primaryService = instructor.services?.[0];
+  const primaryService = resolvedPrimaryService;
   const rawDurationOptions = primaryService?.duration_options;
   const durationOptions: number[] = Array.isArray(rawDurationOptions) ? rawDurationOptions : [];
   const fallbackDurationMinutes = durationOptions[0] ?? 60;
   const [selectedDuration, setSelectedDuration] = useState<number>(fallbackDurationMinutes);
   const resolvedDurationMinutes = selectedDuration ?? fallbackDurationMinutes;
-  const formatPrices = primaryService?.format_prices ?? [];
+  const formatPrices = useMemo(
+    () => primaryService?.format_prices ?? [],
+    [primaryService]
+  );
   const minRate = primaryService?.min_hourly_rate ?? 0;
   const { rate: contextualRate, label: contextualLabel, isFrom: contextualIsFrom } = getContextualPrice(formatPrices, minRate, searchLessonType);
 
@@ -239,7 +299,7 @@ function InstructorCard({
 const findNextAvailableSlot = (
   availabilityByDate: Record<string, AvailabilityDay>,
   requiredMinutes: number
-): NextSlotResult | null => {
+): Omit<NextSlotResult, 'locationType' | 'locationLabel' | 'startsAt'> | null => {
     const sortedDates = Object.keys(availabilityByDate).sort();
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -276,6 +336,9 @@ const findNextAvailableSlot = (
     return null;
   };
 
+  const getNextAvailabilityFormatLabel = (locationType: ServiceFormat): string =>
+    NEXT_AVAILABILITY_FORMAT_LABELS[locationType];
+
   // Helper function to get service name — prefer inline name, fall back to catalog lookup
   const getServiceName = (svc: { service_catalog_id: string; service_catalog_name?: string; skill?: string }): string => {
     if (svc.service_catalog_name) return svc.service_catalog_name;
@@ -284,14 +347,77 @@ const findNextAvailableSlot = (
     return catalogEntry?.name || '';
   };
 
-  const nextAvailableSlot = useMemo(() => {
-    if (availabilityData?.availabilityByDate) {
-      const slot = findNextAvailableSlot(availabilityData.availabilityByDate, resolvedDurationMinutes);
+  const offeredFormats = useMemo(
+    () => availableFormatsFromPrices(formatPrices),
+    [formatPrices]
+  );
+  const normalizedSearchLessonType = useMemo(
+    () => (typeof searchLessonType === 'string' ? searchLessonType.trim().toLowerCase() : 'any'),
+    [searchLessonType]
+  );
+  const candidateFormats = useMemo(() => {
+    const offered = new Set<ServiceFormat>(offeredFormats);
+    const filteredFormats = NEXT_SLOT_TIE_BREAK_PRIORITY.filter(
+      (format) =>
+        offered.has(format) && isFormatAllowedForSearch(format, normalizedSearchLessonType)
+    );
+    return filteredFormats.length > 0 ? filteredFormats : offeredFormats;
+  }, [normalizedSearchLessonType, offeredFormats]);
 
-      return slot;
+  const normalizedAvailabilityByFormat = useMemo<InstructorAvailabilityByFormat>(() => {
+    const nextByFormat: InstructorAvailabilityByFormat = {
+      ...(availabilityByFormat?.online ? { online: availabilityByFormat.online } : {}),
+      ...(availabilityByFormat?.instructor_location
+        ? { instructor_location: availabilityByFormat.instructor_location }
+        : {}),
+      ...(availabilityByFormat?.student_location
+        ? { student_location: availabilityByFormat.student_location }
+        : {}),
+    };
+
+    const hasBundleData = Boolean(
+      nextByFormat.online || nextByFormat.instructor_location || nextByFormat.student_location
+    );
+    if (hasBundleData || !availabilityData?.availabilityByDate) {
+      return nextByFormat;
     }
-    return null;
-  }, [availabilityData, resolvedDurationMinutes]);
+
+    const fallbackFormat = candidateFormats[0];
+    if (fallbackFormat) {
+      nextByFormat[fallbackFormat] = availabilityData;
+    }
+
+    return nextByFormat;
+  }, [availabilityByFormat, availabilityData, candidateFormats]);
+
+  const nextAvailableSlot = useMemo(() => {
+    let bestSlot: NextSlotResult | null = null;
+
+    for (const format of candidateFormats) {
+      const formatAvailability = normalizedAvailabilityByFormat[format];
+      if (!formatAvailability?.availabilityByDate) continue;
+
+      const slot = findNextAvailableSlot(
+        formatAvailability.availabilityByDate,
+        resolvedDurationMinutes
+      );
+      if (!slot) continue;
+
+      const startsAt = new Date(`${slot.date}T${slot.time}:00`).getTime();
+      const candidate: NextSlotResult = {
+        ...slot,
+        startsAt,
+        locationType: format,
+        locationLabel: getNextAvailabilityFormatLabel(format),
+      };
+
+      if (!bestSlot || candidate.startsAt < bestSlot.startsAt) {
+        bestSlot = candidate;
+      }
+    }
+
+    return bestSlot;
+  }, [candidateFormats, normalizedAvailabilityByFormat, resolvedDurationMinutes]);
 
 
   const handleFavoriteClick = async () => {
@@ -755,6 +881,7 @@ const findNextAvailableSlot = (
                     ? {
                         preSelectedDate: nextAvailableSlot.date,
                         initialDurationMinutes: resolvedDurationMinutes,
+                        initialLocationType: nextAvailableSlot.locationType,
                       }
                     : undefined,
                 );
@@ -766,9 +893,14 @@ const findNextAvailableSlot = (
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >
-              {nextAvailableSlot
-                ? `Next Available: ${nextAvailableSlot.displayText}`
-                : 'No availability info'}
+              {nextAvailableSlot ? (
+                <>
+                  <span className="sr-only">Next Available </span>
+                  {`Next: ${nextAvailableSlot.displayText} · ${nextAvailableSlot.locationLabel}`}
+                </>
+              ) : (
+                'No availability info'
+              )}
             </button>
 
             <button

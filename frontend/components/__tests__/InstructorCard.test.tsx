@@ -1025,6 +1025,7 @@ describe('InstructorCard', () => {
       expect(onBookNow.mock.calls[0]?.[1]).toEqual({
         preSelectedDate: dateStr,
         initialDurationMinutes: 60,
+        initialLocationType: 'online',
       });
       expect(mockPush).not.toHaveBeenCalledWith('/student/booking/confirm');
     });
@@ -1065,6 +1066,7 @@ describe('InstructorCard', () => {
       expect(onBookNow.mock.calls[0]?.[1]).toEqual({
         preSelectedDate: dateStr,
         initialDurationMinutes: 45,
+        initialLocationType: 'online',
       });
       expect(onBookNow.mock.calls[1]?.[1]).toEqual({
         initialDurationMinutes: 45,

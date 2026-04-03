@@ -54,6 +54,7 @@ interface InstructorCoverageMapProps {
   onBoundsChange?: (bounds: L.LatLngBounds) => void;
   showSearchAreaButton?: boolean;
   onSearchArea?: () => void;
+  onAreaClick?: (areaName: string, instructorIds: string[]) => void;
 }
 
 function MapReadyHandler() {
@@ -91,6 +92,7 @@ export default function InstructorCoverageMap({
   onBoundsChange,
   showSearchAreaButton = false,
   onSearchArea,
+  onAreaClick,
 }: InstructorCoverageMapProps) {
   const fc = featureCollection ?? null;
 
@@ -170,7 +172,20 @@ export default function InstructorCoverageMap({
             onEachFeature={(feature: Feature<Geometry, GeoJSONProperties>, layer: L.Layer) => {
               const props = featureProps(feature);
               const name = getString(props, 'name') || getString(props, 'region_id') || 'Coverage Area';
+              const instructorIds = getArray(props, 'instructors')
+                .map((value) => (typeof value === 'string' ? value : ''))
+                .filter(Boolean);
               layer.bindPopup(`<div>${name}</div>`);
+              const interactiveLayer = layer as L.Layer & {
+                on?: (eventMap: Record<string, () => void>) => void;
+              };
+              if (onAreaClick && typeof interactiveLayer.on === 'function') {
+                interactiveLayer.on({
+                  click: () => {
+                    onAreaClick(name, instructorIds);
+                  },
+                });
+              }
             }}
           />
         ) : null}
