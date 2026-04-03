@@ -26,7 +26,7 @@ import pytz
 
 from ..core.config import settings
 from ..core.constants import MIN_SESSION_DURATION
-from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
+from ..domain.video_utils import compute_join_closes_at, compute_join_opens_at
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ..utils.privacy import format_last_initial
@@ -454,7 +454,7 @@ class BookingBase(StandardizedModel):
     video_session_duration_seconds: Optional[int] = None
     video_instructor_joined_at: Optional[datetime] = None
     video_student_joined_at: Optional[datetime] = None
-    # Computed join window (online confirmed bookings only)
+    # Computed join timing (online confirmed bookings only)
     can_join_lesson: Optional[bool] = None
     join_opens_at: Optional[datetime] = None
     join_closes_at: Optional[datetime] = None
@@ -599,13 +599,14 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
             return getattr(payment_detail, field_name, None)
         return None
 
-    # Compute join window for online confirmed bookings
+    # Compute join timing for online confirmed bookings
     _can_join: bool | None = False if not settings.hundredms_enabled else None
     _opens_at: datetime | None = None
     _closes_at: datetime | None = None
     _location = getattr(booking, "location_type", None)
     _status = getattr(booking, "status", None)
     _start = getattr(booking, "booking_start_utc", None)
+    _end = getattr(booking, "booking_end_utc", None)
     _duration = getattr(booking, "duration_minutes", None)
     if settings.hundredms_enabled and (
         _location == "online"
@@ -613,12 +614,12 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         and isinstance(_start, datetime)
         and isinstance(_duration, (int, float))
     ):
-        _opens_at = _start - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
-        _grace = compute_grace_minutes(int(_duration))
-        # join_closes_at is the last moment participants are allowed to join.
-        # It does not represent room shutdown time; the provider room may remain
-        # active until a later session.close event.
-        _closes_at = _start + timedelta(minutes=_grace)
+        _opens_at = compute_join_opens_at(_start)
+        _closes_at = compute_join_closes_at(
+            _start,
+            int(_duration),
+            _end if isinstance(_end, datetime) else None,
+        )
         _now = datetime.now(timezone.utc)
         _can_join = _opens_at <= _now <= _closes_at
 
@@ -692,7 +693,7 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         "video_student_joined_at": _safe_datetime(
             getattr(video_session, "student_joined_at", None)
         ),
-        # Computed join window
+        # Computed join timing
         "can_join_lesson": _can_join,
         "join_opens_at": _opens_at,
         "join_closes_at": _closes_at,

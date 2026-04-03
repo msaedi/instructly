@@ -10,6 +10,7 @@ import { useMarkLessonComplete } from '@/src/api/services/instructor-bookings';
 import { useCreateConversation } from '@/hooks/useCreateConversation';
 import { queryKeys } from '@/src/api/queryKeys';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useCountdown } from '@/hooks/useCountdown';
 import { InstructorBookingDetailView } from '@/features/bookings/components/InstructorBookingDetailView';
 import { formatBookingLongDate } from '@/features/bookings/components/bookingDisplay';
 import { extractUnknownErrorMessage } from '@/lib/apiErrors';
@@ -102,6 +103,8 @@ export default function BookingDetailsPage() {
   const noShowTitleId = useId();
 
   const { data: booking, isLoading, error: queryError } = useBooking(bookingId);
+  const joinOpensCountdown = useCountdown(booking?.join_opens_at ?? null);
+  const joinClosesCountdown = useCountdown(booking?.join_closes_at ?? null);
   const completeBooking = useMarkLessonComplete();
   const markNoShow = useMarkBookingNoShow();
   const { createConversation, isCreating: isMessagePending } = useCreateConversation();
@@ -215,13 +218,16 @@ export default function BookingDetailsPage() {
   const isOnlineConfirmedBooking =
     booking.location_type === 'online' && booking.status === 'CONFIRMED';
   const showJoinLesson =
-    isOnlineConfirmedBooking && joinClosesAt !== null && now <= joinClosesAt;
-  const isJoinLessonActive =
-    showJoinLesson &&
+    isOnlineConfirmedBooking &&
     joinOpensAt !== null &&
     joinClosesAt !== null &&
-    now >= joinOpensAt &&
-    now <= joinClosesAt;
+    !joinClosesCountdown.isExpired;
+  const isJoinLessonActive =
+    showJoinLesson &&
+    joinOpensCountdown.isExpired &&
+    !joinClosesCountdown.isExpired;
+  const joinCountdownText =
+    showJoinLesson && !isJoinLessonActive ? joinOpensCountdown.formatted : null;
   const showActionRequired =
     booking.status === 'CONFIRMED' && isPastLesson && !booking.no_show_reported_at;
   const showReportIssueLink =
@@ -260,6 +266,7 @@ export default function BookingDetailsPage() {
           isPastLesson={isPastLesson}
           showJoinLesson={isJoinVisible}
           isJoinLessonActive={isJoinActive}
+          joinCountdownText={joinCountdownText}
           showActionRequired={shouldShowActionRequired}
           onMarkComplete={handleMarkComplete}
           onReportNoShow={() => setShowNoShowModal(true)}

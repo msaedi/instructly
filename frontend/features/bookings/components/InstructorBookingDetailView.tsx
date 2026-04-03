@@ -27,6 +27,7 @@ type InstructorBookingDetailViewProps = {
   isPastLesson: boolean;
   showJoinLesson: boolean;
   isJoinLessonActive: boolean;
+  joinCountdownText: string | null;
   showActionRequired: boolean;
   onMarkComplete: () => Promise<void> | void;
   onReportNoShow: () => void;
@@ -95,6 +96,7 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
     isMessagePending,
     showJoinLesson,
     isJoinLessonActive,
+    joinCountdownText,
     showActionRequired,
     onMarkComplete,
     onReportNoShow,
@@ -168,14 +170,25 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
                     Join lesson
                   </Link>
                 ) : (
-                  <button
-                    type="button"
-                    disabled
-                    data-testid="join-lesson-button"
-                    className="inline-flex min-w-[116px] cursor-not-allowed items-center justify-center rounded-full bg-[#F3F4F6] px-4 py-2 text-sm font-medium text-[#9CA3AF]"
-                  >
-                    Join lesson
-                  </button>
+                  <div className="flex flex-col items-start gap-1">
+                    <button
+                      type="button"
+                      disabled
+                      data-testid="join-lesson-button"
+                      className="inline-flex min-w-[116px] cursor-not-allowed items-center justify-center rounded-full bg-[#F3F4F6] px-4 py-2 text-sm font-medium text-[#9CA3AF]"
+                    >
+                      Join lesson
+                    </button>
+                    {joinCountdownText ? (
+                      <p
+                        className="text-xs text-gray-500 dark:text-gray-400 tabular-nums"
+                        data-testid="join-lesson-countdown"
+                        aria-live="polite"
+                      >
+                        Join opens in {joinCountdownText}
+                      </p>
+                    ) : null}
+                  </div>
                 )
               ) : null}
 

@@ -152,11 +152,12 @@ class TestJoinWindowComputation:
     def test_can_join_true_within_window(self) -> None:
         """Inside join window → can_join_lesson=True."""
         now = datetime.now(timezone.utc)
-        # Booking starts in 2 minutes — inside [T-5, T+15] window
         booking_start = now + timedelta(minutes=2)
+        booking_end = booking_start + timedelta(minutes=60)
 
         booking = _make_booking(
             booking_start_utc=booking_start,
+            booking_end_utc=booking_end,
             duration_minutes=60,
             location_type="online",
             status="CONFIRMED",
@@ -165,7 +166,7 @@ class TestJoinWindowComputation:
 
         assert result["can_join_lesson"] is True
         assert result["join_opens_at"] == booking_start - timedelta(minutes=5)
-        assert result["join_closes_at"] == booking_start + timedelta(minutes=15)
+        assert result["join_closes_at"] == booking_end
 
     def test_can_join_false_before_window(self) -> None:
         """Before join window opens → can_join_lesson=False."""
@@ -186,11 +187,12 @@ class TestJoinWindowComputation:
     def test_can_join_false_after_window(self) -> None:
         """After join window closes → can_join_lesson=False."""
         now = datetime.now(timezone.utc)
-        # 60-min lesson → grace = 15 min. Booking started 1 hour ago (past T+15)
-        booking_start = now - timedelta(hours=1)
+        booking_start = now - timedelta(minutes=61)
+        booking_end = booking_start + timedelta(minutes=60)
 
         booking = _make_booking(
             booking_start_utc=booking_start,
+            booking_end_utc=booking_end,
             duration_minutes=60,
             location_type="online",
             status="CONFIRMED",
@@ -261,13 +263,14 @@ class TestJoinWindowComputation:
         assert result["video_student_joined_at"] == s_joined
         assert result["video_session_duration_seconds"] == 3600
 
-    def test_join_window_30min_lesson(self) -> None:
-        """30-min lesson → grace = min(30*0.25, 15) = 7.5 min."""
+    def test_join_window_30min_lesson_uses_booking_end(self) -> None:
         now = datetime.now(timezone.utc)
         booking_start = now + timedelta(minutes=2)
+        booking_end = booking_start + timedelta(minutes=30)
 
         booking = _make_booking(
             booking_start_utc=booking_start,
+            booking_end_utc=booking_end,
             duration_minutes=30,
             location_type="online",
             status="CONFIRMED",
@@ -275,24 +278,22 @@ class TestJoinWindowComputation:
         result = _extract_satellite_fields(booking)
 
         expected_opens = booking_start - timedelta(minutes=5)
-        expected_closes = booking_start + timedelta(minutes=7.5)
+        expected_closes = booking_end
         assert result["join_opens_at"] == expected_opens
         assert result["join_closes_at"] == expected_closes
 
-    def test_join_window_60min_lesson(self) -> None:
-        """60-min lesson → grace = min(60*0.25, 15) = 15 min."""
-        now = datetime.now(timezone.utc)
-        booking_start = now + timedelta(minutes=2)
-
+    def test_join_window_falls_back_to_duration_when_booking_end_missing(self) -> None:
+        booking_start = datetime.now(timezone.utc) + timedelta(minutes=2)
         booking = _make_booking(
             booking_start_utc=booking_start,
+            booking_end_utc=None,
             duration_minutes=60,
             location_type="online",
             status="CONFIRMED",
         )
         result = _extract_satellite_fields(booking)
 
-        expected_closes = booking_start + timedelta(minutes=15)
+        expected_closes = booking_start + timedelta(minutes=60)
         assert result["join_closes_at"] == expected_closes
 
     def test_join_window_suppressed_when_feature_disabled(

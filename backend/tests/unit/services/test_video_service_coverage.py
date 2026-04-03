@@ -2,9 +2,9 @@
 Coverage tests for video_service.py targeting missed lines.
 
 Targets:
-  - L96: non-confirmed booking status -> ValidationException
-  - L117: non-online location -> ValidationException
-  - L146: before/after join window -> ValidationException
+  - non-confirmed booking status -> ValidationException
+  - non-online location -> ValidationException
+  - before join open / after scheduled end -> ValidationException
 """
 
 from datetime import datetime, timedelta, timezone
@@ -46,6 +46,7 @@ def _make_booking(
     booking.location_type = LocationType(location_type) if isinstance(location_type, str) else location_type
     booking.booking_start_utc = booking_start_utc or (datetime.now(timezone.utc) + timedelta(minutes=5))
     booking.duration_minutes = duration_minutes
+    booking.booking_end_utc = booking.booking_start_utc + timedelta(minutes=duration_minutes)
     booking.instructor_id = instructor_id
     return booking
 
@@ -78,7 +79,7 @@ class TestValidateJoinableBooking:
             svc._validate_joinable_booking(booking, now)
 
     def test_before_join_window_raises(self):
-        """L51-52: now < join_opens_at -> ValidationException."""
+        """now < join_opens_at -> ValidationException."""
         svc = _make_service()
         from app.models.booking import BookingStatus, LocationType
         booking = MagicMock()
@@ -92,7 +93,7 @@ class TestValidateJoinableBooking:
             svc._validate_joinable_booking(booking, now)
 
     def test_after_join_window_raises(self):
-        """L53-54: now > join_closes_at -> ValidationException."""
+        """now > scheduled session end -> ValidationException."""
         svc = _make_service()
         from app.models.booking import BookingStatus, LocationType
         booking = MagicMock()
@@ -100,9 +101,10 @@ class TestValidateJoinableBooking:
         booking.location_type = LocationType.ONLINE
         booking.booking_start_utc = datetime.now(timezone.utc) - timedelta(hours=2)
         booking.duration_minutes = 60
+        booking.booking_end_utc = booking.booking_start_utc + timedelta(minutes=60)
         now = datetime.now(timezone.utc)
 
-        with pytest.raises(ValidationException, match="has closed"):
+        with pytest.raises(ValidationException, match="has ended"):
             svc._validate_joinable_booking(booking, now)
 
     def test_within_window_passes(self):

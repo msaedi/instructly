@@ -252,7 +252,7 @@ class TestJoinLessonIntegration:
         assert response.status_code == 400
         assert "not opened yet" in response.json()["detail"]
 
-    def test_join_after_window_closes(
+    def test_join_after_scheduled_session_ends(
         self,
         video_client_student,
         db,
@@ -260,7 +260,7 @@ class TestJoinLessonIntegration:
         test_instructor,
         instructor_service_id,
     ):
-        """Booking started 70 min ago (grace of 15 min for 60-min lesson expired) → 400."""
+        """Booking ended 10 minutes ago → 400."""
         start_utc = dt.now(timezone.utc) - timedelta(minutes=70)
 
         booking_id = _make_online_booking(
@@ -276,7 +276,7 @@ class TestJoinLessonIntegration:
         )
 
         assert response.status_code == 400
-        assert "has closed" in response.json()["detail"]
+        assert "has ended" in response.json()["detail"]
 
     def test_in_person_booking_rejected(
         self,

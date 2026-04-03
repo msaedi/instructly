@@ -24,8 +24,13 @@ def _make_booking(**overrides):
     booking.location_type = "online"
     booking.booking_start_utc = now_utc + timedelta(minutes=2)  # 2min from now (inside window)
     booking.duration_minutes = 60
+    booking.booking_end_utc = booking.booking_start_utc + timedelta(minutes=booking.duration_minutes)
     for key, value in overrides.items():
         setattr(booking, key, value)
+    if "booking_end_utc" not in overrides:
+        booking.booking_end_utc = booking.booking_start_utc + timedelta(
+            minutes=booking.duration_minutes
+        )
     return booking
 
 
@@ -189,22 +194,7 @@ class TestJoinLessonTiming:
         result = service.join_lesson(booking.id, booking.student_id)
         assert result["role"] == "guest"
 
-    def test_allows_join_during_grace_period(self):
-        # 60min lesson → grace = min(60*0.25, 15) = 15min
-        booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=10),
-            duration_minutes=60,
-        )
-        vs = _make_video_session()
-        service, _, _ = _make_service(booking=booking, video_session=vs)
-
-        result = service.join_lesson(booking.id, booking.student_id)
-        assert result["role"] == "guest"
-
-    def test_rejects_after_grace_period(self):
-        from app.core.exceptions import ValidationException
-
-        # 60min lesson → grace = min(60*0.25, 15) = 15min, start was 20min ago → expired
+    def test_allows_join_mid_session_after_previous_late_join_cutoff(self):
         booking = _make_booking(
             booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=20),
             duration_minutes=60,
@@ -212,15 +202,13 @@ class TestJoinLessonTiming:
         vs = _make_video_session()
         service, _, _ = _make_service(booking=booking, video_session=vs)
 
-        with pytest.raises(ValidationException, match="closed"):
-            service.join_lesson(booking.id, booking.student_id)
+        result = service.join_lesson(booking.id, booking.student_id)
+        assert result["role"] == "guest"
 
-    def test_grace_period_30min_lesson(self):
-        # 30min lesson → grace = min(30*0.25, 15) = 7.5min
-        # Start was 7min ago → should still be allowed
+    def test_allows_join_just_before_scheduled_end(self):
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=7),
-            duration_minutes=30,
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=59),
+            duration_minutes=60,
         )
         vs = _make_video_session()
         service, _, _ = _make_service(booking=booking, video_session=vs)
@@ -228,26 +216,50 @@ class TestJoinLessonTiming:
         result = service.join_lesson(booking.id, booking.student_id)
         assert result["role"] == "guest"
 
-    def test_grace_period_30min_lesson_expired(self):
+    def test_rejects_after_scheduled_end(self):
         from app.core.exceptions import ValidationException
 
-        # 30min lesson → grace = min(30*0.25, 15) = 7.5min, start was 8min ago → expired
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=8),
-            duration_minutes=30,
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=61),
+            duration_minutes=60,
         )
         vs = _make_video_session()
         service, _, _ = _make_service(booking=booking, video_session=vs)
 
-        with pytest.raises(ValidationException, match="closed"):
+        with pytest.raises(ValidationException, match="ended"):
             service.join_lesson(booking.id, booking.student_id)
 
-    def test_grace_period_90min_lesson_capped_at_15(self):
-        # 90min lesson → grace = min(90*0.25, 15) = min(22.5, 15) = 15min
-        # Start was 14min ago → should still be allowed
+    def test_allows_join_with_duration_fallback_when_booking_end_missing(self):
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=14),
-            duration_minutes=90,
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=25),
+            duration_minutes=30,
+            booking_end_utc=None,
+        )
+        vs = _make_video_session()
+        service, _, _ = _make_service(booking=booking, video_session=vs)
+
+        result = service.join_lesson(booking.id, booking.student_id)
+        assert result["role"] == "guest"
+
+    def test_rejects_after_scheduled_end_with_duration_fallback(self):
+        from app.core.exceptions import ValidationException
+
+        booking = _make_booking(
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=31),
+            duration_minutes=30,
+            booking_end_utc=None,
+        )
+        vs = _make_video_session()
+        service, _, _ = _make_service(booking=booking, video_session=vs)
+
+        with pytest.raises(ValidationException, match="ended"):
+            service.join_lesson(booking.id, booking.student_id)
+
+    def test_booking_end_utc_overrides_duration_fallback(self):
+        booking = _make_booking(
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(hours=2),
+            duration_minutes=60,
+            booking_end_utc=datetime.now(timezone.utc) + timedelta(minutes=5),
         )
         vs = _make_video_session()
         service, _, _ = _make_service(booking=booking, video_session=vs)

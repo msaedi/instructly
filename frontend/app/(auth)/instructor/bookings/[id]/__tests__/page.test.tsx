@@ -182,7 +182,7 @@ describe('Instructor Booking Details Page', () => {
     );
   });
 
-  it('renders lavender pricing tiles with a disabled join button before the join window and keeps Message rightmost', () => {
+  it('renders lavender pricing tiles with a disabled join button and countdown before join opens', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:20:00Z'));
     mockBookingData({
       location_type: 'online',
@@ -204,6 +204,9 @@ describe('Instructor Booking Details Page', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Join lesson' })).toBeDisabled();
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 05:00'
+    );
     expect(screen.getByText('Online lesson')).not.toHaveClass('text-(--color-brand)');
     expect(screen.getByTestId('report-issue-link')).toBeInTheDocument();
     expect(screen.getByTestId('cancel-lesson-link')).toBeInTheDocument();
@@ -213,7 +216,7 @@ describe('Instructor Booking Details Page', () => {
     expect(actions.lastElementChild).toHaveTextContent('Message');
   });
 
-  it('transitions the join button from disabled to active on the 30-second timer and highlights the online row', async () => {
+  it('transitions the join button from disabled to active when the countdown expires and highlights the online row', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:24:45Z'));
     mockBookingData({
       location_type: 'online',
@@ -227,9 +230,12 @@ describe('Instructor Booking Details Page', () => {
     render(<BookingDetailsPage />);
 
     expect(screen.getByRole('button', { name: 'Join lesson' })).toBeDisabled();
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 00:15'
+    );
 
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(15_000);
     });
 
     await waitFor(() => {
@@ -242,7 +248,7 @@ describe('Instructor Booking Details Page', () => {
     expect(screen.getByText('Online lesson')).toHaveClass('text-(--color-brand)');
   });
 
-  it('hides the join button after the join window closes', () => {
+  it('hides the join button after the scheduled session ends', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T17:11:00Z'));
     mockBookingData({
       location_type: 'online',

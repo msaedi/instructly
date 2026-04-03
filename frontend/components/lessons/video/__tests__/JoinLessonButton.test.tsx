@@ -81,10 +81,10 @@ describe('JoinLessonButton', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('returns null when window has not opened yet', () => {
+  it('renders a disabled button with countdown before the window opens', () => {
     mockCountdowns(notExpired, notExpired);
 
-    const { container } = render(
+    render(
       <JoinLessonButton
         bookingId="01ABC"
         joinOpensAt="2025-01-01T10:00:00Z"
@@ -92,7 +92,10 @@ describe('JoinLessonButton', () => {
       />
     );
 
-    expect(container.innerHTML).toBe('');
+    expect(screen.getByRole('button', { name: 'Join video lesson' })).toBeDisabled();
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 05:00'
+    );
   });
 
   it('renders "Join Lesson" link when window is open', () => {
@@ -151,6 +154,22 @@ describe('JoinLessonButton', () => {
     );
 
     expect(screen.getByTestId('join-lesson-button')).toBeInTheDocument();
+  });
+
+  it('exposes the countdown helper text before the window opens', () => {
+    mockCountdowns(notExpired, notExpired);
+
+    render(
+      <JoinLessonButton
+        bookingId="01ABC"
+        joinOpensAt="2025-01-01T10:00:00Z"
+        joinClosesAt="2025-01-01T10:30:00Z"
+      />
+    );
+
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 05:00'
+    );
   });
 
   it('has animate-pulse-join class for glow effect when window is open', () => {
