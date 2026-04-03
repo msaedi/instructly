@@ -179,15 +179,15 @@ const availabilityResponse = {
     instructor_first_name: 'Ava',
     instructor_last_initial: 'T.',
     availability_by_date: {
-      '2025-01-12': {
-        date: '2025-01-12',
+      '2030-01-12': {
+        date: '2030-01-12',
         available_slots: [{ start_time: '09:00', end_time: '12:00' }],
         is_blackout: false,
       },
     },
     timezone: 'America/New_York',
     total_available_slots: 1,
-    earliest_available_date: '2025-01-12',
+    earliest_available_date: '2030-01-12',
   },
 };
 
@@ -441,10 +441,10 @@ describe('TimeSelectionModal format propagation', () => {
     await user.click(travelFormatButton!);
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('date-2025-01-12').length).toBeGreaterThan(0);
+      expect(screen.getAllByTestId('date-2030-01-12').length).toBeGreaterThan(0);
     });
 
-    const availableDateButton = screen.getAllByTestId('date-2025-01-12')[0];
+    const availableDateButton = screen.getAllByTestId('date-2030-01-12')[0];
     expect(availableDateButton).toBeDefined();
     await user.click(availableDateButton!);
 

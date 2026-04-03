@@ -143,6 +143,12 @@ const normalizeCurrency = (value: unknown, fallback: number): number => {
   return Number(fallback.toFixed(2));
 };
 
+const isBookingFailureMessage = (message: string) => {
+  return /(booking failed|booking system|failed to create booking|create booking|bookings must|time slot|requested time|selected time|availability|advance notice|in advance|lesson format|no longer available|instructor or service not found)/i.test(
+    message
+  );
+};
+
 type BookingWithMetadata = AvailabilityCheckBooking;
 
 const mergeBookingIntoPayment = (
@@ -1469,10 +1475,11 @@ export function PaymentSection({
 
       logDevInfo('Submitting booking payload', bookingPayload);
 
-      const booking = await createBooking(bookingPayload);
-
-      if (!booking) {
-        const errorMsg = (bookingError as string) || 'Failed to create booking';
+      let booking: Booking;
+      try {
+        booking = await createBooking(bookingPayload);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Failed to create booking';
         const context = { bookingError, bookingData };
         if (/minimum price/i.test(errorMsg)) {
           logger.warn('Booking creation blocked by price floor validation', context);
@@ -1664,6 +1671,17 @@ export function PaymentSection({
     );
   }
 
+  const displayedErrorMessage =
+    localErrorMessage ||
+    paymentError ||
+    bookingError ||
+    'An error occurred while processing your payment.';
+  const isBookingErrorState = localErrorMessage
+    ? localErrorMessage === bookingError || isBookingFailureMessage(localErrorMessage)
+    : paymentError
+      ? isBookingFailureMessage(paymentError)
+      : Boolean(bookingError);
+
   return (
     <PricingPreviewContext.Provider value={previewController}>
       <div className="w-full">
@@ -1804,15 +1822,10 @@ export function PaymentSection({
           <div className="p-8 text-center">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">
-              {localErrorMessage?.includes('booking') || bookingError?.includes('booking')
-                ? 'Booking Failed'
-                : 'Payment Failed'}
+              {isBookingErrorState ? 'Booking Failed' : 'Payment Failed'}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {localErrorMessage ||
-                paymentError ||
-                bookingError ||
-                'An error occurred while processing your payment.'}
+              {displayedErrorMessage}
             </p>
             <button
               onClick={handleRetry}

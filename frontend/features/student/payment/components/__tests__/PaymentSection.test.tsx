@@ -1676,7 +1676,9 @@ describe('PaymentSection', () => {
 
     it('handles booking creation with minimum price error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue(null);
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Booking does not meet minimum price requirements'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -2100,6 +2102,33 @@ describe('PaymentSection', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Booking Failed')).toBeInTheDocument();
+      });
+    });
+
+    it('treats advance-notice booking failures as booking errors', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.ERROR,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: jest.fn(),
+        error: 'Bookings must be made at least 3 hours in advance',
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Failed')).toBeInTheDocument();
+        expect(
+          screen.getByText('Bookings must be made at least 3 hours in advance')
+        ).toBeInTheDocument();
       });
     });
   });
@@ -6078,10 +6107,12 @@ describe('PaymentSection', () => {
     });
   });
 
-  describe('booking creation returning null without minimum price error', () => {
-    it('throws generic error when booking returns null without price error', async () => {
+  describe('booking creation failures without minimum price error', () => {
+    it('throws generic error when booking creation fails without price error', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue(null);
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Some generic error'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -6112,9 +6143,11 @@ describe('PaymentSection', () => {
       });
     });
 
-    it('uses default error message when booking returns null with no error string', async () => {
+    it('uses the thrown error message when booking creation fails', async () => {
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue(null);
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Bookings must be made at least 3 hours in advance'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -10558,8 +10591,10 @@ describe('PaymentSection', () => {
       // if amountDue > 0, shouldProcessCheckout is always true. This is dead code.
       // Let's cover the nearby code instead.
 
-      // Test: booking creation returns null without minimum price error
-      const createBookingMock = jest.fn().mockResolvedValue(null);
+      // Test: booking creation fails without minimum price error
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Some other booking error'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -11402,7 +11437,9 @@ describe('PaymentSection', () => {
       // We need localErrorMessage to contain 'booking'. Since localErrorMessage
       // is internal state, we need to trigger a booking-related error.
       const goToStep = jest.fn();
-      const createBookingMock = jest.fn().mockResolvedValue(null);
+      const createBookingMock = jest
+        .fn()
+        .mockRejectedValue(new Error('Failed to create booking'));
 
       useCreateBookingMock.mockReturnValue({
         createBooking: createBookingMock,
@@ -11438,7 +11475,7 @@ describe('PaymentSection', () => {
       const goToStep = jest.fn();
 
       useCreateBookingMock.mockReturnValue({
-        createBooking: jest.fn().mockResolvedValue(null),
+        createBooking: jest.fn().mockRejectedValue(new Error('booking creation failed')),
         error: 'booking creation failed',
         reset: jest.fn(),
       });
@@ -11515,7 +11552,7 @@ describe('PaymentSection', () => {
       render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByText('Payment Failed')).toBeInTheDocument();
+        expect(screen.getByText('Booking Failed')).toBeInTheDocument();
       });
 
       expect(screen.getByText('Booking system unavailable')).toBeInTheDocument();
@@ -12547,7 +12584,7 @@ describe('PaymentSection', () => {
       const resetBookingError = jest.fn();
 
       useCreateBookingMock.mockReturnValue({
-        createBooking: jest.fn().mockResolvedValue(null),
+        createBooking: jest.fn().mockRejectedValue(new Error('Minimum price requirement not met')),
         error: 'Minimum price requirement not met',
         reset: resetBookingError,
       });

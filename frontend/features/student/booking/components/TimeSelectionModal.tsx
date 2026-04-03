@@ -55,6 +55,11 @@ const FORMAT_PICKER_ORDER: readonly SelectableLocationType[] = [
   'instructor_location',
   'student_location',
 ];
+const ADVANCE_NOTICE_MINUTES: Record<SelectableLocationType, number> = {
+  online: 60,
+  instructor_location: 60,
+  student_location: 180,
+};
 
 const isSelectableLocationType = (
   value: LocationType | string | null | undefined,
@@ -113,6 +118,62 @@ const convertHHMM24ToDisplay = (value?: string | null): string | null => {
   const ampm = hour >= 12 ? 'pm' : 'am';
   const displayHour = ((hour % 12) || 12).toString();
   return `${displayHour}:${minutes}${ampm}`;
+};
+
+type TimeZoneDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+const getTimeZoneDateParts = (date: Date, timeZone: string): TimeZoneDateParts => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+    hour: getPart('hour'),
+    minute: getPart('minute'),
+  };
+};
+
+const formatUtcDateAsIso = (date: Date) => {
+  return date.toISOString().slice(0, 10);
+};
+
+const addMinutesToLocalDate = (
+  timeZoneDateParts: TimeZoneDateParts,
+  minutesToAdd: number,
+): { isoDate: string; minutesSinceMidnight: number } => {
+  const baseDate = new Date(
+    Date.UTC(timeZoneDateParts.year, timeZoneDateParts.month - 1, timeZoneDateParts.day)
+  );
+  const totalMinutes =
+    timeZoneDateParts.hour * 60 + timeZoneDateParts.minute + minutesToAdd;
+  const dayOffset = Math.floor(totalMinutes / (24 * 60));
+  const minutesSinceMidnight =
+    ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+
+  baseDate.setUTCDate(baseDate.getUTCDate() + dayOffset);
+
+  return {
+    isoDate: formatUtcDateAsIso(baseDate),
+    minutesSinceMidnight,
+  };
 };
 
 export interface TimeSelectionModalProps {
@@ -179,6 +240,10 @@ export default function TimeSelectionModal({
   const { floors: pricingFloors } = usePricingFloors();
 
   const studentTimezone = (user as { timezone?: string })?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const availabilityTimezone =
+    typeof instructor.user.timezone === 'string' && instructor.user.timezone.length > 0
+      ? instructor.user.timezone
+      : studentTimezone;
 
   const formatDateInTz = (d: Date, tz: string) => {
     return new Intl.DateTimeFormat('en-CA', {
@@ -439,18 +504,56 @@ export default function TimeSelectionModal({
     [availabilityData]
   );
 
+  const filterTimesByAdvanceNotice = useCallback(
+    (targetDate: string | null, discreteTimes: string[]) => {
+      if (!targetDate || !selectedPricingFormat || discreteTimes.length === 0) {
+        return discreteTimes;
+      }
+
+      const advanceNoticeMinutes = ADVANCE_NOTICE_MINUTES[selectedPricingFormat];
+      const nowInAvailabilityTimezone = getTimeZoneDateParts(new Date(), availabilityTimezone);
+      const earliestAllowedLocal = addMinutesToLocalDate(
+        nowInAvailabilityTimezone,
+        advanceNoticeMinutes
+      );
+      const alignedMinutes =
+        Math.ceil(earliestAllowedLocal.minutesSinceMidnight / SLOT_STEP_MINUTES) *
+        SLOT_STEP_MINUTES;
+      const alignedEarliestAllowed = addMinutesToLocalDate(
+        {
+          ...nowInAvailabilityTimezone,
+          hour: 0,
+          minute: 0,
+        },
+        alignedMinutes
+      );
+
+      if (targetDate !== alignedEarliestAllowed.isoDate) {
+        return targetDate > alignedEarliestAllowed.isoDate ? discreteTimes : [];
+      }
+
+      return discreteTimes.filter(
+        (time) => parseDisplayTimeToMinutes(time) >= alignedEarliestAllowed.minutesSinceMidnight
+      );
+    },
+    [availabilityTimezone, selectedPricingFormat]
+  );
+
   const buildSlotsByDuration = useCallback(
-    (slots: AvailabilitySlot[], durations: number[]) => {
+    (targetDate: string | null, slots: AvailabilitySlot[], durations: number[]) => {
       const uniqueDurations = Array.from(new Set(durations));
       const slotsByDuration: Record<number, string[]> = {};
       uniqueDurations.forEach((dur) => {
-        slotsByDuration[dur] = slots.flatMap((slot) =>
-          expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, dur)
+        slotsByDuration[dur] = filterTimesByAdvanceNotice(
+          targetDate,
+          slots.flatMap((slot) =>
+            expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, dur)
+          )
         );
       });
       return slotsByDuration;
     },
-    []
+    [filterTimesByAdvanceNotice]
   );
 
   const getTimesForDate = useCallback(
@@ -459,15 +562,19 @@ export default function TimeSelectionModal({
       if (!slots.length) {
         return [];
       }
-      const slotsByDuration = buildSlotsByDuration(slots, [durationMinutes]);
+      const slotsByDuration = buildSlotsByDuration(targetDate, slots, [durationMinutes]);
       return slotsByDuration[durationMinutes] ?? [];
     },
     [buildSlotsByDuration, getSlotsForDate]
   );
 
   const applySlotsForDate = useCallback(
-    (slots: AvailabilitySlot[], options?: { preferredTime?: string | null }) => {
-      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
+    (
+      targetDate: string | null,
+      slots: AvailabilitySlot[],
+      options?: { preferredTime?: string | null }
+    ) => {
+      const slotsByDuration = buildSlotsByDuration(targetDate, slots, durationValues);
       const baseDisabledDurations = durationValues.filter(
         (dur) => (slotsByDuration[dur] ?? []).length === 0
       );
@@ -657,10 +764,16 @@ export default function TimeSelectionModal({
         const availabilityByDate = response.data.availability_by_date;
         setAvailabilityData(availabilityByDate);
 
-        // Extract available dates - rely on backend-filtered slots
         const datesWithSlots: string[] = Object.keys(availabilityByDate).filter((date) => {
           const dayData = availabilityByDate[date];
-          return Boolean(dayData?.available_slots?.length);
+          const slots = dayData?.available_slots;
+          const filteredSlots = Array.isArray(slots)
+            ? buildSlotsByDuration(date, slots, [selectedDuration])[selectedDuration] ?? []
+            : [];
+          return (
+            Array.isArray(slots) &&
+            filteredSlots.length > 0
+          );
         });
         setAvailableDates(datesWithSlots);
 
@@ -668,7 +781,7 @@ export default function TimeSelectionModal({
         const initialDateValue = effectiveInitialDateRef.current;
         const initialTimeDisplay = effectiveInitialTimeDisplayRef.current;
         const preselectedIsAvailable = Boolean(
-          initialDateValue && availabilityByDate[initialDateValue]
+          initialDateValue && datesWithSlots.includes(initialDateValue)
         );
 
         if (!hasUserChosenDateRef.current) {
@@ -682,22 +795,19 @@ export default function TimeSelectionModal({
         }
 
         const activeDate =
-          selectedDateRef.current ??
+          (selectedDateRef.current && datesWithSlots.includes(selectedDateRef.current)
+            ? selectedDateRef.current
+            : null) ??
           (preselectedIsAvailable ? initialDateValue : null) ??
           firstAvailableDate;
 
         if (activeDate) {
           setShowTimeDropdown(true);
           const dayData = availabilityByDate[activeDate];
-          if (dayData) {
-            applySlotsForDate(dayData.available_slots || [], {
-              preferredTime:
-                activeDate === initialDateValue ? initialTimeDisplay ?? null : null,
-            });
-          } else {
-            setTimeSlots([]);
-            setSelectedTime(null);
-          }
+          applySlotsForDate(activeDate, dayData?.available_slots || [], {
+            preferredTime:
+              activeDate === initialDateValue ? initialTimeDisplay ?? null : null,
+          });
         } else {
           setShowTimeDropdown(false);
           setTimeSlots([]);
@@ -709,7 +819,14 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, selectedLocationType, studentTimezone, applySlotsForDate]);
+  }, [
+    instructor.user_id,
+    selectedLocationType,
+    studentTimezone,
+    applySlotsForDate,
+    buildSlotsByDuration,
+    selectedDuration,
+  ]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
@@ -1061,7 +1178,7 @@ export default function TimeSelectionModal({
     // Get time slots from availability data
     if (availabilityData && availabilityData[date]) {
       const slots = getSlotsForDate(date);
-      const { formattedSlots } = applySlotsForDate(slots, {
+      const { formattedSlots } = applySlotsForDate(date, slots, {
         preferredTime:
           date === (effectiveInitialDateRef.current ?? null)
             ? effectiveInitialTimeDisplayRef.current ?? null
@@ -1086,7 +1203,7 @@ export default function TimeSelectionModal({
           }));
 
           // Process slots
-          const { formattedSlots } = applySlotsForDate(dayData.available_slots || [], {
+          const { formattedSlots } = applySlotsForDate(date, dayData.available_slots || [], {
             preferredTime:
               date === (effectiveInitialDateRef.current ?? null)
                 ? effectiveInitialTimeDisplayRef.current ?? null
@@ -1161,7 +1278,7 @@ export default function TimeSelectionModal({
         return;
       }
 
-      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
+      const slotsByDuration = buildSlotsByDuration(selectedDate, slots, durationValues);
       const newSlots = slotsByDuration[duration] || [];
       const baseDisabled = durationValues.filter((d) => (slotsByDuration[d] || []).length === 0);
 
@@ -1230,7 +1347,7 @@ export default function TimeSelectionModal({
         return;
       }
 
-      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
+      const slotsByDuration = buildSlotsByDuration(selectedDate, slots, durationValues);
       const baseDisabled = durationValues.filter((d) => (slotsByDuration[d] || []).length === 0);
 
       const additionalDisabled: number[] = [];

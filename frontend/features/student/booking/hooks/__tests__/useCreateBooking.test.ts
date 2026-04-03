@@ -9,6 +9,43 @@ jest.mock('@/src/api/services/bookings', () => ({
   createBookingImperative: (...args: unknown[]) => mockCreateBookingImperative(...args),
 }));
 
+type CreateBookingRequest = Parameters<ReturnType<typeof useCreateBooking>['createBooking']>[0];
+
+const createBaseRequest = (): CreateBookingRequest => ({
+  instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+  instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+  booking_date: '2024-01-15',
+  start_time: '14:00:00',
+  selected_duration: 60,
+  location_type: 'neutral_location',
+});
+
+const expectThrownErrorMessage = (thrown: unknown, expectedMessage: string) => {
+  expect(thrown).toBeInstanceOf(Error);
+  expect((thrown as Error).message).toBe(expectedMessage);
+};
+
+const attemptCreateBooking = async (
+  createBooking: ReturnType<typeof useCreateBooking>['createBooking'],
+  overrides: Partial<CreateBookingRequest> = {}
+) => {
+  let thrown: unknown;
+  let booking: unknown;
+
+  await act(async () => {
+    try {
+      booking = await createBooking({
+        ...createBaseRequest(),
+        ...overrides,
+      } as CreateBookingRequest);
+    } catch (error) {
+      thrown = error;
+    }
+  });
+
+  return { booking, thrown };
+};
+
 describe('useCreateBooking', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -21,19 +58,13 @@ describe('useCreateBooking', () => {
       );
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe(
+        'You already have a booking scheduled at this time. Please select a different time slot.'
+      );
+      expectThrownErrorMessage(
+        thrown,
         'You already have a booking scheduled at this time. Please select a different time slot.'
       );
       expect(result.current.isLoading).toBe(false);
@@ -45,19 +76,13 @@ describe('useCreateBooking', () => {
       );
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe(
+        'This time slot is no longer available. Please select another time.'
+      );
+      expectThrownErrorMessage(
+        thrown,
         'This time slot is no longer available. Please select another time.'
       );
       expect(result.current.isLoading).toBe(false);
@@ -74,19 +99,10 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('Time slot conflicts with one of your existing bookings');
+      expectThrownErrorMessage(thrown, 'Time slot conflicts with one of your existing bookings');
     });
 
     it('should surface string detail messages from structured backend errors', async () => {
@@ -98,19 +114,10 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('Bookings must be made at least 24 hours in advance');
+      expectThrownErrorMessage(thrown, 'Bookings must be made at least 24 hours in advance');
     });
 
     it('should surface top-level structured messages from backend errors', async () => {
@@ -122,38 +129,20 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce(structuredError);
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('Instructor profile not found');
+      expectThrownErrorMessage(thrown, 'Instructor profile not found');
     });
 
     it('should handle 401 unauthorized error', async () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error('401: Unauthorized'));
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('You must be logged in to book lessons');
+      expectThrownErrorMessage(thrown, 'You must be logged in to book lessons');
     });
 
     it('should handle validation errors with advance booking message', async () => {
@@ -162,19 +151,13 @@ describe('useCreateBooking', () => {
       );
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe(
+        'This instructor requires advance booking. Please select a time at least 24 hours in advance.'
+      );
+      expectThrownErrorMessage(
+        thrown,
         'This instructor requires advance booking. Please select a time at least 24 hours in advance.'
       );
     });
@@ -183,19 +166,10 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error('Some error'));
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBeTruthy();
+      expectThrownErrorMessage(thrown, 'Some error');
 
       act(() => {
         result.current.reset();
@@ -207,19 +181,12 @@ describe('useCreateBooking', () => {
 
     it('should require selected_duration', async () => {
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 0,
-          location_type: 'neutral_location',
-        });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking, {
+        selected_duration: 0,
       });
 
       expect(result.current.error).toBe('selected_duration is required to create a booking');
+      expectThrownErrorMessage(thrown, 'selected_duration is required to create a booking');
       expect(mockCreateBookingImperative).not.toHaveBeenCalled();
     });
   });
@@ -455,19 +422,24 @@ describe('useCreateBooking', () => {
   describe('Duration calculation edge cases', () => {
     it('falls back to 0 when end_time is not provided and selected_duration is undefined', async () => {
       const { result } = renderHook(() => useCreateBooking());
-
+      let thrown: unknown;
       await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          location_type: 'neutral_location',
-        } as Parameters<typeof result.current.createBooking>[0]);
+        try {
+          await result.current.createBooking({
+            instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+            instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+            booking_date: '2024-01-15',
+            start_time: '14:00:00',
+            location_type: 'neutral_location',
+          } as Parameters<typeof result.current.createBooking>[0]);
+        } catch (error) {
+          thrown = error;
+        }
       });
 
       // Duration can't be calculated without end_time, falls to 0 -> error
       expect(result.current.error).toBe('selected_duration is required to create a booking');
+      expectThrownErrorMessage(thrown, 'selected_duration is required to create a booking');
       expect(mockCreateBookingImperative).not.toHaveBeenCalled();
     });
 
@@ -487,20 +459,25 @@ describe('useCreateBooking', () => {
       });
 
       const { result } = renderHook(() => useCreateBooking());
-
+      let thrown: unknown;
       await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '10:00:00',
-          end_time: '11:00:00',
-          location_type: 'neutral_location',
-        } as Parameters<typeof result.current.createBooking>[0]);
+        try {
+          await result.current.createBooking({
+            instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+            instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+            booking_date: '2024-01-15',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            location_type: 'neutral_location',
+          } as Parameters<typeof result.current.createBooking>[0]);
+        } catch (error) {
+          thrown = error;
+        }
       });
 
       // When catch fires, duration = 0 -> error
       expect(result.current.error).toBe('selected_duration is required to create a booking');
+      expectThrownErrorMessage(thrown, 'selected_duration is required to create a booking');
       expect(mockCreateBookingImperative).not.toHaveBeenCalled();
 
       jest.restoreAllMocks();
@@ -508,20 +485,25 @@ describe('useCreateBooking', () => {
 
     it('handles negative duration when end_time is before start_time', async () => {
       const { result } = renderHook(() => useCreateBooking());
-
+      let thrown: unknown;
       await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '16:00:00',
-          end_time: '14:00:00',
-          location_type: 'neutral_location',
-        } as Parameters<typeof result.current.createBooking>[0]);
+        try {
+          await result.current.createBooking({
+            instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+            instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+            booking_date: '2024-01-15',
+            start_time: '16:00:00',
+            end_time: '14:00:00',
+            location_type: 'neutral_location',
+          } as Parameters<typeof result.current.createBooking>[0]);
+        } catch (error) {
+          thrown = error;
+        }
       });
 
       // Negative duration -> selectedDuration is 0 or negative -> error
       expect(result.current.error).toBe('selected_duration is required to create a booking');
+      expectThrownErrorMessage(thrown, 'selected_duration is required to create a booking');
     });
   });
 
@@ -560,24 +542,14 @@ describe('useCreateBooking', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('returns null on error and sets isLoading to false', async () => {
+    it('throws on error and sets isLoading to false', async () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useCreateBooking());
 
-      let returnValue: unknown;
-      await act(async () => {
-        returnValue = await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
-      expect(returnValue).toBeNull();
+      expectThrownErrorMessage(thrown, 'Server error');
       expect(result.current.isLoading).toBe(false);
     });
   });
@@ -587,19 +559,10 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error('404: Instructor not found'));
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('Instructor or service not found');
+      expectThrownErrorMessage(thrown, 'Instructor or service not found');
     });
 
     it('should handle outside availability error', async () => {
@@ -608,19 +571,15 @@ describe('useCreateBooking', () => {
       );
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '23:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking, {
+        start_time: '23:00:00',
       });
 
       expect(result.current.error).toBe(
+        "The selected time is outside the instructor's availability."
+      );
+      expectThrownErrorMessage(
+        thrown,
         "The selected time is outside the instructor's availability."
       );
     });
@@ -629,38 +588,20 @@ describe('useCreateBooking', () => {
       mockCreateBookingImperative.mockRejectedValueOnce('String error');
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('Failed to create booking');
+      expectThrownErrorMessage(thrown, 'Failed to create booking');
     });
 
     it('should handle error with empty message', async () => {
       mockCreateBookingImperative.mockRejectedValueOnce(new Error(''));
 
       const { result } = renderHook(() => useCreateBooking());
-
-      await act(async () => {
-        await result.current.createBooking({
-          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
-          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          booking_date: '2024-01-15',
-          start_time: '14:00:00',
-          selected_duration: 60,
-          location_type: 'neutral_location',
-        });
-      });
+      const { thrown } = await attemptCreateBooking(result.current.createBooking);
 
       expect(result.current.error).toBe('An unexpected error occurred');
+      expectThrownErrorMessage(thrown, 'An unexpected error occurred');
     });
   });
 });

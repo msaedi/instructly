@@ -10,7 +10,7 @@ type CreateBookingRequest = BookingCreate;
 type Booking = BookingResponse;
 
 interface UseCreateBookingReturn {
-  createBooking: (data: CreateBookingRequest) => Promise<Booking | null>;
+  createBooking: (data: CreateBookingRequest) => Promise<Booking>;
   isLoading: boolean;
   error: string | null;
   booking: Booking | null;
@@ -33,7 +33,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
   const [error, setError] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
 
-  const createBooking = async (data: CreateBookingRequest): Promise<Booking | null> => {
+  const createBooking = async (data: CreateBookingRequest): Promise<Booking> => {
     setIsLoading(true);
     setError(null);
 
@@ -136,7 +136,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
 
       logger.error('Booking creation failed', err as Error, { errorMessage });
       setError(errorMessage);
-      return null;
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }

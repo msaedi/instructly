@@ -490,6 +490,104 @@ describe('TimeSelectionModal', () => {
         expect(parseInt(slotsCountElements[0]?.textContent ?? '0', 10)).toBeGreaterThan(0);
       });
     });
+
+    it('filters same-day travel slots that violate the 3-hour advance notice', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2030-10-10T13:30:00Z'));
+
+      const sameDay = getDateString(0);
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D.' as string | null,
+          availability_by_date: {
+            [sameDay]: {
+              date: sameDay,
+              available_slots: [{ start_time: '11:00', end_time: '15:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: sameDay,
+        },
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialLocationType="student_location"
+          lockLocationType
+        />
+      );
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalledWith(
+          'user-123',
+          expect.objectContaining({
+            location_type: 'student_location',
+          })
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('available-dates-count')[0]).toHaveTextContent('1');
+        expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('9');
+        expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('12:30pm');
+      });
+
+      expect(screen.queryByText('11:00am')).not.toBeInTheDocument();
+    });
+
+    it('removes travel dates when the 3-hour advance notice rolls into the next day', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2030-10-10T02:30:00Z'));
+
+      const sameDay = '2030-10-09';
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D.' as string | null,
+          availability_by_date: {
+            [sameDay]: {
+              date: sameDay,
+              available_slots: [{ start_time: '22:45', end_time: '23:45' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: sameDay,
+        },
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialLocationType="student_location"
+          lockLocationType
+        />
+      );
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalledWith(
+          'user-123',
+          expect.objectContaining({
+            location_type: 'student_location',
+          })
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('available-dates-count')[0]).toHaveTextContent('0');
+      });
+
+      expect(screen.queryAllByTestId('time-dropdown')).toHaveLength(0);
+    });
   });
 
   describe('duration selection', () => {
@@ -6884,8 +6982,9 @@ describe('TimeSelectionModal', () => {
       expect(
         screen.getAllByTestId('selected-date').every((node) => node.textContent === initialDate)
       ).toBe(true);
-      expect(screen.getAllByTestId('time-slots-count').every((node) => node.textContent === '0')).toBe(true);
-      expect(screen.getAllByTestId('selected-time').every((node) => node.textContent === 'none')).toBe(true);
+      expect(screen.queryAllByTestId('time-dropdown')).toHaveLength(0);
+      expect(screen.queryAllByTestId('time-slots-count')).toHaveLength(0);
+      expect(screen.queryAllByTestId('selected-time')).toHaveLength(0);
     });
   });
 
@@ -9469,8 +9568,9 @@ describe('TimeSelectionModal', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
       });
-      expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('0');
-      expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('none');
+      expect(screen.queryAllByTestId('time-dropdown')).toHaveLength(0);
+      expect(screen.queryAllByTestId('time-slots-count')).toHaveLength(0);
+      expect(screen.queryAllByTestId('selected-time')).toHaveLength(0);
     });
 
     it('reapplies the preferred initial time when a missing date is fetched on demand', async () => {
