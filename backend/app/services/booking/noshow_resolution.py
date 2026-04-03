@@ -479,6 +479,7 @@ class BookingNoShowResolutionMixin:
             upheld_bp.payment_status = PaymentStatus.SETTLED.value
             return
         self._cancel_no_show_report(booking)
+        booking.status = BookingStatus.CONFIRMED
 
     def _build_no_show_resolution_response(
         self,

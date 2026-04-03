@@ -695,6 +695,7 @@ def test_report_no_show_instructor_can_report_student_no_show(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
     booking = make_booking(status=BookingStatus.CONFIRMED)
+    booking.mark_no_show.side_effect = lambda: setattr(booking, "status", BookingStatus.NO_SHOW)
     reporter = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
     mock_repository.get_booking_with_details.return_value = booking
 
@@ -703,6 +704,7 @@ def test_report_no_show_instructor_can_report_student_no_show(
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service._write_booking_audit = Mock()
     booking_service._invalidate_booking_caches = Mock()
+    booking_service._enqueue_booking_outbox_event = Mock()
 
     with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
         payment_repo.return_value.create_payment_event = Mock()
@@ -715,7 +717,35 @@ def test_report_no_show_instructor_can_report_student_no_show(
 
     assert result["success"] is True
     assert result["no_show_type"] == "student"
+    assert booking.status == BookingStatus.NO_SHOW
+    booking.mark_no_show.assert_called_once_with()
+    assert mock_repository.flush.called
     assert mock_repository.ensure_no_show.return_value.no_show_type == "student"
+    booking_service._enqueue_booking_outbox_event.assert_called_once_with(
+        booking, "booking.no_show"
+    )
+
+
+def test_report_no_show_requires_confirmed_status(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(status=BookingStatus.COMPLETED)
+    reporter = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
+    mock_repository.get_booking_with_details.return_value = booking
+
+    booking_service._get_booking_start_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(hours=1))
+    booking_service._get_booking_end_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(minutes=30))
+
+    with pytest.raises(BusinessRuleException, match="Cannot report no-show for booking in status COMPLETED"):
+        booking_service.report_no_show(
+            booking_id=booking.id,
+            reporter=reporter,
+            no_show_type="student",
+            reason="Student did not arrive",
+        )
+
+    booking.mark_no_show.assert_not_called()
+    mock_repository.ensure_no_show.assert_not_called()
 
 
 def test_report_no_show_invalid_reporter_for_student_no_show(

@@ -138,10 +138,20 @@ class TestNoShowReporting:
         db.refresh(test_booking)
         bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
         no_show = _get_no_show(db, test_booking.id)
+        outbox = (
+            db.query(EventOutbox)
+            .filter(
+                EventOutbox.aggregate_id == test_booking.id,
+                EventOutbox.event_type == "booking.no_show",
+            )
+            .one_or_none()
+        )
+        assert test_booking.status == BookingStatus.NO_SHOW
         assert bp is not None
         assert bp.payment_status == "manual_review"
         assert no_show is not None
         assert no_show.no_show_type == "instructor"
+        assert outbox is not None
 
     def test_admin_can_report_any_no_show(
         self, client, db, test_booking, auth_headers_admin
@@ -159,6 +169,9 @@ class TestNoShowReporting:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["no_show_type"] == "student"
+
+        db.refresh(test_booking)
+        assert test_booking.status == BookingStatus.NO_SHOW
 
     def test_instructor_can_report_student_no_show(
         self, client, db, test_booking, auth_headers_instructor
@@ -180,10 +193,20 @@ class TestNoShowReporting:
         db.refresh(test_booking)
         bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
         no_show = _get_no_show(db, test_booking.id)
+        outbox = (
+            db.query(EventOutbox)
+            .filter(
+                EventOutbox.aggregate_id == test_booking.id,
+                EventOutbox.event_type == "booking.no_show",
+            )
+            .one_or_none()
+        )
+        assert test_booking.status == BookingStatus.NO_SHOW
         assert bp is not None
         assert bp.payment_status == "manual_review"
         assert no_show is not None
         assert no_show.no_show_type == "student"
+        assert outbox is not None
 
     def test_other_instructor_cannot_report_student_no_show(
         self, client, db, test_booking, auth_headers_instructor_2
@@ -483,6 +506,7 @@ class TestNoShowAdminResolution:
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
+        test_booking.status = BookingStatus.NO_SHOW
         _upsert_no_show(
             db,
             test_booking,
@@ -514,6 +538,7 @@ class TestNoShowAdminResolution:
         db.refresh(test_booking)
         bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
         no_show = _get_no_show(db, test_booking.id)
+        assert test_booking.status == BookingStatus.CONFIRMED
         assert no_show is not None
         assert no_show.no_show_resolution == "cancelled"
         assert bp is not None

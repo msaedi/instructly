@@ -326,7 +326,10 @@ def test_cancel_no_show_report_no_payment_record(booking_service: BookingService
 def test_resolve_no_show_cancelled_calculates_from_base_price(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
-    booking = make_booking(payment_status=PaymentStatus.MANUAL_REVIEW.value)
+    booking = make_booking(
+        status=BookingStatus.NO_SHOW,
+        payment_status=PaymentStatus.MANUAL_REVIEW.value,
+    )
     payment_record = SimpleNamespace(
         status="succeeded",
         amount=None,
@@ -365,6 +368,7 @@ def test_resolve_no_show_cancelled_calculates_from_base_price(
 
     assert result["success"] is True
     booking_service._cancel_no_show_report.assert_called_once_with(booking)
+    assert booking.status == BookingStatus.CONFIRMED
 
 
 def test_resolve_no_show_default_tier_and_student_fee_fallback(

@@ -157,8 +157,13 @@ class BookingNoShowMixin:
             raise BusinessRuleException(
                 "No-show can only be reported between lesson start and 24 hours after lesson end"
             )
-        if booking.status in {BookingStatus.CANCELLED, BookingStatus.PAYMENT_FAILED}:
-            raise BusinessRuleException("Cannot report no-show for a terminal booking state")
+        status = (
+            booking.status.value
+            if isinstance(booking.status, BookingStatus)
+            else str(booking.status)
+        )
+        if status != BookingStatus.CONFIRMED.value:
+            raise BusinessRuleException(f"Cannot report no-show for booking in status {status}")
         no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
         if no_show_record is not None and no_show_record.no_show_reported_at is not None:
             raise BusinessRuleException("No-show already reported for this booking")
@@ -205,6 +210,10 @@ class BookingNoShowMixin:
                 ).isoformat(),
             },
         )
+
+        booking.mark_no_show()
+        self.repository.flush()
+        self._enqueue_booking_outbox_event(booking, "booking.no_show")
 
         audit_after = self._snapshot_booking(booking)
         default_role = (

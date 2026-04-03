@@ -441,6 +441,22 @@ describe('Instructor Booking Details Page', () => {
     expect(screen.queryByTestId('booking-action-row')).not.toBeInTheDocument();
   });
 
+  it('shows the no-show badge, hides action required, and keeps report issue visible for no-show bookings', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-21T12:00:00Z'));
+    mockBookingData({
+      status: 'NO_SHOW',
+      booking_end_utc: '2026-03-20T10:00:00Z',
+      no_show_reported_at: '2026-03-20T12:00:00Z',
+      no_show_type: 'student',
+    });
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByText('No-show')).toBeInTheDocument();
+    expect(screen.queryByTestId('booking-action-row')).not.toBeInTheDocument();
+    expect(screen.getByTestId('report-issue-link')).toBeInTheDocument();
+  });
+
   it('renders the redesigned no-show modal, focuses the X dismiss button, and closes via X', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-17T12:00:00Z'));
     mockBookingData({
