@@ -19,7 +19,7 @@ class BookingConflictMixin(BookingRepositoryMixinBase):
     def get_video_no_show_candidates(
         self, sql_cutoff: datetime
     ) -> List[Tuple[Booking, Optional[BookingVideoSession]]]:
-        """Find online CONFIRMED bookings eligible for no-show check."""
+        """Find online CONFIRMED bookings whose scheduled end has passed."""
         try:
             no_show_alias = aliased(BookingNoShow)
             rows = (
@@ -32,7 +32,8 @@ class BookingConflictMixin(BookingRepositoryMixinBase):
                 .filter(
                     Booking.status == BookingStatus.CONFIRMED.value,
                     Booking.location_type == "online",
-                    Booking.booking_start_utc <= sql_cutoff,
+                    Booking.booking_end_utc.isnot(None),
+                    Booking.booking_end_utc <= sql_cutoff,
                     or_(
                         BookingVideoSession.id.is_(None),
                         BookingVideoSession.instructor_joined_at.is_(None),
@@ -43,7 +44,7 @@ class BookingConflictMixin(BookingRepositoryMixinBase):
                         no_show_alias.id.is_(None),
                     ),
                 )
-                .order_by(Booking.booking_start_utc.asc())
+                .order_by(Booking.booking_end_utc.asc())
                 .all()
             )
             return cast(List[Tuple[Booking, Optional[BookingVideoSession]]], rows)

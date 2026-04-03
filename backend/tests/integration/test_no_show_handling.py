@@ -12,6 +12,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus
 from app.models.booking_no_show import BookingNoShow
 from app.models.booking_payment import BookingPayment
+from app.models.event_outbox import EventOutbox
 from app.models.payment import PaymentIntent, PlatformCredit
 from app.services.booking_service import BookingService
 from app.tasks.payment_tasks import resolve_undisputed_no_shows
@@ -83,6 +84,40 @@ def _upsert_no_show(db, booking, **fields) -> BookingNoShow:
 
 
 class TestNoShowReporting:
+    def test_automated_no_show_transitions_booking_to_no_show_and_enqueues_outbox(
+        self, db, test_booking
+    ):
+        now = datetime.now(timezone.utc)
+        _set_booking_times(test_booking, _safe_recent_start(now))
+        db.commit()
+
+        result = BookingService(db).report_automated_no_show(
+            booking_id=test_booking.id,
+            no_show_type="mutual",
+            reason="Automated: neither party joined video session within grace period",
+        )
+
+        assert result["success"] is True
+
+        db.refresh(test_booking)
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        no_show = _get_no_show(db, test_booking.id)
+        outbox = (
+            db.query(EventOutbox)
+            .filter(
+                EventOutbox.aggregate_id == test_booking.id,
+                EventOutbox.event_type == "booking.no_show",
+            )
+            .one_or_none()
+        )
+
+        assert test_booking.status == BookingStatus.NO_SHOW
+        assert bp is not None
+        assert bp.payment_status == "manual_review"
+        assert no_show is not None
+        assert no_show.no_show_type == "mutual"
+        assert outbox is not None
+
     def test_student_can_report_instructor_no_show(
         self, client, db, test_booking, auth_headers_student
     ):

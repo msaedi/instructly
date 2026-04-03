@@ -182,7 +182,7 @@ describe('Instructor Booking Details Page', () => {
     );
   });
 
-  it('renders lavender pricing tiles with a disabled join button before the join window and keeps Message rightmost', () => {
+  it('renders lavender pricing tiles with a disabled join button and countdown before join opens', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:20:00Z'));
     mockBookingData({
       location_type: 'online',
@@ -204,6 +204,9 @@ describe('Instructor Booking Details Page', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Join lesson' })).toBeDisabled();
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 05:00'
+    );
     expect(screen.getByText('Online lesson')).not.toHaveClass('text-(--color-brand)');
     expect(screen.getByTestId('report-issue-link')).toBeInTheDocument();
     expect(screen.getByTestId('cancel-lesson-link')).toBeInTheDocument();
@@ -213,7 +216,7 @@ describe('Instructor Booking Details Page', () => {
     expect(actions.lastElementChild).toHaveTextContent('Message');
   });
 
-  it('transitions the join button from disabled to active on the 30-second timer and highlights the online row', async () => {
+  it('transitions the join button from disabled to active when the countdown expires and highlights the online row', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:24:45Z'));
     mockBookingData({
       location_type: 'online',
@@ -227,9 +230,12 @@ describe('Instructor Booking Details Page', () => {
     render(<BookingDetailsPage />);
 
     expect(screen.getByRole('button', { name: 'Join lesson' })).toBeDisabled();
+    expect(screen.getByTestId('join-lesson-countdown')).toHaveTextContent(
+      'Join opens in 00:15'
+    );
 
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(15_000);
     });
 
     await waitFor(() => {
@@ -242,7 +248,7 @@ describe('Instructor Booking Details Page', () => {
     expect(screen.getByText('Online lesson')).toHaveClass('text-(--color-brand)');
   });
 
-  it('hides the join button after the join window closes', () => {
+  it('hides the join button after the scheduled session ends', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-16T17:11:00Z'));
     mockBookingData({
       location_type: 'online',
@@ -257,6 +263,24 @@ describe('Instructor Booking Details Page', () => {
 
     expect(screen.queryByTestId('join-lesson-button')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
+  });
+
+  it('shows In Progress while a confirmed lesson is live', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-16T16:40:00Z'));
+    mockBookingData({
+      booking_start_utc: '2026-03-16T16:30:00Z',
+      booking_end_utc: '2026-03-16T17:15:00Z',
+      location_type: 'online',
+      location_address: null,
+      meeting_location: 'Online',
+      service_area: null,
+    });
+
+    render(<BookingDetailsPage />);
+
+    const badge = screen.getByText('In Progress');
+    expect(badge).toHaveClass('bg-purple-50', 'text-purple-700');
+    expect(screen.queryByText('Confirmed')).not.toBeInTheDocument();
   });
 
   it('opens standard messaging from the Message button without a prefilled message', async () => {
@@ -351,6 +375,7 @@ describe('Instructor Booking Details Page', () => {
 
     render(<BookingDetailsPage />);
 
+    expect(screen.queryByText('In Progress')).not.toBeInTheDocument();
     expect(screen.getByTestId('booking-action-row')).toBeInTheDocument();
     expect(screen.getByText('Action required · Did the lesson occur?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass(

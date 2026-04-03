@@ -25,7 +25,7 @@ function CountdownPill({ secondsLeft, formatted }: { secondsLeft: number; format
 
   return (
     <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium tabular-nums ${colorClasses}`}>
-      Window closes in {formatted}
+      Session ends in {formatted}
     </span>
   );
 }
@@ -43,7 +43,7 @@ export function PreLessonWaiting({
   const closesCountdown = useCountdown(booking.join_closes_at ?? null);
 
   const windowOpen = opensCountdown.isExpired && !closesCountdown.isExpired;
-  const windowClosed = opensCountdown.isExpired && closesCountdown.isExpired;
+  const sessionEnded = opensCountdown.isExpired && closesCountdown.isExpired;
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
@@ -91,9 +91,9 @@ export function PreLessonWaiting({
             </div>
           )}
 
-          {windowClosed && (
+          {sessionEnded && (
             <p className="text-sm text-destructive font-medium">
-              Join window has closed.
+              Session has ended.
             </p>
           )}
 

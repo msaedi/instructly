@@ -374,4 +374,39 @@ describe('InstructorBookingCard', () => {
 
     expect(screen.queryByTestId('booking-action-needed-badge')).not.toBeInTheDocument();
   });
+
+  it('shows In Progress for a live confirmed lesson', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T18:30:00Z'));
+
+    render(
+      <InstructorBookingCard
+        booking={{
+          id: 'booking-in-progress',
+          booking_date: '2026-04-02',
+          start_time: '18:15:00',
+          end_time: '19:15:00',
+          status: 'CONFIRMED',
+          service_name: 'Piano',
+          duration_minutes: 60,
+          location_type: 'online',
+          location_address: null,
+          meeting_location: null,
+          lesson_timezone: 'UTC',
+          booking_start_utc: '2026-04-02T18:15:00Z',
+          booking_end_utc: '2026-04-02T19:15:00Z',
+          no_show_reported_at: null,
+          student: {
+            id: 'student-in-progress',
+            first_name: 'Taylor',
+            last_initial: 'B',
+          },
+        }}
+      />
+    );
+
+    const header = screen.getByTestId('booking-card-header');
+    const badge = within(header).getByText('In Progress');
+    expect(badge).toHaveClass('bg-purple-50', 'text-purple-700');
+    expect(within(header).queryByText('Confirmed')).not.toBeInTheDocument();
+  });
 });

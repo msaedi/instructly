@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import settings
 from ...database import get_db
-from ...domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
+from ...domain.video_utils import compute_join_closes_at, compute_join_opens_at
 from ...models.booking import Booking
 from ...models.booking_video_session import BookingVideoSession
 from ...models.webhook_event import WebhookEvent
@@ -426,6 +426,7 @@ def _handle_peer_join(
         peer_user_id = _extract_user_id_from_metadata(data.get("metadata"))
 
     booking_start_utc = getattr(booking, "booking_start_utc", None)
+    booking_end_utc = getattr(booking, "booking_end_utc", None)
     booking_duration = getattr(booking, "duration_minutes", None)
     if (
         joined_at is None
@@ -438,9 +439,12 @@ def _handle_peer_join(
         )
         return False
 
-    grace_minutes = compute_grace_minutes(int(booking_duration))
-    join_opens_at = booking_start_utc - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
-    join_closes_at = booking_start_utc + timedelta(minutes=grace_minutes)
+    join_opens_at = compute_join_opens_at(booking_start_utc)
+    join_closes_at = compute_join_closes_at(
+        booking_start_utc,
+        int(booking_duration),
+        booking_end_utc if isinstance(booking_end_utc, datetime) else None,
+    )
     if joined_at < join_opens_at or joined_at > join_closes_at:
         logger.warning(
             "Skipping peer.join outside allowed window booking_id=%s joined_at=%s window=%s..%s",

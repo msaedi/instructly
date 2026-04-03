@@ -1,19 +1,19 @@
 """VideoService: business logic for video lessons.
 
-Handles on-demand room creation, join window validation, and auth token
+Handles on-demand room creation, join timing validation, and auth token
 generation for 100ms video calls tied to bookings.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 from typing import Any, Optional, Union
 
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException, ServiceException, ValidationException
-from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
+from ..domain.video_utils import compute_join_closes_at, compute_join_opens_at
 from ..integrations.hundredms_client import FakeHundredMsClient, HundredMsClient, HundredMsError
 from ..models.booking import BookingStatus, LocationType
 from ..repositories.factory import RepositoryFactory
@@ -44,14 +44,17 @@ class VideoService(BaseService):
             raise ValidationException("This booking is not an online lesson")
 
         booking_start = booking.booking_start_utc
-        join_opens_at = booking_start - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
-        grace_minutes = compute_grace_minutes(booking.duration_minutes)
-        join_closes_at = booking_start + timedelta(minutes=grace_minutes)
+        join_opens_at = compute_join_opens_at(booking_start)
+        join_closes_at = compute_join_closes_at(
+            booking_start,
+            int(booking.duration_minutes),
+            getattr(booking, "booking_end_utc", None),
+        )
 
         if now < join_opens_at:
             raise ValidationException("Lesson join window has not opened yet")
         if now > join_closes_at:
-            raise ValidationException("Lesson join window has closed")
+            raise ValidationException("Lesson has ended")
 
     @BaseService.measure_operation("join_lesson")
     def join_lesson(self, booking_id: str, user_id: str) -> dict[str, Any]:

@@ -65,11 +65,11 @@ describe('PreLessonWaiting', () => {
     render(<PreLessonWaiting {...defaultProps} />);
 
     expect(screen.getByRole('button', { name: 'Join video lesson' })).toBeInTheDocument();
-    expect(screen.getByText(/Window closes in 10:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Session ends in 10:00/)).toBeInTheDocument();
     expect(screen.queryByText('Join opens in')).not.toBeInTheDocument();
   });
 
-  it('shows closed message when window has closed', () => {
+  it('shows ended message when the session has ended', () => {
     mockCountdowns(
       { secondsLeft: 0, isExpired: true, formatted: '00:00' },
       { secondsLeft: 0, isExpired: true, formatted: '00:00' }
@@ -77,7 +77,7 @@ describe('PreLessonWaiting', () => {
 
     render(<PreLessonWaiting {...defaultProps} />);
 
-    expect(screen.getByText('Join window has closed.')).toBeInTheDocument();
+    expect(screen.getByText('Session has ended.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 
@@ -199,7 +199,7 @@ describe('PreLessonWaiting', () => {
   });
 
   describe('CountdownPill urgency colors', () => {
-    it('shows red pill when join window closes within 60 seconds', () => {
+    it('shows red pill when the session ends within 60 seconds', () => {
       mockCountdowns(
         { secondsLeft: 0, isExpired: true, formatted: '00:00' },
         { secondsLeft: 45, isExpired: false, formatted: '00:45' }
@@ -207,7 +207,7 @@ describe('PreLessonWaiting', () => {
 
       render(<PreLessonWaiting {...defaultProps} />);
 
-      const pill = screen.getByText(/Window closes in 00:45/);
+      const pill = screen.getByText(/Session ends in 00:45/);
       expect(pill.className).toContain('bg-red-100');
       expect(pill.className).toContain('text-red-700');
       // Should NOT have gray or amber styles
@@ -223,11 +223,11 @@ describe('PreLessonWaiting', () => {
 
       render(<PreLessonWaiting {...defaultProps} />);
 
-      const pill = screen.getByText(/Window closes in 01:00/);
+      const pill = screen.getByText(/Session ends in 01:00/);
       expect(pill.className).toContain('bg-red-100');
     });
 
-    it('shows amber pill when join window closes within 5 minutes (but > 60s)', () => {
+    it('shows amber pill when the session ends within 5 minutes (but > 60s)', () => {
       mockCountdowns(
         { secondsLeft: 0, isExpired: true, formatted: '00:00' },
         { secondsLeft: 180, isExpired: false, formatted: '03:00' }
@@ -235,7 +235,7 @@ describe('PreLessonWaiting', () => {
 
       render(<PreLessonWaiting {...defaultProps} />);
 
-      const pill = screen.getByText(/Window closes in 03:00/);
+      const pill = screen.getByText(/Session ends in 03:00/);
       expect(pill.className).toContain('bg-amber-100');
       expect(pill.className).toContain('text-amber-700');
       // Should NOT have gray or red styles
@@ -251,7 +251,7 @@ describe('PreLessonWaiting', () => {
 
       render(<PreLessonWaiting {...defaultProps} />);
 
-      const pill = screen.getByText(/Window closes in 05:00/);
+      const pill = screen.getByText(/Session ends in 05:00/);
       expect(pill.className).toContain('bg-amber-100');
     });
 
@@ -263,7 +263,7 @@ describe('PreLessonWaiting', () => {
 
       render(<PreLessonWaiting {...defaultProps} />);
 
-      const pill = screen.getByText(/Window closes in 10:00/);
+      const pill = screen.getByText(/Session ends in 10:00/);
       expect(pill.className).toContain('bg-gray-100');
       expect(pill.className).toContain('text-gray-700');
     });

@@ -117,17 +117,25 @@ def test_ci_without_database_url_uses_int_database(monkeypatch) -> None:
         "DATABASE_URL",
         "database_url",
         "STG_DATABASE_URL",
+        "STAGING_DATABASE_URL",
         "stg_database_url",
         "LOCAL_DATABASE_URL",
         "local_database_url",
         "PREVIEW_DATABASE_URL",
         "preview_database_url",
         "PROD_DATABASE_URL",
+        "PRODUCTION_DATABASE_URL",
         "prod_database_url",
-        "TEST_DATABASE_URL",
         "test_database_url",
+        "SITE_MODE",
+        "FRONTEND_URL",
+        "ENVIRONMENT",
     ]:
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv(
+        "TEST_DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/instainstru_test",
+    )
 
     from app.core.database_config import DatabaseConfig
 
