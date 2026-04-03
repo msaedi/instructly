@@ -120,8 +120,7 @@ describe('NotificationItem', () => {
         />
       );
 
-      // Look for the blue dot indicator
-      const unreadDot = container.querySelector('.bg-blue-500');
+      const unreadDot = container.querySelector('[class*="bg-(--color-brand)"]');
       expect(unreadDot).toBeInTheDocument();
     });
 
@@ -134,7 +133,7 @@ describe('NotificationItem', () => {
         />
       );
 
-      const unreadDot = container.querySelector('.bg-blue-500');
+      const unreadDot = container.querySelector('[class*="bg-(--color-brand)"]');
       expect(unreadDot).not.toBeInTheDocument();
     });
 
@@ -148,7 +147,7 @@ describe('NotificationItem', () => {
       );
 
       const item = container.querySelector('[role="menuitem"]');
-      expect(item).toHaveClass('bg-blue-50/40');
+      expect(item).toHaveClass('bg-[#FAF5FF]');
     });
 
     it('applies bold styling to unread title', () => {

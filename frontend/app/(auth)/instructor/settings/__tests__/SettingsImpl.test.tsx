@@ -469,6 +469,37 @@ describe('SettingsImpl', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the top push toggle visually enabled while a device push update is pending', async () => {
+    const user = userEvent.setup();
+    const unsubscribeMock = jest.fn();
+
+    usePushNotificationsMock.mockReturnValue({
+      isSupported: true,
+      permission: 'granted',
+      isSubscribed: true,
+      isLoading: true,
+      error: null,
+      subscribe: jest.fn(),
+      unsubscribe: unsubscribeMock,
+    });
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /Preferences/i }));
+
+    const pushToggle = screen.getByRole('switch', {
+      name: 'Push notifications on this device',
+    });
+
+    expect(pushToggle).not.toBeDisabled();
+    expect(pushToggle).not.toHaveClass('cursor-not-allowed', 'opacity-50');
+    expect(screen.getByText('Updating push notifications…')).toBeInTheDocument();
+
+    await user.click(pushToggle);
+
+    expect(unsubscribeMock).not.toHaveBeenCalled();
+  });
+
   it('transitions the inline phone verification flow from verified to pending and back', async () => {
     const user = userEvent.setup();
 
@@ -545,8 +576,16 @@ describe('SettingsImpl', () => {
     const tfaToggle = screen.getByRole('switch', { name: 'Two-factor authentication' });
     expect(tfaToggle).toHaveClass('bg-gray-200');
 
+    fetchWithAuthMock.mockClear();
+
     await user.click(tfaToggle);
 
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/2fa/setup/initiate', {
+        method: 'POST',
+      });
+    });
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/2fa/status');
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Connect your authenticator app' })).toBeInTheDocument();
     });

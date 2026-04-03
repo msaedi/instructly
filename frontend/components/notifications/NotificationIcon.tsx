@@ -10,7 +10,7 @@ const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> 
   },
   messages: {
     icon: MessageSquare,
-    className: 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-indigo-200',
+    className: 'bg-purple-50 dark:bg-[#2D174D]/40 text-(--color-brand-dark) dark:text-[#C4B5FD]',
   },
   reviews: {
     icon: Star,

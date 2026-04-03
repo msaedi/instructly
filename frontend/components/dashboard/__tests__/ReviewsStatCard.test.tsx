@@ -12,7 +12,7 @@ describe('ReviewsStatCard', () => {
 
     expect(screen.getByTestId('reviews-rating-value')).toHaveTextContent('4.4');
     expect(screen.getByTestId('reviews-rating-count')).toHaveTextContent('(5)');
-    expect(screen.getByTestId('reviews-rating-star')).toBeInTheDocument();
+    expect(screen.queryByTestId('reviews-rating-star')).not.toBeInTheDocument();
     expect(screen.getByTestId('reviews-card-icon')).toBeInTheDocument();
   });
 

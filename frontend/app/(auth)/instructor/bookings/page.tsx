@@ -10,7 +10,6 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
-import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -120,12 +119,14 @@ function BookingsPageImpl() {
                 type="button"
                 role="tab"
                 aria-selected={activeTab === tab}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${getTextWidthTabButtonClasses(activeTab === tab)}`}
+                className={`-mb-px flex-1 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab
+                    ? 'border-[#7E22CE] text-[#7E22CE]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
                 onClick={() => handleTabChange(tab)}
               >
-                <span className={getTextWidthTabLabelClasses(activeTab === tab)}>
-                  {tab === 'upcoming' ? 'Upcoming' : 'Past'}
-                </span>
+                <span>{tab === 'upcoming' ? 'Upcoming' : 'Past'}</span>
               </button>
             ))}
           </div>

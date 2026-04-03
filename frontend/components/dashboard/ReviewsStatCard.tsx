@@ -28,12 +28,6 @@ export function ReviewsStatCardValue({
       data-testid="reviews-summary"
     >
       <span data-testid="reviews-rating-value">{reviewAverageDisplay}</span>
-      <PhosphorStar
-        data-testid="reviews-rating-star"
-        weight="regular"
-        className="h-5 w-5 sm:h-6 sm:w-6 text-(--color-brand-dark)"
-        aria-hidden="true"
-      />
       <span data-testid="reviews-rating-count">({reviewCount})</span>
     </div>
   );

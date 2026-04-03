@@ -18,12 +18,15 @@ type TfaSetupVerifyResponse = components['schemas']['TFASetupVerifyResponse'];
 type BackupCodesResponse = components['schemas']['BackupCodesResponse'];
 
 type Props = {
+  initialEnabled?: boolean | null;
   onClose: () => void;
   onChanged: () => void;
 };
 
-export default function TfaModal({ onClose, onChanged }: Props) {
-  const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled'>('idle');
+export default function TfaModal({ initialEnabled = null, onClose, onChanged }: Props) {
+  const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled'>(
+    initialEnabled === true ? 'enabled' : initialEnabled === false ? 'show' : 'idle'
+  );
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -36,8 +39,9 @@ export default function TfaModal({ onClose, onChanged }: Props) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  // Use React Query hook for 2FA status (deduplicates calls)
-  const { data: tfaStatus, isSuccess: tfaStatusLoaded } = useTfaStatus();
+  const shouldLoadTfaStatus = initialEnabled === null;
+  const { data: tfaStatus, isLoading: tfaStatusLoading } = useTfaStatus(shouldLoadTfaStatus);
+  const resolvedInitialEnabled = initialEnabled ?? tfaStatus?.enabled ?? null;
 
   const clearClientAuthState = () => {
     queryClient.setQueryData(sessionQueryKeys.auth.me, null);
@@ -58,20 +62,28 @@ export default function TfaModal({ onClose, onChanged }: Props) {
 
   // Note: Escape key handling is now managed by Modal (Radix Dialog)
 
-  // Determine initial step based on 2FA status from hook
   useEffect(() => {
-    if (!tfaStatusLoaded || step !== 'idle') return;
-    if (tfaStatus?.enabled) {
-      setStep('enabled');
-    } else {
-      setStep('show');
-      // Auto-initiate setup if 2FA not enabled (only once)
-      if (!hasInitiatedRef.current) {
-        hasInitiatedRef.current = true;
-        void initiate();
-      }
+    if (initialEnabled === false && !hasInitiatedRef.current) {
+      hasInitiatedRef.current = true;
+      void initiate();
+      return;
     }
-  }, [tfaStatusLoaded, tfaStatus, step]);
+
+    if (step !== 'idle' || resolvedInitialEnabled == null) {
+      return;
+    }
+
+    if (resolvedInitialEnabled) {
+      setStep('enabled');
+      return;
+    }
+
+    setStep('show');
+    if (!hasInitiatedRef.current) {
+      hasInitiatedRef.current = true;
+      void initiate();
+    }
+  }, [initialEnabled, resolvedInitialEnabled, step]);
 
   const initiate = async () => {
     setError(null);
@@ -190,6 +202,12 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     >
       <div className="space-y-4">
         {error && <p className="text-sm text-red-600">{error}</p>}
+
+        {step === 'idle' && shouldLoadTfaStatus && tfaStatusLoading ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Loading your two-factor authentication settings…
+          </p>
+        ) : null}
 
         {step === 'show' && (
           <>

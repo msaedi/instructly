@@ -20,7 +20,7 @@ function renderBody(variant: CalendarSettingsAcknowledgementVariant) {
     return (
       <>
         <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-          We automatically add buffer time between your lessons so you&apos;re never rushed:
+          We automatically add buffer time between your back to back lessons so you&apos;re never rushed:
         </p>
         <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-gray-700 dark:text-gray-300">
           <li>15 minutes between lessons when you&apos;re staying put (online or at your studio)</li>
@@ -42,7 +42,7 @@ function renderBody(variant: CalendarSettingsAcknowledgementVariant) {
     return (
       <>
         <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-          We automatically add 60 minutes of buffer time between your lessons to account for travel.
+          We automatically add 60 minutes of buffer time between your back to back lessons to account for travel.
         </p>
         <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
           Students can book up to 3 hours before your lessons. Early morning slots are protected
@@ -58,8 +58,8 @@ function renderBody(variant: CalendarSettingsAcknowledgementVariant) {
   return (
     <>
       <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-        We automatically add 15 minutes of buffer time between your lessons so you&apos;re never
-        rushed.
+        We automatically add 15 minutes of buffer time between your back to back lessons so
+        you&apos;re never rushed.
       </p>
       <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
         Students can book up to 1 hour before your lessons. Early morning slots are protected from

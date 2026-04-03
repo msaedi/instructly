@@ -28,8 +28,8 @@ describe('NotificationIcon', () => {
     const { container } = render(<NotificationIcon category="messages" />);
 
     const span = container.querySelector('span');
-    expect(span).toHaveClass('bg-blue-50');
-    expect(span).toHaveClass('text-blue-600');
+    expect(span).toHaveClass('bg-purple-50');
+    expect(span).toHaveClass('text-(--color-brand-dark)');
   });
 
   it('renders Star icon for reviews category', () => {

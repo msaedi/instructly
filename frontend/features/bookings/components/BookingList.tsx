@@ -12,6 +12,10 @@ export type BookingListItem = Pick<
   | 'service_name'
   | 'duration_minutes'
   | 'location_type'
+  | 'location_address'
+  | 'meeting_location'
+  | 'booking_end_utc'
+  | 'no_show_reported_at'
   | 'student'
 >;
 

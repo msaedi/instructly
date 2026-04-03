@@ -211,7 +211,9 @@ describe('CommissionTierCard', () => {
       'text-(--color-brand-dark)'
     );
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    expect(screen.getByTestId('commission-tier-connector')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-connector-entry')).toBeInTheDocument();
+    expect(screen.getByTestId('commission-tier-connector-growth')).toBeInTheDocument();
+    expect(screen.queryByTestId('commission-tier-connector-pro')).not.toBeInTheDocument();
     expect(screen.getByTestId('commission-tier-row-entry')).toHaveAttribute(
       'data-tier-state',
       'active'

@@ -75,15 +75,17 @@ const completeMutateAsyncMock = jest.fn();
 const markNoShowMutateAsyncMock = jest.fn();
 const createConversationMock = jest.fn();
 
-const createMockBooking = (overrides = {}) => ({
+  const createMockBooking = (overrides = {}) => ({
   id: '01KKQKWD9V9QF0J2T0AB3124',
   status: 'CONFIRMED',
   booking_date: '2026-03-16',
   start_time: '16:30:00',
   end_time: '17:15:00',
+  booking_start_utc: null,
   booking_end_utc: null,
   service_name: 'Piano',
   duration_minutes: 45,
+  lesson_timezone: null,
   hourly_rate: 110,
   total_price: 82.5,
   location_type: 'instructor_location',
@@ -378,6 +380,28 @@ describe('Instructor Booking Details Page', () => {
       expect.any(Object)
     );
     expect(mockInvalidateQueries).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the action required row when booking_end_utc is null but the lesson has ended in lesson_timezone', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-03T01:00:00Z'));
+    mockBookingData({
+      booking_date: '2026-04-02',
+      start_time: '18:15:00',
+      end_time: '19:15:00',
+      booking_start_utc: null,
+      booking_end_utc: null,
+      lesson_timezone: 'America/New_York',
+      location_type: 'online',
+      location_address: null,
+      meeting_location: 'Online',
+      service_area: null,
+    });
+
+    render(<BookingDetailsPage />);
+
+    expect(screen.getByTestId('booking-action-row')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Report no-show' })).toBeInTheDocument();
   });
 
   it('hides the action required row once a no-show has already been reported', () => {

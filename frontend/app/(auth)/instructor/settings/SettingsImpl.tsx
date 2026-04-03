@@ -269,7 +269,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const lastName = accountDefaults.lastName;
   const email = accountDefaults.email;
   const zip = zipDraft ?? accountDefaults.zip;
-  const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
+  const pushDisabled = !pushSupported || pushPermission === 'denied';
   const preferencesDisabled = preferencesLoading;
   const pushPreferenceDisabled =
     preferencesDisabled || !pushSupported || pushPermission === 'denied' || !pushEnabled;
@@ -318,6 +318,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   };
 
   const handlePushToggle = async (enabled: boolean) => {
+    if (pushLoading || pushDisabled) {
+      return;
+    }
+
     if (enabled) {
       await enablePush();
     } else {
@@ -352,9 +356,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   };
   const handlePreferenceToggle = useCallback(
     (category: PreferenceCategory, channel: PreferenceChannel, checked: boolean) => {
+      if (channel === 'push' && (pushDisabled || isPreferenceUpdating(category, channel))) {
+        return;
+      }
+
       updatePreference(category, channel, !checked);
     },
-    [updatePreference]
+    [isPreferenceUpdating, pushDisabled, updatePreference]
   );
 
   const renderNotificationPreferences = () => {
@@ -382,7 +390,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           {PREFERENCE_ROWS.map(({ category, description }) => {
             const emailUpdating = isPreferenceUpdating(category, 'email');
             const smsUpdating = isPreferenceUpdating(category, 'sms');
-            const pushUpdating = isPreferenceUpdating(category, 'push');
             const messagePushLocked = category === 'messages';
 
             return (
@@ -395,7 +402,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 pushChecked={getPreferenceValue(category, 'push')}
                 emailDisabled={preferencesDisabled || emailUpdating}
                 smsDisabled={smsPreferenceDisabled || smsUpdating}
-                pushDisabled={messagePushLocked ? true : pushPreferenceDisabled || pushUpdating}
+                pushDisabled={messagePushLocked ? true : pushPreferenceDisabled}
                 smsTitle={smsPreferenceTitle}
                 pushTitle={messagePushLocked ? 'Push notifications for messages are required.' : pushPreferenceTitle}
                 onToggle={handlePreferenceToggle}
@@ -1004,6 +1011,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
         {showTfaModal && (
           <TfaModal
+            initialEnabled={tfaEnabled}
             onClose={() => setShowTfaModal(false)}
             onChanged={() => {
               void invalidateTfaStatus();

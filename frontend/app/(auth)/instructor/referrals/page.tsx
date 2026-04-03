@@ -53,14 +53,6 @@ function sumRewardAmountCents(rewards: InstructorReferralReward[]): number {
   return rewards.reduce((total, reward) => total + reward.amountCents, 0);
 }
 
-function InsetDivider() {
-  return (
-    <div className="px-6 sm:px-8" aria-hidden="true">
-      <div className="border-t border-gray-200 dark:border-gray-700" />
-    </div>
-  );
-}
-
 function RewardOfferCard({
   title,
   amount,
@@ -200,7 +192,6 @@ function RewardsSection({
           </div>
         </div>
       </div>
-      <InsetDivider />
       <div className="px-6 py-5 sm:px-8">
         {rewards.length ? (
           <ul className="space-y-3">
@@ -421,8 +412,6 @@ export default function InstructorReferralsPage() {
                     </div>
                   </div>
                 </div>
-
-                <InsetDivider />
 
                 <InviteByEmail
                   shareUrl={dashboard.referralLink}

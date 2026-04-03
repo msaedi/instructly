@@ -41,6 +41,21 @@ jest.mock('../../_embedded/EmbeddedContext', () => ({
   useEmbedded: () => false,
 }));
 
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
+    configurable: true,
+    value: jest.fn(() => false),
+  });
+  Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+    configurable: true,
+    value: jest.fn(),
+  });
+  Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+    configurable: true,
+    value: jest.fn(),
+  });
+});
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -110,6 +125,23 @@ describe('InstructorReviewsPage', () => {
               created_at: '2026-03-11T12:00:00Z',
             },
           },
+          {
+            id: 'review-3',
+            rating: 4,
+            review_text: 'Great pacing and communication.',
+            created_at: '2026-03-18T12:00:00Z',
+            instructor_service_id: 'service-1',
+            reviewer_display_name: 'Jordan Lee',
+            reviewer_first_name: 'Jordan',
+            reviewer_last_initial: 'L',
+            response: {
+              id: 'response-2',
+              review_id: 'review-3',
+              instructor_id: 'instructor-1',
+              response_text: 'Thank you for the kind words.',
+              created_at: '2026-03-19T12:00:00Z',
+            },
+          },
         ],
         total: 5,
         page: 1,
@@ -138,11 +170,16 @@ describe('InstructorReviewsPage', () => {
     expect(screen.getByText('about 4 hours ago')).toBeInTheDocument();
     expect(screen.getByText('Alex W.')).toBeInTheDocument();
     expect(screen.getByText('Mar 10, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Jordan L.')).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
-    expect(screen.getByText('Instructor reply')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    const responseLabels = screen.getAllByText('Instructor reply');
+    expect(responseLabels[0]).toHaveClass('text-sm', 'font-medium');
+    expect(responseLabels[0]).not.toHaveClass('uppercase');
     expect(screen.getByText('Thanks for the thoughtful note.')).toBeInTheDocument();
-    expect(screen.getByText('Replied')).toBeInTheDocument();
+    expect(screen.getByText('Thank you for the kind words.')).toBeInTheDocument();
+    expect(screen.queryByText('Replied')).not.toBeInTheDocument();
     expect(screen.queryByText('No written feedback')).not.toBeInTheDocument();
 
     const reviewMeta = screen.getByTestId('review-meta-review-1');
@@ -157,14 +194,21 @@ describe('InstructorReviewsPage', () => {
 
     const secondReviewCard = screen.getByText('Alex W.').closest('article');
     expect(secondReviewCard).not.toBeNull();
-    expect(within(secondReviewCard as HTMLElement).queryByText('No written feedback')).not.toBeInTheDocument();
+    expect(
+      within(secondReviewCard as HTMLElement).queryByRole('button', { name: /Reply|Edit/i })
+    ).not.toBeInTheDocument();
   });
 
   it('updates rating and comments-only filters through the summary controls', async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     renderPage();
 
-    await user.selectOptions(screen.getByLabelText('All reviews filter'), '4');
+    const ratingFilter = screen.getByRole('combobox', { name: 'All reviews filter' });
+    expect(ratingFilter).toHaveStyle({ backgroundColor: '#FFFFFF' });
+
+    await user.click(ratingFilter);
+    await user.click(screen.getByRole('option', { name: '4 stars' }));
+
     expect(mockUseInstructorReviews).toHaveBeenLastCalledWith(
       'instructor-1',
       1,
@@ -198,5 +242,17 @@ describe('InstructorReviewsPage', () => {
 
     expect(screen.getByLabelText('Reply to Sophia B.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeInTheDocument();
+  });
+
+  it('prefills the existing response when editing a written review reply', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Reply to Jordan L.')).toHaveValue(
+      'Thank you for the kind words.'
+    );
+    expect(screen.getByRole('button', { name: 'Save reply' })).toBeInTheDocument();
   });
 });

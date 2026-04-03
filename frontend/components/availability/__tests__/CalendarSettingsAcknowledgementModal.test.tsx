@@ -30,7 +30,7 @@ describe('CalendarSettingsAcknowledgementModal', () => {
     );
 
     expect(
-      screen.getByText(/We automatically add 15 minutes of buffer time between your lessons/i)
+      screen.getByText(/We automatically add 15 minutes of buffer time between your back to back lessons/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/Students can book up to 1 hour before your lessons/i)).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe('CalendarSettingsAcknowledgementModal', () => {
     );
 
     expect(
-      screen.getByText(/We automatically add 60 minutes of buffer time between your lessons/i)
+      screen.getByText(/We automatically add 60 minutes of buffer time between your back to back lessons/i)
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'OK' }));

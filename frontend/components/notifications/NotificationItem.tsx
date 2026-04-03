@@ -53,7 +53,7 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
         'flex items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer',
-        isUnread && 'bg-blue-50/40'
+        isUnread && 'bg-[#FAF5FF]'
       )}
     >
       <div className="mt-0.5 shrink-0">
@@ -84,7 +84,7 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
           <X className="h-4 w-4" />
         </button>
       )}
-      {isUnread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
+      {isUnread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-(--color-brand)" />}
     </div>
   );
 }

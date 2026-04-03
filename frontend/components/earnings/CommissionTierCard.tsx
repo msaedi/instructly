@@ -211,13 +211,6 @@ export default function CommissionTierCard() {
       </div>
 
       <div className="relative mt-6 space-y-5">
-        {tiers.length > 1 ? (
-          <span
-            className="pointer-events-none absolute left-5 top-[3.125rem] bottom-[3.125rem] w-px -translate-x-1/2 bg-(--color-brand-lavender)"
-            data-testid="commission-tier-connector"
-          />
-        ) : null}
-
         {tiers.map((tier, index) => {
           const state = getTierTimelineState(tier);
           const dotCount = getTierDotCount(tier);
@@ -231,6 +224,13 @@ export default function CommissionTierCard() {
               data-testid={`commission-tier-row-${tier.name}`}
               data-tier-state={state}
             >
+              {index < tiers.length - 1 ? (
+                <span
+                  className="pointer-events-none absolute left-5 top-[3.125rem] bottom-[-1.25rem] w-px -translate-x-1/2 bg-(--color-brand-lavender)"
+                  data-testid={`commission-tier-connector-${tier.name}`}
+                />
+              ) : null}
+
               <div className="col-start-1 row-start-2 flex items-center justify-center">
                 <LadderCircle
                   label={String(index + 1)}

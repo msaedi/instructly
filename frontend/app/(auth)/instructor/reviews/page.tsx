@@ -5,10 +5,17 @@ import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Star as PhosphorStar } from '@phosphor-icons/react';
-import { ArrowLeft, ChevronDown, Star } from 'lucide-react';
+import { ArrowLeft, Star } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
@@ -160,6 +167,21 @@ function ReviewsPageImpl() {
     }
   };
 
+  const handleReplyToggle = (reviewId: string, existingResponseText?: string | null) => {
+    setActiveReplyId((current) => (current === reviewId ? null : reviewId));
+    setReplyErrorByReviewId((prev) => {
+      const next = { ...prev };
+      delete next[reviewId];
+      return next;
+    });
+    if (typeof existingResponseText === 'string') {
+      setReplyDrafts((prev) => ({
+        ...prev,
+        [reviewId]: existingResponseText,
+      }));
+    }
+  };
+
   return (
     <div className="min-h-screen insta-dashboard-page">
       {!embedded ? (
@@ -217,29 +239,37 @@ function ReviewsPageImpl() {
             </div>
 
             <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-stretch lg:w-[32rem]">
-              <label className="relative inline-flex min-w-0 flex-1 items-center">
+              <div className="min-w-0 flex-1">
                 <span className="sr-only">Filter reviews by rating</span>
-                <select
-                  aria-label="All reviews filter"
+                <Select
                   value={String(filter)}
-                  onChange={(event) => {
-                    const nextValue = event.target.value === 'all'
-                      ? 'all'
-                      : Number(event.target.value);
+                  onValueChange={(value) => {
+                    const nextValue = value === 'all' ? 'all' : Number(value);
                     setFilter(nextValue as RatingFilter);
                     setPage(1);
                   }}
-                  className="h-12 w-full appearance-none rounded-2xl border border-gray-300 bg-white px-4 pr-12 text-sm font-medium text-gray-700 shadow-sm transition-colors focus:border-(--color-brand-dark) focus:outline-none focus:ring-2 focus:ring-(--color-brand-dark)/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
-                  <option value="all">All reviews</option>
-                  <option value="5">5 stars</option>
-                  <option value="4">4 stars</option>
-                  <option value="3">3 stars</option>
-                  <option value="2">2 stars</option>
-                  <option value="1">1 star</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-4 h-5 w-5 text-gray-500" />
-              </label>
+                  <SelectTrigger
+                    aria-label="All reviews filter"
+                    data-testid="reviews-rating-filter"
+                    className="h-12 rounded-full border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                    style={{ backgroundColor: '#FFFFFF' }}
+                  >
+                    <SelectValue placeholder="All reviews" />
+                  </SelectTrigger>
+                  <SelectContent
+                    className="bg-white dark:bg-gray-900"
+                    style={{ backgroundColor: '#FFFFFF' }}
+                  >
+                    <SelectItem value="all">All reviews</SelectItem>
+                    <SelectItem value="5">5 stars</SelectItem>
+                    <SelectItem value="4">4 stars</SelectItem>
+                    <SelectItem value="3">3 stars</SelectItem>
+                    <SelectItem value="2">2 stars</SelectItem>
+                    <SelectItem value="1">1 star</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div
                 className={`flex min-h-12 flex-1 items-center justify-between gap-4 rounded-2xl border px-5 py-3 text-sm font-medium shadow-sm transition-colors focus-within:ring-2 focus-within:ring-(--color-brand-dark)/20 ${
@@ -292,6 +322,8 @@ function ReviewsPageImpl() {
                 );
                 const replyError = replyErrorByReviewId[review.id];
                 const hasResponse = review.response != null;
+                const reviewText = review.review_text?.trim() ?? '';
+                const isReplyable = reviewText.length > 0;
                 const isReplyOpen = activeReplyId === review.id;
                 const reviewTimestamp = formatReviewTimestamp(review.created_at);
 
@@ -312,39 +344,33 @@ function ReviewsPageImpl() {
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           {reviewTimestamp}
                         </span>
-                        {hasResponse ? (
-                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Replied
-                          </span>
-                        ) : (
+                        {isReplyable ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveReplyId((current) => (current === review.id ? null : review.id));
-                              setReplyErrorByReviewId((prev) => {
-                                const next = { ...prev };
-                                delete next[review.id];
-                                return next;
-                              });
-                            }}
+                            onClick={() =>
+                              handleReplyToggle(
+                                review.id,
+                                hasResponse ? review.response?.response_text ?? '' : undefined,
+                              )
+                            }
                             className="text-sm font-semibold text-(--color-brand-dark) transition-colors hover:text-[#5f1aa4]"
                           >
-                            Reply
+                            {hasResponse ? 'Edit' : 'Reply'}
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
                     <div className="mt-3 space-y-3">
-                      {review.review_text ? (
+                      {reviewText ? (
                         <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                          {review.review_text}
+                          {reviewText}
                         </p>
                       ) : null}
 
                       {hasResponse ? (
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/70">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
                             Instructor reply
                           </p>
                           <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
@@ -353,7 +379,7 @@ function ReviewsPageImpl() {
                         </div>
                       ) : null}
 
-                      {!hasResponse && isReplyOpen ? (
+                      {isReplyable && isReplyOpen ? (
                         <form
                           className="space-y-3"
                           onSubmit={(event) => {
@@ -387,7 +413,13 @@ function ReviewsPageImpl() {
                               disabled={isSubmittingReply}
                               className="rounded-full bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b21a8] disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              {isSubmittingReply ? 'Sending…' : 'Send reply'}
+                              {isSubmittingReply
+                                ? hasResponse
+                                  ? 'Saving…'
+                                  : 'Sending…'
+                                : hasResponse
+                                  ? 'Save reply'
+                                  : 'Send reply'}
                             </button>
                             <button
                               type="button"

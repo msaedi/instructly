@@ -69,6 +69,10 @@ describe('BookingList', () => {
             service_name: 'Piano',
             duration_minutes: 45,
             location_type: 'student_location',
+            location_address: null,
+            meeting_location: null,
+            booking_end_utc: null,
+            no_show_reported_at: null,
             student: {
               id: 'student-1',
               first_name: 'David',
@@ -84,6 +88,10 @@ describe('BookingList', () => {
             service_name: 'Voice',
             duration_minutes: 45,
             location_type: 'online',
+            location_address: null,
+            meeting_location: null,
+            booking_end_utc: null,
+            no_show_reported_at: null,
             student: {
               id: 'student-2',
               first_name: 'Ari',

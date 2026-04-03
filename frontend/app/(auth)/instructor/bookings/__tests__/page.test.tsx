@@ -79,6 +79,8 @@ const createBooking = (id: string, firstName: string, lastInitial: string, statu
   service_name: 'Piano',
   duration_minutes: 45,
   location_type: 'student_location',
+  location_address: null,
+  meeting_location: null,
   student: {
     id: `${id}-student`,
     first_name: firstName,
@@ -163,6 +165,16 @@ describe('InstructorBookingsPage', () => {
     expect(replaceMock).toHaveBeenCalledWith('/instructor/bookings?tab=past', {
       scroll: false,
     });
+  });
+
+  it('renders the active tab underline directly on the divider line', () => {
+    render(<InstructorBookingsPage />);
+
+    const upcomingTab = screen.getByRole('tab', { name: 'Upcoming' });
+    const pastTab = screen.getByRole('tab', { name: 'Past' });
+
+    expect(upcomingTab).toHaveClass('-mb-px', 'border-b-2', 'border-[#7E22CE]');
+    expect(pastTab).toHaveClass('border-transparent');
   });
 
   it('renders the past tab correctly when embedded in the dashboard panel', () => {

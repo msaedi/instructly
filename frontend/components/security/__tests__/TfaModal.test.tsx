@@ -34,7 +34,11 @@ jest.mock('sonner', () => ({
 const fetchWithAuthMock = fetchWithAuth as jest.Mock;
 const useTfaStatusMock = useTfaStatus as jest.Mock;
 
-const renderModal = (props?: { onClose?: jest.Mock; onChanged?: jest.Mock }) => {
+const renderModal = (props?: {
+  initialEnabled?: boolean | null;
+  onClose?: jest.Mock;
+  onChanged?: jest.Mock;
+}) => {
   const onClose = props?.onClose ?? jest.fn();
   const onChanged = props?.onChanged ?? jest.fn();
   const queryClient = new QueryClient({
@@ -50,7 +54,13 @@ const renderModal = (props?: { onClose?: jest.Mock; onChanged?: jest.Mock }) => 
 
   render(
     <QueryClientProvider client={queryClient}>
-      <TfaModal onClose={onClose} onChanged={onChanged} />
+      <TfaModal
+        {...(props && 'initialEnabled' in props
+          ? { initialEnabled: props.initialEnabled ?? null }
+          : {})}
+        onClose={onClose}
+        onChanged={onChanged}
+      />
     </QueryClientProvider>
   );
 
@@ -70,6 +80,43 @@ describe('TfaModal', () => {
         writeText: jest.fn().mockResolvedValue(undefined),
       },
     });
+
+    useTfaStatusMock.mockReturnValue({
+      data: { enabled: false },
+      isLoading: false,
+      isSuccess: true,
+    });
+  });
+
+  it('initiates setup immediately when the parent already knows 2FA is disabled', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ qr_code_data_url: 'data:image/png', secret: 'ABC123' }),
+    });
+
+    renderModal({ initialEnabled: false });
+
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/2fa/setup/initiate', {
+        method: 'POST',
+      });
+    });
+    expect(useTfaStatusMock).toHaveBeenCalledWith(false);
+    expect(await screen.findByText('Secret (manual entry):')).toBeInTheDocument();
+  });
+
+  it('shows a loading state while waiting for a fallback 2FA status check', () => {
+    useTfaStatusMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isSuccess: false,
+    });
+
+    renderModal({ initialEnabled: null });
+
+    expect(
+      screen.getByText('Loading your two-factor authentication settings…')
+    ).toBeInTheDocument();
   });
 
   it('initiates setup and renders QR data when 2FA is disabled', async () => {
