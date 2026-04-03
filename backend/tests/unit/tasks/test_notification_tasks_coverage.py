@@ -13,11 +13,14 @@ Coverage focus:
 Strategy: Mock external dependencies (Celery, DB, notification provider)
 """
 
-from datetime import date, time
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
+from app.models.booking import Booking, BookingStatus
 from app.tasks.notification_tasks import (
     BACKOFF_SECONDS,
     MAX_DELIVERY_ATTEMPTS,
@@ -576,3 +579,72 @@ class TestReminderFalseReturn:
         assert result["reminders_1h_sent"] == 0
         assert booking.reminder_1h_sent is False
         mock_session.rollback.assert_not_called()
+
+
+def test_send_booking_reminders_uses_exact_utc_windows_across_dst(
+    db, test_student, test_instructor_with_availability, test_booking, monkeypatch
+):
+    from app.tasks.notification_tasks import send_booking_reminders
+
+    fixed_now = datetime(2026, 11, 1, 5, 0, tzinfo=timezone.utc)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return fixed_now.replace(tzinfo=None)
+            return fixed_now.astimezone(tz)
+
+    monkeypatch.setattr("app.tasks.notification_tasks.datetime", FrozenDateTime)
+
+    def _make_booking(booking_start_utc: datetime) -> Booking:
+        return Booking(
+            id=generate_ulid(),
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=booking_start_utc.date(),
+            start_time=booking_start_utc.time().replace(tzinfo=None),
+            end_time=(booking_start_utc + timedelta(hours=1)).time().replace(tzinfo=None),
+            booking_start_utc=booking_start_utc,
+            booking_end_utc=booking_start_utc + timedelta(hours=1),
+            lesson_timezone="America/New_York",
+            instructor_tz_at_booking="America/New_York",
+            student_tz_at_booking="America/New_York",
+            service_name="DST Reminder Lesson",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+        )
+
+    booking_24h = _make_booking(fixed_now + timedelta(hours=24) - timedelta(minutes=5))
+    booking_1h = _make_booking(fixed_now + timedelta(hours=1) - timedelta(minutes=5))
+    outside_window = _make_booking(fixed_now + timedelta(hours=24, minutes=65))
+    db.add_all([booking_24h, booking_1h, outside_window])
+    db.commit()
+
+    @contextmanager
+    def _scope():
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    with (
+        patch("app.tasks.notification_tasks._session_scope", _scope),
+        patch("app.tasks.notification_tasks._send_reminder_notifications", return_value=True) as mock_send,
+    ):
+        result = send_booking_reminders()
+
+    db.refresh(booking_24h)
+    db.refresh(booking_1h)
+    db.refresh(outside_window)
+
+    assert result == {"reminders_24h_sent": 2, "reminders_1h_sent": 2}
+    assert booking_24h.reminder_24h_sent is True
+    assert booking_1h.reminder_1h_sent is True
+    assert outside_window.reminder_24h_sent is False
+    assert [call.args[1].id for call in mock_send.call_args_list] == [booking_24h.id, booking_1h.id]

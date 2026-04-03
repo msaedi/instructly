@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 import logging
 from typing import TYPE_CHECKING
 
@@ -8,6 +8,10 @@ from ...core.exceptions import ServiceException
 from ...models.booking import Booking
 from ...repositories.factory import RepositoryFactory
 from ..base import BaseService
+from ..reminder_selection import (
+    is_local_tomorrow_booking,
+    reminder_candidate_window,
+)
 from .mixin_base import NotificationMixinBase
 
 
@@ -39,20 +43,20 @@ class NotificationSchedulingMixin(NotificationMixinBase):
 
     def _get_tomorrows_bookings(self) -> list[Booking]:
         """Get all confirmed bookings for tomorrow."""
-        from datetime import timezone as tz
-
-        utc_now = datetime.now(tz.utc).date()
-        date_range = [
-            utc_now,
-            utc_now + timedelta(days=1),
-            utc_now + timedelta(days=2),
-        ]
+        now_utc = datetime.now(timezone.utc)
+        window_start, window_end = reminder_candidate_window(now_utc)
         booking_repository = RepositoryFactory.create_booking_repository(self.db)
-        all_bookings = booking_repository.get_bookings_by_date_range_and_status(
-            date_range[0], date_range[-1], "CONFIRMED"
+        candidates = booking_repository.get_bookings_starting_between_and_status(
+            window_start, window_end, "CONFIRMED"
         )
-        self.logger.info("Found %s bookings for tomorrow", len(all_bookings))
-        bookings: list[Booking] = all_bookings
+        bookings = [
+            booking for booking in candidates if is_local_tomorrow_booking(booking, now_utc=now_utc)
+        ]
+        self.logger.info(
+            "Found %s local-tomorrow bookings from %s reminder candidates",
+            len(bookings),
+            len(candidates),
+        )
         return bookings
 
     def _send_booking_reminders(self, bookings: list[Booking]) -> int:

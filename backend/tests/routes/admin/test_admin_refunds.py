@@ -166,6 +166,29 @@ def test_refund_rejects_booking_without_payment_intent(client, db, test_booking,
     assert "no payment" in response.json()["detail"].lower()
 
 
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_refund_rejects_invalid_transition_before_stripe(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    booking.status = "CANCELLED"
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "instructor_no_show"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 400
+    assert "cannot transition" in response.json()["detail"].lower()
+    mock_refund_payment.assert_not_called()
+
+
 @patch("app.services.admin_refund_service.AdminRefundService.resolve_full_refund_cents")
 def test_refund_rejects_when_resolved_amount_is_non_positive(
     mock_resolve_full_refund_cents,

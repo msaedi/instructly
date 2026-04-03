@@ -3,13 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import type {
   AdminBookingDetailResponse,
   AdminBookingListItem,
+  BookingStatus as ApiBookingStatus,
   ListAdminBookingsApiV1AdminBookingsGetParams,
 } from '@/features/shared/api/types';
 import { listAdminBookingsApiV1AdminBookingsGet } from '@/src/api/generated/admin-bookings/admin-bookings';
 import { PAYMENT_STATUS, type PaymentStatus } from '@/features/shared/types/paymentStatus';
 export type { PaymentStatus };
 
-export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'PAYMENT_FAILED' | 'NO_SHOW';
+export type BookingStatus = ApiBookingStatus;
 
 export interface BookingPerson {
   id: string;
@@ -71,6 +72,7 @@ export interface AdminBookingsResponse {
 
 export const bookingStatusOptions: { value: BookingFiltersState['status']; label: string }[] = [
   { value: 'all', label: 'All' },
+  { value: 'PENDING', label: 'Pending' },
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled' },
@@ -105,6 +107,7 @@ const PAYMENT_STATUS_VALUES: PaymentStatus[] = [
 ];
 
 const BOOKING_STATUS_VALUES: BookingStatus[] = [
+  'PENDING',
   'CONFIRMED',
   'COMPLETED',
   'CANCELLED',
@@ -137,12 +140,12 @@ const normalizePaymentStatus = (value?: string | null): PaymentStatus => {
 
 const normalizeBookingStatus = (value?: string | null): BookingStatus => {
   if (!value) {
-    return 'CONFIRMED';
+    return 'PENDING';
   }
   const upper = value.toUpperCase();
   return BOOKING_STATUS_VALUES.includes(upper as BookingStatus)
     ? (upper as BookingStatus)
-    : 'CONFIRMED';
+    : 'PENDING';
 };
 
 const computeNeedsAction = (bookingDate: string, endTime: string, status: BookingStatus) => {

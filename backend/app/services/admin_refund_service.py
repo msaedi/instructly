@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
-from app.models.booking import Booking, PaymentStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.admin_refunds import AdminRefundReason
@@ -22,13 +22,6 @@ from app.services.base import BaseService
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 
 logger = logging.getLogger(__name__)
-
-REASON_TO_BOOKING_STATUS = {
-    AdminRefundReason.INSTRUCTOR_NO_SHOW: "NO_SHOW",
-    AdminRefundReason.DISPUTE: "CANCELLED",
-    AdminRefundReason.PLATFORM_ERROR: "CANCELLED",
-    AdminRefundReason.OTHER: "CANCELLED",
-}
 
 
 class AdminRefundService(BaseService):
@@ -59,6 +52,26 @@ class AdminRefundService(BaseService):
         total_price = Decimal(str(booking.total_price))
         return int(total_price * 100)
 
+    @staticmethod
+    def _target_status_for_reason(reason: AdminRefundReason) -> BookingStatus:
+        return (
+            BookingStatus.NO_SHOW
+            if reason == AdminRefundReason.INSTRUCTOR_NO_SHOW
+            else BookingStatus.CANCELLED
+        )
+
+    @BaseService.measure_operation("admin_refund.validate_refund_transition")
+    def validate_refund_transition(
+        self, booking: Booking, reason: AdminRefundReason
+    ) -> BookingStatus:
+        target_status = self._target_status_for_reason(reason)
+        if not booking.can_transition_to(target_status):
+            raise ValueError(
+                "Booking cannot transition from "
+                f"{booking.status} to {target_status.value} for refund reason {reason.value}"
+            )
+        return target_status
+
     @BaseService.measure_operation("admin_refund.apply_refund_updates")
     def apply_refund_updates(
         self,
@@ -76,21 +89,25 @@ class AdminRefundService(BaseService):
             if not booking:
                 return None
 
+            target_status = self.validate_refund_transition(booking, reason)
             bp = self.booking_repo.ensure_payment(booking.id)
             audit_before = redact(booking.to_dict()) or {}
             audit_before["payment_status"] = bp.payment_status
 
             bp.payment_status = PaymentStatus.SETTLED.value
-            booking.status = REASON_TO_BOOKING_STATUS[reason]
-            if not booking.cancelled_at:
-                booking.cancelled_at = datetime.now(timezone.utc)
-            if reason == AdminRefundReason.INSTRUCTOR_NO_SHOW:
-                booking.cancelled_by_id = booking.instructor_id
+            cancelled_at = booking.cancelled_at or datetime.now(timezone.utc)
+            if target_status == BookingStatus.NO_SHOW:
+                booking.mark_no_show(
+                    cancelled_at=cancelled_at,
+                    cancelled_by_user_id=booking.instructor_id,
+                )
                 bp.settlement_outcome = "instructor_no_show_full_refund"
-            elif reason == AdminRefundReason.DISPUTE:
-                bp.settlement_outcome = "student_wins_dispute_full_refund"
             else:
-                bp.settlement_outcome = "admin_refund"
+                booking.mark_cancelled(cancelled_at=cancelled_at)
+                if reason == AdminRefundReason.DISPUTE:
+                    bp.settlement_outcome = "student_wins_dispute_full_refund"
+                else:
+                    bp.settlement_outcome = "admin_refund"
             booking.refunded_to_card_amount = amount_cents
             booking.student_credit_amount = 0
             bp.instructor_payout_amount = 0

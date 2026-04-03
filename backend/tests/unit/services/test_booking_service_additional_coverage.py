@@ -119,8 +119,39 @@ def make_booking(**overrides: object) -> SimpleNamespace:
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
-    booking.cancel = Mock()
-    booking.mark_no_show = Mock()
+
+    def _cancel(cancelled_by_user_id=None, reason=None):
+        booking.status = BookingStatus.CANCELLED
+        booking.cancelled_by_id = cancelled_by_user_id
+        booking.cancellation_reason = reason
+
+    def _mark_no_show():
+        booking.status = BookingStatus.NO_SHOW
+
+    def _mark_completed(*, completed_at=None):
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = completed_at
+
+    def _mark_confirmed(*, confirmed_at=None):
+        booking.status = BookingStatus.CONFIRMED
+        booking.confirmed_at = confirmed_at
+
+    def _mark_pending(*, confirmed_at=None):
+        booking.status = BookingStatus.PENDING
+        booking.confirmed_at = confirmed_at
+
+    def _mark_cancelled(*, cancelled_at=None, cancelled_by_user_id=None, reason=None):
+        booking.status = BookingStatus.CANCELLED
+        booking.cancelled_at = cancelled_at
+        booking.cancelled_by_id = cancelled_by_user_id
+        booking.cancellation_reason = reason
+
+    booking.cancel = Mock(side_effect=_cancel)
+    booking.mark_no_show = Mock(side_effect=_mark_no_show)
+    booking.mark_completed = Mock(side_effect=_mark_completed)
+    booking.mark_confirmed = Mock(side_effect=_mark_confirmed)
+    booking.mark_pending = Mock(side_effect=_mark_pending)
+    booking.mark_cancelled = Mock(side_effect=_mark_cancelled)
     booking.to_dict = Mock(return_value={"status": booking.status})
     booking.is_upcoming = Mock(return_value=False)
     return booking

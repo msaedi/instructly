@@ -20,6 +20,17 @@ def _lock(acquired: bool):
     yield acquired
 
 
+def _attach_mark_completed(booking: SimpleNamespace) -> SimpleNamespace:
+    booking.completed_at = getattr(booking, "completed_at", None)
+
+    def _mark_completed(*, completed_at: datetime | None = None) -> None:
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = completed_at
+
+    booking.mark_completed = MagicMock(side_effect=_mark_completed)
+    return booking
+
+
 def test_should_retry_auth_intervals():
     now = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
@@ -1615,17 +1626,19 @@ def test_process_capture_for_booking_phase3_missing():
 
 def test_auto_complete_booking_locked_funds():
     now = datetime.now(timezone.utc)
-    booking = SimpleNamespace(
-        id="booking_id",
-        status=BookingStatus.PENDING,
-        payment_detail=SimpleNamespace(
-            payment_status=PaymentStatus.AUTHORIZED.value,
-            payment_intent_id="pi_123",
-        ),
-        has_locked_funds=True,
-        rescheduled_from_booking_id="parent_id",
-        instructor_id="instructor_id",
-        student_id="student_id",
+    booking = _attach_mark_completed(
+        SimpleNamespace(
+            id="booking_id",
+            status=BookingStatus.PENDING,
+            payment_detail=SimpleNamespace(
+                payment_status=PaymentStatus.AUTHORIZED.value,
+                payment_intent_id="pi_123",
+            ),
+            has_locked_funds=True,
+            rescheduled_from_booking_id="parent_id",
+            instructor_id="instructor_id",
+            student_id="student_id",
+        )
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
@@ -1674,17 +1687,19 @@ def test_auto_complete_booking_locked_funds():
 
 def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured():
     now = datetime.now(timezone.utc)
-    booking = SimpleNamespace(
-        id="booking_id",
-        status=BookingStatus.CONFIRMED,
-        payment_detail=SimpleNamespace(
-            payment_status=PaymentStatus.AUTHORIZED.value,
-            payment_intent_id="pi_123",
-        ),
-        has_locked_funds=True,
-        rescheduled_from_booking_id="parent_id",
-        instructor_id="instructor_id",
-        student_id="student_id",
+    booking = _attach_mark_completed(
+        SimpleNamespace(
+            id="booking_id",
+            status=BookingStatus.CONFIRMED,
+            payment_detail=SimpleNamespace(
+                payment_status=PaymentStatus.AUTHORIZED.value,
+                payment_intent_id="pi_123",
+            ),
+            has_locked_funds=True,
+            rescheduled_from_booking_id="parent_id",
+            instructor_id="instructor_id",
+            student_id="student_id",
+        )
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
@@ -1733,17 +1748,19 @@ def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured(
 
 def test_auto_complete_booking_no_payment_intent():
     now = datetime.now(timezone.utc)
-    booking = SimpleNamespace(
-        id="booking_id",
-        status=BookingStatus.CONFIRMED,
-        payment_detail=SimpleNamespace(
-            payment_status=PaymentStatus.AUTHORIZED.value,
-            payment_intent_id=None,
-        ),
-        has_locked_funds=False,
-        rescheduled_from_booking_id=None,
-        instructor_id="instructor_id",
-        student_id="student_id",
+    booking = _attach_mark_completed(
+        SimpleNamespace(
+            id="booking_id",
+            status=BookingStatus.CONFIRMED,
+            payment_detail=SimpleNamespace(
+                payment_status=PaymentStatus.AUTHORIZED.value,
+                payment_intent_id=None,
+            ),
+            has_locked_funds=False,
+            rescheduled_from_booking_id=None,
+            instructor_id="instructor_id",
+            student_id="student_id",
+        )
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking

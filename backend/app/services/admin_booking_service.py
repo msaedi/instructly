@@ -310,10 +310,11 @@ class AdminBookingService(BaseService):
                 audit_before = redact(booking.to_dict()) or {}
                 audit_before["payment_status"] = bp.payment_status
 
-                booking.status = BookingStatus.CANCELLED
-                booking.cancelled_at = datetime.now(timezone.utc)
-                booking.cancelled_by_id = actor.id
-                booking.cancellation_reason = reason
+                booking.mark_cancelled(
+                    cancelled_at=datetime.now(timezone.utc),
+                    cancelled_by_user_id=actor.id,
+                    reason=reason,
+                )
 
                 try:
                     from app.services.credit_service import CreditService

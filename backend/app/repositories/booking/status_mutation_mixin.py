@@ -81,9 +81,14 @@ class BookingStatusMutationMixin(BookingRepositoryMixinBase):
     ) -> Booking:
         """Apply refund-related updates to a booking and flush changes."""
         try:
-            booking.status = status
-            booking.cancelled_at = booking.cancelled_at or cancelled_at
-            booking.cancellation_reason = cancellation_reason
+            if status != BookingStatus.CANCELLED:
+                raise RepositoryException(
+                    f"Refund updates only support cancelled bookings, got {status.value}"
+                )
+            booking.mark_cancelled(
+                cancelled_at=booking.cancelled_at or cancelled_at,
+                reason=cancellation_reason,
+            )
             payment = self.ensure_payment(booking.id)
             if settlement_outcome:
                 payment.settlement_outcome = settlement_outcome

@@ -1,7 +1,7 @@
 # backend/tests/routes/test_reminder_clean_architecture.py
 """
-Test that the reminder system uses clean architecture with date-based
-queries and no references to removed concepts.
+Test that the reminder system uses clean architecture with UTC-range
+queries plus local-date filtering and no references to removed concepts.
 
 FIXED: Updated test expectations to match the corrected f-string email templates.
 The notification service now properly interpolates values instead of sending
@@ -104,7 +104,19 @@ class TestReminderEndpointCleanArchitecture:
 
 
 class TestReminderQueryLogic:
-    """Test the reminder query logic uses clean date-based queries."""
+    """Test the reminder query logic uses UTC windows plus local-date filtering."""
+
+    @staticmethod
+    def _freeze_reminder_now(monkeypatch: pytest.MonkeyPatch, fixed_now: datetime) -> None:
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is None:
+                    return fixed_now.replace(tzinfo=None)
+                return fixed_now.astimezone(tz)
+
+        monkeypatch.setattr("app.services.notifications.scheduling_mixin.datetime", FrozenDateTime)
+        monkeypatch.setattr("app.services.booking.notifications.datetime", FrozenDateTime)
 
     @pytest.fixture
     def tomorrow_booking(self, db, test_student, test_instructor):
@@ -157,47 +169,172 @@ class TestReminderQueryLogic:
         # Should have sent 2 emails (student and instructor)
         assert service.email_service.send_email.call_count == 2
 
-    def test_reminder_query_uses_date_not_slots(self, db, monkeypatch):
-        """Verify reminder query uses booking_date, not slot references."""
+    def test_reminder_query_uses_utc_candidate_window(self, db):
+        """Verify reminder query fetches a UTC start range before local filtering."""
         from app.services.notification_service import NotificationService
 
         service = NotificationService(db)
 
-        # Mock the repository method to return empty list and verify args
         with patch(
-            "app.repositories.booking_repository.BookingRepository.get_bookings_by_date_range_and_status",
+            "app.repositories.booking_repository.BookingRepository.get_bookings_starting_between_and_status",
             return_value=[],
         ) as mock_repo_method:
-            # Run the query
             count = service.send_reminder_emails()
 
-            # Verify the repository method was called with date-based args
             mock_repo_method.assert_called_once()
             call_args = mock_repo_method.call_args[0]
-            start_date, end_date, status = call_args
+            start_utc, end_utc, status = call_args
 
-            # Should filter by booking_date range (date objects, not slot references)
-            assert isinstance(start_date, date)
-            assert isinstance(end_date, date)
+            assert isinstance(start_utc, datetime)
+            assert isinstance(end_utc, datetime)
+            assert end_utc - start_utc == timedelta(hours=50)
             assert status == "CONFIRMED"
+            assert count == 0
 
-            assert count == 0  # No bookings found
+    def test_notification_service_uses_local_tomorrow_not_utc_tomorrow(
+        self, db, test_student, test_instructor, monkeypatch
+    ):
+        """NYC UTC-midnight bookings are excluded early, while Tokyo local-tomorrow bookings are included."""
+        from app.services.notification_service import NotificationService
 
-    def test_reminder_booking_date_calculation(self):
-        """Test that tomorrow's date is calculated correctly."""
-        from datetime import datetime, timedelta
+        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        self._freeze_reminder_now(monkeypatch, fixed_now)
 
-        # This is how the reminder service calculates tomorrow
-        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+        profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
+        service = (
+            db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+        )
 
-        # Should be a date object
-        assert isinstance(tomorrow, date)
+        nyc_booking_date = date(2026, 4, 3)
+        nyc_start_time = time(20, 30)
+        nyc_end_time = time(21, 30)
+        nyc_booking = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor.id,
+            instructor_service_id=service.id,
+            booking_date=nyc_booking_date,
+            start_time=nyc_start_time,
+            end_time=nyc_end_time,
+            **booking_timezone_fields(
+                nyc_booking_date,
+                nyc_start_time,
+                nyc_end_time,
+                instructor_timezone="America/New_York",
+                student_timezone="America/New_York",
+            ),
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+        )
+        tokyo_booking_date = date(2026, 4, 4)
+        tokyo_start_time = time(0, 30)
+        tokyo_end_time = time(1, 30)
+        tokyo_booking = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor.id,
+            instructor_service_id=service.id,
+            booking_date=tokyo_booking_date,
+            start_time=tokyo_start_time,
+            end_time=tokyo_end_time,
+            **booking_timezone_fields(
+                tokyo_booking_date,
+                tokyo_start_time,
+                tokyo_end_time,
+                instructor_timezone="Asia/Tokyo",
+                student_timezone="Asia/Tokyo",
+            ),
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+        )
+        db.add_all([nyc_booking, tokyo_booking])
+        db.commit()
 
-        # Should be tomorrow
-        assert tomorrow == datetime.now(timezone.utc).date() + timedelta(days=1)
+        notification_service = NotificationService(db)
+        notification_service.email_service.send_email = Mock(return_value={"id": "test"})
 
-        # No slot calculations involved
-        assert True  # Just confirming clean calculation
+        count = notification_service.send_reminder_emails()
+
+        assert count == 1
+        assert notification_service.email_service.send_email.call_count == 2
+        recipients = {
+            call.kwargs["to_email"] for call in notification_service.email_service.send_email.call_args_list
+        }
+        assert test_student.email in recipients
+        assert test_instructor.email in recipients
+
+    def test_booking_service_reminders_follow_local_tomorrow_filter(
+        self, db, test_student, test_instructor, monkeypatch
+    ):
+        """BookingService queues reminder events only for local-tomorrow candidates."""
+        from app.events import BookingReminder
+        from app.services.booking_service import BookingService
+
+        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        self._freeze_reminder_now(monkeypatch, fixed_now)
+
+        profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
+        service = (
+            db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+        )
+
+        local_tomorrow = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor.id,
+            instructor_service_id=service.id,
+            booking_date=date(2026, 4, 4),
+            start_time=time(0, 30),
+            end_time=time(1, 30),
+            **booking_timezone_fields(
+                date(2026, 4, 4),
+                time(0, 30),
+                time(1, 30),
+                instructor_timezone="Asia/Tokyo",
+                student_timezone="Asia/Tokyo",
+            ),
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+        )
+        utc_tomorrow_only = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor.id,
+            instructor_service_id=service.id,
+            booking_date=date(2026, 4, 3),
+            start_time=time(20, 30),
+            end_time=time(21, 30),
+            **booking_timezone_fields(
+                date(2026, 4, 3),
+                time(20, 30),
+                time(21, 30),
+                instructor_timezone="America/New_York",
+                student_timezone="America/New_York",
+            ),
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+        )
+        db.add_all([local_tomorrow, utc_tomorrow_only])
+        db.commit()
+
+        event_publisher = Mock()
+        booking_service = BookingService(db, event_publisher=event_publisher)
+
+        count = booking_service.send_booking_reminders()
+
+        assert count == 1
+        event_publisher.publish.assert_called_once()
+        reminder_event = event_publisher.publish.call_args[0][0]
+        assert isinstance(reminder_event, BookingReminder)
+        assert reminder_event.booking_id == local_tomorrow.id
 
     def test_reminder_handles_no_bookings_gracefully(self, db):
         """Test reminder system handles no bookings correctly."""
@@ -272,13 +409,16 @@ class TestReminderQueryLogic:
 class TestReminderIntegration:
     """Integration tests for reminder system."""
 
-    def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
+    def test_full_reminder_flow_uses_clean_architecture(
+        self, db, test_student, test_instructor, monkeypatch
+    ):
         """Test complete reminder flow from endpoint to email."""
         from app.events import BookingReminder
         from app.services.booking_service import BookingService
 
-        # Create tomorrow booking based on UTC
-        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        TestReminderQueryLogic._freeze_reminder_now(monkeypatch, fixed_now)
+        tomorrow = fixed_now.date() + timedelta(days=1)
 
         # Get the instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()

@@ -4,7 +4,6 @@ from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any, Sequence
 
-from ...core.config import settings
 from ...core.constants import BRAND_NAME
 from ...models.user import User
 from ...repositories.user_repository import UserRepository
@@ -159,7 +158,7 @@ class NotificationAccountSecurityMixin(NotificationMixinBase):
             try:
                 sms_message = self._render_sms_template(
                     SECURITY_PW_CHANGED,
-                    reset_url=f"{settings.frontend_url}/forgot-password",
+                    reset_url=f"{self.frontend_url}/forgot-password",
                 )
             except Exception as exc:
                 self.logger.warning("Failed to render password change SMS for %s: %s", user_id, exc)
@@ -217,7 +216,7 @@ class NotificationAccountSecurityMixin(NotificationMixinBase):
                 sms_message = self._render_sms_template(
                     SECURITY_2FA_CHANGED,
                     status=status_text,
-                    security_url=f"{settings.frontend_url}/forgot-password",
+                    security_url=f"{self.frontend_url}/forgot-password",
                 )
             except Exception as exc:
                 self.logger.warning("Failed to render 2FA change SMS for %s: %s", user_id, exc)

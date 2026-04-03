@@ -8,7 +8,7 @@ Run with:
     pytest tests/services/test_email_clean_architecture.py -v
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -275,25 +275,22 @@ class TestEmailDataStructures:
         assert "slot" not in test_booking.location_type_display.lower()
 
     def test_send_reminder_emails_queries_correctly(self, db):
-        """Test that send_reminder_emails uses clean date-based query."""
+        """Test that send_reminder_emails uses a UTC candidate window plus status filter."""
         service = NotificationService(db)
 
-        # Mock the repository method that _get_tomorrows_bookings calls
         with patch(
-            "app.repositories.booking_repository.BookingRepository.get_bookings_by_date_range_and_status",
+            "app.repositories.booking_repository.BookingRepository.get_bookings_starting_between_and_status",
             return_value=[],
         ) as mock_repo_method:
-            # Call the method
             count = service.send_reminder_emails()
 
-            # Verify the repository method was called with date-based args
             mock_repo_method.assert_called_once()
             call_args = mock_repo_method.call_args[0]
-            start_date, end_date, status = call_args
+            start_utc, end_utc, status = call_args
 
-            # Should filter by booking_date and status (not slots)
-            assert isinstance(start_date, date)
-            assert isinstance(end_date, date)
+            assert isinstance(start_utc, datetime)
+            assert isinstance(end_utc, datetime)
+            assert end_utc - start_utc == timedelta(hours=50)
             assert status == "CONFIRMED"
 
-            assert count == 0  # No bookings found
+            assert count == 0

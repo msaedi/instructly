@@ -4,11 +4,12 @@ from datetime import date, datetime, timezone
 from typing import Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Query, joinedload, selectinload
+from sqlalchemy.orm import Query
 
 from ...core.exceptions import RepositoryException
 from ...models.booking import Booking, BookingStatus
 from ...models.service_catalog import InstructorService
+from .eager_loading import standard_booking_options
 from .mixin_base import BookingRepositoryMixinBase
 
 
@@ -17,18 +18,7 @@ class BookingListQueryMixin(BookingRepositoryMixinBase):
 
     def _booking_list_query(self) -> Query:
         """Base booking list query with the related objects needed by API responses."""
-        return self.db.query(Booking).options(
-            joinedload(Booking.student),
-            joinedload(Booking.instructor),
-            joinedload(Booking.instructor_service),
-            selectinload(Booking.payment_detail),
-            selectinload(Booking.no_show_detail),
-            selectinload(Booking.lock_detail),
-            selectinload(Booking.reschedule_detail),
-            selectinload(Booking.dispute),
-            selectinload(Booking.transfer),
-            selectinload(Booking.video_session),
-        )
+        return self.db.query(Booking).options(*standard_booking_options())
 
     def _build_student_bookings_query(
         self,

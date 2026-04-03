@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ...core.enums import RoleName
 from ...core.exceptions import BusinessRuleException, NotFoundException, ValidationException
-from ...models.booking import Booking, BookingStatus, PaymentStatus
+from ...models.booking import Booking, PaymentStatus
 from ...models.user import User
 from ..base import BaseService
 
@@ -444,7 +444,7 @@ class BookingNoShowResolutionMixin:
     ) -> None:
         no_show_type = resolution_ctx["no_show_type"]
         if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
-            booking.status = BookingStatus.NO_SHOW
+            booking.mark_no_show()
             if no_show_type in {"instructor", "mutual"}:
                 self._finalize_instructor_no_show(
                     booking=booking,
@@ -466,7 +466,7 @@ class BookingNoShowResolutionMixin:
                 )
             return
         if resolution == "dispute_upheld":
-            booking.status = BookingStatus.COMPLETED
+            booking.mark_completed(completed_at=booking.completed_at)
             self._finalize_student_no_show(
                 booking=booking,
                 stripe_result=stripe_result,
@@ -479,7 +479,7 @@ class BookingNoShowResolutionMixin:
             upheld_bp.payment_status = PaymentStatus.SETTLED.value
             return
         self._cancel_no_show_report(booking)
-        booking.status = BookingStatus.CONFIRMED
+        booking.mark_confirmed(confirmed_at=booking.confirmed_at)
 
     def _build_no_show_resolution_response(
         self,

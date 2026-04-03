@@ -16,7 +16,7 @@ def compute_join_opens_at(booking_start_utc: datetime) -> datetime:
 
 def compute_join_closes_at(
     booking_start_utc: datetime,
-    duration_minutes: int,
+    duration_minutes: int | float,
     booking_end_utc: datetime | None = None,
 ) -> datetime:
     """Return the last allowed join time for a scheduled lesson."""

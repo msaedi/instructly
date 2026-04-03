@@ -245,21 +245,19 @@ class BookingSatelliteMixin(BookingRepositoryMixinBase):
 
     def atomic_confirm_if_pending(self, booking_id: str, confirmed_at: datetime) -> int:
         """Atomically confirm a booking only if it is currently PENDING."""
-        rows: int = (
+        booking = (
             self.db.query(Booking)
             .filter(
                 Booking.id == booking_id,
                 Booking.status == BookingStatus.PENDING.value,
             )
-            .update(
-                {
-                    Booking.status: BookingStatus.CONFIRMED.value,
-                    Booking.confirmed_at: confirmed_at,
-                },
-                synchronize_session="fetch",
-            )
+            .with_for_update()
+            .one_or_none()
         )
-        return rows
+        if booking is None:
+            return 0
+        booking.mark_confirmed(confirmed_at=confirmed_at)
+        return 1
 
     def ensure_payment(self, booking_id: str) -> BookingPayment:
         """Get or create payment satellite row for a booking."""

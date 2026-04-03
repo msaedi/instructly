@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ...core.exceptions import ServiceException
-from ...models.booking import PaymentStatus
+from ...models.booking import BookingStatus, PaymentStatus
 from ...models.payment import PaymentIntent
 from ...repositories.booking_repository import BookingRepository
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
@@ -200,10 +200,8 @@ class StripeWebhookRouterMixin(BaseService):
                 )
                 return
 
-            if booking.status == "PENDING":
-                booking.status = "CONFIRMED"
-                if getattr(booking, "confirmed_at", None) is None:
-                    booking.confirmed_at = datetime.now(timezone.utc)
+            if booking.status == BookingStatus.PENDING.value:
+                booking.mark_confirmed()
                 self.booking_repository.flush()
 
             from ..booking_service import BookingService

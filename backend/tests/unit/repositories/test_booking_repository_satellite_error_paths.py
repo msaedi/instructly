@@ -160,7 +160,7 @@ def test_ensure_satellite_reraises_integrity_error_from_begin_nested(ensure_name
 def test_apply_refund_updates_wraps_unexpected_errors() -> None:
     repo, _mock_db = _make_repo()
     repo.ensure_payment = MagicMock(side_effect=RuntimeError("payment relation missing"))
-    booking = SimpleNamespace(
+    booking = MagicMock(
         id="bk_1",
         student_id="student_1",
         instructor_id="instructor_1",
@@ -170,6 +170,7 @@ def test_apply_refund_updates_wraps_unexpected_errors() -> None:
         refunded_to_card_amount=None,
         student_credit_amount=None,
         updated_at=None,
+        mark_cancelled=MagicMock(),
     )
     now = datetime.now(timezone.utc)
 
@@ -191,7 +192,7 @@ def test_apply_refund_updates_preserves_existing_settlement_outcome_when_none() 
     repo, mock_db = _make_repo()
     payment = SimpleNamespace(settlement_outcome="existing", instructor_payout_amount=None)
     repo.ensure_payment = MagicMock(return_value=payment)
-    booking = SimpleNamespace(
+    booking = MagicMock(
         id="bk_1",
         student_id="student_1",
         instructor_id="instructor_1",
@@ -201,6 +202,7 @@ def test_apply_refund_updates_preserves_existing_settlement_outcome_when_none() 
         refunded_to_card_amount=None,
         student_credit_amount=None,
         updated_at=None,
+        mark_cancelled=MagicMock(),
     )
     now = datetime.now(timezone.utc)
 
@@ -217,12 +219,39 @@ def test_apply_refund_updates_preserves_existing_settlement_outcome_when_none() 
     )
 
     assert result is booking
+    booking.mark_cancelled.assert_called_once_with(
+        cancelled_at=now,
+        reason="student_cancelled",
+    )
     assert payment.settlement_outcome == "existing"
     assert payment.instructor_payout_amount == 0
     mock_db.flush.assert_called_once()
     repo.invalidate_entity_cache.assert_any_call("bk_1")
     repo.invalidate_entity_cache.assert_any_call("student_1")
     repo.invalidate_entity_cache.assert_any_call("instructor_1")
+
+
+def test_atomic_confirm_if_pending_returns_zero_when_no_pending_booking() -> None:
+    repo, mock_db = _make_repo()
+    query = mock_db.query.return_value.filter.return_value.with_for_update.return_value
+    query.one_or_none.return_value = None
+
+    result = repo.atomic_confirm_if_pending("bk_1", datetime.now(timezone.utc))
+
+    assert result == 0
+
+
+def test_atomic_confirm_if_pending_marks_confirmed() -> None:
+    repo, mock_db = _make_repo()
+    booking = MagicMock()
+    query = mock_db.query.return_value.filter.return_value.with_for_update.return_value
+    query.one_or_none.return_value = booking
+    confirmed_at = datetime.now(timezone.utc)
+
+    result = repo.atomic_confirm_if_pending("bk_1", confirmed_at)
+
+    assert result == 1
+    booking.mark_confirmed.assert_called_once_with(confirmed_at=confirmed_at)
 
 
 @pytest.mark.parametrize(
