@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from app.models.booking import BookingStatus
 import app.services.stripe_service as stripe_mod
 from app.services.stripe_service import StripeService
 
@@ -29,20 +30,37 @@ def _service() -> StripeService:
     return service
 
 
+_TEST_SENTINEL = object()
+
+
+def _attach_mark_confirmed(booking: SimpleNamespace) -> None:
+    def _mark_confirmed(*, confirmed_at: datetime | object = _TEST_SENTINEL) -> None:
+        booking.status = BookingStatus.CONFIRMED
+        if confirmed_at is _TEST_SENTINEL:
+            if booking.confirmed_at is None:
+                booking.confirmed_at = datetime.now(timezone.utc)
+        else:
+            booking.confirmed_at = confirmed_at
+
+    booking.mark_confirmed = _mark_confirmed
+
+
 def test_handle_successful_payment_handles_pending_and_missing_bookings():
     service = _service()
 
     service.booking_repository.get_by_id.return_value = None
     service._handle_successful_payment(SimpleNamespace(booking_id="missing"))
 
-    booking = SimpleNamespace(id="booking-1", status="PENDING")
+    booking = SimpleNamespace(id="booking-1", status="PENDING", confirmed_at=None)
+    _attach_mark_confirmed(booking)
     service.booking_repository.get_by_id.return_value = booking
 
     with patch("app.services.booking_service.BookingService") as booking_service_cls:
         booking_service_cls.return_value.invalidate_booking_cache.return_value = None
         service._handle_successful_payment(SimpleNamespace(booking_id="booking-1"))
 
-    assert booking.status == "CONFIRMED"
+    assert booking.status == BookingStatus.CONFIRMED
+    assert booking.confirmed_at is not None
     service.booking_repository.flush.assert_called()
 
 

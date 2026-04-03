@@ -105,6 +105,21 @@ def _apply_utc_timezone_context(booking: Any) -> None:
             pass
 
 
+_TEST_SENTINEL = object()
+
+
+def _attach_mark_completed(booking: MagicMock) -> None:
+    def _mark_completed(*, completed_at: datetime | object = _TEST_SENTINEL) -> None:
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = (
+            datetime.now(timezone.utc)
+            if completed_at is _TEST_SENTINEL
+            else completed_at
+        )
+
+    booking.mark_completed.side_effect = _mark_completed
+
+
 @contextmanager
 def _always_acquire_lock(*_args, **_kwargs):
     yield True
@@ -1497,6 +1512,7 @@ class TestPaymentTasks:
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
         booking.status = BookingStatus.CONFIRMED
+        booking.completed_at = None
         booking.payment_detail.payment_status = "authorized"
         booking.student_id = "student_auto"
         booking.instructor_id = "instructor_auto"
@@ -1511,6 +1527,7 @@ class TestPaymentTasks:
         booking.end_time = lesson_end_utc.time().replace(tzinfo=None)
         booking.booking_end_utc = lesson_end_utc
         booking.payment_detail.payment_intent_id = "pi_test_auto"
+        _attach_mark_completed(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         # Chain: db.query(Booking).options(...).filter(...).first()
@@ -1573,6 +1590,7 @@ class TestPaymentTasks:
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
         booking.status = BookingStatus.CONFIRMED
+        booking.completed_at = None
         booking.payment_detail.payment_status = "authorized"
         booking.student_id = "student_end_time"
         booking.instructor_id = "instructor_end_time"
@@ -1587,6 +1605,7 @@ class TestPaymentTasks:
         booking.end_time = lesson_end_utc.time()
         booking.booking_end_utc = lesson_end_utc
         booking.payment_detail.payment_intent_id = "pi_test_end_time"
+        _attach_mark_completed(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking

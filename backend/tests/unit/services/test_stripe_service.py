@@ -72,6 +72,21 @@ def _make_booking_for_payment(
     )
 
 
+_TEST_SENTINEL = object()
+
+
+def _attach_mark_confirmed(booking: SimpleNamespace) -> None:
+    def _mark_confirmed(*, confirmed_at: datetime | object = _TEST_SENTINEL) -> None:
+        booking.status = BookingStatus.CONFIRMED
+        if confirmed_at is _TEST_SENTINEL:
+            if booking.confirmed_at is None:
+                booking.confirmed_at = datetime.now(timezone.utc)
+        else:
+            booking.confirmed_at = confirmed_at
+
+    booking.mark_confirmed = _mark_confirmed
+
+
 class TestCustomerManagement:
     def test_create_customer_returns_existing(self):
         service = _make_service()
@@ -1198,6 +1213,7 @@ class TestBookingCheckoutAndProcessing:
             start_time=time(10, 0),
             instructor_id="inst_3",
         )
+        _attach_mark_confirmed(booking)
         bp_mock = MagicMock()
         service.booking_repository.get_booking_for_student.return_value = booking
         service.booking_repository.get_by_id_for_update.return_value = booking
