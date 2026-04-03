@@ -3,11 +3,12 @@
 from typing import List, Optional, Sequence, cast
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Query, joinedload, selectinload
+from sqlalchemy.orm import Query, joinedload
 
 from ...core.exceptions import RepositoryException
 from ...models.booking import Booking
 from ...models.user import User
+from .eager_loading import detailed_booking_options
 from .mixin_base import BookingRepositoryMixinBase
 
 
@@ -56,20 +57,7 @@ class BookingDetailQueryMixin(BookingRepositoryMixinBase):
         try:
             booking: Booking | None = (
                 self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    joinedload(Booking.rescheduled_from),
-                    joinedload(Booking.cancelled_by),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                    selectinload(Booking.video_session),
-                )
+                .options(*detailed_booking_options())
                 .filter(Booking.id == booking_id)
                 .first()
             )
@@ -80,20 +68,7 @@ class BookingDetailQueryMixin(BookingRepositoryMixinBase):
 
     def _apply_full_eager_loading(self, query: Query) -> Query:
         """Apply comprehensive eager loading for detailed booking views."""
-        return query.options(
-            joinedload(Booking.student),
-            joinedload(Booking.instructor),
-            joinedload(Booking.instructor_service),
-            joinedload(Booking.rescheduled_from),
-            joinedload(Booking.cancelled_by),
-            selectinload(Booking.payment_detail),
-            selectinload(Booking.no_show_detail),
-            selectinload(Booking.lock_detail),
-            selectinload(Booking.reschedule_detail),
-            selectinload(Booking.dispute),
-            selectinload(Booking.transfer),
-            selectinload(Booking.video_session),
-        )
+        return query.options(*detailed_booking_options())
 
     def get_booking_for_participant(self, booking_id: str, user_id: str) -> Optional[Booking]:
         """Get booking only if user is student or instructor on it."""

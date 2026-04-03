@@ -47,6 +47,16 @@ def test_booking_helpers_cover_past_and_modifiable_checks() -> None:
     assert can_modify("01ARZ3NDEKTSV4RRFFQ69G5FZZ") is False
 
 
+def test_mark_no_show_accepts_cancelled_at_override() -> None:
+    booking = _base_booking()
+    cancelled_at = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+
+    booking.mark_no_show(cancelled_at=cancelled_at)
+
+    assert booking.status == BookingStatus.NO_SHOW
+    assert booking.cancelled_at == cancelled_at
+
+
 def test_booking_to_dict_includes_lock_dispute_and_transfer_satellites() -> None:
     booking = _base_booking()
 

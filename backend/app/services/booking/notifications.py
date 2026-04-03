@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timezone
 import logging
 from types import ModuleType
 from typing import TYPE_CHECKING, Optional
@@ -14,6 +14,10 @@ from ..notification_templates import (
     INSTRUCTOR_BOOKING_CONFIRMED,
     STUDENT_BOOKING_CANCELLED,
     STUDENT_BOOKING_CONFIRMED,
+)
+from ..reminder_selection import (
+    is_local_tomorrow_booking,
+    reminder_candidate_window,
 )
 from ..sms_templates import (
     BOOKING_CANCELLED_INSTRUCTOR,
@@ -71,15 +75,16 @@ class BookingNotificationsMixin:
         Returns:
             Number of reminders sent
         """
-        booking_service_module = _booking_service_module()
-
-        # Use UTC-only scheduling to avoid mixed timezone behavior.
-        utc_today = booking_service_module.datetime.now(booking_service_module.timezone.utc).date()
-        target_date = utc_today + timedelta(days=1)
-
-        bookings = self.repository.get_bookings_for_date(
-            booking_date=target_date, status=BookingStatus.CONFIRMED, with_relationships=True
+        now_utc = datetime.now(timezone.utc)
+        window_start, window_end = reminder_candidate_window(now_utc)
+        candidates = self.repository.get_bookings_starting_between_and_status(
+            window_start,
+            window_end,
+            BookingStatus.CONFIRMED,
         )
+        bookings = [
+            booking for booking in candidates if is_local_tomorrow_booking(booking, now_utc=now_utc)
+        ]
 
         sent_count = 0
 

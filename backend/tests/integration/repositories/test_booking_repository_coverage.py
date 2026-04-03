@@ -880,6 +880,133 @@ def test_admin_payment_status_filter_regular(
     assert authorized.id in [b.id for b in results]
 
 
+def test_admin_search_escapes_like_wildcards(
+    db, test_student, test_instructor_with_availability, test_booking
+):
+    repo = BookingRepository(db)
+    today = datetime.now(timezone.utc).date()
+    literal_underscore = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=22,
+        service_name="special_1 lesson",
+        allow_overlap=True,
+    )
+    wildcard_underscore = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=23,
+        service_name="specialA1 lesson",
+        allow_overlap=True,
+    )
+    literal_percent = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(13, 0),
+        end_time=time(14, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=24,
+        service_name="100% lesson",
+        allow_overlap=True,
+    )
+    wildcard_percent = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(14, 0),
+        end_time=time(15, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=25,
+        service_name="100 percent lesson",
+        allow_overlap=True,
+    )
+    literal_backslash = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(15, 0),
+        end_time=time(16, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=26,
+        service_name=r"folder\name lesson",
+        allow_overlap=True,
+    )
+    wildcard_backslash = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today,
+        start_time=time(16, 0),
+        end_time=time(17, 0),
+        status=BookingStatus.CONFIRMED,
+        offset_index=27,
+        service_name="foldername lesson",
+        allow_overlap=True,
+    )
+    db.commit()
+
+    underscore_results, _ = repo.list_admin_bookings(
+        search="special_1",
+        statuses=None,
+        payment_statuses=None,
+        date_from=None,
+        date_to=None,
+        needs_action=None,
+        now=None,
+        page=1,
+        per_page=20,
+    )
+    percent_results, _ = repo.list_admin_bookings(
+        search="100%",
+        statuses=None,
+        payment_statuses=None,
+        date_from=None,
+        date_to=None,
+        needs_action=None,
+        now=None,
+        page=1,
+        per_page=20,
+    )
+    backslash_results, _ = repo.list_admin_bookings(
+        search=r"folder\name",
+        statuses=None,
+        payment_statuses=None,
+        date_from=None,
+        date_to=None,
+        needs_action=None,
+        now=None,
+        page=1,
+        per_page=20,
+    )
+
+    assert literal_underscore.id in [booking.id for booking in underscore_results]
+    assert wildcard_underscore.id not in [booking.id for booking in underscore_results]
+    assert literal_percent.id in [booking.id for booking in percent_results]
+    assert wildcard_percent.id not in [booking.id for booking in percent_results]
+    assert literal_backslash.id in [booking.id for booking in backslash_results]
+    assert wildcard_backslash.id not in [booking.id for booking in backslash_results]
+
+
 def test_locked_funds_capture_and_auto_completion(
     db, test_student, test_instructor_with_availability, test_booking
 ):

@@ -76,6 +76,7 @@ class TestBookingServiceUnit:
         repository.get_instructor_bookings.return_value = []
         repository.get_instructor_bookings_for_stats.return_value = []
         repository.get_bookings_for_date.return_value = []
+        repository.get_bookings_starting_between_and_status.return_value = []
         transaction_cm = MagicMock()
         transaction_cm.__enter__.return_value = None
         transaction_cm.__exit__.return_value = None
@@ -906,19 +907,18 @@ class TestBookingServiceUnit:
         tomorrow_booking.status = BookingStatus.CONFIRMED
         tomorrow_booking.instructor_id = generate_ulid()
 
-        booking_service.repository.get_bookings_for_date.return_value = [tomorrow_booking]
+        booking_service.repository.get_bookings_starting_between_and_status.return_value = [
+            tomorrow_booking
+        ]
 
-        # Mock get_user_today_by_id to return today's date
-        with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
-            mock_get_today.return_value = date.today()
-
+        with patch("app.services.booking.notifications.is_local_tomorrow_booking", return_value=True):
             count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
-            assert count == 1
-            booking_service.event_publisher.publish.assert_called_once()
-            reminder_event = booking_service.event_publisher.publish.call_args[0][0]
-            assert isinstance(reminder_event, BookingReminder)
-            assert reminder_event.booking_id == tomorrow_booking.id
+        assert count == 1
+        booking_service.event_publisher.publish.assert_called_once()
+        reminder_event = booking_service.event_publisher.publish.call_args[0][0]
+        assert isinstance(reminder_event, BookingReminder)
+        assert reminder_event.booking_id == tomorrow_booking.id
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_with_failures(self, booking_service, mock_notification_service):
@@ -934,16 +934,16 @@ class TestBookingServiceUnit:
         booking2.booking_date = date.today() + timedelta(days=1)
         booking2.instructor_id = generate_ulid()
 
-        booking_service.repository.get_bookings_for_date.return_value = [booking1, booking2]
+        booking_service.repository.get_bookings_starting_between_and_status.return_value = [
+            booking1,
+            booking2,
+        ]
 
-        # Mock get_user_today_by_id to return today's date
-        with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
-            mock_get_today.return_value = date.today()
-
+        with patch("app.services.booking.notifications.is_local_tomorrow_booking", return_value=True):
             count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
-            assert count == 2
-            assert booking_service.event_publisher.publish.call_count == 2
+        assert count == 2
+        assert booking_service.event_publisher.publish.call_count == 2
 
     def test_calculate_pricing_standard(self, booking_service):
         """Test pricing calculation for standard booking."""

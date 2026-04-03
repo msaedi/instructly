@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 from typing import Any, Callable, Optional, ParamSpec, Protocol, TypedDict, TypeVar, cast
 
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
 from app.database import get_db
+from app.domain.video_utils import compute_join_closes_at
 from app.models.booking import BookingStatus
 from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.factory import RepositoryFactory
@@ -84,24 +85,6 @@ def _determine_no_show_type(video_session: Any | None) -> str | None:
     return "mutual"  # Both clicked join but neither actually connected
 
 
-def _get_scheduled_end_utc(booking: Any) -> datetime | None:
-    """Return the scheduled lesson end used to decide when automated no-shows may run."""
-    booking_end_utc = getattr(booking, "booking_end_utc", None)
-    if isinstance(booking_end_utc, datetime):
-        return booking_end_utc
-
-    booking_start_utc = getattr(booking, "booking_start_utc", None)
-    duration_minutes = getattr(booking, "duration_minutes", None)
-    if (
-        isinstance(booking_start_utc, datetime)
-        and isinstance(duration_minutes, (int, float))
-        and duration_minutes > 0
-    ):
-        return booking_start_utc + timedelta(minutes=float(duration_minutes))
-
-    return None
-
-
 # ── Task ─────────────────────────────────────────────────────────────────
 
 
@@ -142,7 +125,20 @@ def detect_video_no_shows() -> VideoNoShowResults:
             results["processed"] += 1
             booking_id = booking.id
             try:
-                scheduled_end_utc = _get_scheduled_end_utc(booking)
+                booking_start_utc = getattr(booking, "booking_start_utc", None)
+                duration_minutes = getattr(booking, "duration_minutes", None)
+                if (
+                    not isinstance(booking_start_utc, datetime)
+                    or not isinstance(duration_minutes, (int, float))
+                    or duration_minutes <= 0
+                ):
+                    scheduled_end_utc = None
+                else:
+                    scheduled_end_utc = compute_join_closes_at(
+                        booking_start_utc=booking_start_utc,
+                        duration_minutes=float(duration_minutes),
+                        booking_end_utc=getattr(booking, "booking_end_utc", None),
+                    )
                 if scheduled_end_utc is None or now < scheduled_end_utc:
                     results["skipped"] += 1
                     continue

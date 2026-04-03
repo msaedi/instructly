@@ -562,8 +562,7 @@ class BookingAdminService(BaseService):
                 booking = self.booking_repo.get_booking_with_details(token_booking_id)
                 if not booking:
                     raise NotFoundException("Booking not found", code="BOOKING_NOT_FOUND")
-                booking.status = BookingStatus.COMPLETED
-                booking.completed_at = completed_at
+                booking.mark_completed(completed_at=completed_at)
                 return booking
 
         booking = await asyncio.to_thread(_mark_completed)
@@ -963,9 +962,10 @@ class BookingAdminService(BaseService):
             booking_locked = self.booking_repo.get_booking_with_details(booking.id)
             if not booking_locked:
                 raise NotFoundException("Booking not found", code="BOOKING_NOT_FOUND")
-            booking_locked.status = BookingStatus.CANCELLED
-            booking_locked.cancelled_at = datetime.now(timezone.utc)
-            booking_locked.cancellation_reason = reason_code
+            booking_locked.mark_cancelled(
+                cancelled_at=datetime.now(timezone.utc),
+                reason=reason_code,
+            )
             bp = self.booking_repo.ensure_payment(booking_locked.id)
             bp.settlement_outcome = "admin_refund"
             booking_locked.refunded_to_card_amount = refund_amount_cents if refund_issued else 0
@@ -1004,9 +1004,10 @@ class BookingAdminService(BaseService):
             booking_locked = self.booking_repo.get_booking_with_details(booking.id)
             if not booking_locked:
                 raise NotFoundException("Booking not found", code="BOOKING_NOT_FOUND")
-            booking_locked.status = BookingStatus.CANCELLED
-            booking_locked.cancelled_at = datetime.now(timezone.utc)
-            booking_locked.cancellation_reason = reason_code
+            booking_locked.mark_cancelled(
+                cancelled_at=datetime.now(timezone.utc),
+                reason=reason_code,
+            )
             bp = self.booking_repo.ensure_payment(booking_locked.id)
             bp.settlement_outcome = "admin_no_refund"
             if payment_intent_id and (

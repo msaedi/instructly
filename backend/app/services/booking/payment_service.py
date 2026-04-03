@@ -244,13 +244,13 @@ class BookingPaymentMixin:
                 )
 
             if not trigger_immediate_auth:
-                booking.status = BookingStatus.CONFIRMED
-                booking.confirmed_at = booking_service_module.datetime.now(
-                    booking_service_module.timezone.utc
+                booking.mark_confirmed(
+                    confirmed_at=booking_service_module.datetime.now(
+                        booking_service_module.timezone.utc
+                    )
                 )
             else:
-                booking.status = BookingStatus.PENDING
-                booking.confirmed_at = None
+                booking.mark_pending(confirmed_at=None)
         return {
             "trigger_immediate_auth": trigger_immediate_auth,
             "immediate_auth_hours_until": immediate_auth_hours_until,
@@ -299,9 +299,10 @@ class BookingPaymentMixin:
                 with self.transaction():
                     refreshed = self.repository.get_by_id(booking.id)
                     if refreshed and refreshed.status == BookingStatus.PENDING:
-                        refreshed.status = BookingStatus.CONFIRMED
-                        refreshed.confirmed_at = booking_service_module.datetime.now(
-                            booking_service_module.timezone.utc
+                        refreshed.mark_confirmed(
+                            confirmed_at=booking_service_module.datetime.now(
+                                booking_service_module.timezone.utc
+                            )
                         )
                         refreshed_bp = self.repository.ensure_payment(refreshed.id)
                         if refreshed_bp.payment_status == PaymentStatus.SCHEDULED.value:

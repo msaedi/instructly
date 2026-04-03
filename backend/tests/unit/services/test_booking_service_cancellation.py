@@ -48,6 +48,9 @@ def make_booking(**overrides: object) -> SimpleNamespace:
         booking_date=overrides.get("booking_date", date(2030, 1, 1)),
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", time(11, 0)),
+        confirmed_at=overrides.get("confirmed_at", None),
+        cancelled_at=overrides.get("cancelled_at", None),
+        completed_at=overrides.get("completed_at", None),
         no_show_reported_at=overrides.get(
             "no_show_reported_at", datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
         ),
@@ -59,6 +62,26 @@ def make_booking(**overrides: object) -> SimpleNamespace:
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
+
+    def _mark_confirmed(*, confirmed_at=None):
+        booking.status = BookingStatus.CONFIRMED
+        booking.confirmed_at = confirmed_at
+
+    def _mark_completed(*, completed_at=None):
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = completed_at
+
+    def _mark_no_show():
+        booking.status = BookingStatus.NO_SHOW
+
+    def _mark_pending(*, confirmed_at=None):
+        booking.status = BookingStatus.PENDING
+        booking.confirmed_at = confirmed_at
+
+    booking.mark_confirmed = Mock(side_effect=_mark_confirmed)
+    booking.mark_completed = Mock(side_effect=_mark_completed)
+    booking.mark_no_show = Mock(side_effect=_mark_no_show)
+    booking.mark_pending = Mock(side_effect=_mark_pending)
     return booking
 
 

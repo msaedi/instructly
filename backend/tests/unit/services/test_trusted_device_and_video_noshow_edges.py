@@ -1,25 +1,24 @@
 """
 Unit tests for coverage gaps in:
   - trusted_device_service.py (lines 57, 59, 71, 73, 77, 79, 164, 180, 184, 188)
-  - video_tasks.py (lines 93-102, 147-148)
+  - video_tasks.py (lines 109-127, 147-148)
 
 Covers:
   - parse_user_agent: Edge, Opera browsers; iPad, Android, Windows, Linux OS detection
   - revoke_device_for_user: device not found / wrong user returns None
   - current_cookie_matches_device: no cookie / device not found returns False
   - delete_expired_devices: delegates to repository
-  - _get_scheduled_end_utc: fallback from start+duration, missing data returns None
+  - compute_join_closes_at: shared fallback from start+duration, explicit booking_end_utc override
   - detect_video_no_shows: skips bookings before scheduled end
 """
 
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.domain.video_utils import compute_join_closes_at
 from app.services.trusted_device_service import TrustedDeviceService
-from app.tasks.video_tasks import _get_scheduled_end_utc
 
 # ---------------------------------------------------------------------------
 # TrustedDeviceService — parse_user_agent browser detection
@@ -226,83 +225,30 @@ class TestDeleteExpiredDevices:
 
 
 # ---------------------------------------------------------------------------
-# video_tasks — _get_scheduled_end_utc
+# video_utils — compute_join_closes_at
 # ---------------------------------------------------------------------------
 
-class TestGetScheduledEndUtc:
-    """Cover lines 93-102: fallback computation and None returns."""
+class TestComputeJoinClosesAt:
+    """Cover the shared scheduled-end helper used by video no-show detection."""
 
     @pytest.mark.unit
     def test_from_start_and_duration(self) -> None:
         start = datetime(2026, 4, 3, 14, 0, 0, tzinfo=timezone.utc)
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=start,
-            duration_minutes=60,
-        )
-        result = _get_scheduled_end_utc(booking)
+        result = compute_join_closes_at(start, 60)
         assert result == start + timedelta(minutes=60)
 
     @pytest.mark.unit
     def test_from_start_and_float_duration(self) -> None:
         start = datetime(2026, 4, 3, 14, 0, 0, tzinfo=timezone.utc)
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=start,
-            duration_minutes=45.5,
-        )
-        result = _get_scheduled_end_utc(booking)
+        result = compute_join_closes_at(start, 45.5)
         assert result == start + timedelta(minutes=45.5)
 
     @pytest.mark.unit
-    def test_missing_start_returns_none(self) -> None:
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=None,
-            duration_minutes=60,
-        )
-        result = _get_scheduled_end_utc(booking)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_zero_duration_returns_none(self) -> None:
+    def test_prefers_explicit_booking_end(self) -> None:
         start = datetime(2026, 4, 3, 14, 0, 0, tzinfo=timezone.utc)
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=start,
-            duration_minutes=0,
-        )
-        result = _get_scheduled_end_utc(booking)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_non_numeric_duration_returns_none(self) -> None:
-        start = datetime(2026, 4, 3, 14, 0, 0, tzinfo=timezone.utc)
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=start,
-            duration_minutes="sixty",
-        )
-        result = _get_scheduled_end_utc(booking)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_missing_all_attributes_returns_none(self) -> None:
-        """Booking object with none of the relevant attributes."""
-        booking = SimpleNamespace()
-        result = _get_scheduled_end_utc(booking)
-        assert result is None
-
-    @pytest.mark.unit
-    def test_negative_duration_returns_none(self) -> None:
-        start = datetime(2026, 4, 3, 14, 0, 0, tzinfo=timezone.utc)
-        booking = SimpleNamespace(
-            booking_end_utc=None,
-            booking_start_utc=start,
-            duration_minutes=-30,
-        )
-        result = _get_scheduled_end_utc(booking)
-        assert result is None
+        explicit_end = start + timedelta(minutes=80)
+        result = compute_join_closes_at(start, 60, explicit_end)
+        assert result == explicit_end
 
 
 # ---------------------------------------------------------------------------
@@ -316,10 +262,12 @@ class TestDetectNoShowsSkipsBeforeEnd:
     def test_skips_booking_before_scheduled_end(self) -> None:
         """scheduled_end_utc is in the future relative to now -> skipped."""
         now = datetime(2026, 4, 3, 15, 0, 0, tzinfo=timezone.utc)
-        future_end = now + timedelta(hours=1)
 
         booking = MagicMock()
         booking.id = "01BOOKINGAAAAAAAAAAAAAAAAAA"
+        booking.booking_start_utc = now + timedelta(minutes=30)
+        booking.duration_minutes = 60
+        booking.booking_end_utc = None
 
         video_session = MagicMock()
 
@@ -336,10 +284,6 @@ class TestDetectNoShowsSkipsBeforeEnd:
             patch("app.tasks.video_tasks.get_db") as mock_get_db,
             patch("app.tasks.video_tasks.RepositoryFactory") as mock_rf,
             patch("app.tasks.video_tasks.BookingService") as mock_bs_cls,
-            patch(
-                "app.tasks.video_tasks._get_scheduled_end_utc",
-                return_value=future_end,
-            ),
         ):
             mock_settings.hundredms_enabled = True
             mock_get_db.return_value = iter([mock_db])
@@ -357,9 +301,12 @@ class TestDetectNoShowsSkipsBeforeEnd:
 
     @pytest.mark.unit
     def test_skips_booking_with_none_scheduled_end(self) -> None:
-        """When _get_scheduled_end_utc returns None, the booking is skipped."""
+        """Bookings missing valid scheduling data are skipped."""
         booking = MagicMock()
         booking.id = "01BOOKINGAAAAAAAAAAAAAAAAAA"
+        booking.booking_start_utc = None
+        booking.duration_minutes = "sixty"
+        booking.booking_end_utc = None
 
         video_session = MagicMock()
 
@@ -376,10 +323,6 @@ class TestDetectNoShowsSkipsBeforeEnd:
             patch("app.tasks.video_tasks.get_db") as mock_get_db,
             patch("app.tasks.video_tasks.RepositoryFactory") as mock_rf,
             patch("app.tasks.video_tasks.BookingService") as mock_bs_cls,
-            patch(
-                "app.tasks.video_tasks._get_scheduled_end_utc",
-                return_value=None,
-            ),
         ):
             mock_settings.hundredms_enabled = True
             mock_get_db.return_value = iter([mock_db])

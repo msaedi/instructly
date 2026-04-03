@@ -139,9 +139,7 @@ class StripePaymentMixin(BaseService):
                 code="invalid_booking_state",
             )
         was_confirmed = fresh_booking.status == BookingStatus.CONFIRMED.value
-        fresh_booking.status = BookingStatus.CONFIRMED.value
-        if fresh_booking.confirmed_at is None:
-            fresh_booking.confirmed_at = datetime.now(timezone.utc)
+        fresh_booking.mark_confirmed()
         if payment_result["status"] in ("requires_capture", "scheduled"):
             booking_payment = self.booking_repository.ensure_payment(fresh_booking.id)
             booking_payment.payment_status = (

@@ -17,6 +17,17 @@ def _lock(acquired: bool):
     yield acquired
 
 
+def _attach_mark_completed(booking: SimpleNamespace) -> SimpleNamespace:
+    booking.completed_at = getattr(booking, "completed_at", None)
+
+    def _mark_completed(*, completed_at: datetime | None = None) -> None:
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = completed_at
+
+    booking.mark_completed = MagicMock(side_effect=_mark_completed)
+    return booking
+
+
 def _booking(
     booking_id: str,
     *,
@@ -25,17 +36,19 @@ def _booking(
     has_locked_funds: bool = False,
     status: BookingStatus = BookingStatus.CONFIRMED,
 ) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=booking_id,
-        status=status,
-        student_id="student-1",
-        instructor_id="instructor-1",
-        has_locked_funds=has_locked_funds,
-        rescheduled_from_booking_id=None,
-        payment_detail=SimpleNamespace(
-            payment_status=payment_status,
-            payment_intent_id=payment_intent_id,
-        ),
+    return _attach_mark_completed(
+        SimpleNamespace(
+            id=booking_id,
+            status=status,
+            student_id="student-1",
+            instructor_id="instructor-1",
+            has_locked_funds=has_locked_funds,
+            rescheduled_from_booking_id=None,
+            payment_detail=SimpleNamespace(
+                payment_status=payment_status,
+                payment_intent_id=payment_intent_id,
+            ),
+        )
     )
 
 

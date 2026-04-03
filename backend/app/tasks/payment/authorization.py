@@ -151,8 +151,7 @@ def _persist_auth_success(
     booking_payment.auth_failure_count = 0
     booking_payment.auth_last_error = None
     if booking.status == BookingStatus.PENDING:
-        booking.status = BookingStatus.CONFIRMED
-        booking.confirmed_at = attempted_at
+        booking.mark_confirmed(confirmed_at=attempted_at)
         send_confirmation_notifications = True
     return send_confirmation_notifications
 

@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from app.models.booking import BookingStatus
 from app.schemas.admin_refunds import AdminRefundReason
 import app.services.admin_refund_service as admin_refund_module
 from app.services.admin_refund_service import AdminRefundService
@@ -38,11 +41,32 @@ class _DummyBooking:
         self.id = booking_id
         self.total_price = total_price
         self.status = "CONFIRMED"
+        self.confirmed_at = None
+        self.completed_at = None
         self.cancelled_at = cancelled_at
+        self.cancelled_by_id: str | None = None
         self.instructor_id = "inst_1"
         self.refunded_to_card_amount = 0
         self.student_credit_amount = 0
         self.payment_detail = _DummyPaymentDetail(payment_intent_id=payment_intent_id)
+
+    def mark_cancelled(self, *, cancelled_at: datetime | None = None) -> None:
+        self.status = "CANCELLED"
+        self.cancelled_at = cancelled_at
+
+    def can_transition_to(self, target_status: BookingStatus | str) -> bool:
+        target = BookingStatus(target_status)
+        return not (self.status == "CANCELLED" and target == BookingStatus.NO_SHOW)
+
+    def mark_no_show(
+        self,
+        *,
+        cancelled_at: datetime | None = None,
+        cancelled_by_user_id: str | None = None,
+    ) -> None:
+        self.status = "NO_SHOW"
+        self.cancelled_at = cancelled_at
+        self.cancelled_by_id = cancelled_by_user_id
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -101,7 +125,9 @@ def test_apply_refund_updates_returns_none_when_booking_disappears() -> None:
     assert result is None
 
 
-def test_apply_refund_updates_handles_non_fatal_credit_and_audit_errors(monkeypatch) -> None:
+def test_apply_refund_updates_handles_non_fatal_credit_and_audit_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = _make_service()
     booking = _DummyBooking()
     service.booking_repo.get_booking_with_details.return_value = booking
@@ -140,7 +166,9 @@ def test_apply_refund_updates_handles_non_fatal_credit_and_audit_errors(monkeypa
     logger_mock.debug.assert_called_once()
 
 
-def test_apply_refund_updates_skips_audit_when_disabled(monkeypatch) -> None:
+def test_apply_refund_updates_skips_audit_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = _make_service()
     booking = _DummyBooking(cancelled_at=datetime.now(timezone.utc))
     service.booking_repo.get_booking_with_details.return_value = booking
@@ -160,3 +188,43 @@ def test_apply_refund_updates_skips_audit_when_disabled(monkeypatch) -> None:
 
     assert result is booking
     service.audit_repo.write.assert_not_called()
+
+
+def test_apply_refund_updates_instructor_no_show_sets_cancelled_at(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = _make_service()
+    booking = _DummyBooking(cancelled_at=None)
+    service.booking_repo.get_booking_with_details.return_value = booking
+    service.booking_repo.ensure_payment.return_value = booking.payment_detail
+
+    monkeypatch.setattr(admin_refund_module, "AUDIT_ENABLED", False)
+
+    result = service.apply_refund_updates(
+        booking_id=booking.id,
+        reason=AdminRefundReason.INSTRUCTOR_NO_SHOW,
+        note=None,
+        amount_cents=1500,
+        stripe_reason="requested_by_customer",
+        refund_id="re_no_show",
+        actor=SimpleNamespace(id="admin_4"),
+    )
+
+    assert result is booking
+    assert booking.status == "NO_SHOW"
+    assert booking.cancelled_at is not None
+    assert booking.cancelled_by_id == booking.instructor_id
+    assert booking.payment_detail.settlement_outcome == "instructor_no_show_full_refund"
+
+
+def test_validate_refund_transition_rejects_invalid_target_state() -> None:
+    service = _make_service()
+    booking = _DummyBooking(cancelled_at=datetime.now(timezone.utc))
+    booking.status = "CANCELLED"
+
+    try:
+        service.validate_refund_transition(booking, AdminRefundReason.INSTRUCTOR_NO_SHOW)
+    except ValueError as exc:
+        assert "cannot transition" in str(exc).lower()
+    else:
+        raise AssertionError("Expected invalid refund transition to raise ValueError")

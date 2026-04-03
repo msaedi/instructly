@@ -103,6 +103,33 @@ def _fake_booking(**overrides: Any) -> MagicMock:
     if pd is None:
         pd = MagicMock()
     b.payment_detail = pd
+
+    def _mark_confirmed(*, confirmed_at=None):
+        b.status = BookingStatus.CONFIRMED
+        b.confirmed_at = confirmed_at
+
+    def _mark_pending(*, confirmed_at=None):
+        b.status = BookingStatus.PENDING
+        b.confirmed_at = confirmed_at
+
+    def _mark_completed(*, completed_at=None):
+        b.status = BookingStatus.COMPLETED
+        b.completed_at = completed_at
+
+    def _mark_cancelled(*, cancelled_at=None, cancelled_by_user_id=None, reason=None):
+        b.status = BookingStatus.CANCELLED
+        b.cancelled_at = cancelled_at
+        b.cancelled_by_id = cancelled_by_user_id
+        b.cancellation_reason = reason
+
+    def _mark_no_show():
+        b.status = BookingStatus.NO_SHOW
+
+    b.mark_confirmed.side_effect = _mark_confirmed
+    b.mark_pending.side_effect = _mark_pending
+    b.mark_completed.side_effect = _mark_completed
+    b.mark_cancelled.side_effect = _mark_cancelled
+    b.mark_no_show.side_effect = _mark_no_show
     b.to_dict.return_value = {"id": b.id, "status": b.status}
     return b
 

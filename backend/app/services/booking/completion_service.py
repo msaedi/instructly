@@ -311,8 +311,7 @@ class BookingCompletionMixin:
             now = booking_service_module.datetime.now(booking_service_module.timezone.utc)
             self._validate_instructor_completion_timing(booking, now)
             lesson_end_utc = self._get_booking_end_utc(booking)
-            booking.status = BookingStatus.COMPLETED
-            booking.completed_at = now
+            booking.mark_completed(completed_at=now)
             if notes:
                 booking.instructor_note = notes
             capture_at = lesson_end_utc + timedelta(hours=24)

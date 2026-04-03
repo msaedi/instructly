@@ -100,6 +100,9 @@ def make_booking(**overrides: object) -> SimpleNamespace:
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", time(11, 0)),
         created_at=overrides.get("created_at", datetime(2030, 1, 1, 8, 0, tzinfo=timezone.utc)),
+        confirmed_at=overrides.get("confirmed_at", None),
+        cancelled_at=overrides.get("cancelled_at", None),
+        completed_at=overrides.get("completed_at", None),
         instructor_service=overrides.get("instructor_service", None),
         student=overrides.get("student", None),
         instructor=overrides.get("instructor", None),
@@ -107,6 +110,33 @@ def make_booking(**overrides: object) -> SimpleNamespace:
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
+
+    def _mark_confirmed(*, confirmed_at=None):
+        booking.status = BookingStatus.CONFIRMED
+        booking.confirmed_at = confirmed_at
+
+    def _mark_completed(*, completed_at=None):
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = completed_at
+
+    def _mark_no_show():
+        booking.status = BookingStatus.NO_SHOW
+
+    def _mark_pending(*, confirmed_at=None):
+        booking.status = BookingStatus.PENDING
+        booking.confirmed_at = confirmed_at
+
+    def _mark_cancelled(*, cancelled_at=None, cancelled_by_user_id=None, reason=None):
+        booking.status = BookingStatus.CANCELLED
+        booking.cancelled_at = cancelled_at
+        booking.cancelled_by_id = cancelled_by_user_id
+        booking.cancellation_reason = reason
+
+    booking.mark_confirmed = Mock(side_effect=_mark_confirmed)
+    booking.mark_completed = Mock(side_effect=_mark_completed)
+    booking.mark_no_show = Mock(side_effect=_mark_no_show)
+    booking.mark_pending = Mock(side_effect=_mark_pending)
+    booking.mark_cancelled = Mock(side_effect=_mark_cancelled)
     return booking
 
 

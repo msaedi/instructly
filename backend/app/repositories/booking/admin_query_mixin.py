@@ -4,13 +4,18 @@ from datetime import date, datetime, timezone
 from typing import List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Query, aliased, joinedload, selectinload
+from sqlalchemy.orm import Query, aliased, selectinload
 
 from ...core.exceptions import RepositoryException
 from ...models.booking import Booking, BookingStatus, PaymentStatus
 from ...models.booking_payment import BookingPayment
 from ...models.user import User
+from .eager_loading import standard_booking_options
 from .mixin_base import BookingRepositoryMixinBase
+
+
+def _escape_like(term: str) -> str:
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class BookingAdminQueryMixin(BookingRepositoryMixinBase):
@@ -21,18 +26,7 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
         return (
             self.db.query(Booking)
             .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
-            .options(
-                joinedload(Booking.student),
-                joinedload(Booking.instructor),
-                joinedload(Booking.instructor_service),
-                selectinload(Booking.payment_detail),
-                selectinload(Booking.no_show_detail),
-                selectinload(Booking.lock_detail),
-                selectinload(Booking.reschedule_detail),
-                selectinload(Booking.dispute),
-                selectinload(Booking.transfer),
-                selectinload(Booking.video_session),
-            )
+            .options(*standard_booking_options())
         )
 
     def _apply_admin_search_filter(self, query: Query, search: Optional[str]) -> Query:
@@ -42,21 +36,21 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
 
         student_alias = aliased(User)
         instructor_alias = aliased(User)
-        term = f"%{search.strip()}%"
+        term = f"%{_escape_like(search.strip())}%"
         return (
             query.join(student_alias, Booking.student_id == student_alias.id)
             .join(instructor_alias, Booking.instructor_id == instructor_alias.id)
             .filter(
                 or_(
-                    Booking.id.ilike(term),
-                    Booking.service_name.ilike(term),
-                    BookingPayment.payment_intent_id.ilike(term),
-                    student_alias.first_name.ilike(term),
-                    student_alias.last_name.ilike(term),
-                    student_alias.email.ilike(term),
-                    instructor_alias.first_name.ilike(term),
-                    instructor_alias.last_name.ilike(term),
-                    instructor_alias.email.ilike(term),
+                    Booking.id.ilike(term, escape="\\"),
+                    Booking.service_name.ilike(term, escape="\\"),
+                    BookingPayment.payment_intent_id.ilike(term, escape="\\"),
+                    student_alias.first_name.ilike(term, escape="\\"),
+                    student_alias.last_name.ilike(term, escape="\\"),
+                    student_alias.email.ilike(term, escape="\\"),
+                    instructor_alias.first_name.ilike(term, escape="\\"),
+                    instructor_alias.last_name.ilike(term, escape="\\"),
+                    instructor_alias.email.ilike(term, escape="\\"),
                 )
             )
         )
@@ -236,6 +230,33 @@ class BookingAdminQueryMixin(BookingRepositoryMixinBase):
                 "Failed to load bookings from %s to %s for status %s: %s",
                 start_date,
                 end_date,
+                status,
+                str(e),
+                exc_info=True,
+            )
+            return []
+
+    def get_bookings_starting_between_and_status(
+        self, start_utc: datetime, end_utc: datetime, status: BookingStatus | str
+    ) -> List[Booking]:
+        """Return bookings whose UTC start falls within the requested window."""
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .filter(
+                    Booking.booking_start_utc >= start_utc,
+                    Booking.booking_start_utc < end_utc,
+                    Booking.status == BookingStatus(status),
+                )
+                .options(*standard_booking_options())
+                .all(),
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Failed to load reminder candidates from %s to %s for status %s: %s",
+                start_utc,
+                end_utc,
                 status,
                 str(e),
                 exc_info=True,

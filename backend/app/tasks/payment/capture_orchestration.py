@@ -37,8 +37,7 @@ def complete_booking_status(
     ):
         return {"success": True, "auto_completed": False, "skipped": True, "reason": "not_eligible"}
     lesson_end = api._get_booking_end_utc(booking)
-    booking.status = BookingStatus.COMPLETED
-    booking.completed_at = lesson_end
+    booking.mark_completed(completed_at=lesson_end)
     api.StudentCreditService(db).maybe_issue_milestone_credit(
         student_id=booking.student_id, booking_id=booking.id
     )

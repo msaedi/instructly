@@ -102,6 +102,18 @@ async def admin_refund_booking(
                 detail=f"Refund amount exceeds original charge ({full_amount_cents} cents)",
             )
 
+        try:
+            await asyncio.to_thread(
+                refund_service.validate_refund_transition,
+                booking,
+                request.reason,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+
         intent_id = pd.payment_intent_id  # guaranteed non-None by guard on line 67
 
         stripe_reason = REASON_TO_STRIPE.get(request.reason, "requested_by_customer")
