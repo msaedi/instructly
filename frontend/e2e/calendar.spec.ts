@@ -813,7 +813,7 @@ test.describe('Instructor availability calendar', () => {
     const acknowledgementModal = page.getByTestId('calendar-settings-acknowledgement-modal');
     await expect(acknowledgementModal).toBeVisible();
     await expect(acknowledgementModal).toContainText(
-      'We automatically add 15 minutes of buffer time between your lessons'
+      'We automatically add 15 minutes of buffer time between your back to back lessons'
     );
 
     await page.getByRole('button', { name: 'OK' }).click();

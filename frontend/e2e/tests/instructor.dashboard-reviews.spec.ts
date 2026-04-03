@@ -115,7 +115,7 @@ test.describe('[instructor] dashboard reviews snapshot', () => {
 
     await expect(page.getByTestId('reviews-summary')).toBeVisible();
     await expect(page.getByTestId('reviews-rating-value')).toHaveText('4.5');
-    await expect(page.getByTestId('reviews-rating-star')).toBeVisible();
+    await expect(page.getByTestId('reviews-card-icon')).toBeVisible();
     await expect(page.getByTestId('reviews-rating-count')).toHaveText('(3)');
   });
 });

@@ -382,7 +382,7 @@ test.describe('Join button visibility (student)', () => {
     });
   });
 
-  test('hides button when window not yet open', async ({ page }) => {
+  test('shows disabled button when window not yet open', async ({ page }) => {
     const booking = bookingNotYetJoinable();
     await setupStudentListMocks(page, {
       user: STUDENT_USER,
@@ -394,7 +394,9 @@ test.describe('Join button visibility (student)', () => {
     await expect(
       page.getByRole('heading', { name: 'My Lessons' }),
     ).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId('join-lesson-button')).not.toBeVisible();
+    await expect(page.getByTestId('join-lesson-button')).toBeVisible();
+    await expect(page.getByTestId('join-lesson-button')).toBeDisabled();
+    await expect(page.getByTestId('join-lesson-countdown')).toContainText('Join opens in');
   });
 
   test('hides button for completed booking', async ({ page }) => {
@@ -509,7 +511,7 @@ test.describe('Pre-lesson waiting room (student)', () => {
     await lessonPage.goto(booking.id);
 
     await expect(lessonPage.joinButton).toBeVisible({ timeout: 10_000 });
-    await expect(lessonPage.windowClosesPill).toBeVisible();
+    await expect(lessonPage.sessionEndsPill).toBeVisible();
   });
 
   test('shows Connecting state during join', async ({ page }) => {
@@ -552,7 +554,7 @@ test.describe('Pre-lesson waiting room (student)', () => {
     );
   });
 
-  test('shows window closed message', async ({ page }) => {
+  test('shows session ended message', async ({ page }) => {
     const booking = bookingWindowClosed();
     await setupVideoMocks(page, {
       user: STUDENT_USER,
@@ -562,7 +564,7 @@ test.describe('Pre-lesson waiting room (student)', () => {
     const lessonPage = new VideoLessonPage(page);
     await lessonPage.goto(booking.id);
 
-    await expect(lessonPage.windowClosedText).toBeVisible({ timeout: 10_000 });
+    await expect(lessonPage.sessionEndedText).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -805,9 +807,7 @@ test.describe('Video session stats on student detail', () => {
   });
 
   test('hides Video Session section when no stats', async ({ page }) => {
-    const booking = bookingEndedWithStats({
-      video_session_duration_seconds: null,
-    });
+    const booking = bookingEndedNoStats();
     await setupVideoMocks(page, {
       user: STUDENT_USER,
       booking,
@@ -819,9 +819,7 @@ test.describe('Video session stats on student detail', () => {
     await expect(page.getByText('Piano Lesson')).toBeVisible({
       timeout: 10_000,
     });
-    await expect(
-      page.getByRole('heading', { name: 'Video Session' }),
-    ).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Video Session' })).toHaveCount(0);
   });
 });
 
@@ -960,7 +958,7 @@ test.describe('Error — non-participant access', () => {
 // =============================================================================
 
 test.describe('Navigate away and return', () => {
-  test('re-enters pre-lesson phase when returning to lesson page', async ({
+  test('stays joinable when returning to lesson page during the active join window', async ({
     page,
   }) => {
     const booking = bookingJoinable();
@@ -1025,7 +1023,7 @@ test.describe('Navigate away and return', () => {
 
     const lessonPage = new VideoLessonPage(page);
 
-    // First visit: verify pre-lesson phase
+    // First visit: verify the lesson remains joinable during the active session window.
     await lessonPage.goto(booking.id);
     await expect(lessonPage.joinButton).toBeVisible({ timeout: 10_000 });
 
@@ -1038,6 +1036,6 @@ test.describe('Navigate away and return', () => {
     // Return to lesson room
     await lessonPage.goto(booking.id);
     await expect(lessonPage.joinButton).toBeVisible({ timeout: 10_000 });
-    await expect(lessonPage.windowClosesPill).toBeVisible();
+    await expect(lessonPage.sessionEndsPill).toBeVisible();
   });
 });

@@ -13,8 +13,8 @@ export class VideoLessonPage {
   readonly joinButton: Locator;
   readonly countdownTimer: Locator;
   readonly joinOpensText: Locator;
-  readonly windowClosesPill: Locator;
-  readonly windowClosedText: Locator;
+  readonly sessionEndsPill: Locator;
+  readonly sessionEndedText: Locator;
   readonly connectingText: Locator;
   readonly joiningAsText: Locator;
 
@@ -44,8 +44,8 @@ export class VideoLessonPage {
     this.joinButton = page.getByRole('button', { name: 'Join video lesson' });
     this.countdownTimer = page.getByRole('timer');
     this.joinOpensText = page.getByText('Join opens in');
-    this.windowClosesPill = page.getByText(/Window closes in/);
-    this.windowClosedText = page.getByText('Join window has closed.');
+    this.sessionEndsPill = page.getByText(/Session ends in/);
+    this.sessionEndedText = page.getByText('Session has ended.');
     this.connectingText = page.getByText('Connecting...');
     this.joiningAsText = page.getByText(/Joining as/);
 
