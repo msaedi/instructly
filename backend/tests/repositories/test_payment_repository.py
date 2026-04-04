@@ -1487,14 +1487,14 @@ class TestPaymentRepository:
         self, payment_repo: PaymentRepository, test_booking: Booking, monkeypatch
     ):
         """Timestamp assignment failure should not prevent event creation."""
-        from app.repositories import payment_repository as payment_repo_module
+        from app.repositories.payment import payment_event_mixin
 
         class BrokenDateTime:
             @staticmethod
             def now(_tz=None):
                 raise RuntimeError("boom")
 
-        monkeypatch.setattr(payment_repo_module, "datetime", BrokenDateTime)
+        monkeypatch.setattr(payment_event_mixin, "datetime", BrokenDateTime)
 
         event = payment_repo.create_payment_event(
             booking_id=test_booking.id,

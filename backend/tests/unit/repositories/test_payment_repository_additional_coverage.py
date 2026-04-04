@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.exceptions import RepositoryException
-from app.repositories.payment_repository import (
-    PaymentRepository,
+from app.repositories.payment.payment_event_mixin import (
     _event_indicates_failure,
     _payment_event_to_audit_action,
 )
+from app.repositories.payment_repository import PaymentRepository
 
 
 def _build_query_chain(mock_db: MagicMock) -> MagicMock:
