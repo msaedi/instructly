@@ -245,6 +245,14 @@ class NotificationPaymentMixin(NotificationMixinBase):
             ):
                 return True
 
+            student = getattr(booking, "student", None)
+            if student is None or not getattr(student, "email", None):
+                self.logger.error(
+                    "Cannot send final payment warning for booking %s: missing student",
+                    getattr(booking, "id", "?"),
+                )
+                return False
+
             subject = "Action required: Update your payment method for your upcoming lesson"
             template_name = "email/payment/t24_update_card.html"
             context = {
@@ -273,7 +281,7 @@ class NotificationPaymentMixin(NotificationMixinBase):
                 html_content = self.template_service.render_string(fallback, context)
 
             self.email_service.send_email(
-                to_email=booking.student.email,
+                to_email=student.email,
                 subject=subject,
                 html_content=html_content,
             )

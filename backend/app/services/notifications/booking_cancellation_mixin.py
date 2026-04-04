@@ -128,6 +128,13 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send student cancellation notification"
+        )
+        if participants is None:
+            return False
+        student, _instructor = participants
+
         subject = f"Booking Cancelled: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
@@ -144,7 +151,7 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CANCELLATION_STUDENT, context
         )
         self.email_service.send_email(
-            to_email=booking.student.email,
+            to_email=student.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CANCELLATION_STUDENT,
@@ -162,13 +169,20 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send instructor cancellation notification"
+        )
+        if participants is None:
+            return False
+        student, instructor = participants
+
         subject = f"Booking Cancelled: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": local_dt.strftime("%A, %B %d, %Y"),
@@ -181,7 +195,7 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR, context
         )
         self.email_service.send_email(
-            to_email=booking.instructor.email,
+            to_email=instructor.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR,
@@ -197,13 +211,20 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send student cancellation confirmation"
+        )
+        if participants is None:
+            return False
+        student, _instructor = participants
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": local_dt.strftime("%A, %B %d, %Y"),
@@ -214,7 +235,7 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_STUDENT, context
         )
         self.email_service.send_email(
-            to_email=booking.student.email,
+            to_email=student.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_STUDENT,
@@ -230,13 +251,20 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send instructor cancellation confirmation"
+        )
+        if participants is None:
+            return False
+        student, instructor = participants
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": local_dt.strftime("%A, %B %d, %Y"),
@@ -247,7 +275,7 @@ class NotificationBookingCancellationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_INSTRUCTOR, context
         )
         self.email_service.send_email(
-            to_email=booking.instructor.email,
+            to_email=instructor.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CANCELLATION_CONFIRMATION_INSTRUCTOR,

@@ -89,13 +89,20 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send student completion notification"
+        )
+        if participants is None:
+            return False
+        student, _instructor = participants
+
         subject = f"Lesson Completed: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": local_dt.strftime("%A, %B %d, %Y"),
@@ -106,7 +113,7 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_COMPLETED_STUDENT, context
         )
         self.email_service.send_email(
-            to_email=booking.student.email,
+            to_email=student.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_COMPLETED_STUDENT,
@@ -122,13 +129,20 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(
+            booking, "send instructor completion notification"
+        )
+        if participants is None:
+            return False
+        student, instructor = participants
+
         subject = f"Lesson Completed: {booking.service_name}"
         local_dt = self._get_booking_local_datetime(booking)
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": local_dt.strftime("%A, %B %d, %Y"),
@@ -139,7 +153,7 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_COMPLETED_INSTRUCTOR, context
         )
         self.email_service.send_email(
-            to_email=booking.instructor.email,
+            to_email=instructor.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_COMPLETED_INSTRUCTOR,
@@ -154,6 +168,11 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
             student_id, "lesson_updates", "booking_reminder_student"
         ):
             return True
+
+        participants = self._require_booking_participants(booking, "send student reminder")
+        if participants is None:
+            return False
+        student, _instructor = participants
 
         if reminder_type == "1h":
             subject = f"Reminder: {booking.service_name} in 1 Hour"
@@ -172,7 +191,7 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_REMINDER_STUDENT, context
         )
         self.email_service.send_email(
-            to_email=booking.student.email,
+            to_email=student.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_REMINDER_STUDENT,
@@ -188,6 +207,11 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
         ):
             return True
 
+        participants = self._require_booking_participants(booking, "send instructor reminder")
+        if participants is None:
+            return False
+        student, instructor = participants
+
         if reminder_type == "1h":
             subject = f"Reminder: {booking.service_name} in 1 Hour"
         elif reminder_type == "24h":
@@ -199,8 +223,8 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_time": local_dt.strftime("%-I:%M %p"),
@@ -210,7 +234,7 @@ class NotificationBookingFollowupsMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR, context
         )
         self.email_service.send_email(
-            to_email=booking.instructor.email,
+            to_email=instructor.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,

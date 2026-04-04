@@ -20,7 +20,7 @@ async def test_notify_user_skips_email_when_disabled(
     email_service.send_email.reset_mock()
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ):
         notification = await service.notify_user(
             user_id=test_student.id,

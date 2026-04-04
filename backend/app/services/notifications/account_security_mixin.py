@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Sequence
 
 from ...core.constants import BRAND_NAME
@@ -41,11 +42,7 @@ class NotificationAccountSecurityMixin(NotificationMixinBase):
             return False
 
         context = {
-            "user": type(
-                "_UserCtx",
-                (),
-                {"first_name": user.first_name or user.email, "role": role},
-            )(),
+            "user": SimpleNamespace(first_name=user.first_name or user.email, role=role),
             "frontend_url": self.frontend_url,
         }
         try:

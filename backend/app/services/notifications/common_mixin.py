@@ -4,7 +4,10 @@ import asyncio
 from datetime import datetime
 from functools import wraps
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, ParamSpec, TypeVar, cast
+
+from app.services.sms_templates import render_sms
 
 from ...models.booking import Booking
 from ...models.notification import Notification
@@ -42,7 +45,6 @@ def retry(
                     last_exception = exc
                     if attempt < max_attempts - 1:
                         wait_time = backoff_seconds * (2**attempt)
-                        from .. import notification_service as notification_service_module
 
                         logger.warning(
                             "Attempt %s/%s failed for %s: %s. Retrying in %ss...",
@@ -52,7 +54,7 @@ def retry(
                             str(exc),
                             wait_time,
                         )
-                        getattr(cast(Any, notification_service_module), "time").sleep(wait_time)
+                        time.sleep(wait_time)
                     else:
                         logger.error(
                             "All %s attempts failed for %s: %s",
@@ -222,14 +224,7 @@ class NotificationCommonMixin(NotificationMixinBase):
             return False
 
     def _render_sms_template(self, template: Any, **template_kwargs: Any) -> str:
-        from .. import notification_service as notification_service_module
-
-        return cast(
-            str,
-            getattr(cast(Any, notification_service_module), "render_sms")(
-                template, **template_kwargs
-            ),
-        )
+        return render_sms(template, **template_kwargs)
 
     def _run_async_task(
         self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str

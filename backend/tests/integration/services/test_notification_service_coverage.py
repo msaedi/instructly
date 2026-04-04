@@ -138,7 +138,7 @@ def test_send_message_notification_full(
     service._run_async_task = lambda coro_func, _ctx: asyncio.run(coro_func())
 
     long_message = "x" * 250
-    with patch("app.services.notification_service.publish_to_user", new_callable=AsyncMock):
+    with patch("app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock):
         result = service.send_message_notification(
             recipient_id=test_student.id,
             booking=test_booking,
@@ -447,7 +447,7 @@ def test_payment_failed_notification_email_failure_and_sms(
     db.commit()
 
     email_service.send_email.side_effect = RuntimeError("email fail")
-    with patch("app.services.notification_service.render_sms", return_value="sms"):
+    with patch("app.services.notifications.common_mixin.render_sms", return_value="sms"):
         assert service.send_payment_failed_notification(test_booking) is True
 
     assert sms_service.sent
@@ -470,7 +470,7 @@ def test_payment_failed_notification_sms_render_error(
     test_student.phone_verified = True
     db.commit()
 
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         assert service.send_payment_failed_notification(test_booking) is True
 
 
@@ -597,7 +597,7 @@ async def test_create_and_manage_notifications(
         preference_service=preference_service,
     )
 
-    with patch("app.services.notification_service.publish_to_user", new_callable=AsyncMock):
+    with patch("app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock):
         notification = await service.create_notification(
             user_id=test_student.id,
             category="messages",
@@ -639,7 +639,7 @@ async def test_notify_user_best_effort(
         sms_service=sms_service,
     )
 
-    with patch("app.services.notification_service.publish_to_user", new_callable=AsyncMock):
+    with patch("app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock):
         await service.notify_user(
             user_id=test_student.id,
             template=STUDENT_BOOKING_CONFIRMED,

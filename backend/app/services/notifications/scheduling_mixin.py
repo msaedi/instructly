@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from ...core.exceptions import ServiceException
 from ...models.booking import Booking
-from ...repositories.factory import RepositoryFactory
 from ..base import BaseService
 from ..reminder_selection import (
     is_local_tomorrow_booking,
@@ -45,8 +44,7 @@ class NotificationSchedulingMixin(NotificationMixinBase):
         """Get all confirmed bookings for tomorrow."""
         now_utc = datetime.now(timezone.utc)
         window_start, window_end = reminder_candidate_window(now_utc)
-        booking_repository = RepositoryFactory.create_booking_repository(self.db)
-        candidates = booking_repository.get_bookings_starting_between_and_status(
+        candidates = self.booking_repository.get_bookings_starting_between_and_status(
             window_start, window_end, "CONFIRMED"
         )
         bookings = [
