@@ -35,7 +35,7 @@ async def test_notify_user_respects_sms_preferences(
     )
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ):
         await notification_service.notify_user(
             user_id=test_student.id,
@@ -55,7 +55,7 @@ async def test_notify_user_respects_sms_preferences(
     preference_service.update_preference(test_student.id, "lesson_updates", "sms", True)
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ):
         await notification_service.notify_user(
             user_id=test_student.id,

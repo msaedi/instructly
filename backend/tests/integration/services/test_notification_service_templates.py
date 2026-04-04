@@ -363,7 +363,7 @@ class TestErrorHandling:
         notification_service_with_mocked_email.email_service.send_email.reset_mock()
         yield
 
-    @patch("app.services.notification_service.time.sleep")
+    @patch("app.services.notifications.common_mixin.time.sleep")
     def test_handles_email_service_failure(
         self, mock_sleep, notification_service_with_mocked_email, test_booking
     ):
@@ -375,7 +375,7 @@ class TestErrorHandling:
         result = notification_service_with_mocked_email.send_booking_confirmation(test_booking)
         assert result is False  # Should return False on failure
 
-    @patch("app.services.notification_service.time.sleep")
+    @patch("app.services.notifications.common_mixin.time.sleep")
     def test_handles_template_error(
         self, mock_sleep, notification_service_with_mocked_email, test_booking, template_service
     ):

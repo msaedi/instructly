@@ -16,16 +16,14 @@ Changes from original:
 """
 
 import logging
-import time
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.services.messaging.sse_stream import publish_to_user
 from app.services.notifications.common_mixin import retry
-from app.services.sms_templates import render_sms
 
 from ..core.config import settings
+from ..repositories.booking_repository import BookingRepository
 from ..repositories.conversation_repository import ConversationRepository
 from ..repositories.notification_repository import NotificationRepository
 from ..repositories.user_repository import UserRepository
@@ -50,10 +48,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "NotificationService",
-    "publish_to_user",
-    "render_sms",
     "retry",
-    "time",
 ]
 
 
@@ -176,6 +171,7 @@ class NotificationService(
         notification_repository: Optional[NotificationRepository],
     ) -> None:
         self.notification_repository = notification_repository or NotificationRepository(db)
+        self.booking_repository = BookingRepository(db)
         self.conversation_repository = ConversationRepository(db)
         self.user_repository = UserRepository(db)
 

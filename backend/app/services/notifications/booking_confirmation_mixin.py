@@ -90,15 +90,20 @@ class NotificationBookingConfirmationMixin(NotificationMixinBase):
         ):
             return True
 
-        subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
+        participants = self._require_booking_participants(booking, "send student confirmation")
+        if participants is None:
+            return False
+        student, instructor = participants
+
+        subject = f"Booking Confirmed: {booking.service_name} with {instructor.first_name}"
         local_dt = self._get_booking_local_datetime(booking)
         formatted_date = local_dt.strftime("%A, %B %d, %Y")
         formatted_time = local_dt.strftime("%-I:%M %p")
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": formatted_date,
@@ -109,7 +114,7 @@ class NotificationBookingConfirmationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CONFIRMATION_STUDENT, context
         )
         self.email_service.send_email(
-            to_email=booking.student.email,
+            to_email=student.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CONFIRMATION_STUDENT,
@@ -126,15 +131,22 @@ class NotificationBookingConfirmationMixin(NotificationMixinBase):
         ):
             return True
 
-        subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
+        participants = self._require_booking_participants(
+            booking, "send instructor booking notification"
+        )
+        if participants is None:
+            return False
+        student, instructor = participants
+
+        subject = f"New Booking: {booking.service_name} with {student.first_name}"
         local_dt = self._get_booking_local_datetime(booking)
         formatted_date = local_dt.strftime("%A, %B %d, %Y")
         formatted_time = local_dt.strftime("%-I:%M %p")
         context = {
             "booking": booking,
             "student_display_name": format_private_display_name(
-                getattr(getattr(booking, "student", None), "first_name", None),
-                getattr(getattr(booking, "student", None), "last_name", None),
+                getattr(student, "first_name", None),
+                getattr(student, "last_name", None),
                 default="Student",
             ),
             "formatted_date": formatted_date,
@@ -147,7 +159,7 @@ class NotificationBookingConfirmationMixin(NotificationMixinBase):
             TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR, context
         )
         self.email_service.send_email(
-            to_email=booking.instructor.email,
+            to_email=instructor.email,
             subject=subject,
             html_content=html_content,
             template=TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR,

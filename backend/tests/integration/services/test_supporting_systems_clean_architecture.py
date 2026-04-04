@@ -253,7 +253,7 @@ class TestErrorHandlingWithCleanArchitecture:
         # Should handle gracefully without slot references
         assert result is True  # In-memory cache works
 
-    @patch("app.services.notification_service.time.sleep")
+    @patch("app.services.notifications.common_mixin.time.sleep")
     def test_reminder_handles_missing_data_cleanly(self, mock_sleep, db):
         """Test reminder system handles missing data without slot references."""
         notification_service = NotificationService(db)
@@ -266,11 +266,8 @@ class TestErrorHandlingWithCleanArchitecture:
         booking.booking_date = date.today() + timedelta(days=1)
         booking.start_time = time(9, 0)
 
-        # Should handle error gracefully
-        try:
-            notification_service._send_instructor_reminder(booking)
-        except AttributeError:
-            pass  # Expected due to missing instructor
+        # Should handle missing relationships gracefully
+        assert notification_service._send_instructor_reminder(booking) is False
 
         # Error handling shouldn't reference slots
         # (Would need to check logs in real implementation)

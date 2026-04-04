@@ -33,6 +33,8 @@ from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
+from app.services.reminder_selection import resolve_booking_reminder_timezone
+from app.services.timezone_service import TimezoneService
 from tests._utils.bitmap_avail import get_day_windows, seed_day
 
 try:  # pragma: no cover - fallback when pytest runs from backend/
@@ -44,6 +46,30 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
+
+
+def _set_booking_schedule(booking: Booking, booking_date: date) -> None:
+    """Keep UTC schedule fields consistent when tests move a booking."""
+    booking.booking_date = booking_date
+    timezone_fields = booking_timezone_fields(
+        booking_date,
+        booking.start_time,
+        booking.end_time,
+        instructor_timezone=booking.lesson_timezone or booking.instructor_tz_at_booking,
+        student_timezone=booking.student_tz_at_booking,
+    )
+    booking.booking_start_utc = timezone_fields["booking_start_utc"]
+    booking.booking_end_utc = timezone_fields["booking_end_utc"]
+    booking.lesson_timezone = timezone_fields["lesson_timezone"]
+    booking.instructor_tz_at_booking = timezone_fields["instructor_tz_at_booking"]
+    booking.student_tz_at_booking = timezone_fields["student_tz_at_booking"]
+
+
+def _local_tomorrow_for_booking(booking: Booking) -> date:
+    """Match reminder selection, which targets tomorrow in the booking timezone."""
+    reminder_timezone = resolve_booking_reminder_timezone(booking)
+    local_now = TimezoneService.utc_to_local(datetime.now(timezone.utc), reminder_timezone)
+    return local_now.date() + timedelta(days=1)
 
 
 @pytest.fixture(autouse=True)
@@ -507,9 +533,8 @@ class TestBookingServiceReminders:
         self, db: Session, test_booking: Booking, mock_notification_service: Mock
     ):
         """Test sending reminders for tomorrow's bookings."""
-        # Ensure booking is for tomorrow in UTC
-        utc_today = datetime.now(timezone.utc).date()
-        test_booking.booking_date = utc_today + timedelta(days=1)
+        tomorrow = _local_tomorrow_for_booking(test_booking)
+        _set_booking_schedule(test_booking, tomorrow)
         test_booking.status = BookingStatus.CONFIRMED
         db.commit()
 
@@ -543,10 +568,9 @@ class TestBookingServiceReminders:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create multiple bookings for tomorrow in UTC
-        utc_today = datetime.now(timezone.utc).date()
-        tomorrow = utc_today + timedelta(days=1)
-        test_booking.booking_date = tomorrow
+        # Create multiple bookings for tomorrow in the reminder timezone
+        tomorrow = _local_tomorrow_for_booking(test_booking)
+        _set_booking_schedule(test_booking, tomorrow)
         test_booking.status = BookingStatus.CONFIRMED
 
         # Create another booking

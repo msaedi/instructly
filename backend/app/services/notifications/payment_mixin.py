@@ -245,6 +245,11 @@ class NotificationPaymentMixin(NotificationMixinBase):
             ):
                 return True
 
+            participants = self._require_booking_participants(booking, "send final payment warning")
+            if participants is None:
+                return False
+            student, _instructor = participants
+
             subject = "Action required: Update your payment method for your upcoming lesson"
             template_name = "email/payment/t24_update_card.html"
             context = {
@@ -273,7 +278,7 @@ class NotificationPaymentMixin(NotificationMixinBase):
                 html_content = self.template_service.render_string(fallback, context)
 
             self.email_service.send_email(
-                to_email=booking.student.email,
+                to_email=student.email,
                 subject=subject,
                 html_content=html_content,
             )

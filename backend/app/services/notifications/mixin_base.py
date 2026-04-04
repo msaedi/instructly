@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from ...models.booking import Booking
 from ...models.notification import Notification
+from ...models.user import User
+from ...repositories.booking_repository import BookingRepository
 from ...repositories.conversation_repository import ConversationRepository
 from ...repositories.notification_repository import NotificationRepository
 from ...repositories.user_repository import UserRepository
@@ -29,11 +31,27 @@ class NotificationMixinBase:
     email_service: EmailService
     sms_service: SMSService | None
     template_service: TemplateService
+    booking_repository: BookingRepository
     user_repository: UserRepository
     conversation_repository: ConversationRepository
     notification_repository: NotificationRepository
     push_notification_service: PushNotificationService
     preference_service: NotificationPreferenceService
+
+    def _require_booking_participants(
+        self, booking: Booking, operation: str
+    ) -> tuple[User, User] | None:
+        student = getattr(booking, "student", None)
+        instructor = getattr(booking, "instructor", None)
+        if student is None or instructor is None:
+            self.logger.error(
+                "Cannot %s for booking %s: missing %s",
+                operation,
+                getattr(booking, "id", "?"),
+                "student" if student is None else "instructor",
+            )
+            return None
+        return student, instructor
 
     def _get_booking_local_datetime(self, booking: Booking) -> Any:
         raise NotImplementedError

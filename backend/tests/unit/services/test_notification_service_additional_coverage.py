@@ -88,7 +88,7 @@ def test_send_message_notification_handles_email_failure_and_sms_render_error(
 
     with patch("app.services.notification_service.UserRepository", DummyUserRepo):
         with patch(
-            "app.services.notification_service.render_sms",
+            "app.services.notifications.common_mixin.render_sms",
             side_effect=RuntimeError("sms"),
         ):
             result = notification_service.send_message_notification(
@@ -227,6 +227,86 @@ def test_send_final_payment_warning_skips_when_email_disabled(notification_servi
     assert notification_service.send_final_payment_warning(booking, hours_until_lesson=24) is True
 
 
+def test_send_booking_confirmation_returns_false_when_participants_missing(
+    notification_service,
+) -> None:
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert notification_service.send_booking_confirmation(booking) is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_cancellation_notification_returns_false_when_participants_missing(
+    notification_service,
+) -> None:
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert (
+        notification_service.send_cancellation_notification(
+            booking, cancelled_by="student", reason="No longer needed"
+        )
+        is False
+    )
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_booking_completed_notification_returns_false_when_participants_missing(
+    notification_service,
+) -> None:
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert notification_service.send_booking_completed_notification(booking) is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_booking_reminder_returns_false_when_participants_missing(
+    notification_service,
+) -> None:
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert notification_service.send_booking_reminder(booking) is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_final_payment_warning_returns_false_when_participants_missing(
+    notification_service,
+) -> None:
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert notification_service.send_final_payment_warning(booking, hours_until_lesson=24) is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
 def test_send_new_device_login_notification_user_not_found(notification_service) -> None:
     notification_service.user_repository.get_by_id.return_value = None
 
@@ -248,7 +328,7 @@ def test_send_password_changed_notification_sms_render_error(notification_servic
     notification_service.sms_service = MagicMock()
 
     with patch(
-        "app.services.notification_service.render_sms",
+        "app.services.notifications.common_mixin.render_sms",
         side_effect=RuntimeError("sms"),
     ):
         assert (
@@ -267,7 +347,7 @@ def test_send_two_factor_changed_notification_sms_render_error(notification_serv
     notification_service.sms_service = MagicMock()
 
     with patch(
-        "app.services.notification_service.render_sms",
+        "app.services.notifications.common_mixin.render_sms",
         side_effect=RuntimeError("sms"),
     ):
         assert (
@@ -306,7 +386,7 @@ async def test_create_notification_push_url_and_send_error(notification_service)
     notification_service.transaction = _transaction
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ):
         created = await notification_service.create_notification(
             user_id="u1",

@@ -53,7 +53,7 @@ async def test_booking_confirmation_respects_preferences(
     )
     email_service.send_email.reset_mock()
 
-    with patch("app.services.notification_service.publish_to_user", new_callable=AsyncMock):
+    with patch("app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock):
         notification = await service.notify_user(
             user_id=test_student.id,
             template=STUDENT_BOOKING_CONFIRMED,
@@ -137,7 +137,7 @@ async def test_message_notification_all_channels(
 
     service._run_async_task = _run_immediately  # type: ignore[method-assign]
 
-    with patch("app.services.notification_service.publish_to_user", new_callable=AsyncMock):
+    with patch("app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock):
         service.send_message_notification(
             recipient_id=test_student.id,
             booking=test_booking,

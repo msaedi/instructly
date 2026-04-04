@@ -22,7 +22,7 @@ async def test_create_notification_creates_record_and_sends_sse(db, test_student
     service = NotificationService(db)
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ) as mock_publish:
         notification = await service.create_notification(
             user_id=test_student.id,
@@ -626,7 +626,7 @@ def test_send_message_notification_sms_render_error(
     monkeypatch.setattr(service, "_should_send_sms", lambda *_: True)
     service._run_async_task = lambda *_: None
 
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         assert (
             service.send_message_notification(
                 recipient_id=recipient.id,
@@ -764,7 +764,7 @@ def test_new_device_login_sms_render_error(
     )
     monkeypatch.setattr(template_service, "render_template", lambda *_: "<p>ok</p>")
 
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         assert (
             service.send_new_device_login_notification(
                 test_student.id,
@@ -833,7 +833,7 @@ def test_password_changed_notification_sms_render_error(
     )
     monkeypatch.setattr(template_service, "render_template", lambda *_: "<p>ok</p>")
 
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         assert (
             service.send_password_changed_notification(
                 test_student.id, changed_at=datetime.now(timezone.utc)
@@ -885,7 +885,7 @@ def test_two_factor_changed_notification_sms_render_error(
     monkeypatch.setattr(template_service, "render_template", lambda *_: "<p>ok</p>")
 
     test_student.phone_verified = True
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         assert (
             service.send_two_factor_changed_notification(
                 test_student.id, enabled=True, changed_at=datetime.now(timezone.utc)
@@ -1024,7 +1024,7 @@ async def test_notify_user_sms_render_error(
     monkeypatch.setattr(service, "_should_send_sms", lambda *_: True)
     monkeypatch.setattr(service, "_should_send_email", lambda *_: False)
 
-    with patch("app.services.notification_service.render_sms", side_effect=RuntimeError("boom")):
+    with patch("app.services.notifications.common_mixin.render_sms", side_effect=RuntimeError("boom")):
         await service.notify_user(
             user_id="user",
             template=STUDENT_BOOKING_CONFIRMED,
@@ -1066,7 +1066,7 @@ async def test_notify_user_sms_send_failure(
     monkeypatch.setattr(service, "_should_send_sms", lambda *_: True)
     monkeypatch.setattr(service, "_should_send_email", lambda *_: False)
 
-    with patch("app.services.notification_service.render_sms", return_value="sms"):
+    with patch("app.services.notifications.common_mixin.render_sms", return_value="sms"):
         await service.notify_user(
             user_id="user",
             template=STUDENT_BOOKING_CONFIRMED,
@@ -1093,7 +1093,7 @@ async def test_create_notification_push_failure_and_url(
     )
 
     with patch(
-        "app.services.notification_service.publish_to_user", new_callable=AsyncMock
+        "app.services.notifications.in_app_mixin.publish_to_user", new_callable=AsyncMock
     ) as mock_publish:
         notification = await service.create_notification(
             user_id=test_student.id,

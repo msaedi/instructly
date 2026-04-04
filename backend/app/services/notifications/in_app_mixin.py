@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
+
+from app.services.messaging.sse_stream import publish_to_user
 
 from ...models.notification import Notification
 from ...repositories.notification_repository import NotificationRepository
@@ -170,9 +172,8 @@ class NotificationInAppMixin(NotificationMixinBase):
         unread_count = await asyncio.to_thread(
             self.notification_repository.get_unread_count, user_id
         )
-        from .. import notification_service as notification_service_module
 
-        await cast(Any, notification_service_module).publish_to_user(
+        await publish_to_user(
             user_id,
             {
                 "type": "notification_update",
