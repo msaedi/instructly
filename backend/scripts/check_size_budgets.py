@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Warn and fail on oversized service/task files and functions."""
+"""Warn and fail on oversized backend/app files and functions."""
 
 from __future__ import annotations
 
@@ -10,10 +10,7 @@ from pathlib import Path
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCOPE_ROOTS = (
-    REPO_ROOT / "backend/app/services",
-    REPO_ROOT / "backend/app/tasks",
-)
+SCOPE_ROOT = REPO_ROOT / "backend/app"
 BASELINE_PATH = REPO_ROOT / "backend/.size-budget-baseline.txt"
 
 SOFT_FILE_LINES = 500
@@ -63,18 +60,13 @@ def _is_in_scope(path: Path) -> bool:
         resolved = (path if path.is_absolute() else REPO_ROOT / path).resolve(strict=False)
     except OSError:
         return False
-    return any(
-        resolved == scope_root or scope_root in resolved.parents
-        for scope_root in SCOPE_ROOTS
-    )
+    return resolved == SCOPE_ROOT or SCOPE_ROOT in resolved.parents
 
 
 def _iter_scope_files() -> list[Path]:
-    files: list[Path] = []
-    for root in SCOPE_ROOTS:
-        if root.exists():
-            files.extend(sorted(root.rglob("*.py")))
-    return files
+    if not SCOPE_ROOT.exists():
+        return []
+    return sorted(SCOPE_ROOT.rglob("*.py"))
 
 
 def collect_files_from_args(paths: list[str]) -> list[Path]:
