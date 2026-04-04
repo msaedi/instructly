@@ -350,7 +350,11 @@ class InstructorProfileMutationsMixin(InstructorMixinBase):
         return CalendarSettingsResponse(
             non_travel_buffer_minutes=getattr(effective, "non_travel_buffer_minutes", 15),
             travel_buffer_minutes=getattr(effective, "travel_buffer_minutes", 60),
-            overnight_protection_enabled=getattr(effective, "overnight_protection_enabled", True),
+            overnight_protection_enabled=getattr(
+                effective,
+                "overnight_protection_enabled",
+                True,
+            ),
         ).model_dump(mode="python")
 
     @BaseService.measure_operation("acknowledge_calendar_settings")

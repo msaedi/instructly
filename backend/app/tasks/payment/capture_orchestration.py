@@ -258,7 +258,10 @@ def _handle_expired_auth_booking(
                     lock_acquired=True,
                 )
                 db_expired.commit()
-                results["captured" if new_auth_result["success"] else "failed"] += 1
+                if new_auth_result["success"]:
+                    results["captured"] += 1
+                else:
+                    results["failed"] += 1
         else:
             payment_record = repo.ensure_payment(booking.id)
             payment_record.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value

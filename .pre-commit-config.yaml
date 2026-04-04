@@ -153,6 +153,14 @@ repos:
         pass_filenames: true
         description: Ensure public methods in BaseService subclasses are decorated with metrics
 
+      - id: check-size-budgets
+        name: Check service/task size budgets
+        entry: python3 backend/scripts/check_size_budgets.py
+        language: system
+        files: ^backend/app/(services|tasks)/.*\.py$
+        pass_filenames: true
+        description: Warn on large service/task files and fail on new hard-limit violations
+
       - id: check-stripe-transaction-pattern
         name: Check Stripe calls outside transactions
         entry: python3 backend/scripts/check_stripe_transaction_pattern.py

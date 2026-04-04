@@ -13,12 +13,13 @@ from ..base import BaseService
 if TYPE_CHECKING:
     from ...repositories.booking_repository import BookingRepository
     from ...repositories.payment_repository import PaymentRepository
+    from ..stripe_service import StripeServiceModuleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 @dataclass(slots=True)

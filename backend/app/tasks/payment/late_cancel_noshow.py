@@ -209,7 +209,10 @@ def resolve_undisputed_no_shows_impl(api: PaymentTasksFacadeApi) -> NoShowResolu
                         resolved_by=None,
                         admin_notes=None,
                     )
-                    results["resolved" if result.get("success") else "failed"] += 1
+                    if result.get("success"):
+                        results["resolved"] += 1
+                    else:
+                        results["failed"] += 1
             except Exception as exc:
                 api.logger.error("Failed to resolve no-show for %s: %s", booking.id, exc)
                 results["failed"] += 1

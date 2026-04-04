@@ -313,7 +313,10 @@ def _run_retry_action(
         if retry_result.get("skipped"):
             return
         results["retried"] += 1
-        results["success" if retry_result.get("success") else "failed"] += 1
+        if retry_result.get("success"):
+            results["success"] += 1
+        else:
+            results["failed"] += 1
 
 
 def retry_failed_authorizations_impl(api: PaymentTasksFacadeApi) -> RetryJobResults:

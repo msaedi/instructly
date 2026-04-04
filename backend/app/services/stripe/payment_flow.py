@@ -6,7 +6,7 @@ from importlib import import_module
 import logging
 import os
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from ...core.exceptions import ServiceException
 from ...models.booking import PaymentStatus
@@ -17,12 +17,13 @@ if TYPE_CHECKING:
     from ...repositories.booking_repository import BookingRepository
     from ...repositories.instructor_profile_repository import InstructorProfileRepository
     from ...repositories.payment_repository import PaymentRepository
+    from ..stripe_service import StripeServiceModuleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 @dataclass(slots=True)

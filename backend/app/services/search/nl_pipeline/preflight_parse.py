@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Optional
 
 from app import database as database_module
 from app.services.search import llm_parser as llm_parser_module, query_parser as query_parser_module
@@ -64,7 +64,7 @@ async def parse_query(
         )
         if cached_parsed:
             metrics.parse_latency_ms = int((time.time() - start) * 1000)
-            return cast("ParsedQuery", cached_parsed)
+            return cached_parsed
         parsed = await llm_parser_module.hybrid_parse(
             query,
             user_id=user_id,

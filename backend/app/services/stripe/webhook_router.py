@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from importlib import import_module
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ...core.exceptions import ServiceException
 from ...models.booking import BookingStatus, PaymentStatus
@@ -13,11 +13,14 @@ from ...repositories.instructor_profile_repository import InstructorProfileRepos
 from ...repositories.payment_repository import PaymentRepository
 from ..base import BaseService
 
+if TYPE_CHECKING:
+    from ..stripe_service import StripeServiceModuleProtocol
+
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 class StripeWebhookRouterMixin(BaseService):

@@ -31,13 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    DatabaseTaskBase = Task[Any, Any]
+
+    class DatabaseTask(Task[Any, Any]):
+        """Base task type for privacy tasks."""
+
 else:
-    DatabaseTaskBase = Task
 
-
-class DatabaseTask(DatabaseTaskBase):
-    """Base task type for privacy tasks."""
+    class DatabaseTask(Task):
+        """Base task type for privacy tasks."""
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")

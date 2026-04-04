@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import time as _time
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Protocol
 import uuid
 
 from sqlalchemy.orm import Session
@@ -54,6 +54,9 @@ from .stripe.helpers import (
 from .student_credit_service import StudentCreditService
 
 if TYPE_CHECKING:  # pragma: no cover
+    from contextlib import AbstractContextManager
+
+    from ..core.config import Settings
     from ..schemas.payment_schemas import CheckoutResponse
 
     class StripeHelpersMixin(BaseService):
@@ -169,6 +172,32 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 # Sentinel for absent secret values in payment responses (avoids B105 false positive)
 _ABSENT: None = None
+
+
+class StripeBookingLockSyncProtocol(Protocol):
+    """Typed view of the sync booking lock helper re-exported by the facade."""
+
+    def __call__(self, booking_id: str, ttl_s: int = 90) -> "AbstractContextManager[bool]":
+        ...
+
+
+class StripeServiceModuleProtocol(Protocol):
+    """Typed surface exposed through lazy stripe facade imports."""
+
+    StripeService: ClassVar[type[StripeService]]
+    stripe: ClassVar[Any]
+    settings: ClassVar["Settings"]
+    StripeBalance: ClassVar[type[StripeBalance]]
+    StripeTransfer: ClassVar[type[StripeTransfer]]
+    StripeRefund: ClassVar[type[StripeRefund]]
+    _ABSENT: ClassVar[None]
+    enqueue_task: ClassVar[Callable[..., Any]]
+    booking_lock_sync: ClassVar[StripeBookingLockSyncProtocol]
+    RepositoryFactory: ClassVar[type[RepositoryFactory]]
+    StudentCreditService: ClassVar[type[StudentCreditService]]
+    logger: ClassVar[logging.Logger]
+    uuid: ClassVar[Any]
+
 
 __all__ = [
     "ChargeContext",

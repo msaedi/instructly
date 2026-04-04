@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from typing import TYPE_CHECKING, Callable, List, Optional
 
@@ -11,6 +10,12 @@ from app.schemas.nl_search import StageStatus
 from app.services.search import config as config_module
 from app.services.search.config import SearchConfig
 from app.services.search.location_resolver import ResolvedLocation
+from app.services.search.nl_pipeline._location_config import (
+    LOCATION_LLM_CONFIDENCE_THRESHOLD,
+    LOCATION_LLM_EMBEDDING_THRESHOLD,
+    LOCATION_LLM_TOP_K,
+    LOCATION_TIER4_HIGH_CONFIDENCE,
+)
 from app.services.search.nl_pipeline.location_helpers import (
     build_llm_location_payload,
     consume_task_result,
@@ -42,11 +47,6 @@ if TYPE_CHECKING:
     from app.services.search.request_budget import RequestBudget
 
 logger = logging.getLogger(__name__)
-
-LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
-LOCATION_TIER4_HIGH_CONFIDENCE = float(os.getenv("LOCATION_TIER4_HIGH_CONFIDENCE", "0.85"))
-LOCATION_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCATION_LLM_CONFIDENCE_THRESHOLD", "0.7"))
-LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRESHOLD", "0.7"))
 
 
 async def resolve_location_llm(

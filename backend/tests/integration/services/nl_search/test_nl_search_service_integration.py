@@ -567,15 +567,13 @@ def test_transform_instructor_results_filters_price():
         }
     ]
 
-    service = NLSearchService(search_cache=_make_search_cache())
-    results = hydration.transform_instructor_results_for_service(service, raw_results, parsed)
+    results = hydration.transform_instructor_results_for_service(raw_results, parsed)
 
     assert results == []
 
 
 @pytest.mark.asyncio
 async def test_hydrate_instructor_results_uses_distance_map():
-    service = NLSearchService(search_cache=_make_search_cache())
     ranked = [
         RankedResult(
             service_id="s1",
@@ -613,7 +611,7 @@ async def test_hydrate_instructor_results_uses_distance_map():
     ]
     distance_meters = {"i1": 1200.0}
 
-    results = await hydration.hydrate_instructor_results_for_service(service,
+    results = await hydration.hydrate_instructor_results_for_service(
         ranked,
         limit=5,
         instructor_rows=instructor_rows,

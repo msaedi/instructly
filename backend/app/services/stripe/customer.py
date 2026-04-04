@@ -14,12 +14,13 @@ from ..base import BaseService
 if TYPE_CHECKING:
     from ...repositories.payment_repository import PaymentRepository
     from ...repositories.user_repository import UserRepository
+    from ..stripe_service import StripeServiceModuleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 class StripeCustomerMixin(BaseService):

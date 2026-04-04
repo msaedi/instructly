@@ -123,7 +123,6 @@ def transform_instructor_results(
 
 
 async def hydrate_instructor_results_for_service(
-    service: object,
     ranked: List[RankedResult],
     limit: int,
     *,
@@ -146,7 +145,6 @@ async def hydrate_instructor_results_for_service(
 
 
 def transform_instructor_results_for_service(
-    service: object,
     raw_results: List[RawInstructorResultRow],
     parsed_query: ParsedQuery,
 ) -> List[NLSearchResultItem]:
@@ -159,7 +157,6 @@ def transform_instructor_results_for_service(
 
 
 async def hydrate_results_for_service(
-    service: object,
     *,
     post_data: PostOpenAIData,
     limit: int,
@@ -171,7 +168,6 @@ async def hydrate_results_for_service(
     hydrate_failed = False
     try:
         results = await hydrate_instructor_results_for_service(
-            service,
             post_data.ranking_result.results,
             limit=limit,
             location_resolution=post_data.filter_result.location_resolution,
