@@ -157,7 +157,7 @@ def test_text_search_repo_wrapper() -> None:
 
 
 def test_normalize_query_for_trigram_empty() -> None:
-    assert retriever_module.PostgresRetriever._normalize_query_for_trigram("") == ""
+    assert retriever_module.normalize_query_for_trigram("") == ""
 
 
 def test_fuse_scores_skips_bad_entries() -> None:

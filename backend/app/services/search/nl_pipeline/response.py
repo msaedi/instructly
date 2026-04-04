@@ -12,6 +12,7 @@ from app.schemas.nl_search import (
     NLSearchResponse,
     NLSearchResultItem,
     ParsedQueryInfo,
+    StageStatus,
 )
 from app.services.search import metrics as metrics_module
 from app.services.search.nl_pipeline import runtime
@@ -226,7 +227,7 @@ async def get_cached_search_response(
     cache_check_ms = int((time.perf_counter() - cache_check_start) * 1000)
     if timer:
         timer.end_stage(
-            status="cache_hit" if cached else "success",
+            status=StageStatus.CACHE_HIT.value if cached else StageStatus.SUCCESS.value,
             details={"latency_ms": cache_check_ms},
         )
     return cached, cache_check_ms

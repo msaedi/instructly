@@ -113,6 +113,8 @@ def _build_tier4_result(
     diagnostics: Optional[PipelineTimer],
     tier4_start: float,
 ) -> tuple[Optional[ResolvedLocation], List[str]]:
+    from app.services.search.location_embedding_service import LocationEmbeddingService
+
     if not embedding:
         if diagnostics:
             diagnostics.record_location_tier(
@@ -133,13 +135,21 @@ def _build_tier4_result(
         }
         for row in region_lookup.embeddings
     ]
+    candidates = LocationEmbeddingService.build_candidates_from_embeddings(
+        embedding,
+        embedding_rows,
+        limit=max(location_llm_top_k, 5),
+        threshold=min(
+            llm_embedding_threshold,
+            LocationEmbeddingService.SIMILARITY_THRESHOLD,
+        ),
+    )
     embedding_candidate_names = _build_embedding_candidate_names(
-        embedding=embedding,
-        embedding_rows=embedding_rows,
+        candidates=candidates,
         location_llm_top_k=location_llm_top_k,
         llm_embedding_threshold=llm_embedding_threshold,
     )
-    resolved = _resolve_tier4_candidate(embedding, embedding_rows)
+    resolved = _resolve_tier4_candidate(candidates)
     if diagnostics:
         diagnostics.record_location_tier(
             tier=4,
@@ -155,44 +165,49 @@ def _build_tier4_result(
 
 def _build_embedding_candidate_names(
     *,
-    embedding: List[float],
-    embedding_rows: List[dict[str, object]],
+    candidates: List[dict[str, object]],
     location_llm_top_k: int,
     llm_embedding_threshold: float,
 ) -> List[str]:
-    from app.services.search.location_embedding_service import LocationEmbeddingService
-
-    llm_candidates = LocationEmbeddingService.build_candidates_from_embeddings(
-        embedding,
-        embedding_rows,
-        limit=location_llm_top_k,
-        threshold=llm_embedding_threshold,
-    )
     ordered_names = [
-        str(row["region_name"]).strip() for row in llm_candidates if row.get("region_name")
+        str(row["region_name"]).strip()
+        for row in candidates
+        if row.get("region_name") and _candidate_similarity(row) >= llm_embedding_threshold
     ]
+    ordered_names = ordered_names[:location_llm_top_k]
     return list(dict.fromkeys(ordered_names))
 
 
+def _candidate_similarity(candidate: dict[str, object]) -> float:
+    raw_similarity = candidate.get("similarity")
+    if isinstance(raw_similarity, (float, int)):
+        return float(raw_similarity)
+    if isinstance(raw_similarity, str):
+        try:
+            return float(raw_similarity)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
 def _resolve_tier4_candidate(
-    embedding: List[float],
-    embedding_rows: List[dict[str, object]],
+    candidates: List[dict[str, object]],
 ) -> Optional[ResolvedLocation]:
     from app.services.search.location_embedding_service import LocationEmbeddingService
 
-    candidates = LocationEmbeddingService.build_candidates_from_embeddings(
-        embedding,
-        embedding_rows,
-        limit=5,
-    )
-    best_candidate, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(candidates)
+    resolver_candidates = [
+        row
+        for row in candidates
+        if _candidate_similarity(row) >= LocationEmbeddingService.SIMILARITY_THRESHOLD
+    ][:5]
+    best_candidate, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(resolver_candidates)
     if best_candidate and best_candidate.get("region_id") and best_candidate.get("region_name"):
         return ResolvedLocation.from_region(
             region_id=str(best_candidate["region_id"]),
             region_name=str(best_candidate["region_name"]),
             borough=best_candidate.get("borough"),
             tier=ResolutionTier.EMBEDDING,
-            confidence=float(best_candidate.get("similarity") or 0.0),
+            confidence=_candidate_similarity(best_candidate),
         )
     if ambiguous:
         formatted: List[LocationCandidate] = [

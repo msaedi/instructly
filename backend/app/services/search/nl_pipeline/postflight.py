@@ -5,20 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from app import database as database_module
 from app.repositories import search_batch_repository as search_batch_repository_module
-from app.repositories.filter_repository import FilterRepository
-from app.repositories.ranking_repository import RankingRepository
-from app.repositories.retriever_repository import RetrieverRepository
-from app.repositories.taxonomy_filter_repository import TaxonomyFilterRepository
-from app.repositories.unresolved_location_query_repository import (
-    UnresolvedLocationQueryRepository,
-)
-from app.schemas.nl_search import NLSearchContentFilterDefinition
+from app.schemas.nl_search import StageStatus
 from app.services.search import (
     filter_service as filter_service_module,
     ranking_service as ranking_service_module,
@@ -27,6 +20,9 @@ from app.services.search import (
 from app.services.search.nl_pipeline import location_helpers, preflight, taxonomy
 from app.services.search.nl_pipeline.models import (
     LocationLLMCache,
+    PostBurstCallbacks,
+    PostBurstDeps,
+    PostBurstInputs,
     PostOpenAIData,
     PreOpenAIData,
     UnresolvedLocationInfo,
@@ -46,119 +42,39 @@ from app.services.search.nl_pipeline.postflight_steps import (
     execute_post_openai_steps,
 )
 from app.services.search.nl_pipeline.protocols import (
-    DBSessionFactory,
-    LoggerLike,
     SearchServiceLike,
 )
 from app.services.search.taxonomy_filter_extractor import extract_inferred_filters
 
 if TYPE_CHECKING:
-    from app.repositories.search_batch_repository import SearchBatchRepository
-    from app.services.search.filter_service import FilterService
-    from app.services.search.location_resolver import LocationResolver, ResolvedLocation
+    from app.services.search.location_resolver import ResolvedLocation
     from app.services.search.nl_pipeline.models import PipelineTimer, SearchMetrics
     from app.services.search.query_parser import ParsedQuery
-    from app.services.search.ranking_service import RankedResult, RankingService
     from app.services.search.request_budget import RequestBudget
-    from app.services.search.retriever import PostgresRetriever, RetrievalResult, ServiceCandidate
+    from app.services.search.retriever import RetrievalResult
 
 logger = logging.getLogger(__name__)
 
 
 def run_post_openai_burst(
     *,
-    get_db_session: DBSessionFactory,
-    search_batch_repository_cls: type[SearchBatchRepository],
-    pre_data: PreOpenAIData,
-    parsed_query: ParsedQuery,
-    query_embedding: Optional[List[float]],
-    location_resolution: Optional[ResolvedLocation],
-    location_llm_cache: Optional[LocationLLMCache],
-    unresolved_info: Optional[UnresolvedLocationInfo],
-    user_location: Optional[Tuple[float, float]],
-    limit: int,
-    requester_timezone: Optional[str],
-    taxonomy_filter_selections: Optional[Dict[str, List[str]]],
-    subcategory_id: Optional[str],
-    retriever: PostgresRetriever,
-    compute_text_match_flags: Callable[
-        [str, Dict[str, Tuple[float, Dict[str, object]]]], tuple[float, bool, bool]
-    ],
-    normalize_taxonomy_filter_selections: Callable[
-        [Optional[Dict[str, List[str]]]], Dict[str, List[str]]
-    ],
-    resolve_effective_subcategory_id_fn: Callable[
-        [List[ServiceCandidate], Optional[str]], Optional[str]
-    ],
-    load_subcategory_filter_metadata_fn: Callable[
-        [TaxonomyFilterRepository, str], Tuple[List[Dict[str, object]], Optional[str]]
-    ],
-    build_available_content_filters_fn: Callable[
-        [List[Dict[str, object]]], List[NLSearchContentFilterDefinition]
-    ],
-    select_instructor_ids_fn: Callable[[List[RankedResult], int], List[str]],
-    distance_region_ids_fn: Callable[[Optional[ResolvedLocation]], Optional[List[str]]],
-    filter_service_cls: type[FilterService],
-    ranking_service_cls: type[RankingService],
-    filter_repository_cls: type[FilterRepository],
-    ranking_repository_cls: type[RankingRepository],
-    retriever_repository_cls: type[RetrieverRepository],
-    taxonomy_filter_repository_cls: type[TaxonomyFilterRepository],
-    unresolved_location_query_repository_cls: type[UnresolvedLocationQueryRepository],
-    location_resolver_cls: type[LocationResolver],
-    extract_inferred_filters: Callable[..., Dict[str, List[str]]],
-    region_code: str,
-    text_top_k: int,
-    vector_top_k: int,
-    max_candidates: int,
-    logger: LoggerLike,
+    inputs: PostBurstInputs,
+    deps: PostBurstDeps,
+    callbacks: PostBurstCallbacks,
 ) -> PostOpenAIData:
-    with get_db_session() as db:
+    with deps.get_db_session() as db:
         state = _execute_post_openai_state(
             db=db,
-            search_batch_repository_cls=search_batch_repository_cls,
-            pre_data=pre_data,
-            parsed_query=parsed_query,
-            query_embedding=query_embedding,
-            location_resolution=location_resolution,
-            user_location=user_location,
-            requester_timezone=requester_timezone,
-            taxonomy_filter_selections=taxonomy_filter_selections,
-            subcategory_id=subcategory_id,
-            retriever=retriever,
-            compute_text_match_flags=compute_text_match_flags,
-            normalize_taxonomy_filter_selections=normalize_taxonomy_filter_selections,
-            resolve_effective_subcategory_id_fn=resolve_effective_subcategory_id_fn,
-            load_subcategory_filter_metadata_fn=load_subcategory_filter_metadata_fn,
-            build_available_content_filters_fn=build_available_content_filters_fn,
-            filter_service_cls=filter_service_cls,
-            ranking_service_cls=ranking_service_cls,
-            filter_repository_cls=filter_repository_cls,
-            ranking_repository_cls=ranking_repository_cls,
-            taxonomy_filter_repository_cls=taxonomy_filter_repository_cls,
-            location_resolver_cls=location_resolver_cls,
-            extract_inferred_filters=extract_inferred_filters,
-            region_code=region_code,
-            text_top_k=text_top_k,
-            vector_top_k=vector_top_k,
-            max_candidates=max_candidates,
-            logger=logger,
+            inputs=inputs,
+            deps=deps,
+            callbacks=callbacks,
         )
         instructor_rows, distance_meters = _load_post_openai_results(
             db=db,
             state=state,
-            limit=limit,
-            location_resolution=location_resolution,
-            location_llm_cache=location_llm_cache,
-            unresolved_info=unresolved_info,
-            pre_data=pre_data,
-            select_instructor_ids_fn=select_instructor_ids_fn,
-            distance_region_ids_fn=distance_region_ids_fn,
-            filter_repository_cls=filter_repository_cls,
-            retriever_repository_cls=retriever_repository_cls,
-            unresolved_location_query_repository_cls=unresolved_location_query_repository_cls,
-            location_resolver_cls=location_resolver_cls,
-            region_code=region_code,
+            inputs=inputs,
+            deps=deps,
+            callbacks=callbacks,
         )
     return build_post_openai_data(
         state=state,
@@ -170,73 +86,15 @@ def run_post_openai_burst(
 def _execute_post_openai_state(
     *,
     db: Session,
-    search_batch_repository_cls: type[SearchBatchRepository],
-    pre_data: PreOpenAIData,
-    parsed_query: ParsedQuery,
-    query_embedding: Optional[List[float]],
-    location_resolution: Optional[ResolvedLocation],
-    user_location: Optional[Tuple[float, float]],
-    requester_timezone: Optional[str],
-    taxonomy_filter_selections: Optional[Dict[str, List[str]]],
-    subcategory_id: Optional[str],
-    retriever: PostgresRetriever,
-    compute_text_match_flags: Callable[
-        [str, Dict[str, Tuple[float, Dict[str, object]]]], tuple[float, bool, bool]
-    ],
-    normalize_taxonomy_filter_selections: Callable[
-        [Optional[Dict[str, List[str]]]], Dict[str, List[str]]
-    ],
-    resolve_effective_subcategory_id_fn: Callable[
-        [List[ServiceCandidate], Optional[str]], Optional[str]
-    ],
-    load_subcategory_filter_metadata_fn: Callable[
-        [TaxonomyFilterRepository, str], Tuple[List[Dict[str, object]], Optional[str]]
-    ],
-    build_available_content_filters_fn: Callable[
-        [List[Dict[str, object]]], List[NLSearchContentFilterDefinition]
-    ],
-    filter_service_cls: type[FilterService],
-    ranking_service_cls: type[RankingService],
-    filter_repository_cls: type[FilterRepository],
-    ranking_repository_cls: type[RankingRepository],
-    taxonomy_filter_repository_cls: type[TaxonomyFilterRepository],
-    location_resolver_cls: type[LocationResolver],
-    extract_inferred_filters: Callable[..., Dict[str, List[str]]],
-    region_code: str,
-    text_top_k: int,
-    vector_top_k: int,
-    max_candidates: int,
-    logger: LoggerLike,
+    inputs: PostBurstInputs,
+    deps: PostBurstDeps,
+    callbacks: PostBurstCallbacks,
 ) -> PostOpenAIState:
     return execute_post_openai_steps(
         db=db,
-        search_batch_repository_cls=search_batch_repository_cls,
-        pre_data=pre_data,
-        parsed_query=parsed_query,
-        query_embedding=query_embedding,
-        location_resolution=location_resolution,
-        user_location=user_location,
-        requester_timezone=requester_timezone,
-        taxonomy_filter_selections=taxonomy_filter_selections,
-        subcategory_id=subcategory_id,
-        retriever=retriever,
-        compute_text_match_flags=compute_text_match_flags,
-        normalize_taxonomy_filter_selections=normalize_taxonomy_filter_selections,
-        resolve_effective_subcategory_id_fn=resolve_effective_subcategory_id_fn,
-        load_subcategory_filter_metadata_fn=load_subcategory_filter_metadata_fn,
-        build_available_content_filters_fn=build_available_content_filters_fn,
-        filter_service_cls=filter_service_cls,
-        ranking_service_cls=ranking_service_cls,
-        filter_repository_cls=filter_repository_cls,
-        ranking_repository_cls=ranking_repository_cls,
-        taxonomy_filter_repository_cls=taxonomy_filter_repository_cls,
-        location_resolver_cls=location_resolver_cls,
-        extract_inferred_filters=extract_inferred_filters,
-        region_code=region_code,
-        text_top_k=text_top_k,
-        vector_top_k=vector_top_k,
-        max_candidates=max_candidates,
-        logger=logger,
+        inputs=inputs,
+        deps=deps,
+        callbacks=callbacks,
     )
 
 
@@ -244,38 +102,29 @@ def _load_post_openai_results(
     *,
     db: Session,
     state: PostOpenAIState,
-    limit: int,
-    location_resolution: Optional[ResolvedLocation],
-    location_llm_cache: Optional[LocationLLMCache],
-    unresolved_info: Optional[UnresolvedLocationInfo],
-    pre_data: PreOpenAIData,
-    select_instructor_ids_fn: Callable[[List[RankedResult], int], List[str]],
-    distance_region_ids_fn: Callable[[Optional[ResolvedLocation]], Optional[List[str]]],
-    filter_repository_cls: type[FilterRepository],
-    retriever_repository_cls: type[RetrieverRepository],
-    unresolved_location_query_repository_cls: type[UnresolvedLocationQueryRepository],
-    location_resolver_cls: type[LocationResolver],
-    region_code: str,
+    inputs: PostBurstInputs,
+    deps: PostBurstDeps,
+    callbacks: PostBurstCallbacks,
 ) -> tuple[List[Dict[str, object]], Dict[str, float]]:
-    retriever_repository = retriever_repository_cls(db)
-    filter_repository = filter_repository_cls(db)
-    location_resolver = location_resolver_cls(db, region_code=region_code)
+    retriever_repository = deps.retriever_repository_cls(db)
+    filter_repository = deps.filter_repository_cls(db)
+    location_resolver = deps.location_resolver_cls(db, region_code=deps.region_code)
     instructor_rows, distance_meters = load_instructor_cards(
         retriever_repository=retriever_repository,
         filter_repository=filter_repository,
         ranking_result=state.ranking_result,
-        limit=limit,
-        location_resolution=location_resolution,
-        select_instructor_ids_fn=select_instructor_ids_fn,
-        distance_region_ids_fn=distance_region_ids_fn,
+        limit=inputs.limit,
+        location_resolution=inputs.location_resolution,
+        select_instructor_ids_fn=callbacks.select_instructor_ids_fn,
+        distance_region_ids_fn=callbacks.distance_region_ids_fn,
     )
     persist_search_side_effects(
         db=db,
-        pre_data=pre_data,
-        location_llm_cache=location_llm_cache,
-        unresolved_info=unresolved_info,
+        pre_data=inputs.pre_data,
+        location_llm_cache=inputs.location_llm_cache,
+        unresolved_info=inputs.unresolved_info,
         location_resolver=location_resolver,
-        unresolved_location_query_repository_cls=unresolved_location_query_repository_cls,
+        unresolved_location_query_repository_cls=deps.unresolved_location_query_repository_cls,
     )
     return instructor_rows, distance_meters
 
@@ -305,9 +154,7 @@ def run_post_openai_burst_for_service(
     )
     from app.services.search.location_resolver import LocationResolver
 
-    return run_post_openai_burst(
-        get_db_session=database_module.get_db_session,
-        search_batch_repository_cls=search_batch_repository_module.SearchBatchRepository,
+    inputs = PostBurstInputs(
         pre_data=pre_data,
         parsed_query=parsed_query,
         query_embedding=query_embedding,
@@ -319,14 +166,11 @@ def run_post_openai_burst_for_service(
         requester_timezone=requester_timezone,
         taxonomy_filter_selections=taxonomy_filter_selections,
         subcategory_id=subcategory_id,
+    )
+    deps = PostBurstDeps(
+        get_db_session=database_module.get_db_session,
+        search_batch_repository_cls=search_batch_repository_module.SearchBatchRepository,
         retriever=service.retriever,
-        compute_text_match_flags=preflight.compute_text_match_flags,
-        normalize_taxonomy_filter_selections=preflight.normalize_taxonomy_filter_selections,
-        resolve_effective_subcategory_id_fn=taxonomy.resolve_effective_subcategory_id,
-        load_subcategory_filter_metadata_fn=taxonomy.load_subcategory_filter_metadata,
-        build_available_content_filters_fn=taxonomy.build_available_content_filters,
-        select_instructor_ids_fn=select_instructor_ids,
-        distance_region_ids_fn=location_helpers.distance_region_ids,
         filter_service_cls=filter_service_module.FilterService,
         ranking_service_cls=ranking_service_module.RankingService,
         filter_repository_cls=FilterRepositoryCls,
@@ -335,12 +179,26 @@ def run_post_openai_burst_for_service(
         taxonomy_filter_repository_cls=TaxonomyFilterRepositoryCls,
         unresolved_location_query_repository_cls=UnresolvedLocationQueryRepositoryCls,
         location_resolver_cls=LocationResolver,
-        extract_inferred_filters=extract_inferred_filters,
         region_code=service._region_code,
         text_top_k=retriever_module.TEXT_TOP_K,
         vector_top_k=retriever_module.VECTOR_TOP_K,
         max_candidates=retriever_module.MAX_CANDIDATES,
         logger=logger,
+    )
+    callbacks = PostBurstCallbacks(
+        compute_text_match_flags=preflight.compute_text_match_flags,
+        normalize_taxonomy_filter_selections=preflight.normalize_taxonomy_filter_selections,
+        resolve_effective_subcategory_id_fn=taxonomy.resolve_effective_subcategory_id,
+        load_subcategory_filter_metadata_fn=taxonomy.load_subcategory_filter_metadata,
+        build_available_content_filters_fn=taxonomy.build_available_content_filters,
+        select_instructor_ids_fn=select_instructor_ids,
+        distance_region_ids_fn=location_helpers.distance_region_ids,
+        extract_inferred_filters=extract_inferred_filters,
+    )
+    return run_post_openai_burst(
+        inputs=inputs,
+        deps=deps,
+        callbacks=callbacks,
     )
 
 
@@ -385,7 +243,7 @@ async def run_postflight_stage_for_service(
         timer.record_stage(
             "burst2",
             post_openai_ms,
-            "success",
+            StageStatus.SUCCESS.value,
             {
                 "vector_search_used": post_data.vector_search_used,
                 "total_candidates": post_data.total_candidates,

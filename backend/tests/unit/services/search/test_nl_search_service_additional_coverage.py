@@ -51,6 +51,7 @@ from app.services.search.nl_search_service import NLSearchService
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.ranking_service import RankedResult, RankingResult
 from app.services.search.request_budget import RequestBudget
+import app.services.search.retriever as retriever_module
 from app.services.search.retriever import (
     TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
     TEXT_SKIP_VECTOR_MIN_RESULTS,
@@ -1354,8 +1355,8 @@ class TestResolveLocationOpenAI:
         }
         with patch(
             "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
-            side_effect=[[candidate], [candidate]],
-        ):
+            return_value=[candidate],
+        ) as build_candidates:
             with patch(
                 "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
                 return_value=(candidate, []),
@@ -1374,6 +1375,7 @@ class TestResolveLocationOpenAI:
                 )
 
         await tier5_task
+        build_candidates.assert_called_once()
         assert result.resolved is True
         assert llm_cache is None
         assert unresolved is None
@@ -1550,9 +1552,13 @@ class TestResolveLocationOpenAI:
             return_value=[0.1, 0.2]
         )
         embedding_candidates = [
-            {"region_id": "r1", "region_name": "Queens", "borough": None, "similarity": 0.4}
+            {
+                "region_id": "r1",
+                "region_name": "Queens",
+                "borough": None,
+                "similarity": location.LOCATION_LLM_EMBEDDING_THRESHOLD + 0.05,
+            }
         ]
-        llm_embedding_candidates = [{"region_name": "Queens"}]
         captured = {}
 
         async def _fake_resolve_location_llm(*_args, **kwargs):
@@ -1566,8 +1572,8 @@ class TestResolveLocationOpenAI:
         ):
             with patch(
                 "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
-                side_effect=[embedding_candidates, llm_embedding_candidates],
-            ):
+                return_value=embedding_candidates,
+            ) as build_candidates:
                 with patch(
                     "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
                     return_value=(None, None),
@@ -1583,6 +1589,7 @@ class TestResolveLocationOpenAI:
                         allow_tier5=True,
                     )
 
+        build_candidates.assert_called_once()
         assert "Queens" in captured["candidate_names"]
         assert "Brooklyn" in captured["candidate_names"]
 
@@ -1804,7 +1811,7 @@ def test_run_pre_openai_burst_cached_alias_and_notify_error(monkeypatch, nl_serv
     def _notify(_parsed: ParsedQuery) -> None:
         raise RuntimeError("notify failed")
 
-    nl_service.retriever._normalize_query_for_trigram = MagicMock(return_value="piano")
+    monkeypatch.setattr(retriever_module, "normalize_query_for_trigram", MagicMock(return_value="piano"))
     monkeypatch.setattr("app.database.get_db_session", _ctx)
     monkeypatch.setattr(
         "app.repositories.search_batch_repository.SearchBatchRepository", DummyBatch
@@ -1873,7 +1880,7 @@ def test_run_pre_openai_burst_fuzzy_candidates_override(monkeypatch, nl_service)
     def _ctx():
         yield MagicMock()
 
-    nl_service.retriever._normalize_query_for_trigram = MagicMock(return_value="piano")
+    monkeypatch.setattr(retriever_module, "normalize_query_for_trigram", MagicMock(return_value="piano"))
     monkeypatch.setattr("app.database.get_db_session", _ctx)
     monkeypatch.setattr(
         "app.repositories.search_batch_repository.SearchBatchRepository", DummyBatch
@@ -1938,11 +1945,6 @@ async def test_resolve_location_openai_embedding_candidates_handle_missing_and_a
     embedding_candidates = [
         {"region_id": "r1", "region_name": "Alpha", "borough": None, "similarity": 0.4}
     ]
-    llm_embedding_candidates = [
-        {"region_name": None},
-        {"region_name": "Alpha"},
-        {"region_name": "Alpha"},
-    ]
     ambiguous = [
         {"region_id": None, "region_name": "Skip"},
         {"region_id": "r2", "region_name": "Beta", "borough": None, "similarity": 0.3},
@@ -1950,8 +1952,8 @@ async def test_resolve_location_openai_embedding_candidates_handle_missing_and_a
     ]
     with patch(
         "app.services.search.location_embedding_service.LocationEmbeddingService.build_candidates_from_embeddings",
-        side_effect=[embedding_candidates, llm_embedding_candidates],
-    ):
+        return_value=embedding_candidates,
+    ) as build_candidates:
         with patch(
             "app.services.search.location_embedding_service.LocationEmbeddingService.pick_best_or_ambiguous",
             return_value=(None, ambiguous),
@@ -1967,6 +1969,7 @@ async def test_resolve_location_openai_embedding_candidates_handle_missing_and_a
                 diagnostics=timer,
             )
 
+    build_candidates.assert_called_once()
     assert result.requires_clarification is True
     assert llm_cache is None
     assert unresolved is None

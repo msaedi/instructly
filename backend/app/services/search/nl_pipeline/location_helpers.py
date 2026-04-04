@@ -140,7 +140,7 @@ def consume_task_result(
     logger: Optional[LoggerLike] = None,
 ) -> None:
     """Ensure background task exceptions are surfaced without blocking."""
-    logger = logger or globals()["logger"]
+    logger = logger or logging.getLogger(__name__)
 
     def _done(finished: asyncio.Task[object]) -> None:
         try:

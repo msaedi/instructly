@@ -13,7 +13,7 @@ from app.repositories import (
     retriever_repository as retriever_repository_module,
     service_format_pricing_repository as pricing_repository_module,
 )
-from app.schemas.nl_search import NLSearchResultItem
+from app.schemas.nl_search import NLSearchResultItem, StageStatus
 from app.services.search.nl_pipeline.hydration_helpers import (
     HydrationGrouping,
     InstructorProfileRow,
@@ -189,7 +189,7 @@ async def hydrate_results_for_service(
         timer.record_stage(
             "hydrate",
             hydrate_ms,
-            "error" if hydrate_failed else "success",
+            StageStatus.ERROR.value if hydrate_failed else StageStatus.SUCCESS.value,
             {"result_count": len(results)},
         )
     if candidates_flow:
