@@ -224,7 +224,7 @@ class NotificationCommonMixin(NotificationMixinBase):
             return False
 
     def _render_sms_template(self, template: Any, **template_kwargs: Any) -> str:
-        return cast(str, render_sms(template, **template_kwargs))
+        return render_sms(template, **template_kwargs)
 
     def _run_async_task(
         self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str

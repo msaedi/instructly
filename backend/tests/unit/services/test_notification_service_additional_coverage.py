@@ -292,7 +292,7 @@ def test_send_booking_reminder_returns_false_when_participants_missing(
     notification_service.email_service.send_email.assert_not_called()
 
 
-def test_send_final_payment_warning_returns_false_when_participants_missing(
+def test_send_final_payment_warning_returns_false_when_student_missing(
     notification_service,
 ) -> None:
     booking = SimpleNamespace(
@@ -305,6 +305,27 @@ def test_send_final_payment_warning_returns_false_when_participants_missing(
 
     assert notification_service.send_final_payment_warning(booking, hours_until_lesson=24) is False
     notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_final_payment_warning_sends_when_instructor_missing(
+    notification_service,
+) -> None:
+    student = SimpleNamespace(email="student@example.com")
+    booking = SimpleNamespace(
+        id="b1",
+        student_id="s1",
+        instructor_id="i1",
+        student=student,
+        service_name="Piano",
+    )
+    notification_service.preference_service.is_enabled.return_value = True
+
+    assert notification_service.send_final_payment_warning(booking, hours_until_lesson=24) is True
+    notification_service.email_service.send_email.assert_called_once_with(
+        to_email="student@example.com",
+        subject="Action required: Update your payment method for your upcoming lesson",
+        html_content=notification_service.template_service.render_template.return_value,
+    )
 
 
 def test_send_new_device_login_notification_user_not_found(notification_service) -> None:

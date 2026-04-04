@@ -245,10 +245,13 @@ class NotificationPaymentMixin(NotificationMixinBase):
             ):
                 return True
 
-            participants = self._require_booking_participants(booking, "send final payment warning")
-            if participants is None:
+            student = getattr(booking, "student", None)
+            if student is None or not getattr(student, "email", None):
+                self.logger.error(
+                    "Cannot send final payment warning for booking %s: missing student",
+                    getattr(booking, "id", "?"),
+                )
                 return False
-            student, _instructor = participants
 
             subject = "Action required: Update your payment method for your upcoming lesson"
             template_name = "email/payment/t24_update_card.html"
