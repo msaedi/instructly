@@ -863,6 +863,60 @@ def upgrade() -> None:
         ["related_entity_type", "related_entity_id"],
     )
 
+    op.create_table(
+        "task_executions",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("celery_task_id", sa.String(255), nullable=False),
+        sa.Column("task_name", sa.String(255), nullable=False),
+        sa.Column("queue", sa.String(100), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("duration_ms", sa.Integer(), nullable=True),
+        sa.Column("retries", sa.SmallInteger(), nullable=False, server_default=sa.text("0")),
+        sa.Column("error_type", sa.String(255), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("result_summary", sa.String(500), nullable=True),
+        sa.Column("worker", sa.String(255), nullable=True),
+        sa.Column("trace_id", sa.String(64), nullable=True),
+        sa.Column("request_id", sa.String(255), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Persistent Celery task execution history for admin and MCP queries",
+    )
+    op.create_index(
+        "ix_task_executions_task_name_started",
+        "task_executions",
+        ["task_name", "started_at"],
+        postgresql_using="btree",
+        postgresql_ops={"started_at": "DESC"},
+    )
+    op.create_index(
+        "ix_task_executions_status_started",
+        "task_executions",
+        ["status", "started_at"],
+        postgresql_using="btree",
+        postgresql_ops={"started_at": "DESC"},
+    )
+    op.create_index(
+        "ix_task_executions_started_at",
+        "task_executions",
+        ["started_at"],
+        postgresql_using="btree",
+        postgresql_ops={"started_at": "DESC"},
+    )
+    op.create_index(
+        "ix_task_executions_celery_task_id",
+        "task_executions",
+        ["celery_task_id"],
+        unique=True,
+    )
+
     # Notification outbox
     event_outbox_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
     notification_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
@@ -1576,6 +1630,12 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_alert_history_created")
     op.drop_constraint("ck_alert_history_severity", "alert_history", type_="check")
     op.drop_table("alert_history")
+
+    op.drop_index("ix_task_executions_celery_task_id", table_name="task_executions")
+    op.drop_index("ix_task_executions_started_at", table_name="task_executions")
+    op.drop_index("ix_task_executions_status_started", table_name="task_executions")
+    op.drop_index("ix_task_executions_task_name_started", table_name="task_executions")
+    op.drop_table("task_executions")
 
     op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
     op.drop_index("ix_webhook_events_source_idempotency", table_name="webhook_events")

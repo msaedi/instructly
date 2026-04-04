@@ -124,6 +124,33 @@ class FakeClient:
         )
         return {"ok": True}
 
+    async def get_celery_task_history_persistent(
+        self, task_name=None, status=None, since_hours=24, limit=50
+    ):
+        self.calls.append(
+            (
+                "get_celery_task_history_persistent",
+                (),
+                {
+                    "task_name": task_name,
+                    "status": status,
+                    "since_hours": since_hours,
+                    "limit": limit,
+                },
+            )
+        )
+        return {"ok": True}
+
+    async def get_celery_task_stats(self, task_name=None, since_hours=24):
+        self.calls.append(
+            (
+                "get_celery_task_stats",
+                (),
+                {"task_name": task_name, "since_hours": since_hours},
+            )
+        )
+        return {"ok": True}
+
     async def get_celery_beat_schedule(self):
         self.calls.append(("get_celery_beat_schedule", (), {}))
         return {"ok": True}
@@ -399,6 +426,12 @@ async def test_celery_tools_call_client():
         task_name="task", state="FAILURE", hours=2, limit=10
     )
     assert result == {"ok": True}
+    result = await tools["instainstru_celery_task_history_persistent"](
+        task_name="task", status="FAILURE", since_hours=24, limit=25
+    )
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_task_stats"](task_name="task", since_hours=24)
+    assert result == {"ok": True}
     result = await tools["instainstru_celery_beat_schedule"]()
     assert result == {"ok": True}
 
@@ -408,7 +441,9 @@ async def test_celery_tools_call_client():
     assert client.calls[3][0] == "get_celery_payment_health"
     assert client.calls[4][0] == "get_celery_active_tasks"
     assert client.calls[5][2]["task_name"] == "task"
-    assert client.calls[6][0] == "get_celery_beat_schedule"
+    assert client.calls[6][0] == "get_celery_task_history_persistent"
+    assert client.calls[7][0] == "get_celery_task_stats"
+    assert client.calls[8][0] == "get_celery_beat_schedule"
 
 
 @pytest.mark.asyncio

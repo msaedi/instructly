@@ -11,11 +11,31 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import secret_or_plain, settings
+from app.models.task_execution import TaskExecution
 from app.repositories.admin_ops_repository import AdminOpsRepository
+from app.repositories.factory import RepositoryFactory
 
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
+_TASK_EXECUTION_FIELDS = (
+    "id",
+    "celery_task_id",
+    "task_name",
+    "queue",
+    "status",
+    "started_at",
+    "finished_at",
+    "duration_ms",
+    "retries",
+    "error_type",
+    "error_message",
+    "result_summary",
+    "worker",
+    "trace_id",
+    "request_id",
+    "created_at",
+)
 
 
 class CeleryAdminService(BaseService):
@@ -30,6 +50,7 @@ class CeleryAdminService(BaseService):
         """Initialize the service."""
         super().__init__(db)
         self.repository = AdminOpsRepository(db)
+        self.task_execution_repository = RepositoryFactory.create_task_execution_repository(db)
 
     async def _call_flower(
         self,
@@ -38,10 +59,7 @@ class CeleryAdminService(BaseService):
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> dict[str, Any] | None:
-        """Make a request to the Flower API.
-
-        Returns None if the request fails (graceful degradation).
-        """
+        """Make a request to the Flower API, returning None on graceful failure."""
         flower_url = settings.flower_url.rstrip("/")
         url = f"{flower_url}{endpoint}"
         timeout_value = timeout or self.FLOWER_TIMEOUT
@@ -75,10 +93,7 @@ class CeleryAdminService(BaseService):
 
     @BaseService.measure_operation("get_workers")
     async def get_workers(self) -> dict[str, Any]:
-        """Get Celery worker status from Flower.
-
-        Returns worker list with status, active tasks, and summary.
-        """
+        """Get Celery worker status from Flower."""
         now = datetime.now(timezone.utc)
         data = await self._call_flower("/api/workers")
 
@@ -141,10 +156,7 @@ class CeleryAdminService(BaseService):
 
     @BaseService.measure_operation("get_queues")
     async def get_queues(self) -> dict[str, Any]:
-        """Get Celery queue depths from Flower.
-
-        Returns queue list with depth and total depth.
-        """
+        """Get Celery queue depths from Flower."""
         now = datetime.now(timezone.utc)
         data = await self._call_flower("/api/queues/length")
 
@@ -171,13 +183,7 @@ class CeleryAdminService(BaseService):
 
     @BaseService.measure_operation("get_failed_tasks")
     async def get_failed_tasks(self, limit: int = 50) -> dict[str, Any]:
-        """Get failed Celery tasks from Flower.
-
-        Args:
-            limit: Maximum number of failed tasks to return (capped at 100).
-
-        Returns failed tasks with exception/traceback info.
-        """
+        """Get failed Celery tasks from Flower."""
         now = datetime.now(timezone.utc)
         # Cap the limit
         effective_limit = min(limit, self.MAX_FAILED_TASKS_LIMIT)
@@ -259,10 +265,7 @@ class CeleryAdminService(BaseService):
 
     @BaseService.measure_operation("get_payment_health")
     async def get_payment_health(self) -> dict[str, Any]:
-        """Get payment pipeline health status.
-
-        Combines Flower task history with DB queries for booking payment status.
-        """
+        """Get payment pipeline health status."""
         now = datetime.now(timezone.utc)
         issues: list[dict[str, Any]] = []
 
@@ -378,10 +381,7 @@ class CeleryAdminService(BaseService):
 
     @BaseService.measure_operation("get_active_tasks")
     async def get_active_tasks(self) -> dict[str, Any]:
-        """Get currently running Celery tasks from Flower.
-
-        Returns a list of active tasks across all workers.
-        """
+        """Get currently running Celery tasks from Flower."""
         now = datetime.now(timezone.utc)
         data = await self._call_flower("/api/tasks", params={"state": "STARTED"})
 
@@ -434,16 +434,7 @@ class CeleryAdminService(BaseService):
         hours: int = 1,
         limit: int = 100,
     ) -> dict[str, Any]:
-        """Get recent Celery task history from Flower.
-
-        Args:
-            task_name: Filter by task name (partial match via Flower).
-            state: Filter by state (SUCCESS, FAILURE, PENDING, STARTED, RETRY).
-            hours: Look back window (max 24 hours).
-            limit: Maximum number of results (max 500).
-
-        Returns task history with timing and result info.
-        """
+        """Get recent Celery task history from Flower."""
         now = datetime.now(timezone.utc)
 
         # Cap parameters
@@ -525,28 +516,80 @@ class CeleryAdminService(BaseService):
                     }
                 )
 
-        # Record filters applied
-        filters_applied = {
-            "task_name": task_name,
-            "state": state,
-            "hours": effective_hours,
-            "limit": effective_limit,
-        }
-
         return {
             "tasks": tasks,
             "count": len(tasks),
-            "filters_applied": filters_applied,
+            "filters_applied": {
+                "task_name": task_name,
+                "state": state,
+                "hours": effective_hours,
+                "limit": effective_limit,
+            },
+            "checked_at": now,
+        }
+
+    @staticmethod
+    def _serialize_task_execution(execution: TaskExecution) -> dict[str, Any]:
+        """Convert ORM execution rows into API-friendly dicts."""
+        return {field: getattr(execution, field) for field in _TASK_EXECUTION_FIELDS}
+
+    @BaseService.measure_operation("get_persistent_task_history")
+    async def get_persistent_task_history(
+        self,
+        task_name: str | None = None,
+        status: str | None = None,
+        since_hours: int = 24,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """Get persistent task execution history from the database."""
+        now = datetime.now(timezone.utc)
+        # async-blocking-ignore: use the request-scoped SQLAlchemy session on this thread
+        executions = self.task_execution_repository.get_recent(
+            task_name=task_name,
+            status=status,
+            limit=limit,
+            since_hours=since_hours,
+        )
+
+        return {
+            "executions": [self._serialize_task_execution(execution) for execution in executions],
+            "count": len(executions),
+            "filters_applied": {
+                "task_name": task_name,
+                "status": status,
+                "since_hours": since_hours,
+                "limit": limit,
+            },
+            "checked_at": now,
+        }
+
+    @BaseService.measure_operation("get_persistent_task_stats")
+    async def get_persistent_task_stats(
+        self,
+        task_name: str | None = None,
+        since_hours: int = 24,
+    ) -> dict[str, Any]:
+        """Get aggregate stats for persistent task execution history."""
+        now = datetime.now(timezone.utc)
+        # async-blocking-ignore: use the request-scoped SQLAlchemy session on this thread
+        stats = self.task_execution_repository.get_task_stats(
+            task_name=task_name,
+            since_hours=since_hours,
+        )
+
+        return {
+            "stats": stats,
+            "count": len(stats),
+            "filters_applied": {
+                "task_name": task_name,
+                "since_hours": since_hours,
+            },
             "checked_at": now,
         }
 
     @BaseService.measure_operation("get_beat_schedule")
     async def get_beat_schedule(self) -> dict[str, Any]:
-        """Get Celery Beat schedule from static configuration.
-
-        Returns the configured periodic tasks with human-readable schedules.
-        This reads from the static configuration rather than Flower for accuracy.
-        """
+        """Get static Celery Beat schedule with human-readable descriptions."""
         from app.tasks.beat_schedule import get_beat_schedule as get_schedule_config
 
         now = datetime.now(timezone.utc)
@@ -594,15 +637,12 @@ class CeleryAdminService(BaseService):
                 hours = total_seconds // 3600
                 return f"every {hours} hour{'s' if hours != 1 else ''}"
         elif isinstance(schedule, crontab):
-            # Build human-readable crontab description
-            # Use getattr for crontab internals (they're undocumented but stable)
             minute = str(getattr(schedule, "_orig_minute", "*"))
             hour = str(getattr(schedule, "_orig_hour", "*"))
             dom = str(getattr(schedule, "_orig_day_of_month", "*"))
             month = str(getattr(schedule, "_orig_month_of_year", "*"))
             dow = str(getattr(schedule, "_orig_day_of_week", "*"))
 
-            # Common patterns
             if minute.startswith("*/"):
                 interval = minute[2:]
                 return f"every {interval} minutes"
@@ -610,7 +650,6 @@ class CeleryAdminService(BaseService):
                 interval = hour[2:]
                 return f"every {interval} hours"
 
-            # Specific times
             if minute != "*" and hour != "*":
                 time_str = f"{hour.zfill(2)}:{minute.zfill(2)} UTC"
                 if dow != "*":
@@ -630,11 +669,9 @@ class CeleryAdminService(BaseService):
                 else:
                     return f"daily at {time_str}"
 
-            # Hourly at specific minute
             if minute != "*" and hour == "*":
                 return f"hourly at :{minute.zfill(2)}"
 
-            # Fallback: raw crontab representation
             return f"cron({minute} {hour} {dom} {month} {dow})"
 
         return str(schedule)

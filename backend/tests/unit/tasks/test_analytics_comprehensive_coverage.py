@@ -356,67 +356,6 @@ class TestUpdateServiceMetricsTask:
 
             assert result["updated"] is False
 
-
-class TestRecordTaskExecutionTask:
-    """Tests for record_task_execution task."""
-
-    def test_task_is_registered(self) -> None:
-        """Test record_task_execution is registered with correct name."""
-        from app.tasks.analytics import record_task_execution
-
-        assert record_task_execution.name == "app.tasks.analytics.record_task_execution"
-
-    def test_success_path(self) -> None:
-        """Test successful task execution recording."""
-        from app.tasks.analytics import record_task_execution
-
-        with patch("app.tasks.analytics.logger") as mock_logger:
-            result = record_task_execution.run(
-                task_name="test_task",
-                status="success",
-                execution_time=1.5,
-                result={"count": 10},
-                error=None,
-            )
-
-            assert result is None  # Task returns None
-            mock_logger.info.assert_called_once()
-
-    def test_exception_is_caught_and_logged(self) -> None:
-        """Test that exceptions are caught and logged (not re-raised)."""
-        from app.tasks.analytics import record_task_execution
-
-        with patch("app.tasks.analytics.logger") as mock_logger:
-            mock_logger.info.side_effect = Exception("DB connection error")
-
-            # Should NOT raise - exception is caught
-            result = record_task_execution.run(
-                task_name="test_task",
-                status="failure",
-                execution_time=0.5,
-                result=None,
-                error="Some error",
-            )
-
-            assert result is None
-
-    def test_with_error_parameter(self) -> None:
-        """Test recording a failed task execution."""
-        from app.tasks.analytics import record_task_execution
-
-        with patch("app.tasks.analytics.logger") as mock_logger:
-            result = record_task_execution.run(
-                task_name="failing_task",
-                status="failure",
-                execution_time=2.0,
-                result=None,
-                error="Task failed with exception",
-            )
-
-            assert result is None
-            mock_logger.info.assert_called_once()
-
-
 class TestModuleImports:
     """Tests for module-level imports and constants."""
 

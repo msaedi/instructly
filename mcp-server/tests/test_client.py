@@ -264,6 +264,56 @@ async def test_client_timeout_uses_client_default_timeout():
 
 
 @pytest.mark.asyncio
+async def test_client_get_celery_task_history_persistent_normalizes_params():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with patch.object(client, "call", new=AsyncMock(return_value={"ok": True})) as mock_call:
+        result = await client.get_celery_task_history_persistent(
+            task_name="app.tasks.capture",
+            status="FAILURE",
+            since_hours=9999,
+            limit=999,
+        )
+
+    assert result == {"ok": True}
+    assert mock_call.await_args.kwargs["params"] == {
+        "task_name": "app.tasks.capture",
+        "status": "FAILURE",
+        "since_hours": 2160,
+        "limit": 500,
+    }
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_get_celery_task_stats_normalizes_params():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with patch.object(client, "call", new=AsyncMock(return_value={"ok": True})) as mock_call:
+        result = await client.get_celery_task_stats(
+            task_name="app.tasks.capture",
+            since_hours="bad",
+        )
+
+    assert result == {"ok": True}
+    assert mock_call.await_args.kwargs["params"] == {
+        "task_name": "app.tasks.capture",
+        "since_hours": 24,
+    }
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_client_timeout_without_read_timeout_message(monkeypatch):
     settings = Settings(
         api_base_url="https://api.instainstru.test",

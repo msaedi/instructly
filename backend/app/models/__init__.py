@@ -92,6 +92,7 @@ from .service_catalog import (
     ServiceFormatPrice,
 )
 from .subcategory import ServiceSubcategory
+from .task_execution import TaskExecution, TaskExecutionStatus
 from .trusted_device import TrustedDevice
 from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
@@ -205,6 +206,9 @@ __all__ = [
     "SearchEvent",
     "SearchEventCandidate",
     "SearchInteraction",
+    # Task execution history
+    "TaskExecution",
+    "TaskExecutionStatus",
     # NL Search models
     "SearchQuery",
     "SearchClick",

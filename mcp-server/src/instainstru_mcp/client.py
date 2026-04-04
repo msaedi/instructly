@@ -843,6 +843,57 @@ class InstaInstruClient:
             params=params,
         )
 
+    async def get_celery_task_history_persistent(
+        self,
+        task_name: str | None = None,
+        status: str | None = None,
+        since_hours: int = 24,
+        limit: int = 50,
+    ) -> dict:
+        try:
+            normalized_since_hours = int(since_hours)
+        except (TypeError, ValueError):
+            normalized_since_hours = 24
+        try:
+            normalized_limit = int(limit)
+        except (TypeError, ValueError):
+            normalized_limit = 50
+
+        params: dict[str, Any] = {
+            "since_hours": max(1, min(normalized_since_hours, 2160)),
+            "limit": max(1, min(normalized_limit, 500)),
+        }
+        if task_name:
+            params["task_name"] = task_name
+        if status:
+            params["status"] = status
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/task-executions",
+            params=params,
+        )
+
+    async def get_celery_task_stats(
+        self,
+        task_name: str | None = None,
+        since_hours: int = 24,
+    ) -> dict:
+        try:
+            normalized_since_hours = int(since_hours)
+        except (TypeError, ValueError):
+            normalized_since_hours = 24
+
+        params: dict[str, Any] = {
+            "since_hours": max(1, min(normalized_since_hours, 2160)),
+        }
+        if task_name:
+            params["task_name"] = task_name
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/task-stats",
+            params=params,
+        )
+
     async def get_celery_beat_schedule(self) -> dict:
         return await self.call(
             "GET",

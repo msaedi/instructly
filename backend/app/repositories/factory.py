@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
     from .service_format_pricing_repository import ServiceFormatPricingRepository
     from .subcategory_repository import SubcategoryRepository
+    from .task_execution_repository import TaskExecutionRepository
     from .taxonomy_filter_repository import TaxonomyFilterRepository
     from .trusted_device_repository import TrustedDeviceRepository
     from .user_repository import UserRepository
@@ -264,6 +265,13 @@ class RepositoryFactory:
         from .trusted_device_repository import TrustedDeviceRepository
 
         return TrustedDeviceRepository(db)
+
+    @staticmethod
+    def create_task_execution_repository(db: Session) -> "TaskExecutionRepository":
+        """Create repository for persistent Celery task execution history."""
+        from .task_execution_repository import TaskExecutionRepository
+
+        return TaskExecutionRepository(db)
 
     @staticmethod
     def create_rbac_repository(db: Session) -> "RBACRepository":

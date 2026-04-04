@@ -8,8 +8,10 @@ import pytest
 import ulid
 
 from app.core.config import secret_or_plain
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
 from app.models.booking_payment import BookingPayment
+from app.models.task_execution import TaskExecution, TaskExecutionStatus
 from app.services.celery_admin_service import CeleryAdminService
 
 
@@ -727,6 +729,103 @@ class TestGetTaskHistory:
 
         assert result["count"] == 0
         assert result["tasks"] == []
+
+
+class TestGetPersistentTaskHistory:
+    """Tests for database-backed task history."""
+
+    @pytest.fixture
+    def service(self, db):
+        return CeleryAdminService(db)
+
+    @pytest.mark.asyncio
+    async def test_get_persistent_task_history_returns_filtered_rows(self, service, db):
+        now = datetime.now(timezone.utc)
+        task_name = f"app.tasks.send_email.{generate_ulid()}"
+        failure_task_id = generate_ulid()
+        db.add_all(
+            [
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.SUCCESS.value,
+                    started_at=now - timedelta(minutes=30),
+                    finished_at=now - timedelta(minutes=29),
+                    duration_ms=1000,
+                ),
+                TaskExecution(
+                    celery_task_id=failure_task_id,
+                    task_name=task_name,
+                    status=TaskExecutionStatus.FAILURE.value,
+                    started_at=now - timedelta(minutes=10),
+                    finished_at=now - timedelta(minutes=9),
+                    duration_ms=500,
+                ),
+            ]
+        )
+        db.commit()
+
+        result = await service.get_persistent_task_history(
+            task_name=task_name,
+            status=TaskExecutionStatus.FAILURE.value,
+            since_hours=24,
+            limit=10,
+        )
+
+        assert result["count"] == 1
+        assert result["executions"][0]["celery_task_id"] == failure_task_id
+        assert result["filters_applied"]["status"] == "FAILURE"
+
+    @pytest.mark.asyncio
+    async def test_get_persistent_task_history_empty(self, service):
+        result = await service.get_persistent_task_history(task_name="app.tasks.no_history_here")
+
+        assert result["count"] == 0
+        assert result["executions"] == []
+
+
+class TestGetPersistentTaskStats:
+    """Tests for database-backed task stats."""
+
+    @pytest.fixture
+    def service(self, db):
+        return CeleryAdminService(db)
+
+    @pytest.mark.asyncio
+    async def test_get_persistent_task_stats_aggregates(self, service, db):
+        now = datetime.now(timezone.utc)
+        task_name = f"app.tasks.capture.service_stats_unique.{generate_ulid()}"
+        db.add_all(
+            [
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.SUCCESS.value,
+                    started_at=now - timedelta(minutes=30),
+                    finished_at=now - timedelta(minutes=29),
+                    duration_ms=100,
+                ),
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.FAILURE.value,
+                    started_at=now - timedelta(minutes=20),
+                    finished_at=now - timedelta(minutes=19),
+                    duration_ms=300,
+                ),
+            ]
+        )
+        db.commit()
+
+        result = await service.get_persistent_task_stats(
+            task_name=task_name,
+            since_hours=24,
+        )
+
+        assert result["count"] == 1
+        assert result["stats"][0]["task_name"] == task_name
+        assert result["stats"][0]["success_rate"] == 0.5
+        assert result["stats"][0]["failure_count"] == 1
 
 
 class TestGetBeatSchedule:

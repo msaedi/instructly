@@ -260,6 +260,14 @@ CELERYBEAT_SCHEDULE = {
             "priority": 4,
         },
     },
+    "purge-old-task-executions": {
+        "task": "app.tasks.task_executions.purge_old",
+        "schedule": crontab(hour=4, minute=0),  # Daily at 4:00 AM US/Eastern
+        "options": {
+            "queue": "maintenance",
+            "priority": 1,
+        },
+    },
     "referrals-unlock-every-15m": {
         "task": "app.tasks.referrals.run_unlocker",
         "schedule": crontab(minute="*/15"),  # Every 15 minutes

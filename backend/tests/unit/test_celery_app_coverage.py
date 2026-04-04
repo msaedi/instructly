@@ -15,6 +15,7 @@ from app.tasks.celery_app import (
     config_loggers,
     create_celery_app,
     health_check,
+    purge_old_task_executions,
     run_availability_retention,
     typed_task,
 )
@@ -94,6 +95,34 @@ def test_run_availability_retention_enabled(monkeypatch):
 
     assert payload == {"purged_days": 5}
     fake_session.close.assert_called_once()
+
+
+def test_purge_old_task_executions(monkeypatch):
+    fake_session = Mock()
+
+    class _Ctx:
+        def __enter__(self):
+            return fake_session
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    repo = Mock()
+    repo.cleanup_old.return_value = 7
+
+    monkeypatch.setattr(celery_module, "get_db_session", lambda: _Ctx())
+    monkeypatch.setattr(celery_module.settings, "task_execution_retention_days", 45, raising=False)
+    monkeypatch.setattr(
+        "app.repositories.factory.RepositoryFactory.create_task_execution_repository",
+        Mock(return_value=repo),
+    )
+
+    payload = purge_old_task_executions()
+
+    assert payload["deleted_count"] == 7
+    assert payload["retention_days"] == 45
+    assert "executed_at" in payload
+    repo.cleanup_old.assert_called_once_with(retention_days=45)
 
 
 def test_celery_sentry_signal_handlers_call_init(monkeypatch):

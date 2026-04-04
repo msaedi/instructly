@@ -148,6 +148,60 @@ class MCPCeleryTaskHistoryResponse(StrictModel):
     checked_at: datetime
 
 
+class MCPCeleryPersistentTaskExecutionItem(StrictModel):
+    """Information about a persistent Celery task execution row."""
+
+    id: str
+    celery_task_id: str
+    task_name: str
+    queue: Optional[str] = None
+    status: str  # STARTED, SUCCESS, FAILURE, RETRY
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    retries: int = 0
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+    result_summary: Optional[str] = None
+    worker: Optional[str] = None
+    trace_id: Optional[str] = None
+    request_id: Optional[str] = None
+    created_at: datetime
+
+
+class MCPCeleryPersistentTaskExecutionsResponse(StrictModel):
+    """Response for persistent task execution history endpoint."""
+
+    executions: list[MCPCeleryPersistentTaskExecutionItem]
+    count: int
+    filters_applied: dict[str, Any]
+    checked_at: datetime
+
+
+class MCPCeleryTaskStatsItem(StrictModel):
+    """Aggregate stats for persistent task execution history."""
+
+    task_name: str
+    total_count: int
+    success_count: int
+    failure_count: int
+    success_rate: float
+    avg_duration_ms: Optional[float] = None
+    p50_duration_ms: Optional[float] = None
+    p95_duration_ms: Optional[float] = None
+    last_success_at: Optional[datetime] = None
+    last_failure_at: Optional[datetime] = None
+
+
+class MCPCeleryTaskStatsResponse(StrictModel):
+    """Response for aggregate task execution stats endpoint."""
+
+    stats: list[MCPCeleryTaskStatsItem]
+    count: int
+    filters_applied: dict[str, Any]
+    checked_at: datetime
+
+
 class MCPCeleryScheduledTask(StrictModel):
     """Information about a scheduled periodic task."""
 

@@ -149,32 +149,3 @@ def test_update_service_metrics_service_missing(db, monkeypatch) -> None:
         result = analytics.update_service_metrics.run("missing")
 
     assert result["status"] == "error"
-
-
-def test_record_task_execution_smoke(db, monkeypatch) -> None:
-    _set_task_request(analytics.record_task_execution)
-
-    analytics.record_task_execution.run(
-        "app.tasks.analytics.calculate_analytics",
-        "success",
-        1.23,
-        result={"ok": True},
-        error=None,
-    )
-
-
-def test_record_task_execution_handles_failure(monkeypatch) -> None:
-    monkeypatch.setattr(
-        analytics.logger,
-        "info",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("DB connection failed")),
-    )
-    _set_task_request(analytics.record_task_execution)
-
-    analytics.record_task_execution.run(
-        "app.tasks.analytics.calculate_analytics",
-        "error",
-        0.5,
-        result=None,
-        error="boom",
-    )

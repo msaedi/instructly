@@ -22,11 +22,15 @@ from app.schemas.celery_admin import (
     MCPCeleryLastTaskRun,
     MCPCeleryPaymentHealthIssue,
     MCPCeleryPaymentHealthResponse,
+    MCPCeleryPersistentTaskExecutionItem,
+    MCPCeleryPersistentTaskExecutionsResponse,
     MCPCeleryQueueInfo,
     MCPCeleryQueuesResponse,
     MCPCeleryScheduledTask,
     MCPCeleryTaskHistoryItem,
     MCPCeleryTaskHistoryResponse,
+    MCPCeleryTaskStatsItem,
+    MCPCeleryTaskStatsResponse,
     MCPCeleryWorkerInfo,
     MCPCeleryWorkersResponse,
     MCPCeleryWorkersSummary,
@@ -221,6 +225,89 @@ async def get_task_history(
 
     return MCPCeleryTaskHistoryResponse(
         tasks=tasks,
+        count=result["count"],
+        filters_applied=result["filters_applied"],
+        checked_at=result["checked_at"],
+    )
+
+
+@router.get(
+    "/task-executions",
+    response_model=MCPCeleryPersistentTaskExecutionsResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_persistent_task_history(
+    task_name: str | None = Query(default=None, description="Filter by exact task name"),
+    status: str
+    | None = Query(
+        default=None,
+        description="Filter by status (STARTED, SUCCESS, FAILURE, RETRY)",
+    ),
+    since_hours: int = Query(
+        default=24,
+        ge=1,
+        le=2160,
+        description="Look back window in hours (max 2160 / 90 days)",
+    ),
+    limit: int = Query(default=50, ge=1, le=500, description="Max results (max 500)"),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPCeleryPersistentTaskExecutionsResponse:
+    """
+    Get persistent Celery task execution history from the database.
+
+    This complements Flower's transient history with durable execution records
+    that survive worker restarts and can be queried for longer windows.
+    """
+    service = CeleryAdminService(db)
+    result = await service.get_persistent_task_history(
+        task_name=task_name,
+        status=status,
+        since_hours=since_hours,
+        limit=limit,
+    )
+
+    executions = [MCPCeleryPersistentTaskExecutionItem(**t) for t in result["executions"]]
+
+    return MCPCeleryPersistentTaskExecutionsResponse(
+        executions=executions,
+        count=result["count"],
+        filters_applied=result["filters_applied"],
+        checked_at=result["checked_at"],
+    )
+
+
+@router.get(
+    "/task-stats",
+    response_model=MCPCeleryTaskStatsResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_task_stats(
+    task_name: str | None = Query(default=None, description="Filter by exact task name"),
+    since_hours: int = Query(
+        default=24,
+        ge=1,
+        le=2160,
+        description="Look back window in hours (max 2160 / 90 days)",
+    ),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPCeleryTaskStatsResponse:
+    """
+    Get aggregate stats for persistent Celery task execution history.
+
+    Returns per-task counts, failure rates, duration percentiles, and last success/failure times.
+    """
+    service = CeleryAdminService(db)
+    result = await service.get_persistent_task_stats(
+        task_name=task_name,
+        since_hours=since_hours,
+    )
+
+    stats = [MCPCeleryTaskStatsItem(**row) for row in result["stats"]]
+
+    return MCPCeleryTaskStatsResponse(
+        stats=stats,
         count=result["count"],
         filters_applied=result["filters_applied"],
         checked_at=result["checked_at"],

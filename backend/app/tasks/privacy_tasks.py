@@ -27,6 +27,13 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
     return cast(Callable[[TaskCallable], TaskCallable], celery_app.task(*task_args, **task_kwargs))
 
 
+def typed_monitor(slug: str) -> Callable[[TaskCallable], TaskCallable]:
+    """Return a typed Sentry monitor decorator for mypy."""
+
+    decorator: Callable[[TaskCallable], TaskCallable] = monitor_if_configured(slug)
+    return decorator
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,8 +49,8 @@ else:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")
-@monitor_if_configured("apply-data-retention-policies")
-def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
+@typed_monitor("apply-data-retention-policies")
+def apply_retention_policies(self: "DatabaseTask") -> Dict[str, int]:
     """
     Apply data retention policies across all data types.
 
@@ -83,8 +90,8 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.cleanup_search_history")
-@monitor_if_configured("cleanup-search-history")
-def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
+@typed_monitor("cleanup-search-history")
+def cleanup_search_history(self: "DatabaseTask") -> Dict[str, Any]:
     """
     Clean up old search history records.
 
@@ -116,8 +123,8 @@ def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.generate_privacy_report")
-@monitor_if_configured("generate-privacy-report")
-def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
+@typed_monitor("generate-privacy-report")
+def generate_privacy_report(self: "DatabaseTask") -> Dict[str, Any]:
     """
     Generate privacy and data retention statistics report.
 
@@ -162,7 +169,7 @@ def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.anonymize_old_bookings")
-def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -> int:
+def anonymize_old_bookings(self: "DatabaseTask", days_old: Optional[int] = None) -> int:
     """
     Anonymize bookings older than specified days.
 
@@ -194,7 +201,7 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
         with get_db_session() as db:
             privacy_service = PrivacyService(db)
             retention_stats = privacy_service.apply_retention_policies()
-            anonymized_count = retention_stats.old_bookings_anonymized
+            anonymized_count = int(retention_stats.old_bookings_anonymized)
 
             logger.info("Anonymized %s old bookings", anonymized_count)
             return anonymized_count
@@ -207,7 +214,7 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
 # Task to process user data export requests
 @typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_export_request")
 def process_data_export_request(
-    self: DatabaseTask,
+    self: "DatabaseTask",
     user_id: str,
     request_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -245,7 +252,7 @@ def process_data_export_request(
 # Task to process user data deletion requests
 @typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_deletion_request")
 def process_data_deletion_request(
-    self: DatabaseTask,
+    self: "DatabaseTask",
     user_id: str,
     delete_account: bool = False,
     request_id: Optional[str] = None,
