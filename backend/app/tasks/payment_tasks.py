@@ -179,15 +179,6 @@ def _mark_booking_payment_failed(
     )
 
 
-def _cancel_booking_payment_failed(
-    booking_id: str,
-    hours_until_lesson: float,
-    now: datetime,
-) -> bool:
-    """Backward-compatible alias for tests and older call sites."""
-    return _mark_booking_payment_failed(booking_id, hours_until_lesson, now)
-
-
 def _process_retry_authorization(
     booking_id: str,
     hours_until_lesson: float,
@@ -462,7 +453,6 @@ __all__ = [
     "StudentCreditService",
     "TimezoneService",
     "_auto_complete_booking",
-    "_cancel_booking_payment_failed",
     "_mark_booking_payment_failed",
     "_escalate_capture_failure",
     "_facade_api",

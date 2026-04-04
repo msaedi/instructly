@@ -12,6 +12,7 @@ Covers:
   - detect_video_no_shows: skips bookings before scheduled end
 """
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +20,18 @@ import pytest
 
 from app.domain.video_utils import compute_join_closes_at
 from app.services.trusted_device_service import TrustedDeviceService
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 # ---------------------------------------------------------------------------
 # TrustedDeviceService — parse_user_agent browser detection
@@ -281,12 +294,12 @@ class TestDetectNoShowsSkipsBeforeEnd:
 
         with (
             patch("app.tasks.video_tasks.settings") as mock_settings,
-            patch("app.tasks.video_tasks.get_db") as mock_get_db,
+            patch("app.tasks.video_tasks.get_db_session") as mock_get_db,
             patch("app.tasks.video_tasks.RepositoryFactory") as mock_rf,
             patch("app.tasks.video_tasks.BookingService") as mock_bs_cls,
         ):
             mock_settings.hundredms_enabled = True
-            mock_get_db.return_value = iter([mock_db])
+            mock_get_db.return_value = _db_session_ctx(mock_db)
             mock_rf.create_booking_repository.return_value = mock_booking_repo
             mock_bs_cls.return_value = mock_booking_service
 
@@ -320,12 +333,12 @@ class TestDetectNoShowsSkipsBeforeEnd:
 
         with (
             patch("app.tasks.video_tasks.settings") as mock_settings,
-            patch("app.tasks.video_tasks.get_db") as mock_get_db,
+            patch("app.tasks.video_tasks.get_db_session") as mock_get_db,
             patch("app.tasks.video_tasks.RepositoryFactory") as mock_rf,
             patch("app.tasks.video_tasks.BookingService") as mock_bs_cls,
         ):
             mock_settings.hundredms_enabled = True
-            mock_get_db.return_value = iter([mock_db])
+            mock_get_db.return_value = _db_session_ctx(mock_db)
             mock_rf.create_booking_repository.return_value = mock_booking_repo
             mock_bs_cls.return_value = mock_booking_service
 

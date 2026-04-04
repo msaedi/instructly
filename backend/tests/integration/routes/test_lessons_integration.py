@@ -47,6 +47,7 @@ def _make_online_booking(
     location_type: str = "online",
 ) -> str:
     """Create an online booking with explicit UTC start time."""
+    end_utc = start_utc + timedelta(minutes=duration_minutes)
     booking = create_booking_pg_safe(
         db,
         student_id=student_id,
@@ -54,12 +55,16 @@ def _make_online_booking(
         instructor_service_id=instructor_service_id,
         booking_date=start_utc.date(),
         start_time=start_utc.time(),
-        end_time=(start_utc + timedelta(minutes=duration_minutes)).time(),
+        end_time=end_utc.time(),
         duration_minutes=duration_minutes,
         status=status,
         location_type=location_type,
         allow_overlap=True,
         instructor_timezone="UTC",
+        # Keep the UTC lesson window stable even when the relative fixture time
+        # crosses midnight and the factory normalizes end_time for same-day safety.
+        booking_start_utc=start_utc,
+        booking_end_utc=end_utc,
         service_name="Test Lesson",
         hourly_rate=50.0,
         total_price=50.0,

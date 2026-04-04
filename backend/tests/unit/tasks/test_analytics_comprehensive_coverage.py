@@ -4,9 +4,22 @@ Comprehensive tests for analytics.py - targeting 0% coverage.
 Covers all uncovered lines: 15-354 (all task functions and error paths).
 """
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 class TestTypedTaskDecorator:
@@ -63,9 +76,9 @@ class TestCalculateAnalyticsTask:
         mock_calculator.calculate_all_analytics.return_value = 10
         mock_calculator.generate_report.return_value = {"services_updated": 10}
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             result = calculate_analytics.run(days_back=30)
@@ -85,9 +98,9 @@ class TestCalculateAnalyticsTask:
         mock_calculator.calculate_all_analytics.return_value = 5
         mock_calculator.generate_report.return_value = {}
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             calculate_analytics.run()
@@ -105,9 +118,9 @@ class TestCalculateAnalyticsTask:
         mock_calculator = MagicMock()
         mock_calculator.calculate_all_analytics.side_effect = Exception("DB error")
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             # Mock the task's retry method to raise Retry
@@ -126,9 +139,9 @@ class TestCalculateAnalyticsTask:
         mock_calculator.calculate_all_analytics.return_value = 0
         mock_calculator.generate_report.return_value = {}
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             calculate_analytics.run()
@@ -145,9 +158,9 @@ class TestCalculateAnalyticsTask:
         mock_calculator = MagicMock()
         mock_calculator.calculate_all_analytics.side_effect = Exception("Error")
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             # Mock the task's retry method to raise Retry
@@ -181,9 +194,9 @@ class TestGenerateDailyReportTask:
         mock_calculator = MagicMock()
         mock_calculator.generate_report.return_value = {"metrics": "data"}
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             result = generate_daily_report.run()
@@ -204,9 +217,9 @@ class TestGenerateDailyReportTask:
         mock_calculator = MagicMock()
         mock_calculator.generate_report.side_effect = Exception("Report error")
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             # Mock the task's retry method to raise Retry
@@ -252,10 +265,10 @@ class TestUpdateServiceMetricsTask:
         mock_analytics_repo.get_or_create.return_value = MagicMock()
         mock_analytics_repo.update.return_value = MagicMock()
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class, \
              patch("app.repositories.factory.RepositoryFactory") as mock_repo_factory:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
             mock_repo_factory.create_service_catalog_repository.return_value = mock_catalog_repo
             mock_repo_factory.create_service_analytics_repository.return_value = mock_analytics_repo
@@ -278,10 +291,10 @@ class TestUpdateServiceMetricsTask:
         mock_catalog_repo = MagicMock()
         mock_catalog_repo.get_by_id.return_value = None
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator"), \
              patch("app.repositories.factory.RepositoryFactory") as mock_repo_factory:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_repo_factory.create_service_catalog_repository.return_value = mock_catalog_repo
 
             result = update_service_metrics.run("nonexistent-service")
@@ -298,10 +311,10 @@ class TestUpdateServiceMetricsTask:
         mock_catalog_repo = MagicMock()
         mock_catalog_repo.get_by_id.side_effect = Exception("DB error")
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator"), \
              patch("app.repositories.factory.RepositoryFactory") as mock_repo_factory:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_repo_factory.create_service_catalog_repository.return_value = mock_catalog_repo
 
             with pytest.raises(Exception, match="DB error"):
@@ -331,10 +344,10 @@ class TestUpdateServiceMetricsTask:
         mock_analytics_repo.get_or_create.return_value = MagicMock()
         mock_analytics_repo.update.return_value = None  # Update returns None
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class, \
              patch("app.repositories.factory.RepositoryFactory") as mock_repo_factory:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
             mock_repo_factory.create_service_catalog_repository.return_value = mock_catalog_repo
             mock_repo_factory.create_service_analytics_repository.return_value = mock_analytics_repo
@@ -357,12 +370,7 @@ class TestRecordTaskExecutionTask:
         """Test successful task execution recording."""
         from app.tasks.analytics import record_task_execution
 
-        mock_session = MagicMock()
-
-        with patch("app.tasks.analytics.get_db") as mock_get_db:
-            mock_get_db.return_value = iter([mock_session])
-
-            # Should not raise, just log
+        with patch("app.tasks.analytics.logger") as mock_logger:
             result = record_task_execution.run(
                 task_name="test_task",
                 status="success",
@@ -372,14 +380,14 @@ class TestRecordTaskExecutionTask:
             )
 
             assert result is None  # Task returns None
-            mock_session.close.assert_called_once()
+            mock_logger.info.assert_called_once()
 
     def test_exception_is_caught_and_logged(self) -> None:
         """Test that exceptions are caught and logged (not re-raised)."""
         from app.tasks.analytics import record_task_execution
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db:
-            mock_get_db.side_effect = Exception("DB connection error")
+        with patch("app.tasks.analytics.logger") as mock_logger:
+            mock_logger.info.side_effect = Exception("DB connection error")
 
             # Should NOT raise - exception is caught
             result = record_task_execution.run(
@@ -396,11 +404,7 @@ class TestRecordTaskExecutionTask:
         """Test recording a failed task execution."""
         from app.tasks.analytics import record_task_execution
 
-        mock_session = MagicMock()
-
-        with patch("app.tasks.analytics.get_db") as mock_get_db:
-            mock_get_db.return_value = iter([mock_session])
-
+        with patch("app.tasks.analytics.logger") as mock_logger:
             result = record_task_execution.run(
                 task_name="failing_task",
                 status="failure",
@@ -410,7 +414,7 @@ class TestRecordTaskExecutionTask:
             )
 
             assert result is None
-            mock_session.close.assert_called_once()
+            mock_logger.info.assert_called_once()
 
 
 class TestModuleImports:
@@ -448,9 +452,9 @@ class TestEdgeCases:
         mock_calculator.calculate_all_analytics.return_value = 0
         mock_calculator.generate_report.return_value = {"total": 0}
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
 
             result = calculate_analytics.run()
@@ -481,10 +485,10 @@ class TestEdgeCases:
         mock_analytics_repo.get_or_create.return_value = MagicMock()
         mock_analytics_repo.update.return_value = MagicMock()
 
-        with patch("app.tasks.analytics.get_db") as mock_get_db, \
+        with patch("app.tasks.analytics.get_db_session") as mock_get_db, \
              patch("app.tasks.analytics.AnalyticsCalculator") as mock_calc_class, \
              patch("app.repositories.factory.RepositoryFactory") as mock_repo_factory:
-            mock_get_db.return_value = iter([mock_session])
+            mock_get_db.return_value = _db_session_ctx(mock_session)
             mock_calc_class.return_value = mock_calculator
             mock_repo_factory.create_service_catalog_repository.return_value = mock_catalog_repo
             mock_repo_factory.create_service_analytics_repository.return_value = mock_analytics_repo

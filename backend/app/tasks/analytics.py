@@ -13,9 +13,8 @@ from typing import Any, Callable, Dict, Optional, ParamSpec, Protocol, TypeVar, 
 
 from celery.result import AsyncResult
 from scripts.calculate_service_analytics import AnalyticsCalculator
-from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db_session
 from app.monitoring.sentry_crons import monitor_if_configured
 from app.tasks.celery_app import BaseTask, celery_app
 
@@ -78,48 +77,45 @@ def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
         },
     )
 
-    db: Optional[Session] = None
     try:
-        # Get database session
-        db = next(get_db())
+        with get_db_session() as db:
+            # Create analytics calculator
+            calculator = AnalyticsCalculator(db)
 
-        # Create analytics calculator
-        calculator = AnalyticsCalculator(db)
+            # Calculate analytics for all services
+            logger.info("Calculating analytics for all services...")
+            services_updated = calculator.calculate_all_analytics(days_back=days_back)
 
-        # Calculate analytics for all services
-        logger.info("Calculating analytics for all services...")
-        services_updated = calculator.calculate_all_analytics(days_back=days_back)
+            # Update search counts
+            logger.info("Updating search count metrics...")
+            calculator.update_search_counts()
 
-        # Update search counts
-        logger.info("Updating search count metrics...")
-        calculator.update_search_counts()
+            # Generate summary report
+            report = calculator.generate_report()
 
-        # Generate summary report
-        report = calculator.generate_report()
+            # Calculate execution time
+            execution_time = time.time() - start_time
 
-        # Calculate execution time
-        execution_time = time.time() - start_time
+            # Log completion
+            logger.info(
+                "Analytics calculation completed successfully",
+                extra={
+                    "task_id": task_id,
+                    "execution_time": execution_time,
+                    "services_updated": services_updated,
+                    "report": report,
+                },
+            )
 
-        # Log completion
-        logger.info(
-            "Analytics calculation completed successfully",
-            extra={
+            # Return execution summary
+            return {
+                "status": "success",
                 "task_id": task_id,
                 "execution_time": execution_time,
                 "services_updated": services_updated,
                 "report": report,
-            },
-        )
-
-        # Return execution summary
-        return {
-            "status": "success",
-            "task_id": task_id,
-            "execution_time": execution_time,
-            "services_updated": services_updated,
-            "report": report,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-        }
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     except Exception as exc:
         execution_time = time.time() - start_time
@@ -137,11 +133,6 @@ def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
 
         # Retry with exponential backoff
         raise self.retry(exc=exc, countdown=60 * (2**self.request.retries), max_retries=3)
-
-    finally:
-        # Ensure database session is closed
-        if db:
-            db.close()
 
 
 @typed_task(
@@ -166,42 +157,36 @@ def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
 
     logger.info("Generating daily analytics report %s", task_id)
 
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
+        with get_db_session() as db:
+            # Create calculator for report generation
+            calculator = AnalyticsCalculator(db)  # Daily report
 
-        # Create calculator for report generation
-        calculator = AnalyticsCalculator(db)  # Daily report
+            # Generate report
+            report = calculator.generate_report()
 
-        # Generate report
-        report = calculator.generate_report()
+            execution_time = time.time() - start_time
 
-        execution_time = time.time() - start_time
+            logger.info(
+                "Daily report generated successfully",
+                extra={
+                    "task_id": task_id,
+                    "execution_time": execution_time,
+                    "report_date": datetime.now(timezone.utc).date().isoformat(),
+                },
+            )
 
-        logger.info(
-            "Daily report generated successfully",
-            extra={
+            return {
+                "status": "success",
                 "task_id": task_id,
                 "execution_time": execution_time,
-                "report_date": datetime.now(timezone.utc).date().isoformat(),
-            },
-        )
-
-        return {
-            "status": "success",
-            "task_id": task_id,
-            "execution_time": execution_time,
-            "report": report,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
+                "report": report,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     except Exception as exc:
         logger.error("Failed to generate daily report: %s", exc, exc_info=True)
         raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
-
-    finally:
-        if db:
-            db.close()
 
 
 @typed_task(
@@ -224,62 +209,58 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
     """
     logger.info("Updating metrics for service %s", service_id)
 
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
+        with get_db_session() as db:
+            calculator = AnalyticsCalculator(db)
 
-        calculator = AnalyticsCalculator(db)
+            # Use repository to get the service
+            from app.repositories.factory import RepositoryFactory
 
-        # Use repository to get the service
-        from app.repositories.factory import RepositoryFactory
+            catalog_repo = RepositoryFactory.create_service_catalog_repository(db)
+            service = catalog_repo.get_by_id(service_id)
 
-        catalog_repo = RepositoryFactory.create_service_catalog_repository(db)
-        service = catalog_repo.get_by_id(service_id)
+            if not service:
+                logger.warning("Service %s not found", service_id)
+                return {
+                    "status": "error",
+                    "message": f"Service {service_id} not found",
+                }
 
-        if not service:
-            logger.warning("Service %s not found", service_id)
-            return {
-                "status": "error",
-                "message": f"Service {service_id} not found",
+            # Calculate analytics for this specific service
+            booking_stats = calculator.calculate_booking_stats(service_id)
+            instructor_stats = calculator.calculate_instructor_stats(service_id)
+
+            # Update analytics using repository
+            analytics_repo = RepositoryFactory.create_service_analytics_repository(db)
+            analytics_repo.get_or_create(service_id)
+
+            update_data = {
+                "booking_count_7d": booking_stats.get("count_7d", 0),
+                "booking_count_30d": booking_stats.get("count_30d", 0),
+                "avg_price_booked_cents": int(
+                    round(float(booking_stats.get("avg_price") or 0) * 100)
+                ),
+                "active_instructors": instructor_stats["active_instructors"],
+                "total_weekly_hours": instructor_stats["total_weekly_hours"],
+                "last_calculated": datetime.now(timezone.utc),
             }
 
-        # Calculate analytics for this specific service
-        booking_stats = calculator.calculate_booking_stats(service_id)
-        instructor_stats = calculator.calculate_instructor_stats(service_id)
+            updated = analytics_repo.update(service_id, **update_data)
 
-        # Update analytics using repository
-        analytics_repo = RepositoryFactory.create_service_analytics_repository(db)
-        analytics_repo.get_or_create(service_id)
+            logger.info("Metrics updated for service %s", service_id)
 
-        update_data = {
-            "booking_count_7d": booking_stats.get("count_7d", 0),
-            "booking_count_30d": booking_stats.get("count_30d", 0),
-            "avg_price_booked_cents": int(round(float(booking_stats.get("avg_price") or 0) * 100)),
-            "active_instructors": instructor_stats["active_instructors"],
-            "total_weekly_hours": instructor_stats["total_weekly_hours"],
-            "last_calculated": datetime.now(timezone.utc),
-        }
-
-        updated = analytics_repo.update(service_id, **update_data)
-
-        logger.info("Metrics updated for service %s", service_id)
-
-        return {
-            "status": "success",
-            "service_id": service_id,
-            "booking_stats": booking_stats,
-            "instructor_stats": instructor_stats,
-            "updated": updated is not None,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+            return {
+                "status": "success",
+                "service_id": service_id,
+                "booking_stats": booking_stats,
+                "instructor_stats": instructor_stats,
+                "updated": updated is not None,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     except Exception as exc:
         logger.error("Failed to update service %s metrics: %s", service_id, exc)
         raise
-
-    finally:
-        if db:
-            db.close()
 
 
 # Optional: Task execution tracking
@@ -308,12 +289,9 @@ def record_task_execution(
         result: Task result summary
         error: Error message if failed
     """
-    db: Optional[Session] = None
     try:
-        db = next(get_db())
-
-        # This would require a TaskExecution model to be created
-        # For now, just log it
+        # This would require a TaskExecution model to be created.
+        # For now, just log it.
         logger.info(
             "Task execution recorded",
             extra={
@@ -328,7 +306,3 @@ def record_task_execution(
 
     except Exception as exc:
         logger.error("Failed to record task execution: %s", exc)
-
-    finally:
-        if db:
-            db.close()

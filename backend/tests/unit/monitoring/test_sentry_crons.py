@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import importlib
 from unittest.mock import MagicMock
 
 import pytest
 
 import app.monitoring.sentry_crons as sentry_crons
+
+
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def test_critical_monitor_configs_have_required_fields() -> None:
@@ -222,7 +235,7 @@ def test_task_executes_with_monitor_wrapper(monkeypatch) -> None:
     module = importlib.import_module("app.tasks.location_learning")
 
     mock_db = MagicMock()
-    monkeypatch.setattr(module, "get_db", lambda: iter([mock_db]))
+    monkeypatch.setattr(module, "get_db_session", lambda: _db_session_ctx(mock_db))
 
     mock_service = MagicMock()
     mock_service.process_pending.return_value = []

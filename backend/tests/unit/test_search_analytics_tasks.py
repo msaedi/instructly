@@ -3,6 +3,7 @@
 Unit tests for search analytics Celery tasks.
 """
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,15 +16,27 @@ from app.tasks.search_analytics import (
 )
 
 
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 class TestProcessSearchEvent:
     """Test process_search_event task."""
 
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_process_search_event_success(self, mock_get_db):
         """Test successful processing of search event."""
         # Mock database session and event
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         mock_event = MagicMock(spec=SearchEvent)
         mock_event.id = 1
@@ -44,15 +57,15 @@ class TestProcessSearchEvent:
         assert result["event_id"] == 1
         assert "quality_score" in result
         assert mock_event.quality_score is not None
-        mock_db.commit.assert_called_once()
+        assert mock_db.commit.call_count == 2
         mock_db.close.assert_called_once()
 
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_process_search_event_not_found(self, mock_get_db):
         """Test processing non-existent event."""
         # Mock database session
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # Event not found
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -66,12 +79,12 @@ class TestProcessSearchEvent:
         mock_db.close.assert_called_once()
 
     @patch("app.tasks.search_analytics.process_search_event.retry")
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_process_search_event_retry_on_error(self, mock_get_db, mock_retry):
         """Test task retry on database error."""
         # Mock database error
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
         mock_db.query.side_effect = Exception("Database error")
 
         # Mock retry to prevent actual retry
@@ -96,12 +109,12 @@ class TestCalculateSearchMetrics:
     """Test calculate_search_metrics task."""
 
     @patch("app.tasks.search_analytics.SearchEventRepository")
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_calculate_metrics_success(self, mock_get_db, mock_search_repo_class):
         """Test successful metrics calculation."""
         # Mock database session
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # Mock repository instance
         mock_repo = MagicMock()
@@ -138,12 +151,12 @@ class TestCalculateSearchMetrics:
         mock_db.close.assert_called_once()
 
     @patch("app.tasks.search_analytics.SearchEventRepository")
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_calculate_metrics_no_data(self, mock_get_db, mock_search_repo_class):
         """Test metrics calculation with no data."""
         # Mock database session
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # Mock repository instance
         mock_repo = MagicMock()
@@ -171,12 +184,12 @@ class TestGenerateSearchInsights:
     """Test generate_search_insights task."""
 
     @patch("app.tasks.search_analytics.SearchEventRepository")
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_generate_insights_success(self, mock_get_db, mock_search_repo_class):
         """Test successful insights generation."""
         # Mock database session
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
 
         # Mock repository
         mock_repo = MagicMock()
@@ -207,12 +220,12 @@ class TestGenerateSearchInsights:
 
         mock_db.close.assert_called_once()
 
-    @patch("app.tasks.search_analytics.get_db")
+    @patch("app.tasks.search_analytics.get_db_session")
     def test_generate_insights_error_handling(self, mock_get_db):
         """Test insights generation with database error."""
         # Mock database error
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_get_db.return_value = _db_session_ctx(mock_db)
         mock_db.query.side_effect = Exception("Database error")
 
         # Execute task and expect error

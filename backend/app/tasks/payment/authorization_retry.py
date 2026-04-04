@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Sequence, cast
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.tasks.payment.common import PaymentTasksFacadeApi, RetryJobResults
 
@@ -75,16 +76,6 @@ def mark_booking_payment_failed_impl(
         db.close()
 
 
-def cancel_booking_payment_failed_impl(
-    api: PaymentTasksFacadeApi,
-    booking_id: str,
-    hours_until_lesson: float,
-    now: datetime,
-) -> bool:
-    """Backward-compatible alias for the payment-failed terminal transition."""
-    return mark_booking_payment_failed_impl(api, booking_id, hours_until_lesson, now)
-
-
 def load_retry_context(api: PaymentTasksFacadeApi, db: Session, booking_id: str) -> Dict[str, Any]:
     from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -120,7 +111,7 @@ def load_retry_context(api: PaymentTasksFacadeApi, db: Session, booking_id: str)
             }
         }
     instructor_account = payment_repo.get_connected_account_by_instructor_id(instructor_profile.id)
-    if not instructor_account:
+    if not instructor_account or not instructor_account.stripe_account_id:
         return {
             "result": {
                 "success": False,
@@ -372,13 +363,13 @@ def resolve_retry_accounts(
 
     student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
     if not student_customer:
-        raise Exception(f"No Stripe customer for student {booking.student_id}")
+        raise ServiceException(f"No Stripe customer for student {booking.student_id}")
     instructor_profile = InstructorProfileRepository(db).get_by_user_id(booking.instructor_id)
-    instructor_account = payment_repo.get_connected_account_by_instructor_id(
-        instructor_profile.id if instructor_profile else None
-    )
-    if not instructor_account:
-        raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
+    if instructor_profile is None:
+        raise ServiceException(f"No instructor profile for {booking.instructor_id}")
+    instructor_account = payment_repo.get_connected_account_by_instructor_id(instructor_profile.id)
+    if not instructor_account or not instructor_account.stripe_account_id:
+        raise ServiceException(f"No Stripe account for instructor {booking.instructor_id}")
 
 
 def _record_attempt_event(

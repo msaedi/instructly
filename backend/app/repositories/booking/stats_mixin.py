@@ -2,9 +2,9 @@
 
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import selectinload
 
 from ...core.enums import RoleName
@@ -151,6 +151,81 @@ class BookingStatsMixin(BookingRepositoryMixinBase):
         except Exception as e:
             self.logger.error("Error getting instructor stats: %s", str(e))
             raise RepositoryException(f"Failed to get instructor statistics: {str(e)}")
+
+    def get_instructor_booking_stats_aggregate(
+        self,
+        instructor_id: str,
+        *,
+        today: date,
+        month_start: date,
+    ) -> Dict[str, Any]:
+        """Return aggregate booking stats for an instructor excluding payment failures."""
+        try:
+            row = (
+                self.db.query(
+                    func.count(Booking.id).label("total_bookings"),
+                    func.count(case((Booking.status == BookingStatus.COMPLETED, 1))).label(
+                        "completed_bookings"
+                    ),
+                    func.count(case((Booking.status == BookingStatus.CANCELLED, 1))).label(
+                        "cancelled_bookings"
+                    ),
+                    # Preserve legacy Booking.is_upcoming semantics:
+                    # only confirmed bookings strictly after today count as upcoming.
+                    func.count(
+                        case(
+                            (
+                                and_(
+                                    Booking.status == BookingStatus.CONFIRMED,
+                                    Booking.booking_date > today,
+                                ),
+                                1,
+                            )
+                        )
+                    ).label("upcoming_bookings"),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (Booking.status == BookingStatus.COMPLETED, Booking.total_price),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ).label("total_earnings"),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (
+                                    and_(
+                                        Booking.status == BookingStatus.COMPLETED,
+                                        Booking.booking_date >= month_start,
+                                    ),
+                                    Booking.total_price,
+                                ),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ).label("this_month_earnings"),
+                )
+                .filter(Booking.instructor_id == instructor_id)
+                .filter(Booking.status != BookingStatus.PAYMENT_FAILED)
+                .first()
+            )
+            return {
+                "total_bookings": int(getattr(row, "total_bookings", 0) or 0),
+                "upcoming_bookings": int(getattr(row, "upcoming_bookings", 0) or 0),
+                "completed_bookings": int(getattr(row, "completed_bookings", 0) or 0),
+                "cancelled_bookings": int(getattr(row, "cancelled_bookings", 0) or 0),
+                "total_earnings": cast(Decimal, getattr(row, "total_earnings", 0) or 0),
+                "this_month_earnings": cast(
+                    Decimal,
+                    getattr(row, "this_month_earnings", 0) or 0,
+                ),
+            }
+        except Exception as e:
+            self.logger.error("Error aggregating instructor stats: %s", str(e))
+            raise RepositoryException(f"Failed to get instructor statistics aggregate: {str(e)}")
 
     def count_bookings_by_status(self, user_id: str, user_role: str) -> Dict[str, int]:
         """Count bookings grouped by status for a user."""

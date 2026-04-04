@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -13,8 +14,20 @@ def _set_task_request(task, retries: int = 0) -> None:
     task.request.retries = retries
 
 
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _patch_get_db(monkeypatch, db) -> None:
-    monkeypatch.setattr(analytics, "get_db", lambda: iter([db]))
+    monkeypatch.setattr(analytics, "get_db_session", lambda: _db_session_ctx(db))
 
 
 def test_calculate_analytics_success(db, monkeypatch) -> None:
@@ -140,7 +153,6 @@ def test_update_service_metrics_service_missing(db, monkeypatch) -> None:
 
 def test_record_task_execution_smoke(db, monkeypatch) -> None:
     _set_task_request(analytics.record_task_execution)
-    _patch_get_db(monkeypatch, db)
 
     analytics.record_task_execution.run(
         "app.tasks.analytics.calculate_analytics",
@@ -152,7 +164,11 @@ def test_record_task_execution_smoke(db, monkeypatch) -> None:
 
 
 def test_record_task_execution_handles_failure(monkeypatch) -> None:
-    monkeypatch.setattr(analytics, "get_db", lambda: iter([]))
+    monkeypatch.setattr(
+        analytics.logger,
+        "info",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("DB connection failed")),
+    )
     _set_task_request(analytics.record_task_execution)
 
     analytics.record_task_execution.run(

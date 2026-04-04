@@ -19,7 +19,7 @@ from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
 from app.tasks.payment_tasks import (
     _auto_complete_booking,
-    _cancel_booking_payment_failed,
+    _mark_booking_payment_failed,
     _mark_child_booking_settled,
     _process_authorization_for_booking,
     _process_capture_for_booking,
@@ -1450,7 +1450,7 @@ def test_process_scheduled_authorizations_t24_email_failure_logs(
 def test_cancel_booking_payment_failed_missing_booking(db: Session) -> None:
     """Missing booking returns False."""
     now = datetime.now(timezone.utc)
-    assert _cancel_booking_payment_failed(generate_ulid(), 8.0, now) is False
+    assert _mark_booking_payment_failed(generate_ulid(), 8.0, now) is False
 
 
 def test_cancel_booking_payment_failed_already_cancelled(
@@ -1467,7 +1467,7 @@ def test_cancel_booking_payment_failed_already_cancelled(
         status=BookingStatus.CANCELLED,
     )
 
-    assert _cancel_booking_payment_failed(booking.id, 8.0, now) is False
+    assert _mark_booking_payment_failed(booking.id, 8.0, now) is False
 
 
 def test_cancel_booking_payment_failed_credit_release_failure(
@@ -1494,7 +1494,7 @@ def test_cancel_booking_payment_failed_credit_release_failure(
     ), patch(
         "app.tasks.payment_tasks.NotificationService.send_payment_failed_notification"
     ):
-        result = _cancel_booking_payment_failed(booking.id, 8.0, now)
+        result = _mark_booking_payment_failed(booking.id, 8.0, now)
 
     db.refresh(booking)
     assert result is True
@@ -1519,6 +1519,6 @@ def test_cancel_booking_payment_failed_notification_failure_returns_false(
         "app.tasks.payment_tasks.NotificationService.send_payment_failed_notification",
         side_effect=Exception("notify failed"),
     ):
-        result = _cancel_booking_payment_failed(booking.id, 8.0, now)
+        result = _mark_booking_payment_failed(booking.id, 8.0, now)
 
     assert result is False

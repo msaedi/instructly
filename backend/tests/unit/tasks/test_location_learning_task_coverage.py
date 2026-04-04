@@ -6,6 +6,7 @@ Coverage for app/tasks/location_learning.py.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 
 import app.tasks.location_learning as location_learning_module
@@ -17,9 +18,21 @@ def _set_task_request(task, task_id: str = "task-location-123") -> None:
     task.request.retries = 0
 
 
-def _patch_get_db(monkeypatch, db) -> None:
-    """Patch get_db to return our test db session."""
-    monkeypatch.setattr(location_learning_module, "get_db", lambda: iter([db]))
+@contextmanager
+def _db_session_ctx(db):
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _patch_get_db_session(monkeypatch, db) -> None:
+    """Patch get_db_session to return our test db session."""
+    monkeypatch.setattr(location_learning_module, "get_db_session", lambda: _db_session_ctx(db))
 
 
 class TestProcessLocationLearning:
@@ -28,7 +41,7 @@ class TestProcessLocationLearning:
     def test_success_with_learned_aliases(self, db, monkeypatch) -> None:
         """Test successful processing with learned aliases."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         # Create mock learned aliases
         mock_alias_1 = MagicMock()
@@ -65,7 +78,7 @@ class TestProcessLocationLearning:
     def test_success_with_no_aliases_to_learn(self, db, monkeypatch) -> None:
         """Test successful processing when no aliases need to be learned."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         mock_service = MagicMock()
         mock_service.process_pending.return_value = []
@@ -83,7 +96,7 @@ class TestProcessLocationLearning:
     def test_custom_limit_parameter(self, db, monkeypatch) -> None:
         """Test that custom limit is passed to service."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         mock_service = MagicMock()
         mock_service.process_pending.return_value = []
@@ -99,7 +112,7 @@ class TestProcessLocationLearning:
     def test_default_limit_is_500(self, db, monkeypatch) -> None:
         """Test that default limit is 500."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         mock_service = MagicMock()
         mock_service.process_pending.return_value = []
@@ -116,7 +129,7 @@ class TestProcessLocationLearning:
     def test_error_handling_with_rollback(self, db, monkeypatch, caplog) -> None:
         """Test that errors are handled and session is rolled back."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         mock_service = MagicMock()
         mock_service.process_pending.side_effect = RuntimeError("Database error")
@@ -142,7 +155,7 @@ class TestProcessLocationLearning:
         mock_db.rollback.side_effect = Exception("Rollback failed")
         mock_db.close.return_value = None
 
-        _patch_get_db(monkeypatch, mock_db)
+        _patch_get_db_session(monkeypatch, mock_db)
 
         mock_service = MagicMock()
         mock_service.process_pending.side_effect = RuntimeError("Primary error")
@@ -166,7 +179,7 @@ class TestProcessLocationLearning:
         mock_db.commit.return_value = None
         mock_db.close.return_value = None
 
-        _patch_get_db(monkeypatch, mock_db)
+        _patch_get_db_session(monkeypatch, mock_db)
 
         mock_service = MagicMock()
         mock_service.process_pending.return_value = []
@@ -188,7 +201,7 @@ class TestProcessLocationLearning:
         mock_db.rollback.return_value = None
         mock_db.close.return_value = None
 
-        _patch_get_db(monkeypatch, mock_db)
+        _patch_get_db_session(monkeypatch, mock_db)
 
         mock_service = MagicMock()
         mock_service.process_pending.side_effect = RuntimeError("Test error")
@@ -206,7 +219,7 @@ class TestProcessLocationLearning:
     def test_learned_alias_dict_serialization(self, db, monkeypatch) -> None:
         """Test that learned aliases are properly serialized to dicts."""
         _set_task_request(location_learning_module.process_location_learning)
-        _patch_get_db(monkeypatch, db)
+        _patch_get_db_session(monkeypatch, db)
 
         # Create a real-like learned alias object
         class FakeLearnedAlias:

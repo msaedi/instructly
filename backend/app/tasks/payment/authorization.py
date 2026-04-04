@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.tasks.enqueue import enqueue_task
-from app.tasks.payment.common import AuthorizationJobResults, PaymentTasksFacadeApi
+from app.tasks.payment.common import (
+    AuthorizationJobResults,
+    PaymentTasksFacadeApi,
+    notify_payment_failed_once,
+)
 
 
 def load_auth_booking_context(
@@ -76,25 +80,6 @@ def classify_auth_exception(exc: Exception) -> Dict[str, Any]:
         else "system_error"
     )
     return {"success": False, "error": error_message, "error_type": error_type}
-
-
-def _notify_payment_failed_once(
-    api: PaymentTasksFacadeApi,
-    db: Session,
-    booking: Booking,
-    booking_id: str,
-    previous_capture_retry_count: int,
-) -> None:
-    if previous_capture_retry_count > 0:
-        return
-    try:
-        api.NotificationService(db).send_payment_failed_notification(booking)
-    except Exception as exc:
-        api.logger.warning(
-            "Failed to send payment failed notification for booking %s: %s",
-            booking_id,
-            exc,
-        )
 
 
 def _record_auth_metrics(api: PaymentTasksFacadeApi, stripe_result: Dict[str, Any]) -> None:
@@ -233,7 +218,7 @@ def persist_authorization_result(
                 "Failed to send booking confirmation notifications for %s: %s", booking_id, exc
             )
     if send_payment_failed:
-        _notify_payment_failed_once(api, db, booking, booking_id, previous_capture_retry_count)
+        notify_payment_failed_once(api, db, booking, booking_id, previous_capture_retry_count)
     return stripe_result
 
 

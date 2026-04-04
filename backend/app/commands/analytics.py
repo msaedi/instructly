@@ -29,7 +29,7 @@ from redis import Redis
 from scripts.calculate_service_analytics import AnalyticsCalculator
 
 from app.core.config import secret_or_plain, settings
-from app.database import get_db
+from app.database import get_db_session
 from app.repositories.service_catalog_repository import ServiceAnalyticsRepository
 from app.tasks.enqueue import enqueue_task
 
@@ -91,37 +91,33 @@ class AnalyticsCommand:
             start_time = datetime.now(timezone.utc)
 
             try:
-                # Get database session
-                db = next(get_db())
+                with get_db_session() as db:
+                    # Create calculator and run
+                    calculator = AnalyticsCalculator(db)
+                    services_updated = calculator.calculate_all_analytics(days_back=days_back)
+                    calculator.update_search_counts()
+                    report = calculator.generate_report()
 
-                # Create calculator and run
-                calculator = AnalyticsCalculator(db)
-                services_updated = calculator.calculate_all_analytics(days_back=days_back)
-                calculator.update_search_counts()
-                report = calculator.generate_report()
+                    end_time = datetime.now(timezone.utc)
+                    execution_time = (end_time - start_time).total_seconds()
 
-                end_time = datetime.now(timezone.utc)
-                execution_time = (end_time - start_time).total_seconds()
+                    # Store execution info
+                    run_info = {
+                        "completed_at": end_time.isoformat(),
+                        "started_at": start_time.isoformat(),
+                        "execution_time": execution_time,
+                        "services_updated": services_updated,
+                        "days_back": days_back,
+                        "mode": "sync",
+                        "status": "success",
+                        "report": report,
+                    }
+                    self._store_last_run_info(run_info)
 
-                # Store execution info
-                run_info = {
-                    "completed_at": end_time.isoformat(),
-                    "started_at": start_time.isoformat(),
-                    "execution_time": execution_time,
-                    "services_updated": services_updated,
-                    "days_back": days_back,
-                    "mode": "sync",
-                    "status": "success",
-                    "report": report,
-                }
-                self._store_last_run_info(run_info)
+                    logger.info("Analytics calculation completed in %ss", f"{execution_time:.2f}")
+                    logger.info("Services updated: %s", services_updated)
 
-                logger.info("Analytics calculation completed in %ss", f"{execution_time:.2f}")
-                logger.info("Services updated: %s", services_updated)
-
-                db.close()
-
-                return run_info
+                    return run_info
 
             except Exception as e:
                 logger.error("Analytics calculation failed: %s", e, exc_info=True)
@@ -193,17 +189,15 @@ class AnalyticsCommand:
             last_run["status_message"] = message
 
         # Get additional stats from database
-        db = next(get_db())
-        repo = ServiceAnalyticsRepository(db)
+        with get_db_session() as db:
+            repo = ServiceAnalyticsRepository(db)
 
-        total_records = repo.count_all()
-        latest_update = repo.get_most_recent()
+            total_records = repo.count_all()
+            latest_update = repo.get_most_recent()
 
-        if latest_update:
-            last_run["latest_update"] = latest_update.last_calculated.isoformat()
-            last_run["total_analytics_records"] = total_records
-
-        db.close()
+            if latest_update:
+                last_run["latest_update"] = latest_update.last_calculated.isoformat()
+                last_run["total_analytics_records"] = total_records
 
         # Format the response
         return self._format_status_response(last_run)

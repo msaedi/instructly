@@ -132,34 +132,21 @@ class BookingQueryMixin:
                 logger.debug("Cache hit for instructor %s booking stats", instructor_id)
                 return cast(Dict[str, Any], cached_stats)
 
-        # Calculate stats if not cached
-        bookings = [
-            booking
-            for booking in self.repository.get_instructor_bookings_for_stats(instructor_id)
-            if booking.status != BookingStatus.PAYMENT_FAILED
-        ]
-
         # Use UTC for date-based calculations
         instructor_today = datetime.now(timezone.utc).date()
-
-        # Calculate stats
-        total_bookings = len(bookings)
-        upcoming_bookings = sum(1 for b in bookings if b.is_upcoming(instructor_today))
-        completed_bookings = sum(1 for b in bookings if b.status == BookingStatus.COMPLETED)
-        cancelled_bookings = sum(1 for b in bookings if b.status == BookingStatus.CANCELLED)
-
-        # Calculate earnings (only completed bookings)
-        total_earnings = sum(
-            float(b.total_price) for b in bookings if b.status == BookingStatus.COMPLETED
-        )
-
-        # This month's earnings (in instructor's timezone)
         first_day_of_month = instructor_today.replace(day=1)
-        this_month_earnings = sum(
-            float(b.total_price)
-            for b in bookings
-            if b.status == BookingStatus.COMPLETED and b.booking_date >= first_day_of_month
+        aggregated_stats = self.repository.get_instructor_booking_stats_aggregate(
+            instructor_id,
+            today=instructor_today,
+            month_start=first_day_of_month,
         )
+
+        total_bookings = int(aggregated_stats["total_bookings"])
+        upcoming_bookings = int(aggregated_stats["upcoming_bookings"])
+        completed_bookings = int(aggregated_stats["completed_bookings"])
+        cancelled_bookings = int(aggregated_stats["cancelled_bookings"])
+        total_earnings = float(aggregated_stats["total_earnings"])
+        this_month_earnings = float(aggregated_stats["this_month_earnings"])
 
         stats = {
             "total_bookings": total_bookings,
