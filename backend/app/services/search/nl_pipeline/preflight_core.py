@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.services.search import retriever as retriever_module
 from app.services.search.config import SearchConfig
-from app.services.search.nl_pipeline.models import PreOpenAIData
+from app.services.search.nl_pipeline.models import (
+    ParseAndTextSearchResult,
+    PreLocationTiersResult,
+    PreOpenAIData,
+)
 from app.services.search.nl_pipeline.protocols import AsyncioLike, DBSessionFactory, LoggerLike
 
 if TYPE_CHECKING:
@@ -22,7 +26,6 @@ if TYPE_CHECKING:
     from app.services.search.embedding_service import EmbeddingService
     from app.services.search.location_resolver import LocationResolver, ResolvedLocation
     from app.services.search.query_parser import ParsedQuery, QueryParser
-    from app.services.search.retriever import PostgresRetriever
 
 
 def coerce_skill_level_override(
@@ -170,7 +173,6 @@ def execute_parse_and_text_search(
     user_id: Optional[str],
     region_code: str,
     query_parser_cls: type[QueryParser],
-    retriever: PostgresRetriever,
     notify_parsed: Optional[Callable[[ParsedQuery], None]],
     trigram_generic_tokens: AbstractSet[str],
     require_text_match_score_threshold: float,
@@ -179,16 +181,7 @@ def execute_parse_and_text_search(
     text_top_k: int,
     max_candidates: int,
     logger: LoggerLike,
-) -> tuple[
-    ParsedQuery,
-    int,
-    bool,
-    Optional[Dict[str, Tuple[float, Dict[str, object]]]],
-    int,
-    float,
-    bool,
-    bool,
-]:
+) -> ParseAndTextSearchResult:
     parse_latency_ms = 0
     if parsed_query is None:
         parse_start = time.perf_counter()
@@ -207,7 +200,7 @@ def execute_parse_and_text_search(
     require_text_match = False
     skip_vector = False
     if not parsed_query.needs_llm:
-        text_query = retriever._normalize_query_for_trigram(parsed_query.service_query)
+        text_query = retriever_module.normalize_query_for_trigram(parsed_query.service_query)
         text_start = time.perf_counter()
         text_results = batch.text_search(
             text_query, text_query, limit=min(text_top_k, max_candidates)
@@ -221,15 +214,15 @@ def execute_parse_and_text_search(
             skip_vector_min_results=skip_vector_min_results,
             skip_vector_score_threshold=skip_vector_score_threshold,
         )
-    return (
-        parsed_query,
-        parse_latency_ms,
-        has_service_embeddings,
-        text_results,
-        text_latency_ms,
-        best_text_score,
-        require_text_match,
-        skip_vector,
+    return ParseAndTextSearchResult(
+        parsed_query=parsed_query,
+        parse_latency_ms=parse_latency_ms,
+        has_service_embeddings=has_service_embeddings,
+        text_results=text_results,
+        text_latency_ms=text_latency_ms,
+        best_text_score=best_text_score,
+        require_text_match=require_text_match,
+        skip_vector=skip_vector,
     )
 
 
@@ -244,14 +237,7 @@ def resolve_pre_location_tiers(
     normalize_location_text: Callable[[str], str],
     resolve_cached_alias: Callable[[CachedAliasInfo, RegionLookup], Optional[ResolvedLocation]],
     location_llm_top_k: int,
-) -> tuple[
-    Optional[RegionLookup],
-    Optional[ResolvedLocation],
-    Optional[str],
-    Optional[str],
-    Optional[float],
-    List[str],
-]:
+) -> PreLocationTiersResult:
     region_lookup: Optional[RegionLookup] = None
     location_resolution: Optional[ResolvedLocation] = None
     location_normalized: Optional[str] = None
@@ -268,13 +254,13 @@ def resolve_pre_location_tiers(
         and user_location is None
         and not parsed_query.needs_llm
     ):
-        return (
-            region_lookup,
-            location_resolution,
-            location_normalized,
-            cached_alias_normalized,
-            fuzzy_score,
-            location_llm_candidates,
+        return PreLocationTiersResult(
+            region_lookup=region_lookup,
+            location_resolution=location_resolution,
+            location_normalized=location_normalized,
+            cached_alias_normalized=cached_alias_normalized,
+            fuzzy_score=fuzzy_score,
+            location_llm_candidates=location_llm_candidates,
         )
     location_normalized = normalize_location_text(parsed_query.location_text)
     resolver = location_resolver_cls(db, region_code=region_code)
@@ -304,13 +290,13 @@ def resolve_pre_location_tiers(
             and region_lookup.region_names
         ):
             location_llm_candidates = list(region_lookup.region_names)
-    return (
-        region_lookup,
-        location_resolution,
-        location_normalized,
-        cached_alias_normalized,
-        fuzzy_score,
-        location_llm_candidates,
+    return PreLocationTiersResult(
+        region_lookup=region_lookup,
+        location_resolution=location_resolution,
+        location_normalized=location_normalized,
+        cached_alias_normalized=cached_alias_normalized,
+        fuzzy_score=fuzzy_score,
+        location_llm_candidates=location_llm_candidates,
     )
 
 
@@ -360,7 +346,6 @@ def run_pre_openai_burst(
     notify_parsed: Optional[Callable[[ParsedQuery], None]],
     region_code: str,
     query_parser_cls: type[QueryParser],
-    retriever: PostgresRetriever,
     location_resolver_cls: type[LocationResolver],
     normalize_location_text: Callable[[str], str],
     resolve_cached_alias: Callable[[CachedAliasInfo, RegionLookup], Optional[ResolvedLocation]],
@@ -383,7 +368,6 @@ def run_pre_openai_burst(
             user_id=user_id,
             region_code=region_code,
             query_parser_cls=query_parser_cls,
-            retriever=retriever,
             notify_parsed=notify_parsed,
             trigram_generic_tokens=trigram_generic_tokens,
             require_text_match_score_threshold=require_text_match_score_threshold,
@@ -396,7 +380,7 @@ def run_pre_openai_burst(
         location_result = resolve_pre_location_tiers(
             batch=batch,
             db=db,
-            parsed_query=parsed_result[0],
+            parsed_query=parsed_result.parsed_query,
             user_location=user_location,
             region_code=region_code,
             location_resolver_cls=location_resolver_cls,
@@ -405,20 +389,20 @@ def run_pre_openai_burst(
             location_llm_top_k=location_llm_top_k,
         )
         return assemble_pre_openai_data(
-            parsed_query=parsed_result[0],
-            parse_latency_ms=parsed_result[1],
-            has_service_embeddings=parsed_result[2],
-            text_results=parsed_result[3],
-            text_latency_ms=parsed_result[4],
-            best_text_score=parsed_result[5],
-            require_text_match=parsed_result[6],
-            skip_vector=parsed_result[7],
-            region_lookup=location_result[0],
-            location_resolution=location_result[1],
-            location_normalized=location_result[2],
-            cached_alias_normalized=location_result[3],
-            fuzzy_score=location_result[4],
-            location_llm_candidates=location_result[5],
+            parsed_query=parsed_result.parsed_query,
+            parse_latency_ms=parsed_result.parse_latency_ms,
+            has_service_embeddings=parsed_result.has_service_embeddings,
+            text_results=parsed_result.text_results,
+            text_latency_ms=parsed_result.text_latency_ms,
+            best_text_score=parsed_result.best_text_score,
+            require_text_match=parsed_result.require_text_match,
+            skip_vector=parsed_result.skip_vector,
+            region_lookup=location_result.region_lookup,
+            location_resolution=location_result.location_resolution,
+            location_normalized=location_result.location_normalized,
+            cached_alias_normalized=location_result.cached_alias_normalized,
+            fuzzy_score=location_result.fuzzy_score,
+            location_llm_candidates=location_result.location_llm_candidates,
         )
 
 

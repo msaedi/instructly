@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from app.core.exceptions import raise_503_if_pool_exhaustion
-from app.schemas.nl_search import NLSearchResponse, NLSearchResultItem
+from app.schemas.nl_search import NLSearchResponse, NLSearchResultItem, StageStatus
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.filter_service import FilterService
 from app.services.search.location_embedding_service import LocationEmbeddingService
@@ -311,7 +311,7 @@ class NLSearchService:
             context.timer.record_stage(
                 "build_response",
                 response_build_ms,
-                "success",
+                StageStatus.SUCCESS.value,
                 {"result_count": len(response_obj.results)},
             )
         cache_write_ms = await response.record_metrics_and_cache(

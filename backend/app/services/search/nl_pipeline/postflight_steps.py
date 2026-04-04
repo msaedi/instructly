@@ -9,8 +9,14 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.schemas.nl_search import NLSearchContentFilterDefinition
+from app.services.search import retriever as retriever_module
 from app.services.search.filter_service import FilterResult
-from app.services.search.nl_pipeline.models import PreOpenAIData
+from app.services.search.nl_pipeline.models import (
+    PostBurstCallbacks,
+    PostBurstDeps,
+    PostBurstInputs,
+    PreOpenAIData,
+)
 from app.services.search.nl_pipeline.postflight_filters import (
     FilterRankPhaseResult,
     TaxonomyPhaseResult,
@@ -75,7 +81,7 @@ def execute_retrieval_and_fusion(
     require_text_match = pre_data.require_text_match
     skip_vector = pre_data.skip_vector
     if text_results is None:
-        text_query = retriever._normalize_query_for_trigram(parsed_query.service_query)
+        text_query = retriever_module.normalize_query_for_trigram(parsed_query.service_query)
         text_start = time.perf_counter()
         text_results = batch.text_search(
             text_query, text_query, limit=min(text_top_k, max_candidates)
@@ -107,87 +113,53 @@ def execute_retrieval_and_fusion(
 def execute_post_openai_steps(
     *,
     db: Session,
-    search_batch_repository_cls: type[SearchBatchRepository],
-    pre_data: PreOpenAIData,
-    parsed_query: ParsedQuery,
-    query_embedding: Optional[List[float]],
-    location_resolution: Optional[ResolvedLocation],
-    user_location: Optional[Tuple[float, float]],
-    requester_timezone: Optional[str],
-    taxonomy_filter_selections: Optional[Dict[str, List[str]]],
-    subcategory_id: Optional[str],
-    retriever: PostgresRetriever,
-    compute_text_match_flags: Callable[
-        [str, Dict[str, Tuple[float, Dict[str, object]]]], tuple[float, bool, bool]
-    ],
-    normalize_taxonomy_filter_selections: Callable[
-        [Optional[Dict[str, List[str]]]], Dict[str, List[str]]
-    ],
-    resolve_effective_subcategory_id_fn: Callable[
-        [List[ServiceCandidate], Optional[str]], Optional[str]
-    ],
-    load_subcategory_filter_metadata_fn: Callable[
-        [TaxonomyFilterRepository, str], Tuple[List[Dict[str, object]], Optional[str]]
-    ],
-    build_available_content_filters_fn: Callable[
-        [List[Dict[str, object]]], List[NLSearchContentFilterDefinition]
-    ],
-    filter_service_cls: type[FilterService],
-    ranking_service_cls: type[RankingService],
-    filter_repository_cls: type[FilterRepository],
-    ranking_repository_cls: type[RankingRepository],
-    taxonomy_filter_repository_cls: type[TaxonomyFilterRepository],
-    location_resolver_cls: type[LocationResolver],
-    extract_inferred_filters: Callable[..., Dict[str, List[str]]],
-    region_code: str,
-    text_top_k: int,
-    vector_top_k: int,
-    max_candidates: int,
-    logger: LoggerLike,
+    inputs: PostBurstInputs,
+    deps: PostBurstDeps,
+    callbacks: PostBurstCallbacks,
 ) -> PostOpenAIState:
     retrieval_result = _execute_retrieval_phase(
         db=db,
-        search_batch_repository_cls=search_batch_repository_cls,
-        pre_data=pre_data,
-        parsed_query=parsed_query,
-        query_embedding=query_embedding,
-        retriever=retriever,
-        compute_text_match_flags=compute_text_match_flags,
-        region_code=region_code,
-        text_top_k=text_top_k,
-        vector_top_k=vector_top_k,
-        max_candidates=max_candidates,
+        search_batch_repository_cls=deps.search_batch_repository_cls,
+        pre_data=inputs.pre_data,
+        parsed_query=inputs.parsed_query,
+        query_embedding=inputs.query_embedding,
+        retriever=deps.retriever,
+        compute_text_match_flags=callbacks.compute_text_match_flags,
+        region_code=deps.region_code,
+        text_top_k=deps.text_top_k,
+        vector_top_k=deps.vector_top_k,
+        max_candidates=deps.max_candidates,
     )
     taxonomy_result = _execute_taxonomy_phase(
         db=db,
         candidates=retrieval_result[0],
-        parsed_query=parsed_query,
-        taxonomy_filter_selections=taxonomy_filter_selections,
-        subcategory_id=subcategory_id,
-        normalize_taxonomy_filter_selections=normalize_taxonomy_filter_selections,
-        resolve_effective_subcategory_id_fn=resolve_effective_subcategory_id_fn,
-        taxonomy_filter_repository_cls=taxonomy_filter_repository_cls,
-        load_subcategory_filter_metadata_fn=load_subcategory_filter_metadata_fn,
-        build_available_content_filters_fn=build_available_content_filters_fn,
-        extract_inferred_filters=extract_inferred_filters,
-        logger=logger,
+        parsed_query=inputs.parsed_query,
+        taxonomy_filter_selections=inputs.taxonomy_filter_selections,
+        subcategory_id=inputs.subcategory_id,
+        normalize_taxonomy_filter_selections=callbacks.normalize_taxonomy_filter_selections,
+        resolve_effective_subcategory_id_fn=callbacks.resolve_effective_subcategory_id_fn,
+        taxonomy_filter_repository_cls=deps.taxonomy_filter_repository_cls,
+        load_subcategory_filter_metadata_fn=callbacks.load_subcategory_filter_metadata_fn,
+        build_available_content_filters_fn=callbacks.build_available_content_filters_fn,
+        extract_inferred_filters=callbacks.extract_inferred_filters,
+        logger=deps.logger,
     )
     filter_rank_result = _execute_filter_rank_phase(
         db=db,
         candidates=taxonomy_result[0],
-        parsed_query=parsed_query,
-        user_location=user_location,
-        location_resolution=location_resolution,
-        requester_timezone=requester_timezone,
-        filter_repository_cls=filter_repository_cls,
-        ranking_repository_cls=ranking_repository_cls,
-        location_resolver_cls=location_resolver_cls,
-        filter_service_cls=filter_service_cls,
-        ranking_service_cls=ranking_service_cls,
-        region_code=region_code,
+        parsed_query=inputs.parsed_query,
+        user_location=inputs.user_location,
+        location_resolution=inputs.location_resolution,
+        requester_timezone=inputs.requester_timezone,
+        filter_repository_cls=deps.filter_repository_cls,
+        ranking_repository_cls=deps.ranking_repository_cls,
+        location_resolver_cls=deps.location_resolver_cls,
+        filter_service_cls=deps.filter_service_cls,
+        ranking_service_cls=deps.ranking_service_cls,
+        region_code=deps.region_code,
         effective_taxonomy_filters=taxonomy_result[2],
         effective_subcategory_id=taxonomy_result[3],
-        logger=logger,
+        logger=deps.logger,
     )
     return _build_post_openai_state(
         retrieval_result=retrieval_result,

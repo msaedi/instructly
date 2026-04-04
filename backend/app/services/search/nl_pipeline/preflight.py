@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from app import database as database_module
 from app.repositories import search_batch_repository as search_batch_repository_module
+from app.schemas.nl_search import StageStatus
 from app.services.search import (
     config as config_module,
     query_parser as query_parser_module,
@@ -186,7 +187,7 @@ def _record_preflight_state(
         timer.record_stage(
             "burst1",
             pre_openai_ms,
-            "success",
+            StageStatus.SUCCESS.value,
             {
                 "text_candidates": len(pre_data.text_results or {}),
                 "region_lookup_loaded": bool(pre_data.region_lookup),
@@ -342,7 +343,7 @@ async def run_preflight_and_parse_for_service(
         timer.record_stage(
             "parse",
             metrics.parse_latency_ms,
-            "success",
+            StageStatus.SUCCESS.value,
             {"mode": parsed_query.parsing_mode},
         )
     return pre_data, parsed_query, embedding_task, tier5_task, tier5_started_at
@@ -401,20 +402,20 @@ async def resolve_query_embedding_for_service(
         metrics.degradation_reasons.append(embedding_reason)
     if timer:
         if pre_data.skip_vector:
-            embed_status = "skipped"
+            embed_status = StageStatus.SKIPPED.value
         elif embedding_reason == "embedding_timeout":
-            embed_status = "timeout"
+            embed_status = StageStatus.TIMEOUT.value
         elif embedding_reason in {
             "no_embeddings_in_database",
             "budget_skip_vector_search",
             "force_skip_vector",
             "force_skip_embedding",
         }:
-            embed_status = "skipped"
+            embed_status = StageStatus.SKIPPED.value
         elif embedding_reason:
-            embed_status = "error"
+            embed_status = StageStatus.ERROR.value
         else:
-            embed_status = "success"
+            embed_status = StageStatus.SUCCESS.value
         timer.record_stage(
             "embedding",
             embed_latency_ms,
@@ -445,7 +446,6 @@ def run_pre_openai_burst_for_service(
         notify_parsed=notify_parsed,
         region_code=service._region_code,
         query_parser_cls=query_parser_module.QueryParser,
-        retriever=service.retriever,
         location_resolver_cls=LocationResolver,
         normalize_location_text=location_helpers.normalize_location_text,
         resolve_cached_alias=location_helpers.resolve_cached_alias,

@@ -67,6 +67,22 @@ EMBEDDING_SOFT_TIMEOUT_MS = (
 TRIGRAM_GENERIC_TOKENS = frozenset({"lesson", "lessons", "class", "classes"})
 
 
+def normalize_query_for_trigram(service_query: str) -> str:
+    """
+    Reduce trigram over-matching by stripping generic tokens.
+
+    This is intentionally conservative: only removes extremely common tokens.
+    Falls back to the original query if stripping would produce an empty query.
+    """
+    raw = " ".join(str(service_query).strip().split())
+    if not raw:
+        return ""
+
+    tokens = [t for t in raw.split() if t.lower() not in TRIGRAM_GENERIC_TOKENS]
+    normalized = " ".join(tokens).strip()
+    return normalized if normalized else raw
+
+
 @dataclass(init=False)
 class ServiceCandidate:
     """
@@ -223,7 +239,7 @@ class PostgresRetriever:
         text_results: Dict[str, Tuple[float, ServiceData]] = {}
 
         # Step 1: Always run trigram text search first (fast path for common queries)
-        text_query = self._normalize_query_for_trigram(service_query)
+        text_query = normalize_query_for_trigram(service_query)
         text_start = time.perf_counter()
         text_results = await self._run_db(
             lambda repo: self._text_search(repo, text_query, text_query, min(TEXT_TOP_K, top_k))
@@ -434,22 +450,6 @@ class PostgresRetriever:
             }
         return self._fuse_scores(vector_results, text_results, top_k)
 
-    @staticmethod
-    def _normalize_query_for_trigram(service_query: str) -> str:
-        """
-        Reduce trigram over-matching by stripping generic tokens.
-
-        This is intentionally conservative: only removes extremely common tokens.
-        Falls back to the original query if stripping would produce an empty query.
-        """
-        raw = " ".join(str(service_query).strip().split())
-        if not raw:
-            return ""
-
-        tokens = [t for t in raw.split() if t.lower() not in TRIGRAM_GENERIC_TOKENS]
-        normalized = " ".join(tokens).strip()
-        return normalized if normalized else raw
-
     def _fuse_scores(
         self,
         vector_results: Dict[str, Tuple[float, ServiceData]],
@@ -546,7 +546,7 @@ class PostgresRetriever:
         Returns:
             RetrievalResult with text-only candidates
         """
-        text_query = self._normalize_query_for_trigram(service_query)
+        text_query = normalize_query_for_trigram(service_query)
         text_results = await self._run_db(
             lambda repo: self._text_search(repo, text_query, original_query, top_k)
         )
