@@ -1263,6 +1263,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/celery/task-executions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_persistent_task_history_api_v1_admin_mcp_celery_task_executions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/task-stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_task_stats_api_v1_admin_mcp_celery_task_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/celery/tasks/active": {
  parameters: {
  query?: never;
@@ -8377,6 +8409,32 @@ export type components = {
  pending_authorizations: number;
  pending_captures: number;
  };
+ MCPCeleryPersistentTaskExecutionItem: {
+ celery_task_id: string;
+ created_at: string;
+ duration_ms?: number | null;
+ error_message?: string | null;
+ error_type?: string | null;
+ finished_at?: string | null;
+ id: string;
+ queue?: string | null;
+ request_id?: string | null;
+ result_summary?: string | null;
+ retries: number;
+ started_at?: string | null;
+ status: string;
+ task_name: string;
+ trace_id?: string | null;
+ worker?: string | null;
+ };
+ MCPCeleryPersistentTaskExecutionsResponse: {
+ checked_at: string;
+ count: number;
+ executions: components["schemas"]["MCPCeleryPersistentTaskExecutionItem"][];
+ filters_applied: {
+ [key: string]: unknown;
+ };
+ };
  MCPCeleryQueueInfo: {
  consumers: number;
  depth: number;
@@ -8414,6 +8472,26 @@ export type components = {
  [key: string]: unknown;
  };
  tasks: components["schemas"]["MCPCeleryTaskHistoryItem"][];
+ };
+ MCPCeleryTaskStatsItem: {
+ avg_duration_ms?: number | null;
+ failure_count: number;
+ last_failure_at?: string | null;
+ last_success_at?: string | null;
+ p50_duration_ms?: number | null;
+ p95_duration_ms?: number | null;
+ success_count: number;
+ success_rate: number;
+ task_name: string;
+ total_count: number;
+ };
+ MCPCeleryTaskStatsResponse: {
+ checked_at: string;
+ count: number;
+ filters_applied: {
+ [key: string]: unknown;
+ };
+ stats: components["schemas"]["MCPCeleryTaskStatsItem"][];
  };
  MCPCeleryWorkerInfo: {
  active_tasks: number;
@@ -13337,6 +13415,68 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPCeleryBeatScheduleResponse"];
+ };
+ };
+ };
+ };
+ get_persistent_task_history_api_v1_admin_mcp_celery_task_executions_get: {
+ parameters: {
+ query?: {
+ task_name?: string | null;
+ status?: string | null;
+ since_hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryPersistentTaskExecutionsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_task_stats_api_v1_admin_mcp_celery_task_stats_get: {
+ parameters: {
+ query?: {
+ task_name?: string | null;
+ since_hours?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryTaskStatsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };

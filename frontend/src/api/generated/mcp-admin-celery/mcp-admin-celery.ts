@@ -20,14 +20,18 @@ import type {
 
 import type {
   GetFailedTasksApiV1AdminMcpCeleryFailedGetParams,
+  GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
   GetTaskHistoryApiV1AdminMcpCeleryTasksHistoryGetParams,
+  GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
   HTTPValidationError,
   MCPCeleryActiveTasksResponse,
   MCPCeleryBeatScheduleResponse,
   MCPCeleryFailedTasksResponse,
   MCPCeleryPaymentHealthResponse,
+  MCPCeleryPersistentTaskExecutionsResponse,
   MCPCeleryQueuesResponse,
   MCPCeleryTaskHistoryResponse,
+  MCPCeleryTaskStatsResponse,
   MCPCeleryWorkersResponse,
 } from '../instructly.schemas';
 
@@ -671,6 +675,371 @@ export function useGetBeatScheduleApiV1AdminMcpCeleryScheduleGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetBeatScheduleApiV1AdminMcpCeleryScheduleGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get persistent Celery task execution history from the database.
+
+This complements Flower's transient history with durable execution records
+that survive worker restarts and can be queried for longer windows.
+ * @summary Get Persistent Task History
+ */
+export const getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetUrl = (
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/mcp/celery/task-executions?${stringifiedParams}`
+    : `/api/v1/admin/mcp/celery/task-executions`;
+};
+
+export const getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet = async (
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options?: RequestInit
+): Promise<MCPCeleryPersistentTaskExecutionsResponse> => {
+  return customFetch<MCPCeleryPersistentTaskExecutionsResponse>(
+    getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryKey = (
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams
+) => {
+  return [`/api/v1/admin/mcp/celery/task-executions`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>
+  > = ({ signal }) =>
+    getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet(params, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>
+>;
+export type GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet<
+  TData = Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet<
+  TData = Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet<
+  TData = Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Persistent Task History
+ */
+
+export function useGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet<
+  TData = Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get aggregate stats for persistent Celery task execution history.
+
+Returns per-task counts, failure rates, duration percentiles, and last success/failure times.
+ * @summary Get Task Stats
+ */
+export const getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetUrl = (
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/mcp/celery/task-stats?${stringifiedParams}`
+    : `/api/v1/admin/mcp/celery/task-stats`;
+};
+
+export const getTaskStatsApiV1AdminMcpCeleryTaskStatsGet = async (
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options?: RequestInit
+): Promise<MCPCeleryTaskStatsResponse> => {
+  return customFetch<MCPCeleryTaskStatsResponse>(
+    getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryKey = (
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams
+) => {
+  return [`/api/v1/admin/mcp/celery/task-stats`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>
+  > = ({ signal }) =>
+    getTaskStatsApiV1AdminMcpCeleryTaskStatsGet(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>
+>;
+export type GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetTaskStatsApiV1AdminMcpCeleryTaskStatsGet<
+  TData = Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTaskStatsApiV1AdminMcpCeleryTaskStatsGet<
+  TData = Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTaskStatsApiV1AdminMcpCeleryTaskStatsGet<
+  TData = Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Task Stats
+ */
+
+export function useGetTaskStatsApiV1AdminMcpCeleryTaskStatsGet<
+  TData = Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTaskStatsApiV1AdminMcpCeleryTaskStatsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetTaskStatsApiV1AdminMcpCeleryTaskStatsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

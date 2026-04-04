@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 import ulid
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
 from app.models.booking_payment import BookingPayment
+from app.models.task_execution import TaskExecution, TaskExecutionStatus
 
 
 class TestCeleryWorkersEndpoint:
@@ -303,6 +305,8 @@ class TestCeleryPaymentHealthEndpoint:
             "/api/v1/admin/mcp/celery/queues",
             "/api/v1/admin/mcp/celery/failed",
             "/api/v1/admin/mcp/celery/payment-health",
+            "/api/v1/admin/mcp/celery/task-executions",
+            "/api/v1/admin/mcp/celery/task-stats",
         ]
 
         for endpoint in endpoints:
@@ -318,6 +322,8 @@ class TestCeleryPaymentHealthEndpoint:
             "/api/v1/admin/mcp/celery/payment-health",
             "/api/v1/admin/mcp/celery/tasks/active",
             "/api/v1/admin/mcp/celery/tasks/history",
+            "/api/v1/admin/mcp/celery/task-executions",
+            "/api/v1/admin/mcp/celery/task-stats",
             "/api/v1/admin/mcp/celery/schedule",
         ]
 
@@ -488,6 +494,148 @@ class TestCeleryTaskHistoryEndpoint:
     def test_get_task_history_requires_auth(self, client: TestClient):
         """Test that endpoint requires authentication."""
         res = client.get("/api/v1/admin/mcp/celery/tasks/history")
+        assert res.status_code == 401
+
+
+class TestCeleryPersistentTaskHistoryEndpoint:
+    """Tests for GET /api/v1/admin/mcp/celery/task-executions"""
+
+    def test_get_persistent_task_history_success(self, client: TestClient, db, mcp_service_headers):
+        now = datetime.now(timezone.utc)
+        task_name = f"app.tasks.send_booking_reminders.{generate_ulid()}"
+        newer_task_id = generate_ulid()
+        db.add_all(
+            [
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.SUCCESS.value,
+                    started_at=now - timedelta(hours=2),
+                    finished_at=now - timedelta(hours=2, seconds=-2),
+                    duration_ms=2000,
+                    result_summary="sent=12",
+                    queue="notifications",
+                ),
+                TaskExecution(
+                    celery_task_id=newer_task_id,
+                    task_name=task_name,
+                    status=TaskExecutionStatus.FAILURE.value,
+                    started_at=now - timedelta(hours=1),
+                    finished_at=now - timedelta(hours=1, seconds=-1),
+                    duration_ms=1000,
+                    error_type="RuntimeError",
+                    error_message="boom",
+                    queue="notifications",
+                ),
+            ]
+        )
+        db.commit()
+
+        res = client.get(
+            f"/api/v1/admin/mcp/celery/task-executions?task_name={task_name}&since_hours=24&limit=10",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert data["count"] == 2
+        assert data["filters_applied"]["task_name"] == task_name
+        assert data["filters_applied"]["since_hours"] == 24
+        assert data["filters_applied"]["limit"] == 10
+        assert data["executions"][0]["celery_task_id"] == newer_task_id
+
+    def test_get_persistent_task_history_filters_by_status(
+        self, client: TestClient, db, mcp_service_headers
+    ):
+        now = datetime.now(timezone.utc)
+        task_name = f"app.tasks.capture.status_filter.{generate_ulid()}"
+        db.add_all(
+            [
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.SUCCESS.value,
+                    started_at=now - timedelta(minutes=20),
+                ),
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.FAILURE.value,
+                    started_at=now - timedelta(minutes=10),
+                ),
+            ]
+        )
+        db.commit()
+
+        res = client.get(
+            f"/api/v1/admin/mcp/celery/task-executions?task_name={task_name}&status=FAILURE",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["count"] == 1
+        assert all(row["status"] == "FAILURE" for row in data["executions"])
+
+    def test_get_persistent_task_history_invalid_since_hours(
+        self, client: TestClient, mcp_service_headers
+    ):
+        res = client.get(
+            "/api/v1/admin/mcp/celery/task-executions?since_hours=5000",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 422
+
+    def test_get_persistent_task_history_requires_auth(self, client: TestClient):
+        res = client.get("/api/v1/admin/mcp/celery/task-executions")
+        assert res.status_code == 401
+
+
+class TestCeleryTaskStatsEndpoint:
+    """Tests for GET /api/v1/admin/mcp/celery/task-stats"""
+
+    def test_get_task_stats_success(self, client: TestClient, db, mcp_service_headers):
+        now = datetime.now(timezone.utc)
+        task_name = f"app.tasks.capture.route_stats_unique.{generate_ulid()}"
+        db.add_all(
+            [
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.SUCCESS.value,
+                    started_at=now - timedelta(minutes=30),
+                    finished_at=now - timedelta(minutes=29),
+                    duration_ms=100,
+                ),
+                TaskExecution(
+                    celery_task_id=generate_ulid(),
+                    task_name=task_name,
+                    status=TaskExecutionStatus.FAILURE.value,
+                    started_at=now - timedelta(minutes=20),
+                    finished_at=now - timedelta(minutes=19),
+                    duration_ms=300,
+                ),
+            ]
+        )
+        db.commit()
+
+        res = client.get(
+            f"/api/v1/admin/mcp/celery/task-stats?task_name={task_name}&since_hours=24",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["count"] == 1
+        assert data["stats"][0]["task_name"] == task_name
+        assert data["stats"][0]["success_count"] == 1
+        assert data["stats"][0]["failure_count"] == 1
+        assert data["stats"][0]["success_rate"] == 0.5
+
+    def test_get_task_stats_requires_auth(self, client: TestClient):
+        res = client.get("/api/v1/admin/mcp/celery/task-stats")
         assert res.status_code == 401
 
 

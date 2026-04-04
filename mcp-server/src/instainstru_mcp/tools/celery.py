@@ -108,6 +108,55 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             limit=limit,
         )
 
+    async def instainstru_celery_task_history_persistent(
+        task_name: str | None = None,
+        status: str | None = None,
+        since_hours: int = 24,
+        limit: int = 50,
+    ) -> dict:
+        """Get persistent Celery task execution history from the database.
+
+        Args:
+            task_name: Filter by exact task name
+            status: Filter by status (STARTED, SUCCESS, FAILURE, RETRY)
+            since_hours: Look back window in hours (1-2160, default 24)
+            limit: Maximum results to return (1-500, default 50)
+
+        Returns task execution rows including:
+        - Persistent execution row ID and Celery task ID
+        - Task name, queue, status, and retries
+        - Started/finished timestamps and duration in milliseconds
+        - Error type/message and success result summary
+        - Worker, trace ID, and request ID for correlation
+        """
+        return await client.get_celery_task_history_persistent(
+            task_name=task_name,
+            status=status,
+            since_hours=since_hours,
+            limit=limit,
+        )
+
+    async def instainstru_celery_task_stats(
+        task_name: str | None = None,
+        since_hours: int = 24,
+    ) -> dict:
+        """Get aggregate stats for persistent Celery task execution history.
+
+        Args:
+            task_name: Filter by exact task name
+            since_hours: Look back window in hours (1-2160, default 24)
+
+        Returns per-task aggregates including:
+        - Total, success, and failure counts
+        - Success rate
+        - Average, p50, and p95 duration in milliseconds
+        - Last success and last failure timestamps
+        """
+        return await client.get_celery_task_stats(
+            task_name=task_name,
+            since_hours=since_hours,
+        )
+
     async def instainstru_celery_beat_schedule() -> dict:
         """Get Celery Beat schedule - all periodic tasks and when they run.
 
@@ -143,6 +192,14 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         mcp,
         instainstru_celery_task_history,
     )
+    instainstru_celery_task_history_persistent = register_backend_tool(
+        mcp,
+        instainstru_celery_task_history_persistent,
+    )
+    instainstru_celery_task_stats = register_backend_tool(
+        mcp,
+        instainstru_celery_task_stats,
+    )
     instainstru_celery_beat_schedule = register_backend_tool(
         mcp,
         instainstru_celery_beat_schedule,
@@ -155,5 +212,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         "instainstru_celery_payment_health": instainstru_celery_payment_health,
         "instainstru_celery_active_tasks": instainstru_celery_active_tasks,
         "instainstru_celery_task_history": instainstru_celery_task_history,
+        "instainstru_celery_task_history_persistent": (instainstru_celery_task_history_persistent),
+        "instainstru_celery_task_stats": instainstru_celery_task_stats,
         "instainstru_celery_beat_schedule": instainstru_celery_beat_schedule,
     }

@@ -4968,6 +4968,40 @@ export interface MCPCeleryPaymentHealthResponse {
 }
 
 /**
+ * Information about a persistent Celery task execution row.
+ */
+export interface MCPCeleryPersistentTaskExecutionItem {
+  celery_task_id: string;
+  created_at: string;
+  duration_ms?: number | null;
+  error_message?: string | null;
+  error_type?: string | null;
+  finished_at?: string | null;
+  id: string;
+  queue?: string | null;
+  request_id?: string | null;
+  result_summary?: string | null;
+  retries?: number;
+  started_at?: string | null;
+  status: string;
+  task_name: string;
+  trace_id?: string | null;
+  worker?: string | null;
+}
+
+export type MCPCeleryPersistentTaskExecutionsResponseFiltersApplied = { [key: string]: unknown };
+
+/**
+ * Response for persistent task execution history endpoint.
+ */
+export interface MCPCeleryPersistentTaskExecutionsResponse {
+  checked_at: string;
+  count: number;
+  executions: MCPCeleryPersistentTaskExecutionItem[];
+  filters_applied: MCPCeleryPersistentTaskExecutionsResponseFiltersApplied;
+}
+
+/**
  * Information about a single Celery queue.
  */
 export interface MCPCeleryQueueInfo {
@@ -5011,6 +5045,34 @@ export interface MCPCeleryTaskHistoryResponse {
   count: number;
   filters_applied: MCPCeleryTaskHistoryResponseFiltersApplied;
   tasks: MCPCeleryTaskHistoryItem[];
+}
+
+/**
+ * Aggregate stats for persistent task execution history.
+ */
+export interface MCPCeleryTaskStatsItem {
+  avg_duration_ms?: number | null;
+  failure_count: number;
+  last_failure_at?: string | null;
+  last_success_at?: string | null;
+  p50_duration_ms?: number | null;
+  p95_duration_ms?: number | null;
+  success_count: number;
+  success_rate: number;
+  task_name: string;
+  total_count: number;
+}
+
+export type MCPCeleryTaskStatsResponseFiltersApplied = { [key: string]: unknown };
+
+/**
+ * Response for aggregate task execution stats endpoint.
+ */
+export interface MCPCeleryTaskStatsResponse {
+  checked_at: string;
+  count: number;
+  filters_applied: MCPCeleryTaskStatsResponseFiltersApplied;
+  stats: MCPCeleryTaskStatsItem[];
 }
 
 /**
@@ -9508,6 +9570,42 @@ export type GetFailedTasksApiV1AdminMcpCeleryFailedGetParams = {
    * @maximum 100
    */
   limit?: number;
+};
+
+export type GetPersistentTaskHistoryApiV1AdminMcpCeleryTaskExecutionsGetParams = {
+  /**
+   * Filter by exact task name
+   */
+  task_name?: string | null;
+  /**
+   * Filter by status (STARTED, SUCCESS, FAILURE, RETRY)
+   */
+  status?: string | null;
+  /**
+   * Look back window in hours (max 2160 / 90 days)
+   * @minimum 1
+   * @maximum 2160
+   */
+  since_hours?: number;
+  /**
+   * Max results (max 500)
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type GetTaskStatsApiV1AdminMcpCeleryTaskStatsGetParams = {
+  /**
+   * Filter by exact task name
+   */
+  task_name?: string | null;
+  /**
+   * Look back window in hours (max 2160 / 90 days)
+   * @minimum 1
+   * @maximum 2160
+   */
+  since_hours?: number;
 };
 
 export type GetTaskHistoryApiV1AdminMcpCeleryTasksHistoryGetParams = {

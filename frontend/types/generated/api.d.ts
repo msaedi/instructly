@@ -1560,6 +1560,51 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/celery/task-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Persistent Task History
+         * @description Get persistent Celery task execution history from the database.
+         *
+         *     This complements Flower's transient history with durable execution records
+         *     that survive worker restarts and can be queried for longer windows.
+         */
+        get: operations["get_persistent_task_history_api_v1_admin_mcp_celery_task_executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/task-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Stats
+         * @description Get aggregate stats for persistent Celery task execution history.
+         *
+         *     Returns per-task counts, failure rates, duration percentiles, and last success/failure times.
+         */
+        get: operations["get_task_stats_api_v1_admin_mcp_celery_task_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/celery/tasks/active": {
         parameters: {
             query?: never;
@@ -14946,6 +14991,69 @@ export type components = {
             pending_captures: number;
         };
         /**
+         * MCPCeleryPersistentTaskExecutionItem
+         * @description Information about a persistent Celery task execution row.
+         */
+        MCPCeleryPersistentTaskExecutionItem: {
+            /** Celery Task Id */
+            celery_task_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Error Type */
+            error_type?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Id */
+            id: string;
+            /** Queue */
+            queue?: string | null;
+            /** Request Id */
+            request_id?: string | null;
+            /** Result Summary */
+            result_summary?: string | null;
+            /**
+             * Retries
+             * @default 0
+             */
+            retries: number;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Task Name */
+            task_name: string;
+            /** Trace Id */
+            trace_id?: string | null;
+            /** Worker */
+            worker?: string | null;
+        };
+        /**
+         * MCPCeleryPersistentTaskExecutionsResponse
+         * @description Response for persistent task execution history endpoint.
+         */
+        MCPCeleryPersistentTaskExecutionsResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Executions */
+            executions: components["schemas"]["MCPCeleryPersistentTaskExecutionItem"][];
+            /** Filters Applied */
+            filters_applied: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * MCPCeleryQueueInfo
          * @description Information about a single Celery queue.
          */
@@ -15040,6 +15148,51 @@ export type components = {
             };
             /** Tasks */
             tasks: components["schemas"]["MCPCeleryTaskHistoryItem"][];
+        };
+        /**
+         * MCPCeleryTaskStatsItem
+         * @description Aggregate stats for persistent task execution history.
+         */
+        MCPCeleryTaskStatsItem: {
+            /** Avg Duration Ms */
+            avg_duration_ms?: number | null;
+            /** Failure Count */
+            failure_count: number;
+            /** Last Failure At */
+            last_failure_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** P50 Duration Ms */
+            p50_duration_ms?: number | null;
+            /** P95 Duration Ms */
+            p95_duration_ms?: number | null;
+            /** Success Count */
+            success_count: number;
+            /** Success Rate */
+            success_rate: number;
+            /** Task Name */
+            task_name: string;
+            /** Total Count */
+            total_count: number;
+        };
+        /**
+         * MCPCeleryTaskStatsResponse
+         * @description Response for aggregate task execution stats endpoint.
+         */
+        MCPCeleryTaskStatsResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Filters Applied */
+            filters_applied: {
+                [key: string]: unknown;
+            };
+            /** Stats */
+            stats: components["schemas"]["MCPCeleryTaskStatsItem"][];
         };
         /**
          * MCPCeleryWorkerInfo
@@ -24640,6 +24793,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPCeleryBeatScheduleResponse"];
+                };
+            };
+        };
+    };
+    get_persistent_task_history_api_v1_admin_mcp_celery_task_executions_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by exact task name */
+                task_name?: string | null;
+                /** @description Filter by status (STARTED, SUCCESS, FAILURE, RETRY) */
+                status?: string | null;
+                /** @description Look back window in hours (max 2160 / 90 days) */
+                since_hours?: number;
+                /** @description Max results (max 500) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryPersistentTaskExecutionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_stats_api_v1_admin_mcp_celery_task_stats_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by exact task name */
+                task_name?: string | null;
+                /** @description Look back window in hours (max 2160 / 90 days) */
+                since_hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryTaskStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

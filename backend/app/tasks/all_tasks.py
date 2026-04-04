@@ -31,7 +31,7 @@ ALL_TASKS = [
     "app.tasks.analytics.calculate_analytics",
     "app.tasks.analytics.generate_daily_report",
     "app.tasks.analytics.update_service_metrics",
-    "app.tasks.analytics.record_task_execution",
+    "app.tasks.task_executions.purge_old",
     # Monitoring tasks
     "app.tasks.monitoring_tasks.process_monitoring_alert",
     "app.tasks.monitoring_tasks.send_alert_email",

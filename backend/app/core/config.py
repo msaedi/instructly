@@ -719,6 +719,12 @@ class Settings(BaseSettings):
         alias="AVAILABILITY_RETENTION_DRY_RUN",
         description="When true, retention logs counts without deleting availability_days rows",
     )
+    task_execution_retention_days: int = Field(
+        default=90,
+        alias="TASK_EXECUTION_RETENTION_DAYS",
+        ge=1,
+        description="TTL in days before historical task_executions rows are purged",
+    )
 
     # Production database protection
     production_database_indicators: list[str] = [

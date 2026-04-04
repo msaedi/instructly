@@ -9,7 +9,7 @@ and updating metrics asynchronously.
 from datetime import datetime, timezone
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, ParamSpec, Protocol, TypeVar, cast
+from typing import Any, Callable, Dict, ParamSpec, Protocol, TypeVar, cast
 
 from celery.result import AsyncResult
 from scripts.calculate_service_analytics import AnalyticsCalculator
@@ -261,48 +261,3 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
     except Exception as exc:
         logger.error("Failed to update service %s metrics: %s", service_id, exc)
         raise
-
-
-# Optional: Task execution tracking
-@typed_task(
-    name="app.tasks.analytics.record_task_execution",
-    bind=True,
-)
-def record_task_execution(
-    self: BaseTask,
-    task_name: str,
-    status: str,
-    execution_time: float,
-    result: Optional[Dict[str, Any]] = None,
-    error: Optional[str] = None,
-) -> None:
-    """
-    Record task execution in database for tracking.
-
-    This is an optional task that can be called after other tasks complete
-    to maintain an execution history.
-
-    Args:
-        task_name: Name of the executed task
-        status: Execution status (success/failure)
-        execution_time: Time taken to execute
-        result: Task result summary
-        error: Error message if failed
-    """
-    try:
-        # This would require a TaskExecution model to be created.
-        # For now, just log it.
-        logger.info(
-            "Task execution recorded",
-            extra={
-                "task_name": task_name,
-                "status": status,
-                "execution_time": execution_time,
-                "result": result,
-                "error": error,
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
-    except Exception as exc:
-        logger.error("Failed to record task execution: %s", exc)

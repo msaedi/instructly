@@ -62,6 +62,7 @@ from .referral_repository import (
 from .search_event_repository import SearchEventRepository
 from .service_format_pricing_repository import ServiceFormatPricingRepository
 from .subcategory_repository import SubcategoryRepository
+from .task_execution_repository import TaskExecutionRepository
 from .taxonomy_filter_repository import TaxonomyFilterRepository
 from .trusted_device_repository import TrustedDeviceRepository
 from .week_operation_repository import WeekOperationRepository
@@ -83,6 +84,7 @@ __all__ = [
     "ConversationRepository",
     "GovernanceAuditRepository",
     "SubcategoryRepository",
+    "TaskExecutionRepository",
     "TaxonomyFilterRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
