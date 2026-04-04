@@ -31,7 +31,7 @@ def _make_repo() -> Any:
 
 @pytest.mark.unit
 class TestCreateCustomerRecord:
-    @patch("app.repositories.payment_repository.ulid")
+    @patch("app.repositories.payment.customer_mixin.ulid")
     def test_success(self, mock_ulid):
         mock_ulid.ULID.return_value = "01TESTCUST000000000000001"
         repo = _make_repo()
@@ -86,7 +86,7 @@ class TestGetCustomerByStripeId:
 
 @pytest.mark.unit
 class TestCreateConnectedAccountRecord:
-    @patch("app.repositories.payment_repository.ulid")
+    @patch("app.repositories.payment.connected_account_mixin.ulid")
     def test_success(self, mock_ulid):
         mock_ulid.ULID.return_value = "01TESTACCT000000000000001"
         repo = _make_repo()
@@ -150,7 +150,7 @@ class TestUpdateOnboardingStatus:
 
 @pytest.mark.unit
 class TestCreatePaymentRecord:
-    @patch("app.repositories.payment_repository.ulid")
+    @patch("app.repositories.payment.payment_intent_mixin.ulid")
     def test_success(self, mock_ulid):
         mock_ulid.ULID.return_value = "01TESTPAY0000000000000001"
         repo = _make_repo()
@@ -158,7 +158,7 @@ class TestCreatePaymentRecord:
         repo.db.add.assert_called_once()
         repo.db.flush.assert_called_once()
 
-    @patch("app.repositories.payment_repository.ulid")
+    @patch("app.repositories.payment.payment_intent_mixin.ulid")
     def test_with_extra_fields(self, mock_ulid):
         mock_ulid.ULID.return_value = "01TESTPAY0000000000000002"
         repo = _make_repo()
@@ -360,7 +360,7 @@ class TestSavePaymentMethod:
         repo = _make_repo()
         repo.db.query.return_value.filter.return_value.first.return_value = None
         repo.db.query.return_value.filter.return_value.update.return_value = 0
-        with patch("app.repositories.payment_repository.ulid") as mock_ulid:
+        with patch("app.repositories.payment.payment_method_mixin.ulid") as mock_ulid:
             mock_ulid.ULID.return_value = "01TESTPM0000000000000001"
             repo.save_payment_method("USER1", "pm_test", "4242", "visa", is_default=True)
         repo.db.add.assert_called_once()
@@ -591,8 +591,8 @@ class TestGetInstructorEarningsExportStudentName:
 class TestCreatePaymentEventAuditFails:
     """Cover lines 1018-1019: audit logging failure is swallowed."""
 
-    @patch("app.repositories.payment_repository.ulid")
-    @patch("app.repositories.payment_repository.AuditService")
+    @patch("app.repositories.payment.payment_event_mixin.ulid")
+    @patch("app.repositories.payment.payment_event_mixin.AuditService")
     def test_audit_raises_swallowed(self, mock_audit_cls, mock_ulid):
         mock_ulid.ULID.return_value = "01TESTEVT0000000000000001"
         repo = _make_repo()
