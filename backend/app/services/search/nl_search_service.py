@@ -261,7 +261,6 @@ class NLSearchService:
             candidates_flow=context.candidates_flow,
         )
         results, hydrate_ms = await hydration.hydrate_results_for_service(
-            self,
             post_data=post_data,
             limit=request.limit,
             metrics=context.metrics,

@@ -475,7 +475,6 @@ class TestTransformInstructorResults:
         service is filtered out by max_price, the instructor must be ranked by
         the best remaining affordable service (not the filtered one).
         """
-        service = NLSearchService()
         parsed = ParsedQuery(
             original_query="jazz improv under $60",
             service_query="jazz improv",
@@ -542,7 +541,7 @@ class TestTransformInstructorResults:
             },
         ]
 
-        results = hydration.transform_instructor_results_for_service(service, raw_results, parsed)
+        results = hydration.transform_instructor_results_for_service(raw_results, parsed)
         results.sort(key=lambda r: r.relevance_score, reverse=True)
 
         assert [r.instructor_id for r in results] == ["usr_B", "usr_A"]
@@ -561,8 +560,6 @@ class TestHydrateInstructorResults:
 
     @pytest.mark.asyncio
     async def test_groups_by_instructor_and_picks_best_match_by_relevance(self) -> None:
-        service = NLSearchService()
-
         ranked = [
             RankedResult(
                 service_id="svc_a1",
@@ -656,7 +653,10 @@ class TestHydrateInstructorResults:
             patch("app.repositories.retriever_repository.RetrieverRepository") as mock_repo_cls,
         ):
             mock_repo_cls.return_value.get_instructor_cards = Mock(return_value=instructor_cards)
-            results = await hydration.hydrate_instructor_results_for_service(service, ranked, limit=2)
+            results = await hydration.hydrate_instructor_results_for_service(
+                ranked,
+                limit=2,
+            )
 
         assert [r.instructor_id for r in results] == ["usr_A", "usr_B"]
         assert results[0].best_match.service_id == "svc_a2"

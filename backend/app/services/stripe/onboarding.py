@@ -3,7 +3,7 @@ from __future__ import annotations
 from importlib import import_module
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, cast
 from urllib.parse import ParseResult, urljoin, urlparse
 
 from sqlalchemy.exc import IntegrityError
@@ -25,12 +25,13 @@ from ..base import BaseService
 if TYPE_CHECKING:
     from ...repositories.instructor_profile_repository import InstructorProfileRepository
     from ...repositories.payment_repository import PaymentRepository
+    from ..stripe_service import StripeServiceModuleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 class StripeOnboardingMixin(BaseService):

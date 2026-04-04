@@ -13,6 +13,10 @@ from app.services.search.location_resolver import (
     ResolutionTier,
     ResolvedLocation,
 )
+from app.services.search.nl_pipeline._location_config import (
+    LOCATION_LLM_CONFIDENCE_THRESHOLD,
+    LOCATION_TIER4_HIGH_CONFIDENCE,
+)
 from app.services.search.nl_pipeline.models import (
     LocationLLMCache,
     PipelineTimer,
@@ -160,19 +164,16 @@ def pick_best_location(
     tier4_high_confidence: Optional[float] = None,
     llm_confidence_threshold: Optional[float] = None,
 ) -> Optional[ResolvedLocation]:
-    if tier4_high_confidence is None or llm_confidence_threshold is None:
-        from app.services.search.nl_pipeline import location as location_module
-
-        tier4_high_confidence = (
-            tier4_high_confidence
-            if tier4_high_confidence is not None
-            else location_module.LOCATION_TIER4_HIGH_CONFIDENCE
-        )
-        llm_confidence_threshold = (
-            llm_confidence_threshold
-            if llm_confidence_threshold is not None
-            else location_module.LOCATION_LLM_CONFIDENCE_THRESHOLD
-        )
+    tier4_high_confidence = (
+        tier4_high_confidence
+        if tier4_high_confidence is not None
+        else LOCATION_TIER4_HIGH_CONFIDENCE
+    )
+    llm_confidence_threshold = (
+        llm_confidence_threshold
+        if llm_confidence_threshold is not None
+        else LOCATION_LLM_CONFIDENCE_THRESHOLD
+    )
     if tier4_result and tier4_result.resolved and tier4_result.confidence >= tier4_high_confidence:
         return tier4_result
     if tier5_result and (tier5_result.confidence >= llm_confidence_threshold or not tier4_result):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterable
 
 from ..base import BaseService
 from .types import (
@@ -81,9 +81,9 @@ class AvailabilityMixinBase(BaseService):
         def compute_week_version_bitmaps(self, bitmaps_by_day: dict[date, DayBitmaps]) -> str:
             ...
 
+        @staticmethod
         def _normalize_week_windows_for_bits_save(
-            self,
-            windows: list[tuple[str, str]],
+            raw_windows: Iterable[tuple[str | time, str | time]],
         ) -> list[tuple[str, str]]:
             ...
 
@@ -92,7 +92,7 @@ class AvailabilityMixinBase(BaseService):
 
         def _extract_cached_week_result(
             self,
-            payload: object,
+            payload: Any,
             *,
             include_slots: bool,
         ) -> WeekAvailabilityResult | None:
@@ -100,7 +100,7 @@ class AvailabilityMixinBase(BaseService):
 
         def _sanitize_week_map(
             self,
-            payload: object,
+            payload: Any,
         ) -> dict[str, list[TimeSlotResponse]] | None:
             ...
 
@@ -157,7 +157,8 @@ class AvailabilityMixinBase(BaseService):
         def _ensure_valid_interval(self, target_date: date, start: time, end: time) -> None:
             ...
 
-        def _minutes_range(self, start: time, end: time) -> tuple[int, int]:
+        @staticmethod
+        def _minutes_range(start: time, end: time) -> tuple[int, int]:
             ...
 
         def save_week_bits(
@@ -169,7 +170,7 @@ class AvailabilityMixinBase(BaseService):
             override: bool,
             clear_existing: bool,
             *,
-            actor: object | None = None,
+            actor: Any | None = None,
         ) -> SaveWeekBitsResult:
             ...
 
@@ -184,7 +185,7 @@ class AvailabilityMixinBase(BaseService):
             skipped_forbidden_dates: list[date],
             past_written_dates: set[date],
             audit_dates: list[date],
-        ) -> tuple[dict[str, object], dict[str, object]]:
+        ) -> tuple[dict[str, Any], dict[str, Any]]:
             ...
 
         def _write_availability_audit(
@@ -193,9 +194,9 @@ class AvailabilityMixinBase(BaseService):
             week_start: date,
             action: str,
             *,
-            actor: object | None,
-            before: dict[str, object] | None,
-            after: dict[str, object] | None,
+            actor: Any | None,
+            before: dict[str, Any] | None,
+            after: dict[str, Any] | None,
             default_role: str = "instructor",
         ) -> None:
             ...

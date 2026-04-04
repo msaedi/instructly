@@ -1072,7 +1072,7 @@ class TestNlSearchServiceCore:
             },
         ]
 
-        results = hydration.transform_instructor_results_for_service(nl_service, raw_results, parsed)
+        results = hydration.transform_instructor_results_for_service(raw_results, parsed)
 
         assert len(results) == 1
         assert results[0].instructor_id == "inst_2"
@@ -2117,7 +2117,7 @@ def test_transform_instructor_results_skips_empty_services(nl_service):
         }
     ]
 
-    assert hydration.transform_instructor_results_for_service(nl_service, raw_results, parsed) == []
+    assert hydration.transform_instructor_results_for_service(raw_results, parsed) == []
 
 
 def test_build_search_diagnostics_includes_candidate_regions(nl_service):
@@ -2303,7 +2303,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
             return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
-        results = await hydration.hydrate_instructor_results_for_service(nl_service,
+        results = await hydration.hydrate_instructor_results_for_service(
             ranked,
             limit=1,
             location_resolution=location_resolution,
@@ -2351,7 +2351,7 @@ async def test_hydrate_instructor_results_raises_when_hydration_rows_missing(nl_
         new=AsyncMock(side_effect=_to_thread),
     ):
         with pytest.raises(RuntimeError, match="Instructor hydration returned no rows"):
-            await hydration.hydrate_instructor_results_for_service(nl_service,
+            await hydration.hydrate_instructor_results_for_service(
                 ranked,
                 limit=1,
                 location_resolution=ResolvedLocation(region_id="region-1"),
@@ -2443,7 +2443,7 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
         "app.services.search.nl_pipeline.hydration.asyncio.to_thread",
         new=AsyncMock(side_effect=_to_thread),
     ):
-        results = await hydration.hydrate_instructor_results_for_service(nl_service,
+        results = await hydration.hydrate_instructor_results_for_service(
             ranked,
             limit=2,
             location_resolution=location_resolution,
@@ -2845,7 +2845,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
             return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
-        results = await hydration.hydrate_instructor_results_for_service(nl_service,
+        results = await hydration.hydrate_instructor_results_for_service(
             ranked,
             limit=3,
             instructor_rows=instructor_rows,
@@ -2906,7 +2906,7 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
             )
         ),
     ):
-        results = await hydration.hydrate_instructor_results_for_service(nl_service,
+        results = await hydration.hydrate_instructor_results_for_service(
             ranked,
             limit=1,
             location_resolution=location_resolution,
@@ -3264,7 +3264,7 @@ async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypa
         tier=ResolutionTier.EXACT,
         confidence=1.0,
     )
-    results = await hydration.hydrate_instructor_results_for_service(nl_service,
+    results = await hydration.hydrate_instructor_results_for_service(
         ranked,
         limit=1,
         location_resolution=location_resolution,

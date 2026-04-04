@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from contextlib import AbstractContextManager
+from datetime import datetime as DateTimeValue
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -27,6 +29,18 @@ from app.core.exceptions import RepositoryException
 from app.models.booking import Booking
 from app.models.payment import PaymentEvent
 from app.tasks.celery_app import celery_app
+
+if TYPE_CHECKING:
+    from app.repositories.booking_repository import BookingRepository
+    from app.repositories.factory import RepositoryFactory
+    from app.repositories.payment_repository import PaymentRepository
+    from app.services.booking_service import BookingService
+    from app.services.config_service import ConfigService
+    from app.services.notification_service import NotificationService
+    from app.services.pricing_service import PricingService
+    from app.services.stripe_service import StripeService
+    from app.services.student_credit_service import StudentCreditService
+    from app.services.timezone_service import TimezoneService
 
 P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
@@ -103,40 +117,44 @@ logger.info(
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 
 
+class BookingLockSyncLike(Protocol):
+    def __call__(self, booking_id: str, ttl_s: int = 90) -> AbstractContextManager[bool]:
+        ...
+
+
 class PaymentTasksFacadeApi(Protocol):
-    BookingRepository: Any
-    BookingService: Any
-    ConfigService: Any
-    NotificationService: Any
-    PricingService: Any
-    RepositoryFactory: Any
-    StripeService: Any
-    StudentCreditService: Any
-    TimezoneService: Any
-    booking_lock_sync: Any
-    datetime: Any
-    get_db: Any
-    logger: Any
+    BookingRepository: type["BookingRepository"]
+    BookingService: type["BookingService"]
+    ConfigService: type["ConfigService"]
+    NotificationService: type["NotificationService"]
+    PricingService: type["PricingService"]
+    RepositoryFactory: type["RepositoryFactory"]
+    StripeService: type["StripeService"]
+    StudentCreditService: type["StudentCreditService"]
+    TimezoneService: type["TimezoneService"]
+    booking_lock_sync: BookingLockSyncLike
+    datetime: type[DateTimeValue]
+    logger: logging.Logger
     stripe: Any
 
-    def _auto_complete_booking(self, booking_id: str, now: datetime) -> Dict[str, Any]:
+    def _auto_complete_booking(self, booking_id: str, now: DateTimeValue) -> Dict[str, Any]:
         ...
 
     def _mark_booking_payment_failed(
         self,
         booking_id: str,
         hours_until_lesson: float,
-        now: datetime,
+        now: DateTimeValue,
     ) -> bool:
         ...
 
-    def _escalate_capture_failure(self, booking_id: str, now: datetime) -> None:
+    def _escalate_capture_failure(self, booking_id: str, now: DateTimeValue) -> None:
         ...
 
-    def _get_booking_end_utc(self, booking: Booking) -> datetime:
+    def _get_booking_end_utc(self, booking: Booking) -> DateTimeValue:
         ...
 
-    def _get_booking_start_utc(self, booking: Booking) -> datetime:
+    def _get_booking_start_utc(self, booking: Booking) -> DateTimeValue:
         ...
 
     def _process_authorization_for_booking(
@@ -170,16 +188,16 @@ class PaymentTasksFacadeApi(Protocol):
     def _mark_child_booking_settled(self, booking_id: str) -> None:
         ...
 
-    def _should_retry_auth(self, booking: Booking, now: datetime) -> bool:
+    def _should_retry_auth(self, booking: Booking, now: DateTimeValue) -> bool:
         ...
 
-    def _should_retry_capture(self, booking: Booking, now: datetime) -> bool:
+    def _should_retry_capture(self, booking: Booking, now: DateTimeValue) -> bool:
         ...
 
     def create_new_authorization_and_capture(
         self,
         booking: Booking,
-        payment_repo: Any,
+        payment_repo: PaymentRepository,
         db: Session,
         *,
         lock_acquired: bool = False,
@@ -188,32 +206,32 @@ class PaymentTasksFacadeApi(Protocol):
 
     def has_event_type(
         self,
-        payment_repo: Any,
+        payment_repo: PaymentRepository,
         booking_id: Union[int, str],
         event_type: str,
     ) -> bool:
         ...
 
 
-def _get_booking_start_utc(booking: Booking) -> datetime:
+def _get_booking_start_utc(booking: Booking) -> DateTimeValue:
     """Get booking start time in UTC."""
     if booking.booking_start_utc is None:
         raise ValueError(f"Booking {booking.id} missing booking_start_utc")
-    return cast(datetime, booking.booking_start_utc)
+    return cast(DateTimeValue, booking.booking_start_utc)
 
 
-def _get_booking_end_utc(booking: Booking) -> datetime:
+def _get_booking_end_utc(booking: Booking) -> DateTimeValue:
     """Get booking end time in UTC."""
     if booking.booking_end_utc is None:
         raise ValueError(f"Booking {booking.id} missing booking_end_utc")
-    return cast(datetime, booking.booking_end_utc)
+    return cast(DateTimeValue, booking.booking_end_utc)
 
 
-def _should_retry_auth(booking: Booking, now: datetime) -> bool:
+def _should_retry_auth(booking: Booking, now: DateTimeValue) -> bool:
     """Determine if a failed authorization should be retried."""
     pd = booking.payment_detail
     attempted_at = getattr(pd, "auth_attempted_at", None)
-    if not isinstance(attempted_at, datetime):
+    if not isinstance(attempted_at, DateTimeValue):
         return True
     hours_since_attempt = (now - attempted_at).total_seconds() / 3600
     failure_count = int(getattr(pd, "auth_failure_count", 0) or 0)
@@ -226,20 +244,24 @@ def _should_retry_auth(booking: Booking, now: datetime) -> bool:
     return hours_since_attempt >= required_wait
 
 
-def _should_retry_capture(booking: Booking, now: datetime) -> bool:
+def _should_retry_capture(booking: Booking, now: DateTimeValue) -> bool:
     """Return True if enough time has passed since the last capture failure."""
     pd = booking.payment_detail
     failed_at = getattr(pd, "capture_failed_at", None)
-    if not isinstance(failed_at, datetime):
+    if not isinstance(failed_at, DateTimeValue):
         return False
     return (now - failed_at).total_seconds() / 3600 >= 4
 
 
-def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: str) -> bool:
+def has_event_type(
+    payment_repo: PaymentRepository,
+    booking_id: Union[int, str],
+    event_type: str,
+) -> bool:
     """Check if a booking has a specific event type in its history."""
     events = cast(
         Sequence[PaymentEvent],
-        payment_repo.get_payment_events_for_booking(booking_id),
+        payment_repo.get_payment_events_for_booking(str(booking_id)),
     )
     return any(event.event_type == event_type for event in events)
 
@@ -266,7 +288,7 @@ def notify_payment_failed_once(
 
 def resolve_payout_cents(
     api: PaymentTasksFacadeApi,
-    payment_repo: Any,
+    payment_repo: PaymentRepository,
     booking_id: str,
     *,
     context: str = "capture",
@@ -305,7 +327,9 @@ def resolve_locked_booking_from_task_impl(
     try:
         result = api.BookingService(db).resolve_lock_for_booking(locked_booking_id, resolution)
         db.commit()
-        return cast(Dict[str, Any], result)
+        if not isinstance(result, dict):
+            raise TypeError("resolve_lock_for_booking() must return a mapping")
+        return result
     finally:
         db.close()
 

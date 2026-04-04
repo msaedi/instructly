@@ -3,7 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    cast,
+)
 
 from ..base import BaseService
 
@@ -39,18 +50,56 @@ class PreparedProfileUpdateContext:
     )
 
 
-def get_instructor_service_module() -> Any:
+if TYPE_CHECKING:
+    from ..geocoding.base import GeocodingProvider
+    from ..instructor_lifecycle_service import InstructorLifecycleService
+    from ..location_enrichment import LocationEnrichmentService
+    from ..pricing_service import PricingService
+    from ..stripe_service import StripeService
+
+
+class InvalidateOnServiceChangeProtocol(Protocol):
+    def __call__(self, service_id: str, change_type: str = "update") -> None:
+        ...
+
+
+class CreateGeocodingProviderProtocol(Protocol):
+    def __call__(self, provider_override: Optional[str] = None) -> "GeocodingProvider":
+        ...
+
+
+class InvalidateInstructorProfileChangeProtocol(Protocol):
+    def __call__(self, instructor_id: str) -> None:
+        ...
+
+
+class InstructorServiceModuleProtocol(Protocol):
+    """Typed surface exposed through the instructor facade lazy import seam."""
+
+    PricingService: ClassVar[type["PricingService"]]
+    StripeService: ClassVar[type["StripeService"]]
+    InstructorLifecycleService: ClassVar[type["InstructorLifecycleService"]]
+    LocationEnrichmentService: ClassVar[type["LocationEnrichmentService"]]
+    jitter_coordinates: ClassVar[Callable[..., tuple[float, float]]]
+    create_geocoding_provider: ClassVar[CreateGeocodingProviderProtocol]
+    invalidate_on_instructor_profile_change: ClassVar[InvalidateInstructorProfileChangeProtocol]
+    invalidate_on_service_change: ClassVar[InvalidateOnServiceChangeProtocol]
+
+
+def get_instructor_service_module() -> InstructorServiceModuleProtocol:
     """Return the instructor facade module for test patch compatibility."""
 
     from .. import instructor_service as instructor_service_module
 
-    return instructor_service_module
+    return cast(InstructorServiceModuleProtocol, instructor_service_module)
 
 
 class InstructorMixinBase(BaseService):
     """Base class used to make instructor mixin dependencies visible to typing."""
 
     if TYPE_CHECKING:
+        from decimal import Decimal
+
         from ...models.instructor import InstructorPreferredPlace, InstructorProfile
         from ...models.service_catalog import InstructorService as Service, ServiceCatalog
         from ...models.user import User
@@ -81,9 +130,8 @@ class InstructorMixinBase(BaseService):
         service_area_repository: Any
         taxonomy_filter_repository: Any
 
-        def _extract_profile_basic_updates(
-            self, update_data: InstructorProfileUpdate
-        ) -> dict[str, Any]:
+        @staticmethod
+        def _extract_profile_basic_updates(update_data: InstructorProfileUpdate) -> dict[str, Any]:
             ...
 
         def _build_auto_bio(
@@ -105,7 +153,7 @@ class InstructorMixinBase(BaseService):
             self,
             instructor_id: str,
             kind: str,
-            items: Sequence[PreferredTeachingLocationIn | PreferredPublicSpaceIn],
+            items: Sequence[Any],
             *,
             geocoded_locations: dict[str, PreparedTeachingLocationGeocode] | None = None,
         ) -> None:
@@ -146,16 +194,17 @@ class InstructorMixinBase(BaseService):
         def _validate_catalog_ids(self, catalog_ids: List[str]) -> None:
             ...
 
+        @staticmethod
         def _normalize_format_prices(
-            self, format_prices: Sequence[Dict[str, Any]]
+            format_prices: Sequence[Dict[str, Any]]
         ) -> List[Dict[str, Any]]:
             ...
 
-        def _floor_for_format(self, format_name: str) -> Any:
+        def _floor_for_format(self, format_name: str) -> Decimal:
             ...
 
+        @staticmethod
         def _validate_age_groups_subset(
-            self,
             catalog_service: ServiceCatalog,
             age_groups: Optional[List[str]],
         ) -> None:
@@ -184,8 +233,8 @@ class InstructorMixinBase(BaseService):
             service_catalog_id: str,
             min_price: Optional[float],
             max_price: Optional[float],
-        ) -> List[Service]:
+        ) -> List[Any]:
             ...
 
-        def _calculate_price_range(self, instructor_services: List[Service]) -> Dict[str, Any]:
+        def _calculate_price_range(self, instructor_services: List[Any]) -> Dict[str, Any]:
             ...

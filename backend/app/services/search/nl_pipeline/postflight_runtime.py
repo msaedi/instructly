@@ -164,7 +164,7 @@ async def retrieve_candidates(
         0,
         total_ms - metrics.embed_latency_ms,
     )
-    return cast(retriever_module.RetrievalResult, result)
+    return result
 
 
 async def filter_candidates(
@@ -207,7 +207,7 @@ async def filter_candidates(
         metrics.degraded = True
         metrics.degradation_reasons.append("filtering_error")
     metrics.filter_latency_ms = int((time.time() - start) * 1000)
-    return cast(filter_service_module.FilterResult, result)
+    return result
 
 
 def rank_results(
@@ -254,7 +254,7 @@ def rank_results(
         metrics.degraded = True
         metrics.degradation_reasons.append("ranking_error")
     metrics.rank_latency_ms = int((time.time() - start) * 1000)
-    return cast(ranking_service_module.RankingResult, result)
+    return result
 
 
 def apply_budget_degradation(metrics: SearchMetrics, budget: RequestBudget) -> None:

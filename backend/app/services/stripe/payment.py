@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from importlib import import_module
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import stripe
 
@@ -27,12 +27,13 @@ if TYPE_CHECKING:
     from ...repositories.instructor_profile_repository import InstructorProfileRepository
     from ...repositories.payment_repository import PaymentRepository
     from ..booking_service import BookingService
+    from ..stripe_service import StripeServiceModuleProtocol
 
 logger = logging.getLogger(__name__)
 
 
-def _stripe_service_module() -> Any:
-    return import_module("app.services.stripe_service")
+def _stripe_service_module() -> StripeServiceModuleProtocol:
+    return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
 @dataclass(slots=True)
