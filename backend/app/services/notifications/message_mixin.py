@@ -1,31 +1,16 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ...models.booking import Booking
-from ...repositories.conversation_repository import ConversationRepository
-from ...repositories.user_repository import UserRepository
 from ..base import BaseService
-from ..email import EmailService
-from ..sms_service import SMSService
 from ..sms_templates import BOOKING_NEW_MESSAGE
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationMessageMixin(NotificationMixinBase):
     """Conversation message notifications — email, SMS, in-app, push."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        conversation_repository: ConversationRepository
-        email_service: EmailService
-        sms_service: SMSService | None
-        template_service: TemplateService
-        user_repository: UserRepository
-        frontend_url: str
 
     def _load_message_notification_context(
         self, recipient_id: str, booking: Booking, sender_id: str, message_content: str

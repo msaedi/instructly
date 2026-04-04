@@ -40,6 +40,7 @@ from app.tasks.payment.common import (
     NoShowResolutionResults,
     PaymentTasksFacadeApi,
     RetryJobResults,
+    _ensure_stripe_api_key,
     _get_booking_end_utc,
     _get_booking_start_utc,
     _should_retry_auth,
@@ -53,6 +54,7 @@ from app.tasks.payment.common import (
 
 
 def _facade_api() -> PaymentTasksFacadeApi:
+    _ensure_stripe_api_key()
     return cast(PaymentTasksFacadeApi, sys.modules[__name__])
 
 

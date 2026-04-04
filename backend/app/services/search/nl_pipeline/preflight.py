@@ -24,7 +24,6 @@ from app.services.search.nl_pipeline.preflight_core import (
     coerce_skill_level_override,
     compute_text_match_flags,
     embed_query_with_timeout,
-    embed_query_with_timeout as _embed_query_with_timeout_impl,
     normalize_filter_values,
     normalize_taxonomy_filter_selections,
     prepare_search_filters,
@@ -159,7 +158,7 @@ async def embed_query_with_timeout_for_service(
     service: SearchServiceLike,
     query: str,
 ) -> tuple[Optional[List[float]], int, Optional[str]]:
-    return await _embed_query_with_timeout_impl(
+    return await embed_query_with_timeout(
         query,
         asyncio_module=asyncio,
         embedding_service=service.embedding_service,
@@ -365,6 +364,8 @@ async def resolve_query_embedding_for_service(
     embed_latency_ms = 0
     embedding_reason: Optional[str] = None
     budget_skip_vector = False
+    # pre_data is produced inside the completed to_thread preflight burst above.
+    # After that boundary, this object is only mutated on the event-loop thread.
     force_skip_vector_search = force_skip_vector or force_skip_embedding
     if force_skip_vector_search:
         pre_data.skip_vector = True

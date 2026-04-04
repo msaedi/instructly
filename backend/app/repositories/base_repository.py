@@ -246,6 +246,10 @@ class BaseRepository(IRepository[T]):
         """Flush pending ORM changes."""
         self.db.flush()
 
+    def expire_all(self) -> None:
+        """Expire all objects attached to the current session."""
+        self.db.expire_all()
+
     def rollback(self) -> None:
         """Rollback the current transaction."""
         self.db.rollback()

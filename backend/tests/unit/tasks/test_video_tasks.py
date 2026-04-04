@@ -311,6 +311,40 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
     @patch("app.tasks.video_tasks.get_db_session")
+    def test_shortened_booking_end_overrides_duration_for_join_window(
+        self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
+    ) -> None:
+        from app.tasks.video_tasks import detect_video_no_shows
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = _db_session_ctx(mock_db)
+
+        booking = self._make_booking(start_minutes_ago=45, duration_minutes=60)
+        booking.booking_end_utc = booking.booking_start_utc + timedelta(minutes=30)
+        vs = self._make_video_session(instructor_joined=False, student_joined=True)
+
+        mock_repo = MagicMock()
+        mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
+        mock_repo.get_no_show_by_booking_id.return_value = None
+        mock_repo.get_by_id.return_value = booking
+        mock_factory.create_booking_repository.return_value = mock_repo
+
+        mock_svc = MagicMock()
+        mock_svc.report_automated_no_show.return_value = {"success": True}
+        mock_svc_cls.return_value = mock_svc
+
+        mock_lock.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = detect_video_no_shows()
+
+        assert result["reported"] == 1
+        mock_svc.report_automated_no_show.assert_called_once()
+
+    @patch("app.tasks.video_tasks.booking_lock_sync")
+    @patch("app.tasks.video_tasks.BookingService")
+    @patch("app.tasks.video_tasks.RepositoryFactory")
+    @patch("app.tasks.video_tasks.get_db_session")
     def test_lock_not_acquired_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db_session
 from app.models.booking import Booking
 from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
-from app.tasks.payment.common import PaymentTasksFacadeApi
+from app.tasks.payment.common import PaymentTasksFacadeApi, _ensure_stripe_api_key
 
 
 def _collect_overdue_bookings(
@@ -109,6 +109,7 @@ def _audit_payout_schedule_for_account(
     stripe_service: Any,
     account: Any,
 ) -> bool:
+    _ensure_stripe_api_key()
     acct = api.stripe.Account.retrieve(account.stripe_account_id)
     current = getattr(acct, "settings", {}).get("payouts", {}).get("schedule", {})
     interval = current.get("interval")

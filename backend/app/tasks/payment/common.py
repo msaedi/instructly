@@ -106,14 +106,30 @@ class NoShowResolutionResults(TypedDict):
 
 
 logger = logging.getLogger("app.tasks.payment_tasks")
-stripe.api_key = (
-    settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
-)
 logger.info(
     "Stripe SDK %s, API version %s",
     getattr(stripe, "VERSION", "unknown"),
     getattr(stripe, "api_version", "unknown"),
 )
+_stripe_api_key_configured = False
+
+
+def _ensure_stripe_api_key() -> None:
+    """Configure the Stripe SDK lazily so tests can patch settings first."""
+    global _stripe_api_key_configured
+
+    if _stripe_api_key_configured:
+        return
+    if getattr(stripe, "api_key", None):
+        _stripe_api_key_configured = True
+        return
+    if not settings.stripe_secret_key:
+        return
+
+    stripe.api_key = settings.stripe_secret_key.get_secret_value()
+    _stripe_api_key_configured = True
+
+
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 
 

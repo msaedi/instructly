@@ -1,25 +1,15 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 from ...models.booking import Booking
 from ...utils.privacy import format_private_display_name
 from ..base import BaseService
-from ..email import EmailService
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .common_mixin import retry
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationBookingFollowupsMixin(NotificationMixinBase):
     """Booking reminders and completion emails."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        template_service: TemplateService
 
     @BaseService.measure_operation("send_booking_reminder")
     def send_booking_reminder(self, booking: Booking, reminder_type: str = "24h") -> bool:

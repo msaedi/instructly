@@ -1,30 +1,18 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 from jinja2.exceptions import TemplateNotFound
 
 from ...core.exceptions import ServiceException
 from ...models.booking import Booking
-from ...repositories.user_repository import UserRepository
 from ...utils.privacy import format_private_display_name
 from ..base import BaseService
-from ..email import EmailService
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .common_mixin import retry
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationBookingConfirmationMixin(NotificationMixinBase):
     """Booking confirmation emails — student and instructor."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        template_service: TemplateService
-        user_repository: UserRepository
 
     @BaseService.measure_operation("send_booking_confirmation")
     def send_booking_confirmation(self, booking: Booking) -> bool:

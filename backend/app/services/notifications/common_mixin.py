@@ -5,7 +5,7 @@ from datetime import datetime
 from functools import wraps
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, ParamSpec, TypeVar, cast
+from typing import Any, Callable, Coroutine, Dict, ParamSpec, TypeVar, cast
 
 from app.services.sms_templates import render_sms
 
@@ -14,13 +14,6 @@ from ...models.notification import Notification
 from ..notification_templates import NotificationTemplate
 from ..timezone_service import TimezoneService
 from .mixin_base import NotificationMixinBase
-
-if TYPE_CHECKING:
-    from ...repositories.user_repository import UserRepository
-    from ..email import EmailService
-    from ..notification_preference_service import NotificationPreferenceService
-    from ..template_service import TemplateService
-
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +67,6 @@ def retry(
 
 class NotificationCommonMixin(NotificationMixinBase):
     """Shared notification helpers — preferences, formatting, async dispatch."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        preference_service: NotificationPreferenceService
-        template_service: TemplateService
-        user_repository: UserRepository
 
     def _resolve_lesson_timezone(self, booking: Booking) -> str:
         lesson_tz = getattr(booking, "lesson_timezone", None) or getattr(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from jinja2.exceptions import TemplateNotFound
 
@@ -10,20 +9,13 @@ from ...models.booking import Booking
 from ...models.user import User
 from ...utils.privacy import format_private_display_name
 from ..base import BaseService
-from ..email import EmailService
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .common_mixin import retry
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationBookingCancellationMixin(NotificationMixinBase):
     """Booking cancellation emails — by role."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        template_service: TemplateService
 
     def _resolve_cancellation_actors(
         self, booking: Booking, cancelled_by: User | str | None

@@ -75,6 +75,7 @@ class TestBulkOperationQueryPatterns:
         instructor_id = test_instructor_with_availability.id
         week_start = date.today() - timedelta(days=date.today().weekday())
         week_end = week_start + timedelta(days=6)
+        seed_day(db, instructor_id, week_start + timedelta(days=1), [(time(9, 0), time(10, 0))])
         windows = flatten_range(db, instructor_id, week_start, week_end)
         assert windows
         assert week_start <= windows[0]["date"] <= week_end

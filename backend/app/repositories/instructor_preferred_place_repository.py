@@ -50,6 +50,9 @@ class InstructorPreferredPlaceRepository(BaseRepository[InstructorPreferredPlace
         )
         return int(deleted or 0)
 
+    def expire_all(self) -> None:
+        self.db.expire_all()
+
     def create_for_kind(
         self,
         instructor_id: str,

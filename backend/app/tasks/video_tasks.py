@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Callable, ParamSpec, Protocol, TypedDict, TypeVar, cast
 
@@ -114,7 +114,7 @@ def detect_video_no_shows() -> VideoNoShowResults:
         booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_service = BookingService(db)
 
-        sql_cutoff = now
+        sql_cutoff = now - timedelta(seconds=5)
         candidates = booking_repo.get_video_no_show_candidates(sql_cutoff)
 
         for booking, video_session in candidates:  # video_session may be None

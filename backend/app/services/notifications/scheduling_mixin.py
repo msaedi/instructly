@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import logging
-from typing import TYPE_CHECKING
 
 from ...core.exceptions import ServiceException
 from ...models.booking import Booking
@@ -16,9 +14,6 @@ from .mixin_base import NotificationMixinBase
 
 class NotificationSchedulingMixin(NotificationMixinBase):
     """Scheduled notification dispatch — daily reminder batch."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
 
     @BaseService.measure_operation("send_reminder_emails")
     def send_reminder_emails(self) -> int:

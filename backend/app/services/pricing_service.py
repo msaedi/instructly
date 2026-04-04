@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
-from app.constants.pricing_defaults import PRICING_DEFAULTS
+from app.constants.pricing_defaults import PRICE_FLOOR_CENTS_CONFIG_KEY, PRICING_DEFAULTS
 from app.core.exceptions import (
     BusinessRuleException,
     NotFoundException,
@@ -456,7 +456,7 @@ class PricingService(BaseService):
     def _compute_price_floor_cents(
         modality: str, duration_minutes: int, config: Dict[str, Any]
     ) -> Optional[int]:
-        floors = config.get("price_floor_cents", {})
+        floors = config.get(PRICE_FLOOR_CENTS_CONFIG_KEY, {})
         if modality == "in_person":
             base_floor = floors.get("private_in_person")
         else:

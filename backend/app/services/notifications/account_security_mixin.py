@@ -1,37 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime
-import logging
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import Any, Sequence
 
 from ...core.constants import BRAND_NAME
 from ...models.user import User
-from ...repositories.user_repository import UserRepository
 from ..base import BaseService
-from ..email import EmailService
 from ..email_subjects import EmailSubject
-from ..sms_service import SMSService
 from ..sms_templates import (
     SECURITY_2FA_CHANGED,
     SECURITY_NEW_DEVICE_LOGIN,
     SECURITY_PW_CHANGED,
 )
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationAccountSecurityMixin(NotificationMixinBase):
     """Account events, security alerts, and badge emails."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        sms_service: SMSService | None
-        template_service: TemplateService
-        user_repository: UserRepository
-        frontend_url: str
 
     @BaseService.measure_operation("send_welcome_email")
     def send_welcome_email(self, user_id: str, role: str = "student") -> bool:

@@ -69,7 +69,6 @@ class InstructorActivationMixin(InstructorMixinBase):
             if profile.id
             else {"has_account": False, "onboarding_completed": False}
         )
-        context["connect_status"] = connect_status
 
         missing: list[str] = []
         if not bool(getattr(profile, "skills_configured", False)):

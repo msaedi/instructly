@@ -226,7 +226,7 @@ class InstructorLocationMixin(InstructorMixinBase):
 
         self.preferred_place_repository.delete_for_kind(instructor_id, kind)
         self.preferred_place_repository.flush()
-        self.db.expire_all()
+        self.preferred_place_repository.expire_all()
 
         for row in rows:
             self.preferred_place_repository.create_for_kind(

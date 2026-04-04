@@ -1,34 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.services.messaging.sse_stream import publish_to_user
 
 from ...models.notification import Notification
-from ...repositories.notification_repository import NotificationRepository
-from ...repositories.user_repository import UserRepository
 from ..base import BaseService
 from ..notification_templates import NotificationTemplate, render_notification
-from ..push_notification_service import PushNotificationService
-from ..sms_service import SMSService
 from ..sms_templates import SMSTemplate
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationInAppMixin(NotificationMixinBase):
     """In-app notifications — CRUD, dispatch, push fanout."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        notification_repository: NotificationRepository
-        push_notification_service: PushNotificationService
-        sms_service: SMSService | None
-        user_repository: UserRepository
-
-        def transaction(self) -> Any:
-            ...
 
     @BaseService.measure_operation("notify_user")
     async def notify_user(

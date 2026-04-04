@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Sequence
 
+from ...constants.pricing_defaults import PRICE_FLOOR_CENTS_CONFIG_KEY
 from ...core.exceptions import BusinessRuleException
 from ...models.service_catalog import SERVICE_FORMAT_ONLINE, ServiceCatalog
 from ..base import BaseService
@@ -68,7 +69,7 @@ class InstructorValidationHelpersMixin(InstructorMixinBase):
                 code="UNKNOWN_PRICING_FORMAT",
             )
         pricing_config, _ = self.config_service.get_pricing_config()
-        floors = pricing_config.get("price_floor_cents", {})
+        floors = pricing_config.get(PRICE_FLOOR_CENTS_CONFIG_KEY, {})
         floor_key = PRICE_FLOOR_CONFIG_KEYS[format_name]
         cents_value = floors.get(floor_key, 0)
         return (Decimal(str(cents_value)) / Decimal("100")).quantize(Decimal("0.01"))

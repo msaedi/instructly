@@ -143,6 +143,7 @@ def build_instructor_response(
     query: str,
     parsed_query: ParsedQuery,
     results: Sequence[NLSearchResultItem],
+    *,
     limit: int,
     metrics: SearchMetrics,
     filter_result: Optional[FilterResult] = None,

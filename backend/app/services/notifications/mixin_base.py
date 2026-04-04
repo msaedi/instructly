@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
+from contextlib import AbstractContextManager
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
@@ -37,6 +38,11 @@ class NotificationMixinBase:
     notification_repository: NotificationRepository
     push_notification_service: PushNotificationService
     preference_service: NotificationPreferenceService
+
+    if TYPE_CHECKING:
+
+        def transaction(self) -> AbstractContextManager[Session]:
+            ...
 
     def _require_booking_participants(
         self, booking: Booking, operation: str

@@ -1,30 +1,15 @@
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 from ...core.constants import BRAND_NAME
 from ...models.booking import Booking
-from ...repositories.user_repository import UserRepository
 from ..base import BaseService
-from ..email import EmailService
-from ..sms_service import SMSService
 from ..sms_templates import PAYMENT_FAILED
 from ..template_registry import TemplateRegistry
-from ..template_service import TemplateService
 from .mixin_base import NotificationMixinBase
 
 
 class NotificationPaymentMixin(NotificationMixinBase):
     """Payment failure, warning, cancellation, and payout emails."""
-
-    if TYPE_CHECKING:
-        logger: logging.Logger
-        email_service: EmailService
-        sms_service: SMSService | None
-        template_service: TemplateService
-        user_repository: UserRepository
-        frontend_url: str
 
     def _resolve_payment_failure_recipients(self, booking: Booking) -> tuple[bool, bool]:
         student_id = getattr(booking, "student_id", None)

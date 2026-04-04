@@ -16,14 +16,19 @@ from typing import (
     cast,
 )
 
+from ...models.service_catalog import (
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+    SERVICE_FORMAT_ONLINE,
+    SERVICE_FORMAT_STUDENT_LOCATION,
+)
 from ..base import BaseService
 
 JsonDict = Dict[str, Any]
 JsonList = List[JsonDict]
 PRICE_FLOOR_CONFIG_KEYS = {
-    "student_location": "private_in_person",
-    "instructor_location": "private_in_person",
-    "online": "private_remote",
+    SERVICE_FORMAT_STUDENT_LOCATION: "private_in_person",
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION: "private_in_person",
+    SERVICE_FORMAT_ONLINE: "private_remote",
 }
 
 
