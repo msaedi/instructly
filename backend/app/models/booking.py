@@ -1,14 +1,9 @@
 # backend/app/models/booking.py
-"""
-Booking model for InstaInstru platform.
+"""Booking model for InstaInstru platform.
 
-Represents instant bookings between students and instructors.
-Bookings are self-contained records with all necessary information,
-achieving complete independence from availability slots.
-
-Architecture: Bookings store instructor, date, and time data directly.
-This allows bookings to persist as commitments regardless of
-availability changes ("Rug and Person" principle).
+Represents self-contained instant bookings between students and instructors.
+Bookings store instructor, date, and time data directly so they persist as
+commitments regardless of availability changes ("Rug and Person" principle).
 """
 
 from datetime import date, datetime, timezone
@@ -510,14 +505,12 @@ class Booking(Base):
 
         return _checker
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for API responses and audit trails.
+    @staticmethod
+    def _serialize_dt(value: Any) -> Any:
+        return value.isoformat() if value else None
 
-        Includes satellite data when loaded (via joinedload/subqueryload).
-        Satellites use ``lazy="noload"`` so ``getattr`` returns ``None``
-        when they have not been eagerly loaded, avoiding accidental queries.
-        """
-        d: dict[str, Any] = {
+    def _base_dict(self) -> dict[str, Any]:
+        return {
             "id": self.id,
             "student_id": self.student_id,
             "instructor_id": self.instructor_id,
@@ -540,132 +533,139 @@ class Booking(Base):
             "service_area": self.service_area,
             "student_note": self.student_note,
             "instructor_note": self.instructor_note,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
+            "created_at": self._serialize_dt(self.created_at),
+            "updated_at": self._serialize_dt(self.updated_at),
+            "confirmed_at": self._serialize_dt(self.confirmed_at),
+            "completed_at": self._serialize_dt(self.completed_at),
+            "cancelled_at": self._serialize_dt(self.cancelled_at),
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
         }
 
-        # -- Satellite: BookingPayment (payment_detail) --
+    def _merge_payment_detail(self, data: dict[str, Any]) -> None:
         pd = getattr(self, "payment_detail", None)
-        if pd is not None:
-            d["payment_method_id"] = pd.payment_method_id
-            d["payment_intent_id"] = pd.payment_intent_id
-            d["payment_status"] = pd.payment_status
-            d["auth_scheduled_for"] = (
-                pd.auth_scheduled_for.isoformat() if pd.auth_scheduled_for else None
-            )
-            d["auth_attempted_at"] = (
-                pd.auth_attempted_at.isoformat() if pd.auth_attempted_at else None
-            )
-            d["auth_failure_count"] = pd.auth_failure_count
-            d["auth_last_error"] = pd.auth_last_error
-            d["auth_failure_first_email_sent_at"] = (
-                pd.auth_failure_first_email_sent_at.isoformat()
-                if pd.auth_failure_first_email_sent_at
-                else None
-            )
-            d["auth_failure_t13_warning_sent_at"] = (
-                pd.auth_failure_t13_warning_sent_at.isoformat()
-                if pd.auth_failure_t13_warning_sent_at
-                else None
-            )
-            d["credits_reserved_cents"] = pd.credits_reserved_cents
-            d["settlement_outcome"] = pd.settlement_outcome
-            d["instructor_payout_amount"] = pd.instructor_payout_amount
-            d["capture_failed_at"] = (
-                pd.capture_failed_at.isoformat() if pd.capture_failed_at else None
-            )
-            d["capture_escalated_at"] = (
-                pd.capture_escalated_at.isoformat() if pd.capture_escalated_at else None
-            )
-            d["capture_retry_count"] = pd.capture_retry_count
-            d["capture_error"] = pd.capture_error
+        if pd is None:
+            return
+        data.update(
+            {
+                "payment_method_id": pd.payment_method_id,
+                "payment_intent_id": pd.payment_intent_id,
+                "payment_status": pd.payment_status,
+                "auth_scheduled_for": self._serialize_dt(pd.auth_scheduled_for),
+                "auth_attempted_at": self._serialize_dt(pd.auth_attempted_at),
+                "auth_failure_count": pd.auth_failure_count,
+                "auth_last_error": pd.auth_last_error,
+                "auth_failure_first_email_sent_at": self._serialize_dt(
+                    pd.auth_failure_first_email_sent_at
+                ),
+                "auth_failure_t13_warning_sent_at": self._serialize_dt(
+                    pd.auth_failure_t13_warning_sent_at
+                ),
+                "credits_reserved_cents": pd.credits_reserved_cents,
+                "settlement_outcome": pd.settlement_outcome,
+                "instructor_payout_amount": pd.instructor_payout_amount,
+                "capture_failed_at": self._serialize_dt(pd.capture_failed_at),
+                "capture_escalated_at": self._serialize_dt(pd.capture_escalated_at),
+                "capture_retry_count": pd.capture_retry_count,
+                "capture_error": pd.capture_error,
+            }
+        )
 
-        # -- Satellite: BookingNoShow (no_show_detail) --
+    def _merge_no_show_detail(self, data: dict[str, Any]) -> None:
         ns = getattr(self, "no_show_detail", None)
-        if ns is not None:
-            d["no_show_reported_by"] = ns.no_show_reported_by
-            d["no_show_reported_at"] = (
-                ns.no_show_reported_at.isoformat() if ns.no_show_reported_at else None
-            )
-            d["no_show_type"] = ns.no_show_type
-            d["no_show_disputed"] = ns.no_show_disputed
-            d["no_show_disputed_at"] = (
-                ns.no_show_disputed_at.isoformat() if ns.no_show_disputed_at else None
-            )
-            d["no_show_dispute_reason"] = ns.no_show_dispute_reason
-            d["no_show_resolved_at"] = (
-                ns.no_show_resolved_at.isoformat() if ns.no_show_resolved_at else None
-            )
-            d["no_show_resolution"] = ns.no_show_resolution
+        if ns is None:
+            return
+        data.update(
+            {
+                "no_show_reported_by": ns.no_show_reported_by,
+                "no_show_reported_at": self._serialize_dt(ns.no_show_reported_at),
+                "no_show_type": ns.no_show_type,
+                "no_show_disputed": ns.no_show_disputed,
+                "no_show_disputed_at": self._serialize_dt(ns.no_show_disputed_at),
+                "no_show_dispute_reason": ns.no_show_dispute_reason,
+                "no_show_resolved_at": self._serialize_dt(ns.no_show_resolved_at),
+                "no_show_resolution": ns.no_show_resolution,
+            }
+        )
 
-        # -- Satellite: BookingLock (lock_detail) --
+    def _merge_lock_detail(self, data: dict[str, Any]) -> None:
         lk = getattr(self, "lock_detail", None)
-        if lk is not None:
-            d["locked_at"] = lk.locked_at.isoformat() if lk.locked_at else None
-            d["locked_amount_cents"] = lk.locked_amount_cents
-            d["lock_resolved_at"] = lk.lock_resolved_at.isoformat() if lk.lock_resolved_at else None
-            d["lock_resolution"] = lk.lock_resolution
+        if lk is None:
+            return
+        data.update(
+            {
+                "locked_at": self._serialize_dt(lk.locked_at),
+                "locked_amount_cents": lk.locked_amount_cents,
+                "lock_resolved_at": self._serialize_dt(lk.lock_resolved_at),
+                "lock_resolution": lk.lock_resolution,
+            }
+        )
 
-        # -- Satellite: BookingReschedule (reschedule_detail) --
+    def _merge_reschedule_detail(self, data: dict[str, Any]) -> None:
         rs = getattr(self, "reschedule_detail", None)
-        if rs is not None:
-            d["late_reschedule_used"] = rs.late_reschedule_used
-            d["reschedule_count"] = rs.reschedule_count
-            d["rescheduled_to_booking_id"] = rs.rescheduled_to_booking_id
-            d["original_lesson_datetime"] = (
-                rs.original_lesson_datetime.isoformat() if rs.original_lesson_datetime else None
-            )
+        if rs is None:
+            return
+        data.update(
+            {
+                "late_reschedule_used": rs.late_reschedule_used,
+                "reschedule_count": rs.reschedule_count,
+                "rescheduled_to_booking_id": rs.rescheduled_to_booking_id,
+                "original_lesson_datetime": self._serialize_dt(rs.original_lesson_datetime),
+            }
+        )
 
-        # -- Satellite: BookingDispute (dispute) --
+    def _merge_dispute_detail(self, data: dict[str, Any]) -> None:
         dp = getattr(self, "dispute", None)
-        if dp is not None:
-            d["dispute_id"] = dp.dispute_id
-            d["dispute_status"] = dp.dispute_status
-            d["dispute_amount"] = dp.dispute_amount
-            d["dispute_created_at"] = (
-                dp.dispute_created_at.isoformat() if dp.dispute_created_at else None
-            )
-            d["dispute_resolved_at"] = (
-                dp.dispute_resolved_at.isoformat() if dp.dispute_resolved_at else None
-            )
+        if dp is None:
+            return
+        data.update(
+            {
+                "dispute_id": dp.dispute_id,
+                "dispute_status": dp.dispute_status,
+                "dispute_amount": dp.dispute_amount,
+                "dispute_created_at": self._serialize_dt(dp.dispute_created_at),
+                "dispute_resolved_at": self._serialize_dt(dp.dispute_resolved_at),
+            }
+        )
 
-        # -- Satellite: BookingTransfer (transfer) --
+    def _merge_transfer_detail(self, data: dict[str, Any]) -> None:
         tr = getattr(self, "transfer", None)
-        if tr is not None:
-            d["stripe_transfer_id"] = tr.stripe_transfer_id
-            d["transfer_failed_at"] = (
-                tr.transfer_failed_at.isoformat() if tr.transfer_failed_at else None
-            )
-            d["transfer_error"] = tr.transfer_error
-            d["transfer_retry_count"] = tr.transfer_retry_count
-            d["transfer_reversed"] = tr.transfer_reversed
-            d["transfer_reversal_id"] = tr.transfer_reversal_id
-            d["transfer_reversal_failed"] = tr.transfer_reversal_failed
-            d["transfer_reversal_error"] = tr.transfer_reversal_error
-            d["transfer_reversal_failed_at"] = (
-                tr.transfer_reversal_failed_at.isoformat()
-                if tr.transfer_reversal_failed_at
-                else None
-            )
-            d["transfer_reversal_retry_count"] = tr.transfer_reversal_retry_count
-            d["refund_id"] = tr.refund_id
-            d["refund_failed_at"] = tr.refund_failed_at.isoformat() if tr.refund_failed_at else None
-            d["refund_error"] = tr.refund_error
-            d["refund_retry_count"] = tr.refund_retry_count
-            d["payout_transfer_id"] = tr.payout_transfer_id
-            d["advanced_payout_transfer_id"] = tr.advanced_payout_transfer_id
-            d["payout_transfer_failed_at"] = (
-                tr.payout_transfer_failed_at.isoformat() if tr.payout_transfer_failed_at else None
-            )
-            d["payout_transfer_error"] = tr.payout_transfer_error
-            d["payout_transfer_retry_count"] = tr.payout_transfer_retry_count
+        if tr is None:
+            return
+        data.update(
+            {
+                "stripe_transfer_id": tr.stripe_transfer_id,
+                "transfer_failed_at": self._serialize_dt(tr.transfer_failed_at),
+                "transfer_error": tr.transfer_error,
+                "transfer_retry_count": tr.transfer_retry_count,
+                "transfer_reversed": tr.transfer_reversed,
+                "transfer_reversal_id": tr.transfer_reversal_id,
+                "transfer_reversal_failed": tr.transfer_reversal_failed,
+                "transfer_reversal_error": tr.transfer_reversal_error,
+                "transfer_reversal_failed_at": self._serialize_dt(tr.transfer_reversal_failed_at),
+                "transfer_reversal_retry_count": tr.transfer_reversal_retry_count,
+                "refund_id": tr.refund_id,
+                "refund_failed_at": self._serialize_dt(tr.refund_failed_at),
+                "refund_error": tr.refund_error,
+                "refund_retry_count": tr.refund_retry_count,
+                "payout_transfer_id": tr.payout_transfer_id,
+                "advanced_payout_transfer_id": tr.advanced_payout_transfer_id,
+                "payout_transfer_failed_at": self._serialize_dt(tr.payout_transfer_failed_at),
+                "payout_transfer_error": tr.payout_transfer_error,
+                "payout_transfer_retry_count": tr.payout_transfer_retry_count,
+            }
+        )
 
-        return d
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for API responses and audit trails."""
+        data = self._base_dict()
+        self._merge_payment_detail(data)
+        self._merge_no_show_detail(data)
+        self._merge_lock_detail(data)
+        self._merge_reschedule_detail(data)
+        self._merge_dispute_detail(data)
+        self._merge_transfer_detail(data)
+        return data
 
 
 Index(
@@ -675,8 +675,6 @@ Index(
     Booking.completed_at,
     postgresql_where=(Booking.status == BookingStatus.COMPLETED),
 )
-
-
 Index(
     "ix_booking_student_completed",
     Booking.student_id,
@@ -684,14 +682,12 @@ Index(
     Booking.completed_at,
     postgresql_where=(Booking.status == BookingStatus.COMPLETED),
 )
-
 Index(
     "ix_bookings_instructor_date_status",
     Booking.instructor_id,
     Booking.booking_date,
     Booking.status,
 )
-
 Index(
     "ix_bookings_student_date_status",
     Booking.student_id,

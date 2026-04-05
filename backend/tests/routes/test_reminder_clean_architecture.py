@@ -106,6 +106,9 @@ class TestReminderEndpointCleanArchitecture:
 class TestReminderQueryLogic:
     """Test the reminder query logic uses UTC windows plus local-date filtering."""
 
+    REMINDER_STABLE_NOW = datetime(2026, 4, 3, 16, 0, tzinfo=timezone.utc)
+    REMINDER_EDGE_NOW = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+
     @staticmethod
     def _freeze_reminder_now(monkeypatch: pytest.MonkeyPatch, fixed_now: datetime) -> None:
         class FrozenDateTime(datetime):
@@ -119,9 +122,11 @@ class TestReminderQueryLogic:
         monkeypatch.setattr("app.services.booking.notifications.datetime", FrozenDateTime)
 
     @pytest.fixture
-    def tomorrow_booking(self, db, test_student, test_instructor):
+    def tomorrow_booking(self, db, test_student, test_instructor, monkeypatch):
         """Create a booking for tomorrow."""
-        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+        fixed_now = self.REMINDER_STABLE_NOW
+        self._freeze_reminder_now(monkeypatch, fixed_now)
+        tomorrow = fixed_now.date() + timedelta(days=1)
 
         # Get the instructor's profile
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -197,7 +202,7 @@ class TestReminderQueryLogic:
         """NYC UTC-midnight bookings are excluded early, while Tokyo local-tomorrow bookings are included."""
         from app.services.notification_service import NotificationService
 
-        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        fixed_now = self.REMINDER_EDGE_NOW
         self._freeze_reminder_now(monkeypatch, fixed_now)
 
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -274,7 +279,7 @@ class TestReminderQueryLogic:
         from app.events import BookingReminder
         from app.services.booking_service import BookingService
 
-        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        fixed_now = self.REMINDER_EDGE_NOW
         self._freeze_reminder_now(monkeypatch, fixed_now)
 
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -350,11 +355,15 @@ class TestReminderQueryLogic:
         # Should not try to send any emails
         assert service.email_service.send_email.call_count == 0
 
-    def test_reminder_only_sends_for_confirmed_bookings(self, db, test_student, test_instructor):
+    def test_reminder_only_sends_for_confirmed_bookings(
+        self, db, test_student, test_instructor, monkeypatch
+    ):
         """Test that only CONFIRMED bookings get reminders."""
         from app.services.notification_service import NotificationService
 
-        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+        fixed_now = self.REMINDER_STABLE_NOW
+        self._freeze_reminder_now(monkeypatch, fixed_now)
+        tomorrow = fixed_now.date() + timedelta(days=1)
 
         # Create bookings with different statuses
         statuses = [
@@ -416,7 +425,7 @@ class TestReminderIntegration:
         from app.events import BookingReminder
         from app.services.booking_service import BookingService
 
-        fixed_now = datetime(2026, 4, 3, 12, 0, tzinfo=timezone.utc)
+        fixed_now = TestReminderQueryLogic.REMINDER_STABLE_NOW
         TestReminderQueryLogic._freeze_reminder_now(monkeypatch, fixed_now)
         tomorrow = fixed_now.date() + timedelta(days=1)
 

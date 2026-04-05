@@ -11,6 +11,7 @@ Implements comprehensive rate limiting to protect against:
 Uses DragonflyDB (Redis-compatible) for distributed rate limiting.
 """
 
+import asyncio
 from enum import Enum
 from functools import wraps
 import hashlib
@@ -289,6 +290,150 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _find_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Request | None:
+    for arg in args:
+        if isinstance(arg, Request):
+            return arg
+    request = kwargs.get("request")
+    if isinstance(request, Request):
+        return request
+    return next((value for value in kwargs.values() if isinstance(value, Request)), None)
+
+
+def _has_bypass_header(request: Request) -> bool:
+    bypass_token = secret_or_plain(getattr(settings, "rate_limit_bypass_token", None)).strip()
+    return bool(bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token)
+
+
+def _parse_rate_string(rate_string: str) -> tuple[int, int]:
+    parts = rate_string.split("/")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid rate string: {rate_string}")
+    limit = int(parts[0])
+    time_unit = parts[1].lower()
+    for unit, multiplier in {"second": 1, "minute": 60, "hour": 3600, "day": 86400}.items():
+        if time_unit.startswith(unit):
+            return limit, multiplier
+    raise ValueError(f"Unknown time unit: {time_unit}")
+
+
+def _window_name(func: Callable[..., Any], rate_string: str) -> str:
+    return f"{func.__name__}_{rate_string.replace('/', 'per')}"
+
+
+def _rate_limit_exception(
+    limit: int, retry_after: int, error_message: Optional[str]
+) -> HTTPException:
+    error_msg = error_message or f"Rate limit exceeded. Try again in {retry_after} seconds."
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "message": error_msg,
+            "code": "RATE_LIMIT_EXCEEDED",
+            "retry_after": retry_after,
+        },
+        headers={
+            "Retry-After": str(retry_after),
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(int(time.time()) + retry_after),
+        },
+    )
+
+
+async def _call_wrapped(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    result = func(*args, **kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def _attach_rate_limit_headers(
+    response: Any,
+    rate_limiter: RateLimiter,
+    identifier: str,
+    limit: int,
+    window_seconds: int,
+    window_name: str,
+) -> Any:
+    if isinstance(response, Response):
+        remaining = await rate_limiter.get_remaining_requests(
+            identifier=identifier,
+            limit=limit,
+            window_seconds=window_seconds,
+            window_name=window_name,
+        )
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(int(time.time()) + window_seconds)
+    return response
+
+
+async def _execute_rate_limited_call(
+    func: Callable[..., Any],
+    rate_string: str,
+    key_type: RateLimitKeyType,
+    key_field: Optional[str],
+    error_message: Optional[str],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    request = _find_request(args, kwargs)
+    if request is None or _has_bypass_header(request):
+        return await _call_wrapped(func, *args, **kwargs)
+    limit, window_seconds = _parse_rate_string(rate_string)
+    identifier = await _get_identifier(request, key_type, key_field, args, kwargs)
+    if not identifier:
+        return await _call_wrapped(func, *args, **kwargs)
+
+    rate_limiter = RateLimiter()
+    window_name = _window_name(func, rate_string)
+    allowed, _, retry_after = await rate_limiter.check_rate_limit(
+        identifier=identifier,
+        limit=limit,
+        window_seconds=window_seconds,
+        window_name=window_name,
+    )
+    if not allowed:
+        raise _rate_limit_exception(limit, retry_after, error_message)
+    response = await _call_wrapped(func, *args, **kwargs)
+    return await _attach_rate_limit_headers(
+        response, rate_limiter, identifier, limit, window_seconds, window_name
+    )
+
+
+def _decorate_rate_limited(
+    func: F,
+    rate_string: str,
+    key_type: RateLimitKeyType,
+    key_field: Optional[str],
+    error_message: Optional[str],
+) -> F:
+    is_async = asyncio.iscoroutinefunction(func)
+
+    @wraps(func)
+    async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+        return await _execute_rate_limited_call(
+            func, rate_string, key_type, key_field, error_message, args, kwargs
+        )
+
+    @wraps(func)
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(async_wrapper(*args, **kwargs))
+        finally:
+            loop.close()
+
+    wrapper = async_wrapper if is_async else sync_wrapper
+    try:
+        wrapper.__signature__ = inspect.signature(func)
+    except Exception:
+        logger.debug("Non-fatal error ignored", exc_info=True)
+    return cast(F, wrapper)
+
+
 def rate_limit(
     rate_string: str,
     key_type: RateLimitKeyType = RateLimitKeyType.IP,
@@ -312,138 +457,7 @@ def rate_limit(
     """
 
     def decorator(func: F) -> F:
-        # Check if the function is async
-        import asyncio
-
-        is_async = asyncio.iscoroutinefunction(func)
-
-        async def _call_wrapped(*args: Any, **kwargs: Any) -> Any:
-            result = func(*args, **kwargs)
-            if inspect.isawaitable(result):
-                return await result
-            return result
-
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            # Find request object in args/kwargs
-            request = None
-            for arg in args:
-                if isinstance(arg, Request):
-                    request = arg
-                    break
-            if not request:
-                request = kwargs.get("request")
-            if request is not None and not isinstance(request, Request):
-                request = next(
-                    (value for value in kwargs.values() if isinstance(value, Request)),
-                    None,
-                )
-
-            if not request:
-                # Can't rate limit without request, just call function
-                return await _call_wrapped(*args, **kwargs)
-
-            # Check for rate limit bypass token (for load testing)
-            bypass_token = secret_or_plain(
-                getattr(settings, "rate_limit_bypass_token", None)
-            ).strip()
-            if bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token:
-                return await _call_wrapped(*args, **kwargs)
-
-            # Parse rate string (e.g., "5/minute" -> (5, 60))
-            parts = rate_string.split("/")
-            if len(parts) != 2:
-                raise ValueError(f"Invalid rate string: {rate_string}")
-
-            limit = int(parts[0])
-
-            # Convert time unit to seconds
-            time_unit = parts[1].lower()
-            time_multipliers = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
-
-            # Handle plural forms
-            for unit, multiplier in time_multipliers.items():
-                if time_unit.startswith(unit):
-                    window_seconds = multiplier
-                    break
-            else:
-                raise ValueError(f"Unknown time unit: {time_unit}")
-
-            # Get identifier based on key type
-            identifier = await _get_identifier(request, key_type, key_field, args, kwargs)
-
-            if not identifier:
-                # Can't identify request, allow it
-                return await _call_wrapped(*args, **kwargs)
-
-            # Check rate limit
-            rate_limiter = RateLimiter()
-            window_name = f"{func.__name__}_{rate_string.replace('/', 'per')}"
-
-            allowed, requests_made, retry_after = await rate_limiter.check_rate_limit(
-                identifier=identifier,
-                limit=limit,
-                window_seconds=window_seconds,
-                window_name=window_name,
-            )
-
-            if not allowed:
-                error_msg = (
-                    error_message or f"Rate limit exceeded. Try again in {retry_after} seconds."
-                )
-
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "message": error_msg,
-                        "code": "RATE_LIMIT_EXCEEDED",
-                        "retry_after": retry_after,
-                    },
-                    headers={
-                        "Retry-After": str(retry_after),
-                        "X-RateLimit-Limit": str(limit),
-                        "X-RateLimit-Remaining": "0",
-                        "X-RateLimit-Reset": str(int(time.time()) + retry_after),
-                    },
-                )
-
-            # Add rate limit headers to response
-            response = await _call_wrapped(*args, **kwargs)
-
-            if isinstance(response, Response):
-                remaining = await rate_limiter.get_remaining_requests(
-                    identifier=identifier,
-                    limit=limit,
-                    window_seconds=window_seconds,
-                    window_name=window_name,
-                )
-
-                response.headers["X-RateLimit-Limit"] = str(limit)
-                response.headers["X-RateLimit-Remaining"] = str(remaining)
-                response.headers["X-RateLimit-Reset"] = str(int(time.time()) + window_seconds)
-
-            return response
-
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            # For sync functions, we need to run the async wrapper in a new event loop
-            import asyncio
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(async_wrapper(*args, **kwargs))
-            finally:
-                loop.close()
-
-        # Return async wrapper for async functions, sync wrapper for sync functions
-        wrapper = async_wrapper if is_async else sync_wrapper
-        # Preserve the original function signature for FastAPI dependency injection
-        try:
-            wrapper.__signature__ = inspect.signature(func)
-        except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
-        return cast(F, wrapper)
+        return _decorate_rate_limited(func, rate_string, key_type, key_field, error_message)
 
     return decorator
 

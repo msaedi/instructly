@@ -6,7 +6,7 @@ Tests the repository-level and service-level caching functionality
 to ensure proper cache hits, misses, and invalidation.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import Mock, patch
 
 from app.core.ulid_helper import generate_ulid
@@ -169,9 +169,10 @@ class TestServiceCaching:
         mock_cache.get.assert_called_once_with("booking_stats:instructor:123")
         mock_repo.get_instructor_booking_stats_aggregate.assert_called_once()
         aggregate_call = mock_repo.get_instructor_booking_stats_aggregate.call_args
+        current_utc_day = datetime.now(timezone.utc).date()
         assert aggregate_call.args == (123,)
-        assert aggregate_call.kwargs["today"] == date.today()
-        assert aggregate_call.kwargs["month_start"] == date.today().replace(day=1)
+        assert aggregate_call.kwargs["today"] == current_utc_day
+        assert aggregate_call.kwargs["month_start"] == current_utc_day.replace(day=1)
         # Verify result was cached
         mock_cache.set.assert_called_once()
         cache_call_args = mock_cache.set.call_args

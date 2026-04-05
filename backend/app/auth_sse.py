@@ -55,6 +55,34 @@ SSE_KEY_PREFIX = "sse_key:"
 SSE_TOKEN_TTL_SECONDS = 30
 
 
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _credentials_exception() -> HTTPException:
+    return _unauthorized("Could not validate credentials")
+
+
+def _cookie_token(request: Request) -> Optional[str]:
+    if not hasattr(request, "cookies"):
+        return None
+    try:
+        site_mode = settings.site_mode
+    except Exception:
+        site_mode = "local"
+
+    for cookie_name in session_cookie_candidates(site_mode):
+        cookie_token = request.cookies.get(cookie_name)
+        if isinstance(cookie_token, str) and cookie_token:
+            logger.debug("Using %s cookie for SSE authentication", cookie_name)
+            return cookie_token
+    return None
+
+
 async def _get_user_from_sse_token(token: str) -> Optional[User]:
     """Resolve a short-lived SSE token to a transient user."""
     redis = await get_async_cache_redis_client()
@@ -83,6 +111,88 @@ async def _get_user_from_sse_token(token: str) -> Optional[User]:
     return create_transient_user(user_data)
 
 
+async def _resolve_query_token_user(token_query: Optional[str]) -> Optional[User]:
+    if not token_query:
+        return None
+    sse_user = await _get_user_from_sse_token(token_query)
+    if sse_user is None:
+        raise _unauthorized("Invalid or expired SSE token")
+    return sse_user
+
+
+def _required_jti(payload: dict[str, object]) -> str:
+    jti_obj = payload.get("jti")
+    jti = jti_obj if isinstance(jti_obj, str) else None
+    if jti:
+        return jti
+    try:
+        prometheus_metrics.record_token_rejection("format_outdated")
+    except Exception:
+        logger.debug("Non-fatal error ignored", exc_info=True)
+    raise _unauthorized("Token format outdated, please re-login")
+
+
+async def _ensure_not_revoked(jti: str) -> None:
+    blacklist = TokenBlacklistService()
+    try:
+        revoked = await blacklist.is_revoked(jti)
+    except Exception as exc:
+        logger.warning("SSE blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
+        revoked = True
+    if revoked:
+        try:
+            prometheus_metrics.record_token_rejection("revoked")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        raise _unauthorized("Token has been revoked")
+
+
+def _payload_user_id(payload: dict[str, object], credentials_exception: HTTPException) -> str:
+    user_id_obj = payload.get("sub")
+    user_id = user_id_obj if isinstance(user_id_obj, str) else None
+    if user_id is None:
+        raise credentials_exception
+    return user_id
+
+
+async def _validated_payload_and_user_id(
+    token: str, credentials_exception: HTTPException
+) -> tuple[dict[str, object], str]:
+    try:
+        payload = decode_access_token(token)
+        if not is_access_token_payload(payload):
+            raise credentials_exception
+        jti = _required_jti(payload)
+        await _ensure_not_revoked(jti)
+        return payload, _payload_user_id(payload, credentials_exception)
+    except (PyJWTError, InvalidIssuerError) as e:
+        logger.error("JWT decode error: %s", str(e))
+        raise credentials_exception
+
+
+def _ensure_token_not_invalidated(payload: dict[str, object], user_data: dict[str, object]) -> None:
+    iat_ts = parse_token_iat(payload)
+    if iat_ts is None:
+        return
+    tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
+    if isinstance(tokens_valid_after_ts, float):
+        tokens_valid_after_ts = int(tokens_valid_after_ts)
+    if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+        try:
+            prometheus_metrics.record_token_rejection("invalidated")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        raise _unauthorized("Token has been invalidated")
+
+
+def _ensure_user_is_active(user_data: dict[str, object]) -> None:
+    if not user_data.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
+
+
 async def get_current_user_sse(
     request: Request,
     token_header: Optional[str] = Depends(oauth2_scheme_optional),
@@ -109,124 +219,19 @@ async def get_current_user_sse(
     Raises:
         HTTPException: If no valid authentication found
     """
-    # Try to get token from any source
-    token_cookie: Optional[str] = None
-    if hasattr(request, "cookies"):
-        try:
-            site_mode = settings.site_mode
-        except Exception:
-            site_mode = "local"
-
-        for cookie_name in session_cookie_candidates(site_mode):
-            cookie_token = request.cookies.get(cookie_name)
-            if cookie_token:
-                token_cookie = cookie_token
-                logger.debug("Using %s cookie for SSE authentication", cookie_name)
-                break
-
-    if token_query:
-        sse_user = await _get_user_from_sse_token(token_query)
-        if sse_user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired SSE token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    sse_user = await _resolve_query_token_user(token_query)
+    if sse_user is not None:
         return sse_user
 
-    token = token_header or token_cookie
-
+    token = token_header or _cookie_token(request)
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authentication provided",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("No authentication provided")
 
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = decode_access_token(token)
-        if not is_access_token_payload(payload):
-            raise credentials_exception
-
-        jti_obj = payload.get("jti")
-        jti = jti_obj if isinstance(jti_obj, str) else None
-        if not jti:
-            try:
-                prometheus_metrics.record_token_rejection("format_outdated")
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token format outdated, please re-login",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        blacklist = TokenBlacklistService()
-        try:
-            revoked = await blacklist.is_revoked(jti)
-        except Exception as exc:
-            logger.warning("SSE blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
-            revoked = True
-        if revoked:
-            try:
-                prometheus_metrics.record_token_rejection("revoked")
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        user_id_obj = payload.get("sub")
-        user_id = user_id_obj if isinstance(user_id_obj, str) else None
-
-        if user_id is None:
-            raise credentials_exception
-
-    except (PyJWTError, InvalidIssuerError) as e:
-        logger.error("JWT decode error: %s", str(e))
-        raise credentials_exception
-
-    # =========================================================================
-    # NON-BLOCKING USER LOOKUP (uses shared auth_cache module)
-    # =========================================================================
-    # This uses Redis cache + asyncio.to_thread for DB queries to avoid
-    # blocking the event loop under load.
+    credentials_exception = _credentials_exception()
+    payload, user_id = await _validated_payload_and_user_id(token, credentials_exception)
     user_data = await lookup_user_by_id_nonblocking(user_id)
-
     if user_data is None:
         raise credentials_exception
-
-    iat_ts = parse_token_iat(payload)
-
-    if iat_ts is not None:
-        tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
-        if isinstance(tokens_valid_after_ts, float):
-            tokens_valid_after_ts = int(tokens_valid_after_ts)
-        if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
-            try:
-                prometheus_metrics.record_token_rejection("invalidated")
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been invalidated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-    if not user_data.get("is_active", True):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
-
-    # Create a TRANSIENT User object (not session-bound) from the dict
-    # This avoids DetachedInstanceError when the original session is closed
+    _ensure_token_not_invalidated(payload, user_data)
+    _ensure_user_is_active(user_data)
     return create_transient_user(user_data)

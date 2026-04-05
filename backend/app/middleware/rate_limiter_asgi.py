@@ -67,201 +67,217 @@ class RateLimitMiddlewareASGI:
                 return bool(value.decode() == self._bypass_token)
         return False
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """ASGI application entrypoint."""
+    def _testing_send_wrapper(self, send: Send) -> Send:
+        async def send_testing_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-RateLimit-Limit"] = str(self.general_limit)
+                headers["X-RateLimit-Remaining"] = str(self.general_limit)
+                headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
+            await send(message)
 
-        # Only handle HTTP requests
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
+        return send_testing_wrapper
 
-        # Check for rate limit bypass token (for load testing)
-        if self._has_bypass_token(scope):
-            await self.app(scope, receive, send)
-            return
+    @staticmethod
+    def _is_skipped_request(path: str, method: str) -> bool:
+        return path == "/api/v1/health" or path.startswith(SSE_PATH_PREFIX) or method == "OPTIONS"
 
-        # In test environment: do not enforce, but still emit standard headers
+    @staticmethod
+    def _origin_header(scope: Scope) -> str | None:
         try:
-            if getattr(settings, "is_testing", False):
-
-                async def send_testing_wrapper(message: Message) -> None:
-                    if message["type"] == "http.response.start":
-                        headers = MutableHeaders(scope=message)
-                        headers["X-RateLimit-Limit"] = str(self.general_limit)
-                        headers["X-RateLimit-Remaining"] = str(self.general_limit)
-                        headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
-                    await send(message)
-
-                await self.app(scope, receive, send_testing_wrapper)
-                return
+            for key, value in scope.get("headers", []) or []:
+                if key.decode().lower() == "origin":
+                    return str(value.decode())
         except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
-        # Honor global rate limit toggle (disable entirely when false)
-        if not getattr(settings, "rate_limit_enabled", True):
-            await self.app(scope, receive, send)
-            return
+            return None
+        return None
 
-        # Get the path
-        path = scope.get("path", "")
-        method = scope.get("method", "GET")
-
-        # Skip rate limiting for health checks and SSE endpoints
-        # SSE connections are long-lived and should never be rate-limited
-        if path == "/api/v1/health" or path.startswith(SSE_PATH_PREFIX):
-            await self.app(scope, receive, send)
-            return
-
-        # Always allow CORS preflight requests
-        if method == "OPTIONS":
-            await self.app(scope, receive, send)
-            return
-
-        # Get client IP
-        client_ip = self._extract_client_ip(scope)
-
-        if method == "POST" and self._invite_path.match(path):
-            allowed_invite, _, retry_after_invite = await self.rate_limiter.check_rate_limit(
-                identifier=f"invite:{client_ip}",
-                limit=self.invite_limit,
-                window_seconds=self.invite_window_seconds,
-                window_name="bgc_invite_ip",
+    @staticmethod
+    def _cors_headers_for_origin(origin_header: str | None) -> dict[str, str]:
+        if not origin_header:
+            return {}
+        try:
+            origin_allowed = origin_header in ALLOWED_ORIGINS or (
+                CORS_ORIGIN_REGEX and re.match(CORS_ORIGIN_REGEX, origin_header)
             )
-            if not allowed_invite:
-                response = JSONResponse(
-                    status_code=429,
-                    content={
-                        "code": "rate_limited",
-                        "detail": "Too many invites from this IP. Try again later.",
-                    },
-                    headers={"Retry-After": str(retry_after_invite)},
-                )
-                await response(scope, receive, send)
-                return
+            if origin_allowed:
+                return {
+                    "Access-Control-Allow-Origin": origin_header,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Methods": "*",
+                }
+        except Exception:
+            return {}
+        return {}
 
-        # Light exemptions for local/preview on low-risk routes
-        site_mode = getattr(settings, "site_mode", "local") or "local"
-        if site_mode in {"local", "preview"}:
-            # Public read-only endpoints that don't need rate limiting in dev
-            if path in {"/auth/me", "/api/v1/public/session/guest"}:
-                await self.app(scope, receive, send)
-                return
-            # Public v1 read-only endpoints (reviews, services, instructors)
-            if path.startswith("/api/v1/reviews/instructor/") and method == "GET":
-                await self.app(scope, receive, send)
-                return
-            if path.startswith("/api/v1/services/") and method == "GET":
-                await self.app(scope, receive, send)
-                return
-            if path.startswith("/api/v1/instructors") and method == "GET":
-                await self.app(scope, receive, send)
-                return
-
-        if path == "/api/v1/internal/metrics":
-            metrics_limit = getattr(settings, "metrics_rate_limit_per_min", 6)
-            if metrics_limit > 0:
-                allowed_metrics, _, retry_after_metrics = await self.rate_limiter.check_rate_limit(
-                    identifier=f"metrics:{client_ip}",
-                    limit=metrics_limit,
-                    window_seconds=60,
-                    window_name="metrics",
-                )
-                if not allowed_metrics:
-                    response = JSONResponse(
-                        status_code=429,
-                        content={
-                            "detail": "Rate limit exceeded. Try again later.",
-                            "code": "RATE_LIMIT_EXCEEDED",
-                            "retry_after": retry_after_metrics,
-                        },
-                        headers={"Retry-After": str(retry_after_metrics)},
-                    )
-                    await response(scope, receive, send)
-                    return
-
-        # Apply general rate limit
-        allowed, requests_made, retry_after = await self.rate_limiter.check_rate_limit(
-            identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
+    @staticmethod
+    def _invite_limit_response(retry_after: int) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "code": "rate_limited",
+                "detail": "Too many invites from this IP. Try again later.",
+            },
+            headers={"Retry-After": str(retry_after)},
         )
 
-        if not allowed:
-            # Try to reflect CORS headers for blocked responses
-            origin_header = None
-            try:
-                for k, v in scope.get("headers", []) or []:
-                    if k.decode().lower() == "origin":
-                        origin_header = v.decode()
-                        break
-            except Exception:
-                origin_header = None
+    @staticmethod
+    def _metrics_limit_response(retry_after: int) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": "Rate limit exceeded. Try again later.",
+                "code": "RATE_LIMIT_EXCEEDED",
+                "retry_after": retry_after,
+            },
+            headers={"Retry-After": str(retry_after)},
+        )
 
-            cors_headers: dict[str, str] = {}
-            try:
-                if origin_header:
-                    origin_allowed = origin_header in ALLOWED_ORIGINS or (
-                        CORS_ORIGIN_REGEX and re.match(CORS_ORIGIN_REGEX, origin_header)
-                    )
-                    if origin_allowed:
-                        cors_headers = {
-                            "Access-Control-Allow-Origin": origin_header,
-                            "Access-Control-Allow-Credentials": "true",
-                            "Access-Control-Allow-Headers": "*",
-                            "Access-Control-Allow-Methods": "*",
-                        }
-            except Exception:
-                # Best-effort; if anything fails, send without extra CORS headers
-                cors_headers = {}
+    def _is_local_exempt(self, path: str, method: str) -> bool:
+        site_mode = getattr(settings, "site_mode", "local") or "local"
+        if site_mode not in {"local", "preview"}:
+            return False
+        if path in {"/auth/me", "/api/v1/public/session/guest"}:
+            return True
+        if path.startswith("/api/v1/reviews/instructor/") and method == "GET":
+            return True
+        if path.startswith("/api/v1/services/") and method == "GET":
+            return True
+        return path.startswith("/api/v1/instructors") and method == "GET"
 
-            # Send rate limit response directly
-            response = JSONResponse(
-                status_code=429,
-                content={
-                    "detail": f"Rate limit exceeded. Try again in {retry_after} seconds.",
-                    "code": "RATE_LIMIT_EXCEEDED",
+    async def _handle_invite_limit(
+        self, scope: Scope, receive: Receive, send: Send, path: str, method: str, client_ip: str
+    ) -> bool:
+        if not (method == "POST" and self._invite_path.match(path)):
+            return False
+        allowed, _, retry_after = await self.rate_limiter.check_rate_limit(
+            identifier=f"invite:{client_ip}",
+            limit=self.invite_limit,
+            window_seconds=self.invite_window_seconds,
+            window_name="bgc_invite_ip",
+        )
+        if allowed:
+            return False
+        await self._invite_limit_response(retry_after)(scope, receive, send)
+        return True
+
+    async def _handle_metrics_limit(
+        self, scope: Scope, receive: Receive, send: Send, path: str, client_ip: str
+    ) -> bool:
+        if path != "/api/v1/internal/metrics":
+            return False
+        metrics_limit = getattr(settings, "metrics_rate_limit_per_min", 6)
+        if metrics_limit <= 0:
+            return False
+        allowed, _, retry_after = await self.rate_limiter.check_rate_limit(
+            identifier=f"metrics:{client_ip}",
+            limit=metrics_limit,
+            window_seconds=60,
+            window_name="metrics",
+        )
+        if allowed:
+            return False
+        await self._metrics_limit_response(retry_after)(scope, receive, send)
+        return True
+
+    def _log_general_limit_block(
+        self, path: str, method: str, client_ip: str, requests_made: int, retry_after: int
+    ) -> None:
+        try:
+            logger.warning(
+                "[RATE_LIMIT] 429",
+                extra={
+                    "path": path,
+                    "method": method,
+                    "bucket": "general",
+                    "key": client_ip,
+                    "count_before": requests_made,
+                    "limit": self.general_limit,
                     "retry_after": retry_after,
                 },
-                headers={
-                    "Retry-After": str(retry_after),
-                    "X-RateLimit-Limit": str(self.general_limit),
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(int(time.time()) + retry_after),
-                    **cors_headers,
-                },
             )
-            try:
-                # TEMP TRACE: log bucket info for analysis
-                logger.warning(
-                    "[RATE_LIMIT] 429",
-                    extra={
-                        "path": path,
-                        "method": method,
-                        "bucket": "general",
-                        "key": client_ip,
-                        "count_before": requests_made,
-                        "limit": self.general_limit,
-                        "retry_after": retry_after,
-                    },
-                )
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
-            # Send the response
-            await response(scope, receive, send)
-            return
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
 
-        # Get remaining requests for headers
-        remaining = await self.rate_limiter.get_remaining_requests(
-            identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
+    def _general_limit_response(
+        self,
+        scope: Scope,
+        retry_after: int,
+        client_ip: str,
+        path: str,
+        method: str,
+        requests_made: int,
+    ) -> JSONResponse:
+        response = JSONResponse(
+            status_code=429,
+            content={
+                "detail": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+                "code": "RATE_LIMIT_EXCEEDED",
+                "retry_after": retry_after,
+            },
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(self.general_limit),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int(time.time()) + retry_after),
+                **self._cors_headers_for_origin(self._origin_header(scope)),
+            },
         )
+        self._log_general_limit_block(path, method, client_ip, requests_made, retry_after)
+        return response
 
-        # Create a wrapper for send to add rate limit headers
+    def _success_send_wrapper(self, send: Send, remaining: int) -> Send:
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
-                # Add rate limit headers
                 headers = MutableHeaders(scope=message)
                 headers["X-RateLimit-Limit"] = str(self.general_limit)
                 headers["X-RateLimit-Remaining"] = str(remaining)
                 headers["X-RateLimit-Reset"] = str(int(time.time()) + 60)
-
             await send(message)
 
-        # Process the request with our wrapped send
-        await self.app(scope, receive, send_wrapper)
+        return send_wrapper
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """ASGI application entrypoint."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        if self._has_bypass_token(scope):
+            await self.app(scope, receive, send)
+            return
+        try:
+            if getattr(settings, "is_testing", False):
+                await self.app(scope, receive, self._testing_send_wrapper(send))
+                return
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        if not getattr(settings, "rate_limit_enabled", True):
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+        method = scope.get("method", "GET")
+        if self._is_skipped_request(path, method):
+            await self.app(scope, receive, send)
+            return
+        client_ip = self._extract_client_ip(scope)
+        if await self._handle_invite_limit(scope, receive, send, path, method, client_ip):
+            return
+        if self._is_local_exempt(path, method):
+            await self.app(scope, receive, send)
+            return
+        if await self._handle_metrics_limit(scope, receive, send, path, client_ip):
+            return
+        allowed, requests_made, retry_after = await self.rate_limiter.check_rate_limit(
+            identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
+        )
+        if not allowed:
+            response = self._general_limit_response(
+                scope, retry_after, client_ip, path, method, requests_made
+            )
+            await response(scope, receive, send)
+            return
+        remaining = await self.rate_limiter.get_remaining_requests(
+            identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
+        )
+        await self.app(scope, receive, self._success_send_wrapper(send, remaining))

@@ -1,12 +1,6 @@
-backend/app/auth_sse.py
 backend/app/core/config.py
-backend/app/errors.py
 backend/app/main.py
-backend/app/middleware/rate_limiter.py
-backend/app/middleware/rate_limiter_asgi.py
-backend/app/models/booking.py
 backend/app/models/service_catalog.py
-backend/app/ratelimit/dependency.py
 backend/app/repositories/admin_ops_repository.py
 backend/app/repositories/filter_repository.py
 backend/app/repositories/instructor_profile_repository.py

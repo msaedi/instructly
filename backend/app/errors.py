@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -129,151 +130,139 @@ def _with_request_id_header(
     return merged
 
 
-def register_error_handlers(app: FastAPI) -> None:
-    strict_schemas = os.getenv("STRICT_SCHEMAS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    default_media_type = "application/problem+json" if strict_schemas else "application/json"
+def _problem_response(
+    request: Request,
+    status_code: int,
+    detail: Any,
+    default_media_type: str,
+    headers: Optional[Dict[str, str]],
+) -> JSONResponse:
+    request_id = _extract_request_id(request)
+    trace_id = _extract_trace_id()
+    detail_text, code, errors = _parse_detail(detail)
+    override_title, extras = _extract_detail_extras(detail)
+    problem = _problem(
+        status=status_code,
+        title=override_title,
+        detail=detail_text,
+        instance=request.url.path,
+        code=code,
+        request_id=request_id,
+        trace_id=trace_id,
+        errors=jsonable_encoder(errors) if errors is not None else None,
+    )
+    if extras:
+        problem.update(extras)
+    return JSONResponse(
+        problem,
+        status_code=status_code,
+        media_type=default_media_type,
+        headers=_with_request_id_header(headers, request_id),
+    )
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-        request_id = _extract_request_id(request)
-        trace_id = _extract_trace_id()
-        detail_text, code, errors = _parse_detail(exc.detail)
-        override_title, extras = _extract_detail_extras(exc.detail)
+
+def _validation_response(
+    request: Request,
+    validation_errors: Any,
+    strict_schemas: bool,
+    default_media_type: str,
+    detail: str,
+) -> JSONResponse:
+    request_id = _extract_request_id(request)
+    trace_id = _extract_trace_id()
+    detail_list = jsonable_encoder(validation_errors)
+    if strict_schemas:
         problem = _problem(
-            status=exc.status_code,
-            title=override_title,
-            detail=detail_text,
+            status=422,
+            type_="https://example.com/problems/validation",
+            title=_title_from_status(422),
+            detail=detail,
             instance=request.url.path,
-            code=code,
+            code="validation_error",
             request_id=request_id,
             trace_id=trace_id,
-            errors=jsonable_encoder(errors) if errors is not None else None,
+            errors=detail_list,
         )
-        if extras:
-            problem.update(extras)
         return JSONResponse(
             problem,
-            status_code=exc.status_code,
-            media_type=default_media_type,
-            headers=_with_request_id_header(exc.headers, request_id),
-        )
-
-    @app.exception_handler(StarletteHTTPException)
-    async def starlette_http_exception_handler(
-        request: Request, exc: StarletteHTTPException
-    ) -> JSONResponse:
-        request_id = _extract_request_id(request)
-        trace_id = _extract_trace_id()
-        detail_text, code, errors = _parse_detail(exc.detail)
-        override_title, extras = _extract_detail_extras(exc.detail)
-        problem = _problem(
-            status=exc.status_code,
-            title=override_title,
-            detail=detail_text,
-            instance=request.url.path,
-            code=code,
-            request_id=request_id,
-            trace_id=trace_id,
-            errors=jsonable_encoder(errors) if errors is not None else None,
-        )
-        if extras:
-            problem.update(extras)
-        return JSONResponse(
-            problem,
-            status_code=exc.status_code,
-            media_type=default_media_type,
-            headers=_with_request_id_header(exc.headers, request_id),
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def request_validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        request_id = _extract_request_id(request)
-        trace_id = _extract_trace_id()
-        if strict_schemas:
-            problem = _problem(
-                status=422,
-                type_="https://example.com/problems/validation",
-                title=_title_from_status(422),
-                detail="Request validation failed",
-                instance=request.url.path,
-                code="validation_error",
-                request_id=request_id,
-                trace_id=trace_id,
-                errors=jsonable_encoder(exc.errors()),
-            )
-            return JSONResponse(
-                problem,
-                status_code=422,
-                media_type=default_media_type,
-                headers=_with_request_id_header(None, request_id),
-            )
-        detail_list = jsonable_encoder(exc.errors())
-        return JSONResponse(
-            content={
-                "type": "about:blank",
-                "title": _title_from_status(422),
-                "status": 422,
-                "detail": detail_list,
-                "instance": request.url.path,
-                "code": "validation_error",
-                "request_id": request_id,
-                "trace_id": trace_id,
-                "errors": detail_list,
-            },
             status_code=422,
-            media_type="application/json",
+            media_type=default_media_type,
             headers=_with_request_id_header(None, request_id),
         )
+    return JSONResponse(
+        content={
+            "type": "about:blank",
+            "title": _title_from_status(422),
+            "status": 422,
+            "detail": detail_list,
+            "instance": request.url.path,
+            "code": "validation_error",
+            "request_id": request_id,
+            "trace_id": trace_id,
+            "errors": detail_list,
+        },
+        status_code=422,
+        media_type="application/json",
+        headers=_with_request_id_header(None, request_id),
+    )
 
-    @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
-        request_id = _extract_request_id(request)
-        trace_id = _extract_trace_id()
-        if strict_schemas:
-            problem = _problem(
-                status=422,
-                type_="https://example.com/problems/validation",
-                title=_title_from_status(422),
-                detail="Validation failed",
-                instance=request.url.path,
-                code="validation_error",
-                request_id=request_id,
-                trace_id=trace_id,
-                errors=jsonable_encoder(exc.errors()),
-            )
-            return JSONResponse(
-                problem,
-                status_code=422,
-                media_type=default_media_type,
-                headers=_with_request_id_header(None, request_id),
-            )
-        detail_list = jsonable_encoder(exc.errors())
-        return JSONResponse(
-            content={
-                "type": "about:blank",
-                "title": _title_from_status(422),
-                "status": 422,
-                "detail": detail_list,
-                "instance": request.url.path,
-                "code": "validation_error",
-                "request_id": request_id,
-                "trace_id": trace_id,
-                "errors": detail_list,
-            },
-            status_code=422,
-            media_type="application/json",
-            headers=_with_request_id_header(None, request_id),
+
+def _http_exception_handler(
+    default_media_type: str,
+) -> Callable[[Request, HTTPException], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: HTTPException) -> JSONResponse:
+        return _problem_response(
+            request, exc.status_code, exc.detail, default_media_type, exc.headers
         )
 
-    @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return handler
+
+
+def _starlette_http_exception_handler(
+    default_media_type: str,
+) -> Callable[[Request, StarletteHTTPException], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return _problem_response(
+            request, exc.status_code, exc.detail, default_media_type, exc.headers
+        )
+
+    return handler
+
+
+def _request_validation_exception_handler(
+    strict_schemas: bool, default_media_type: str
+) -> Callable[[Request, RequestValidationError], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return _validation_response(
+            request,
+            exc.errors(),
+            strict_schemas,
+            default_media_type,
+            "Request validation failed",
+        )
+
+    return handler
+
+
+def _validation_exception_handler(
+    strict_schemas: bool, default_media_type: str
+) -> Callable[[Request, ValidationError], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: ValidationError) -> JSONResponse:
+        return _validation_response(
+            request,
+            exc.errors(),
+            strict_schemas,
+            default_media_type,
+            "Validation failed",
+        )
+
+    return handler
+
+
+def _generic_exception_handler(
+    default_media_type: str,
+) -> Callable[[Request, Exception], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
         request_id = _extract_request_id(request)
         trace_id = _extract_trace_id()
         problem = _problem(
@@ -290,3 +279,26 @@ def register_error_handlers(app: FastAPI) -> None:
             media_type=default_media_type,
             headers=_with_request_id_header(None, request_id),
         )
+
+    return handler
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    strict_schemas = os.getenv("STRICT_SCHEMAS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    default_media_type = "application/problem+json" if strict_schemas else "application/json"
+    app.exception_handler(HTTPException)(_http_exception_handler(default_media_type))
+    app.exception_handler(StarletteHTTPException)(
+        _starlette_http_exception_handler(default_media_type)
+    )
+    app.exception_handler(RequestValidationError)(
+        _request_validation_exception_handler(strict_schemas, default_media_type)
+    )
+    app.exception_handler(ValidationError)(
+        _validation_exception_handler(strict_schemas, default_media_type)
+    )
+    app.exception_handler(Exception)(_generic_exception_handler(default_media_type))
