@@ -58,7 +58,7 @@ Clicking a service area polygon scrolls the instructor list to the first instruc
 Signal-based recording via `task_prerun`/`task_postrun`/`task_failure`/`task_retry`. Universal coverage (not BaseTask-dependent). OTEL `trace_id` captured for Sentry/Axiom correlation. Status enum: STARTED, SUCCESS, FAILURE, RETRY. 90-day retention with daily purge (4 AM Eastern). ~5,400 executions/day estimated. 2 new MCP tools: `instainstru_celery_task_history_persistent` + `instainstru_celery_task_stats` (p50/p95 duration, success rate).
 
 ### Size Budget Enforcement
-New pre-commit hook `check_size_budgets.py` with baseline allowlist. Warn at 500 lines/file or 100 lines/method. Hard-fail at 700/125. Existing large files are baselined — only new violations fail. Ratchet-down approach: remove files from baseline as they're fixed.
+New pre-commit hook `check_size_budgets.py` with baseline allowlist. Warn at 500 lines/file or 100 lines/method. Hard-fail at 700/125. Existing large files are baselined — only new violations fail. Ratchet-down approach: remove files from baseline as they're fixed. Scope: all of `backend/app/` (expanded from services+tasks only).
 
 ### Type Safety Protocols
 Eliminated `Any` from lazy import helpers and cross-module contracts:
@@ -133,7 +133,7 @@ Direct to main. All low-risk nits:
 3. Stripe API key lazy init (was set at import time)
 4. Redundant double import in preflight.py removed
 5. `_validate_go_live_prerequisites` — removed unused context dict mutation
-6. `PRICE_FLOOR_CONFIG_KEYS` → model constants instead of string literals
+6. `PRICE_FLOOR_CONFIG_KEYS` → model constants (in mixin_base.py, consumed by validation_helpers_mixin)
 7. `self.db.expire_all()` → repository seam
 8. Clock skew buffer (5s) added to `detect_video_no_shows`
 9. Edge-case test for shortened booking (`booking_end_utc` < start + duration)
@@ -148,11 +148,25 @@ Direct to main. All low-risk nits:
 - `search/page.tsx` (2,274 lines)
 - `student/dashboard/page.tsx` (2,097 lines)
 
+### Backend File-Size Decomposition
+Systematic reduction of the size budget baseline through decomposition and method splits:
+
+**Completed:**
+- `payment_repository.py` (1,679 → 80 lines) — 8 domain mixins following booking pattern
+- `main.py` (1,467 → 129 lines) — 5 extracted modules: lifespan, background_jobs, router_registry, middleware_setup, internal_metrics. Shared router builder eliminates openapi_app duplication.
+- `celery_app.py` (834 → 585 lines) — signal handlers extracted to task_execution_signals.py
+- `schemas/instructor.py` (930 → package) — 5 modules: locations, services, requests, responses, commission
+- `schemas/booking.py` (1,233 → package) — 3 modules: requests, responses, availability
+- 6 method-only splits: ratelimit/dependency, auth_sse, errors, rate_limiter_asgi, booking model, rate_limiter
+- Size budget scope expanded from services+tasks to all of `backend/app/`
+- `service_catalog.py` (936 lines) — baselined, tight FK coupling makes splitting counterproductive
+
+**Baseline progression:** 29 → 60 (expanded scope) → 54 → 51 → ~47
+
 ### Backend Remaining Large Files (P3)
-- `payment_repository.py` (1,679)
-- `instructor_profile_repository.py` (1,582)
-- `config.py` (1,484)
-- `main.py` (1,467)
+- `core/config.py` (1,490) — highest risk, phased sub-model extraction needed
+- `instructor_profile_repository.py` (1,582) — mixin decomposition (BGC-heavy)
+- ~45 other baselined files across services, routes, repositories
 
 ### Blocked / External Dependencies
 - redis-py 7.4.0 upgrade — blocked by Kombu `<6.5` cap

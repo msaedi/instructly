@@ -2,12 +2,6 @@
   "description": "Approved production # type: ignore entries in backend/app. Keep this list small and documented.",
   "entries": [
     {
-      "path": "app/core/config.py",
-      "code": "assignment",
-      "match": "defaults to ellipsis outside CI; SecretStr default provided for CI runs",
-      "reason": "Pydantic SecretStr field uses an Ellipsis default outside CI, which mypy treats as an incompatible assignment."
-    },
-    {
       "path": "app/core/privacy_auditor.py",
       "code": "import-untyped",
       "match": "import yaml",

@@ -7,7 +7,7 @@ from pydantic import SecretStr
 import pytest
 
 from app.core import config as config_module
-from app.core.config import Settings, assert_env, resolve_referrals_step, settings
+from app.core.config import Settings, assert_env, resolve_referrals_step, secret_or_plain, settings
 
 
 def test_classify_site_mode_variants():
@@ -88,9 +88,43 @@ def test_webhook_secrets_property():
 
 
 def test_validate_test_database_indicator():
-    info = type("Info", (), {"data": {"production_database_indicators": ["prod"]}})()
-    with pytest.raises(ValueError):
-        Settings.validate_test_database("postgres://prod-db", info)
+    with pytest.raises(ValueError, match="production indicator 'prod'"):
+        Settings.model_validate(
+            {
+                "secret_key": "test-secret",
+                "test_database_url": "postgres://prod-db",
+                "production_database_indicators": ["prod"],
+            }
+        )
+
+
+def test_bgc_key_required_in_production():
+    with pytest.raises(ValueError, match="BGC_ENCRYPTION_KEY"):
+        Settings.model_validate(
+            {
+                "secret_key": "test-secret",
+                "environment": "production",
+                "bgc_encryption_key": None,
+            }
+        )
+
+
+def test_flat_access_across_extracted_mixins():
+    cfg = Settings.model_validate(
+        {
+            "secret_key": "test-secret",
+            "test_database_url": "postgres://localhost:5432/test_db",
+            "RESEND_API_KEY": "re_test_key",
+            "stripe_secret_key": "sk_test_key",
+            "FLOWER_BASIC_AUTH": "admin:secret123",
+        }
+    )
+
+    assert secret_or_plain(cfg.secret_key) == "test-secret"
+    assert cfg.test_database_url == "postgres://localhost:5432/test_db"
+    assert secret_or_plain(cfg.resend_api_key) == "re_test_key"
+    assert secret_or_plain(cfg.stripe_secret_key) == "sk_test_key"
+    assert cfg.flower_user == "admin"
 
 
 def test_is_production_database():
