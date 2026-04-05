@@ -24,10 +24,9 @@ export async function loadInstructorProfileSchema() {
       service_catalog_name: z.string().optional(),
     });
     const Neighborhood = z.object({
-      neighborhood_id: z.string(),
-      ntacode: z.string().optional().nullable(),
-      name: z.string().optional().nullable(),
-      borough: z.string().optional().nullable(),
+      borough: z.string(),
+      display_key: z.string(),
+      display_name: z.string(),
     });
     const Profile = z.object({
       user_id: z.string(),

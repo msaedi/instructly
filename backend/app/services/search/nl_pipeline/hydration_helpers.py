@@ -14,6 +14,7 @@ from app.schemas.nl_search import (
     RatingSummary,
     ServiceMatch,
 )
+from app.services.search.location_resolver import LocationResolver
 from app.services.search.nl_pipeline.protocols import AsyncioLike, DBSessionFactory
 
 if TYPE_CHECKING:
@@ -185,20 +186,7 @@ async def load_hydration_data(
 ) -> tuple[List[InstructorProfileRow], Dict[str, float]]:
     if instructor_rows is not None:
         return instructor_rows, distance_meters or {}
-    distance_region_ids: Optional[List[str]] = None
-    if location_resolution and location_resolution.region_id:
-        distance_region_ids = [str(location_resolution.region_id)]
-    elif (
-        location_resolution
-        and location_resolution.requires_clarification
-        and location_resolution.candidates
-    ):
-        candidate_ids = [
-            str(candidate.get("region_id"))
-            for candidate in location_resolution.candidates
-            if isinstance(candidate, dict) and candidate.get("region_id")
-        ]
-        distance_region_ids = list(dict.fromkeys(candidate_ids)) or None
+    distance_region_ids = LocationResolver.effective_region_ids(location_resolution) or None
 
     def _load_hydration_data() -> tuple[List[InstructorProfileRow], Dict[str, float]]:
         with get_db_session() as db:

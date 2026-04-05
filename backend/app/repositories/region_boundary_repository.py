@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -130,22 +130,47 @@ class RegionBoundaryRepository:
         except Exception:
             return False
 
+    def get_selector_items(self, region_type: str = "nyc") -> list[dict[str, Any]]:
+        """Get all display-active neighborhoods for the selector."""
+
+        sql = text(
+            """
+            SELECT id, region_name, parent_region, display_name, display_key, display_order
+            FROM region_boundaries
+            WHERE region_type = :region_type
+              AND display_name IS NOT NULL
+            ORDER BY parent_region, display_order, display_name, region_name, id
+            """
+        )
+        result = self.db.execute(sql, {"region_type": region_type})
+        return [dict(row._mapping) for row in result]
+
     def find_region_by_point(
         self, lat: float, lng: float, region_type: str
     ) -> Optional[Mapping[str, Any]]:
         """Return the first region row whose boundary intersects the given point.
 
-        Returns a mapping with keys: region_type, region_code, region_name, parent_region, region_metadata
-        or None if not found/available.
+        Returns a mapping with keys: region_type, region_code, region_name,
+        display_key, parent_region, region_metadata or None if not found/available.
         """
         try:
             sql = text(
                 """
-                SELECT region_type, region_code, region_name, parent_region, region_metadata
+                SELECT
+                    region_type,
+                    region_code,
+                    display_name AS region_name,
+                    display_key,
+                    parent_region,
+                    region_metadata
                 FROM region_boundaries
                 WHERE boundary IS NOT NULL
-                  AND ST_Intersects(boundary, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326))
                   AND region_type = :rtype
+                  AND display_name IS NOT NULL
+                  AND ST_Intersects(
+                      boundary::geometry,
+                      ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geometry
+                  )
                 ORDER BY ST_Area(boundary) ASC NULLS LAST
                 LIMIT 1
                 """
@@ -209,7 +234,7 @@ class RegionBoundaryRepository:
                 self.db.execute(
                     text(
                         """
-                    SELECT id, region_name, parent_region, region_type,
+                    SELECT id, region_name, display_name, parent_region, region_type,
                            ST_AsGeoJSON(ST_Simplify(boundary, :tol)) AS geojson
                     FROM region_boundaries
                     WHERE id = ANY(:ids)
@@ -228,6 +253,7 @@ class RegionBoundaryRepository:
                     {
                         "id": row["id"],
                         "region_name": row["region_name"],
+                        "display_name": row["display_name"],
                         "parent_region": row["parent_region"],
                         "region_type": row["region_type"],
                         "geometry": (row["geojson"] and _json.loads(row["geojson"])) or None,
@@ -270,6 +296,44 @@ class RegionBoundaryRepository:
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
         return result
+
+    def resolve_display_keys_to_ids(
+        self, display_keys: list[str], region_type: str = "nyc"
+    ) -> dict[str, list[str]]:
+        """Return {display_key: [nta_id, ...]} for valid display keys."""
+
+        if not display_keys:
+            return {}
+
+        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+            sql = text(
+                """
+                SELECT display_key, id
+                FROM region_boundaries
+                WHERE region_type = :region_type
+                  AND display_key = ANY(:keys)
+                  AND display_name IS NOT NULL
+                ORDER BY display_key, id
+                """
+            )
+            result = self.db.execute(sql, {"region_type": region_type, "keys": display_keys})
+        else:
+            sql = text(
+                """
+                SELECT display_key, id
+                FROM region_boundaries
+                WHERE region_type = :region_type
+                  AND display_key IN :keys
+                  AND display_name IS NOT NULL
+                ORDER BY display_key, id
+                """
+            ).bindparams(bindparam("keys", expanding=True))
+            result = self.db.execute(sql, {"region_type": region_type, "keys": display_keys})
+
+        mapping: dict[str, list[str]] = {}
+        for row in result:
+            mapping.setdefault(str(row.display_key), []).append(str(row.id))
+        return mapping
 
     # --- Maintenance helpers (used by tests and admin flows) ---
     def delete_by_region_name(self, region_name: str, region_type: str | None = None) -> int:

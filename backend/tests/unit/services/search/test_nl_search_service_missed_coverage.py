@@ -373,6 +373,7 @@ class TestResolveCachedAlias:
         result = location_helpers.resolve_cached_alias(cached_alias, region_lookup)
         assert result is not None
         assert result.region_name == "Astoria"
+        assert result.region_ids == ["R1"]
 
     def test_resolved_alias_region_not_in_lookup(self):
         """L1389->1397: is_resolved but region_id not in lookup -> returns None."""
@@ -408,8 +409,9 @@ class TestResolveCachedAlias:
         region_lookup.by_id = {"R1": region_info}
 
         result = location_helpers.resolve_cached_alias(cached_alias, region_lookup)
-        # Only 1 candidate found (R_MISSING not in lookup) -> None
-        assert result is None
+        assert result is not None
+        assert result.resolved is True
+        assert result.region_name == "Astoria"
 
 
 # ---------------------------------------------------------------------------

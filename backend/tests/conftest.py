@@ -238,6 +238,7 @@ from app.auth import get_password_hash
 # Now we can import from app
 from app.core.enums import PermissionName, RoleName
 from app.database import Base, get_db
+from app.domain.neighborhood_config import generate_display_key
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
 from app.models import SearchEvent, SearchHistory
 
@@ -371,15 +372,44 @@ def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
 
 
 def _ensure_boundary_columns(db: Session, boundary: RegionBoundary, borough: str) -> None:
+    display_name = getattr(boundary, "display_name", None) or getattr(boundary, "region_name", None)
+    setattr(boundary, "display_name", display_name)
+    if display_name:
+        display_key = getattr(boundary, "display_key", None) or generate_display_key(
+            "nyc", borough, str(display_name)
+        )
+        setattr(boundary, "display_key", display_key)
+        setattr(boundary, "display_order", getattr(boundary, "display_order", None) or 0)
+
     if not db.bind or db.bind.dialect.name == "sqlite":
         return
     try:
-        has_boundary = db.execute(
+        row = db.execute(
             text("SELECT boundary IS NOT NULL FROM region_boundaries WHERE id = :id"),
             {"id": boundary.id},
-        ).scalar()
+        ).first()
     except Exception:
         return
+
+    has_boundary = bool(row[0]) if row else False
+    db.execute(
+        text(
+            """
+            UPDATE region_boundaries
+            SET display_name = :display_name,
+                display_key = :display_key,
+                display_order = :display_order
+            WHERE id = :id
+            """
+        ),
+        {
+            "id": boundary.id,
+            "display_name": getattr(boundary, "display_name", None),
+            "display_key": getattr(boundary, "display_key", None),
+            "display_order": getattr(boundary, "display_order", None),
+        },
+    )
+    db.flush()
 
     if has_boundary:
         return
@@ -461,6 +491,9 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
             if candidate_id:
                 candidate = db.get(RegionBoundary, candidate_id)
                 if candidate:
+                    if _ensure_boundary_geometry(candidate, normalized):
+                        db.flush()
+                    _ensure_boundary_columns(db, candidate, normalized)
                     return candidate
         except Exception:
             pass
@@ -470,10 +503,11 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
         region_type="nyc",
         region_code=f"{abbr}-TEST",
         region_name=f"{normalized} Test Neighborhood",
+        display_name=f"{normalized} Test Neighborhood",
+        display_key=generate_display_key("nyc", normalized, f"{normalized} Test Neighborhood"),
+        display_order=0,
         parent_region=normalized,
         region_metadata={
-            "nta_name": f"{normalized} Test Neighborhood",
-            "nta_code": f"{abbr}-TEST",
             "borough": normalized,
             "geometry": _square_polygon(lon, lat),
         },
@@ -752,6 +786,26 @@ def ensure_outbox_table() -> None:
                 raise
 
 
+def _get_table_column_names(conn, table_name: str) -> set[str]:
+    """Return table column names without reflecting full DB-specific types."""
+    if conn.dialect.name == "sqlite":
+        rows = conn.exec_driver_sql(f"PRAGMA table_info({table_name})")
+        return {row._mapping["name"] for row in rows}
+
+    rows = conn.execute(
+        text(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = :table_name
+            """
+        ),
+        {"table_name": table_name},
+    )
+    return {row[0] for row in rows}
+
+
 def _prepare_database() -> None:
     """Ensure extensions, tables, and constraints exist for tests."""
     with test_engine.connect() as conn:
@@ -985,9 +1039,16 @@ def _prepare_database() -> None:
 
     # Keep region_boundaries schema aligned with ORM models (tests reuse an existing DB).
     with test_engine.connect() as conn:
+        column_names = _get_table_column_names(conn, "region_boundaries")
+        if "display_name" not in column_names:
+            conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN display_name VARCHAR(120)"))
+        if "display_key" not in column_names:
+            conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN display_key VARCHAR(150)"))
+        if "display_order" not in column_names:
+            conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN display_order INTEGER"))
         if conn.dialect.name != "sqlite":
             conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN IF NOT EXISTS name_embedding vector(1536)"))
-            conn.commit()
+        conn.commit()
 
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
@@ -1776,8 +1837,6 @@ def test_instructor(db: Session, test_password: str) -> User:
                 parent_region=entry["parent_region"],
                 region_metadata={
                     "borough": entry["parent_region"],
-                    "nta_name": entry["region_name"],
-                    "nta_code": entry["region_code"],
                 },
             )
             db.add(region_boundary)
@@ -1937,8 +1996,6 @@ def test_instructor_2(db: Session, test_password: str) -> User:
                 parent_region=entry["parent_region"],
                 region_metadata={
                     "borough": entry["parent_region"],
-                    "nta_name": entry["region_name"],
-                    "nta_code": entry["region_code"],
                 },
             )
             db.add(region_boundary)

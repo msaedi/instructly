@@ -38,6 +38,7 @@ def test_enrich_nyc_with_match(monkeypatch) -> None:
                 "parent_region": "Manhattan",
                 "region_code": "MN01",
                 "region_name": "Chelsea",
+                "display_name": "Chelsea / Hudson Yards",
                 "region_metadata": {"community_district": "4"},
             }
 
@@ -46,7 +47,9 @@ def test_enrich_nyc_with_match(monkeypatch) -> None:
     result = service.enrich(40.7, -74.0)
 
     assert result["district"] == "Manhattan"
-    assert result["neighborhood"] == "Chelsea"
+    assert result["neighborhood"] == "Chelsea / Hudson Yards"
+    assert result["location_metadata"]["nyc"]["neighborhood"] == "Chelsea / Hudson Yards"
+    assert "nta_code" not in result["location_metadata"]["nyc"]
     assert result["location_metadata"]["nyc"]["community_district"] == "4"
 
 

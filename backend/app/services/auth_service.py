@@ -166,7 +166,7 @@ class AuthService(BaseService):
                     # Derive initial service area (prefer neighborhood) and city for bio
                     service_area_guess = "Manhattan"
                     city_guess = "New York"  # bio should use city, not borough
-                    region_boundary_id: Optional[str] = None
+                    region_boundary_ids: list[str] = []
                     try:
                         if zip_code:
                             import anyio
@@ -191,20 +191,31 @@ class AuthService(BaseService):
                                 )
                                 if region and region.get("region_name"):
                                     service_area_guess = region["region_name"]
-                                    ids = rb_repo.find_region_ids_by_partial_names(
-                                        [service_area_guess]
-                                    )
-                                    region_boundary_id = ids.get(service_area_guess)
+                                    display_key = region.get("display_key")
+                                    if display_key:
+                                        resolved = rb_repo.resolve_display_keys_to_ids(
+                                            [str(display_key)]
+                                        )
+                                        region_boundary_ids = list(
+                                            resolved.get(str(display_key), [])
+                                        )
+                                    if not region_boundary_ids:
+                                        ids = rb_repo.find_region_ids_by_partial_names(
+                                            [service_area_guess]
+                                        )
+                                        region_boundary_id = ids.get(service_area_guess)
+                                        if region_boundary_id:
+                                            region_boundary_ids = [region_boundary_id]
                                 elif getattr(geocoded, "city", None):
                                     # Fallback to city when neighborhood unavailable
                                     service_area_guess = geocoded.city
                                     ids = rb_repo.find_region_ids_by_partial_names(
                                         [service_area_guess]
                                     )
-                                    region_boundary_id = region_boundary_id or ids.get(
-                                        service_area_guess
-                                    )
-                        if region_boundary_id is None and service_area_guess:
+                                    region_boundary_id = ids.get(service_area_guess)
+                                    if region_boundary_id:
+                                        region_boundary_ids = [region_boundary_id]
+                        if not region_boundary_ids and service_area_guess:
                             from app.repositories.region_boundary_repository import (
                                 RegionBoundaryRepository,
                             )
@@ -212,6 +223,8 @@ class AuthService(BaseService):
                             rb_repo = RegionBoundaryRepository(self.db)
                             ids = rb_repo.find_region_ids_by_partial_names([service_area_guess])
                             region_boundary_id = ids.get(service_area_guess)
+                            if region_boundary_id:
+                                region_boundary_ids = [region_boundary_id]
                     except Exception as _e:
                         self.logger.debug("ZIP→neighborhood/city lookup failed: %s", str(_e))
 
@@ -229,7 +242,7 @@ class AuthService(BaseService):
                         overnight_protection_enabled=True,
                     )
 
-                    if region_boundary_id:
+                    for region_boundary_id in dict.fromkeys(region_boundary_ids):
                         self.service_area_repository.upsert_area(
                             instructor_id=user.id,
                             neighborhood_id=region_boundary_id,

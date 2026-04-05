@@ -93,31 +93,31 @@ class AddressListResponse(StrictModel):
 
 
 class ServiceAreasUpdateRequest(StrictRequestModel):
-    neighborhood_ids: List[str]
+    display_keys: List[str]
 
 
-class ServiceAreaItem(BaseModel):
-    neighborhood_id: str
-    ntacode: Optional[str] = None
-    name: Optional[str] = None
-    borough: Optional[str] = None
+class ServiceAreaDisplayItem(StrictModel):
+    """An instructor's selected neighborhood (display-level)."""
+
+    display_name: str
+    display_key: str
+    borough: str
 
 
 class ServiceAreasResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    items: List[ServiceAreaItem]
+    items: List[ServiceAreaDisplayItem]
     total: int
 
 
-class ServiceAreaNeighborhood(BaseModel):
-    """Normalized neighborhood metadata used in instructor service area responses."""
+class ServiceAreaNeighborhood(StrictModel):
+    """Normalized display-level metadata used in instructor service area responses."""
 
     model_config = ConfigDict(title="ServiceAreaNeighborhood", extra="forbid")
 
-    neighborhood_id: str
-    ntacode: Optional[str] = None
-    name: Optional[str] = None
-    borough: Optional[str] = None
+    display_name: str
+    display_key: str
+    borough: str
 
 
 ServiceAreaNeighborhoodOut = ServiceAreaNeighborhood

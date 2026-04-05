@@ -404,6 +404,23 @@ def test_enrichment_uses_region_boundaries(db, client, monkeypatch):
         wkt_polygon=wkt_poly,
         metadata={"community_district": 5},
     )
+    db.execute(
+        text(
+            """
+            UPDATE region_boundaries
+            SET display_name = :display_name,
+                display_key = :display_key,
+                display_order = :display_order
+            WHERE id = :id
+            """
+        ),
+        {
+            "id": "TESTREGION12345678901234",
+            "display_name": "Times Square Test",
+            "display_key": "nyc-manhattan-times-square-test",
+            "display_order": 0,
+        },
+    )
     db.commit()
 
     # Create a user and address inside the polygon using mock provider place with coords

@@ -32,7 +32,7 @@ export interface AddressCreatePayload {
 }
 
 export interface ServiceAreasUpdatePayload {
-  neighborhood_ids: string[];
+  display_keys: string[];
 }
 
 export function debugProfilePayload(name: string, payload: unknown): void {

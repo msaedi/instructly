@@ -86,10 +86,10 @@ export function ServiceAreasCard({
     const results: ServiceAreaItem[] = [];
     const matches = nycBoroughs
       .flatMap((borough) => boroughNeighborhoods[borough] || [])
-      .filter((n) => (n['name'] || '').toLowerCase().includes(query));
+      .filter((n) => n.display_name.toLowerCase().includes(query));
 
     for (const match of matches) {
-      const nid = match.neighborhood_id;
+      const nid = match.display_key;
       if (!nid || seen.has(nid)) continue;
       seen.add(nid);
       results.push(match);
@@ -134,7 +134,7 @@ export function ServiceAreasCard({
               <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
               <div className="flex flex-wrap gap-2">
                 {searchHits.map((n) => {
-                  const nid = n.neighborhood_id;
+                  const nid = n.display_key;
                   if (!nid) return null;
                   const checked = selectedNeighborhoods.has(nid);
                   return (
@@ -149,7 +149,7 @@ export function ServiceAreasCard({
                           : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                       }`}
                     >
-                      <span className="truncate text-left">{n['name'] || nid}</span>
+                      <span className="truncate text-left">{n.display_name || nid}</span>
                       <span className="ml-2">{checked ? '✓' : '+'}</span>
                     </button>
                   );
@@ -164,7 +164,7 @@ export function ServiceAreasCard({
           {selectedNeighborhoods.size > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {Array.from(selectedNeighborhoods).map((nid) => {
-                const name = formatNeighborhoodName(idToItem[nid]?.['name'] || String(nid));
+                const name = formatNeighborhoodName(idToItem[nid]?.display_name || String(nid));
                 return (
                   <span key={`sel-${nid}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100">
                     <span className="truncate max-w-[14rem]" title={name}>{name}</span>
@@ -242,11 +242,11 @@ export function ServiceAreasCard({
                       {isAccordionOpen && (
                         <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
-                            const nid = n.neighborhood_id;
+                            const nid = n.display_key;
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
-                            const label = formatNeighborhoodName(n['name'] || String(nid));
-                            const regionCode = String(n.ntacode || idToItem[nid]?.ntacode || nid);
+                            const label = formatNeighborhoodName(n.display_name || String(nid));
+                            const regionCode = String(nid);
                             return (
                               <button
                                 key={`${borough}-${nid}`}

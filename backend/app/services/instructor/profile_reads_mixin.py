@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Sequence, cast
 
 from ...core.exceptions import NotFoundException
+from ...domain.neighborhood_helpers import display_area_from_region
 from ...models.instructor import InstructorPreferredPlace, InstructorProfile
 from ...models.user import User
 from ...utils.privacy import format_last_initial
@@ -180,31 +181,23 @@ class InstructorProfileReadsMixin(InstructorMixinBase):
         ]
         service_area_neighborhoods: List[Dict[str, Any]] = []
         boroughs: set[str] = set()
+        seen_display_keys: set[str] = set()
 
         for area in service_area_records:
             region = getattr(area, "neighborhood", None)
-            region_code = getattr(region, "region_code", None) if region is not None else None
-            region_name = getattr(region, "region_name", None) if region is not None else None
-            borough = getattr(region, "parent_region", None) if region is not None else None
-            region_meta = getattr(region, "region_metadata", None) if region is not None else None
-            if isinstance(region_meta, dict):
-                region_code = (
-                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
-                )
-                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
-                borough = borough or region_meta.get("borough")
+            item = display_area_from_region(region)
+            if not item:
+                continue
 
+            borough = item["borough"]
             if borough:
                 boroughs.add(borough)
 
-            service_area_neighborhoods.append(
-                {
-                    "neighborhood_id": area.neighborhood_id,
-                    "ntacode": region_code,
-                    "name": region_name,
-                    "borough": borough,
-                }
-            )
+            if item["display_key"] in seen_display_keys:
+                continue
+
+            seen_display_keys.add(item["display_key"])
+            service_area_neighborhoods.append(item)
 
         sorted_boroughs = sorted(boroughs)
         if not sorted_boroughs:

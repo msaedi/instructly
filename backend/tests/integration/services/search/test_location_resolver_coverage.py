@@ -6,10 +6,41 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.domain.neighborhood_config import NEIGHBORHOOD_MAPPING, generate_display_key
 from app.models.location_alias import NYC_CITY_ID, LocationAlias
 from app.models.region_boundary import RegionBoundary
 import app.services.search.location_resolver as resolver_module
 from app.services.search.location_resolver import LocationResolver, ResolutionTier, ResolvedLocation
+
+
+def _build_consolidated_display_cases() -> list[object]:
+    grouped: dict[str, dict[str, object]] = {}
+    for (borough, raw_name), display_name in NEIGHBORHOOD_MAPPING.items():
+        if display_name is None:
+            continue
+        display_key = generate_display_key("nyc", borough, display_name)
+        bucket = grouped.setdefault(
+            display_key,
+            {"display_name": display_name, "raw_names": []},
+        )
+        raw_names = bucket["raw_names"]
+        if isinstance(raw_names, list):
+            raw_names.append(raw_name)
+
+    return [
+        pytest.param(
+            display_key,
+            str(payload["display_name"]),
+            sorted(str(name) for name in payload["raw_names"]),
+            id=display_key,
+        )
+        for display_key, payload in sorted(grouped.items())
+        if len(payload["raw_names"]) > 1
+    ]
+
+
+CONSOLIDATED_DISPLAY_CASES = _build_consolidated_display_cases()
+assert len(CONSOLIDATED_DISPLAY_CASES) == 19
 
 
 def _create_region(
@@ -18,6 +49,8 @@ def _create_region(
     name: str,
     parent: str | None = "Manhattan",
     region_code: str | None = None,
+    display_name: str | None = None,
+    display_key: str | None = None,
 ) -> RegionBoundary:
     existing = (
         db.query(RegionBoundary)
@@ -33,6 +66,8 @@ def _create_region(
         region_code=region_code,
         region_name=name,
         parent_region=parent,
+        display_name=display_name,
+        display_key=display_key,
     )
     db.add(region)
     db.flush()
@@ -224,6 +259,28 @@ def test_tier2_5_substring_and_tier3_fuzzy(db):
     fuzzy = resolver._tier3_fuzzy_match("chelsea")
     assert fuzzy.resolved is True
     assert fuzzy.tier == ResolutionTier.FUZZY
+
+
+def test_expand_regions_for_logical_resolution_without_display_key_returns_original_region(db):
+    resolver = LocationResolver(db)
+    region = _create_region(db, name="Single Region", display_name=None, display_key=None)
+
+    expanded = resolver._expand_regions_for_logical_resolution([region])
+
+    assert expanded == [region]
+
+
+def test_effective_region_ids_filters_empty_values():
+    resolution = ResolvedLocation.from_region(
+        region_id="region-1",
+        region_name="Upper East Side",
+        borough="Manhattan",
+        region_ids=["region-2", "", None, "region-1"],  # type: ignore[list-item]
+        tier=ResolutionTier.ALIAS,
+        confidence=1.0,
+    )
+
+    assert LocationResolver.effective_region_ids(resolution) == ["region-1", "region-2"]
 
 
 def test_tier2_5_substring_short_and_ambiguous(db):
@@ -440,12 +497,14 @@ def test_tier2_alias_lookup_from_seed_data_fragment_and_single_candidate(db, mon
     assert single_candidate.region_id == only_region.id
 
 
-def test_tier2_alias_lookup_single_candidate_falls_through(db):
+def test_tier2_alias_lookup_single_candidate_resolves(db):
     resolver = LocationResolver(db)
     region = _create_region(db, name="SoHo")
     _create_alias(db, alias="solo", candidate_ids=[region.id], source="manual", status="active")
     result = resolver._tier2_alias_lookup("solo")
-    assert result.not_found is True
+    assert result.resolved is True
+    assert result.region_id == region.id
+    assert result.region_ids == [region.id]
 
 
 @pytest.mark.asyncio
@@ -573,7 +632,9 @@ def test_cache_llm_alias_creates_rows(db):
         .first()
     )
     assert cached is not None
-    assert cached.requires_clarification is True
+    assert cached.requires_clarification is False
+    assert cached.region_boundary_id == region.id
+    assert cached.candidate_region_ids is None
 
 
 def test_cache_llm_alias_ignores_empty(db):
@@ -591,5 +652,74 @@ def test_format_candidates_skips_invalid(db):
             "region_id": valid_region.id,
             "region_name": valid_region.region_name,
             "borough": valid_region.parent_region,
+            "display_name": None,
+            "display_key": None,
+            "region_ids": [valid_region.id],
         }
     ]
+
+
+def test_dedupe_candidates_by_display_merges_region_ids_deterministically():
+    candidates = [
+        {
+            "region_id": "r2",
+            "region_name": "Upper East Side-Yorkville",
+            "borough": "Manhattan",
+            "display_name": "Upper East Side",
+            "display_key": "nyc-manhattan-upper-east-side",
+            "region_ids": ["r2"],
+        },
+        {
+            "region_id": "r1",
+            "region_name": "Upper East Side-Carnegie Hill",
+            "borough": "Manhattan",
+            "display_name": "Upper East Side",
+            "display_key": "nyc-manhattan-upper-east-side",
+            "region_ids": ["r1"],
+        },
+    ]
+
+    deduped = LocationResolver._dedupe_candidates_by_display(candidates)
+
+    assert deduped == [
+        {
+            "region_id": "r1",
+            "region_name": "Upper East Side-Carnegie Hill",
+            "borough": "Manhattan",
+            "display_name": "Upper East Side",
+            "display_key": "nyc-manhattan-upper-east-side",
+            "region_ids": ["r1", "r2"],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("display_key", "display_name", "raw_names"),
+    CONSOLIDATED_DISPLAY_CASES,
+)
+def test_consolidated_display_keys_resolve_as_single_logical_candidate(
+    db,
+    display_key: str,
+    display_name: str,
+    raw_names: list[str],
+):
+    resolver = LocationResolver(db)
+    rows = (
+        db.query(RegionBoundary)
+        .filter(
+            RegionBoundary.region_type == "nyc",
+            RegionBoundary.display_key == display_key,
+        )
+        .order_by(RegionBoundary.region_name.asc(), RegionBoundary.id.asc())
+        .all()
+    )
+
+    assert {str(row.region_name) for row in rows} == set(raw_names)
+
+    result = resolver.resolve_sync(display_name)
+
+    assert result.resolved is True
+    assert result.requires_clarification is False
+    assert result.region_name == display_name
+    assert result.region_ids == sorted(str(row.id) for row in rows)
+    assert result.region_id == str(rows[0].id)

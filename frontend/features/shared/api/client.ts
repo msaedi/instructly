@@ -462,10 +462,9 @@ export const publicApi = {
         bio: string;
         service_area_boroughs?: string[];
         service_area_neighborhoods?: Array<{
-          neighborhood_id: string;
-          ntacode?: string | null;
-          name?: string | null;
-          borough?: string | null;
+          borough: string;
+          display_key: string;
+          display_name: string;
         }>;
         service_area_summary?: string | null;
         years_experience: number;

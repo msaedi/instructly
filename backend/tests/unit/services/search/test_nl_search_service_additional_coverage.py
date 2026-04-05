@@ -809,23 +809,23 @@ class TestNlSearchHelpers:
         resolved = ResolvedLocation(
             resolved=True,
             region_id="r1",
+            region_ids=["r1", "r2"],
             tier=ResolutionTier.EXACT,
             confidence=1.0,
         )
-        assert location_helpers.distance_region_ids(resolved) == ["r1"]
+        assert location_helpers.distance_region_ids(resolved) == ["r1", "r2"]
 
         ambiguous = ResolvedLocation(
             resolved=False,
             requires_clarification=True,
             candidates=[
-                {"region_id": "r1"},
-                {"region_id": "r2"},
-                {"region_id": "r1"},
+                {"region_id": "r1", "region_ids": ["r1", "r2"]},
+                {"region_id": "r3", "region_ids": ["r3"]},
             ],
             tier=ResolutionTier.LLM,
             confidence=0.5,
         )
-        assert location_helpers.distance_region_ids(ambiguous) == ["r1", "r2"]
+        assert location_helpers.distance_region_ids(ambiguous) == ["r1", "r2", "r3"]
         assert location_helpers.distance_region_ids(None) is None
 
     @pytest.mark.asyncio

@@ -221,7 +221,25 @@ def load_city(
     print("Writing to region_boundaries table…")
     # Avoid to_postgis JSON typing issues; write with batch INSERTs for performance
     inserted = 0
+    region_type = cfg.get("region_type", city)
     with engine.begin() as conn:
+        # Canonical boundary loads are authoritative for a market. Clear existing
+        # rows first so reruns do not accumulate synthetic/test boundaries.
+        conn.execute(
+            text(
+                """
+                DELETE FROM instructor_service_areas
+                WHERE neighborhood_id IN (
+                    SELECT id FROM region_boundaries WHERE region_type = :rtype
+                )
+                """
+            ),
+            {"rtype": region_type},
+        )
+        conn.execute(
+            text("DELETE FROM region_boundaries WHERE region_type = :rtype"),
+            {"rtype": region_type},
+        )
         _assert_rb_unique_target_exists(conn)
         sql = text(
             """
@@ -253,7 +271,7 @@ def load_city(
             params_list.append(
                 {
                     "id": row["id"],
-                    "rtype": row.get("region_type") or cfg.get("region_type", city),
+                    "rtype": row.get("region_type") or region_type,
                     "rcode": (row.get("region_code") if isinstance(row.get("region_code"), (str, int)) else None),
                     "rname": row.get("region_name"),
                     "parent": row.get("parent_region"),

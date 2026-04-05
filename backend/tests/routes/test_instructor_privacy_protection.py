@@ -158,8 +158,6 @@ class TestSchemaPrivacyProtection:
         neighborhood.region_name = "Midtown"
         neighborhood.parent_region = "Manhattan"
         neighborhood.region_metadata = {
-            "nta_code": "MN01",
-            "nta_name": "Midtown",
             "borough": "Manhattan",
         }
         area = MagicMock()

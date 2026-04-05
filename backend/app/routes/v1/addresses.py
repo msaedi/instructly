@@ -13,10 +13,10 @@ Endpoints:
     DELETE /me/{address_id}              → Delete address
     GET /service-areas/me                → List instructor service areas
     PUT /service-areas/me                → Replace instructor service areas
+    GET /neighborhoods/selector          → Selector neighborhoods
     GET /places/autocomplete             → Autocomplete address search
     GET /places/details                  → Get place details
     GET /coverage/bulk                   → Get bulk coverage GeoJSON
-    GET /regions/neighborhoods           → List neighborhoods
 """
 
 import logging
@@ -39,15 +39,14 @@ from ...schemas.address import (
     AddressUpdate,
     AutocompleteResponse,
     PlaceDetails,
-    ServiceAreaItem,
+    ServiceAreaDisplayItem,
     ServiceAreasResponse,
     ServiceAreasUpdateRequest,
 )
 from ...schemas.address_responses import (
     AddressDeleteResponse,
     CoverageFeatureCollectionResponse,
-    NeighborhoodItem,
-    NeighborhoodsListResponse,
+    NeighborhoodSelectorResponse,
     NYCZipCheckResponse,
 )
 from ...services.address_service import AddressService
@@ -233,8 +232,29 @@ def list_my_service_areas(
         Sequence[Mapping[str, Any]],
         service.list_service_areas(current_user.id),
     )
-    items = [ServiceAreaItem(**area) for area in service_areas_raw]
+    items = [ServiceAreaDisplayItem(**area) for area in service_areas_raw]
     return ServiceAreasResponse(items=items, total=len(items))
+
+
+@router.get(
+    "/neighborhoods/selector",
+    response_model=NeighborhoodSelectorResponse,
+    summary="Selector data for instructor service area selection",
+)
+def get_neighborhood_selector(
+    response: Response,
+    market: str = "nyc",
+    service: AddressService = Depends(get_address_service),
+) -> NeighborhoodSelectorResponse:
+    if market != "nyc":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported market",
+        )
+
+    result = service.get_neighborhood_selector(market)
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return NeighborhoodSelectorResponse(**result)
 
 
 # NYC bias: Center on Midtown Manhattan with tighter radius to prioritize NY over NJ
@@ -398,14 +418,14 @@ def replace_my_service_areas(
 ) -> ServiceAreasResponse:
     """Replace all service areas for the current instructor."""
     try:
-        service.replace_service_areas(current_user.id, payload.neighborhood_ids)
+        service.replace_service_areas(current_user.id, payload.display_keys)
     except DomainException as exc:
         raise exc.to_http_exception()
     service_areas_raw = cast(
         Sequence[Mapping[str, Any]],
         service.list_service_areas(current_user.id),
     )
-    items = [ServiceAreaItem(**area) for area in service_areas_raw]
+    items = [ServiceAreaDisplayItem(**area) for area in service_areas_raw]
     return ServiceAreasResponse(items=items, total=len(items))
 
 
@@ -433,33 +453,3 @@ def get_bulk_coverage_geojson(
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )
-
-
-@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)
-def list_neighborhoods(
-    region_type: str = "nyc",
-    borough: str | None = None,
-    page: int = 1,
-    per_page: int = 100,
-    service: AddressService = Depends(get_address_service),
-) -> NeighborhoodsListResponse:
-    """List neighborhoods for a region type."""
-    per_page = max(1, min(per_page, 500))
-    page = max(1, page)
-    offset = (page - 1) * per_page
-    items_raw = cast(
-        Sequence[Mapping[str, Any]],
-        service.list_neighborhoods(
-            region_type=region_type, borough=borough, limit=per_page, offset=offset
-        ),
-    )
-    items = [
-        NeighborhoodItem(**model_filter(NeighborhoodItem, dict(record))) for record in items_raw
-    ]
-    response_payload = {
-        "items": items,
-        "total": len(items),
-        "page": page,
-        "per_page": per_page,
-    }
-    return NeighborhoodsListResponse(**model_filter(NeighborhoodsListResponse, response_payload))

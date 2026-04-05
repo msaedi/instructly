@@ -59,22 +59,21 @@ describe('EditProfileModal helpers', () => {
     expect(cleared[1]).toEqual({ address: 'Central Park' });
   });
 
-  it('prefers neighborhood_id and falls back to id when matching neighborhoods', () => {
-    expect(getNeighborhoodMatchId({ neighborhood_id: 'n-1', id: 'fallback' })).toBe('n-1');
-    expect(getNeighborhoodMatchId({ id: 'fallback' })).toBe('fallback');
+  it('returns display_key when matching neighborhoods', () => {
+    expect(getNeighborhoodMatchId({ display_key: 'n-1' })).toBe('n-1');
     expect(getNeighborhoodMatchId({})).toBeNull();
   });
 
   it('filters global neighborhood matches down to renderable ids', () => {
     expect(
       getGlobalNeighborhoodMatchesWithIds([
-        { id: 'fallback', name: 'Fallback' },
-        { neighborhood_id: 'primary', name: 'Primary' },
-        { name: 'Discard me' },
+        { display_key: 'fallback', display_name: 'Fallback' },
+        { display_key: 'primary', display_name: 'Primary' },
+        { display_name: 'Discard me' },
       ]),
     ).toEqual([
-      { id: 'fallback', match: { id: 'fallback', name: 'Fallback' } },
-      { id: 'primary', match: { neighborhood_id: 'primary', name: 'Primary' } },
+      { id: 'fallback', match: { display_key: 'fallback', display_name: 'Fallback' } },
+      { id: 'primary', match: { display_key: 'primary', display_name: 'Primary' } },
     ]);
   });
 });

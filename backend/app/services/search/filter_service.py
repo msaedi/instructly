@@ -360,12 +360,7 @@ class FilterService(BaseService):
                 # In practice, "ambiguous" often means one user-facing neighborhood maps to multiple
                 # region_boundaries rows (e.g., "Upper East Side" -> multiple UES subregions).
                 # Apply a union filter across candidates to avoid ignoring location entirely.
-                candidate_ids = [
-                    c["region_id"]
-                    for c in (location_resolution.candidates or [])
-                    if c.get("region_id")
-                ]
-                candidate_ids = list(dict.fromkeys(candidate_ids))
+                candidate_ids = LocationResolver.effective_region_ids(location_resolution)
 
                 # Apply a strict union filter across candidate regions (may yield 0).
                 working = (
@@ -381,7 +376,12 @@ class FilterService(BaseService):
                     len(working),
                 )
             elif location_resolution.resolved:
-                if location_resolution.region_id:
+                region_ids = LocationResolver.effective_region_ids(location_resolution)
+                if len(region_ids) >= 2:
+                    working = self._filter_location_regions(working, region_ids)
+                    filters_applied.append("location")
+                    filter_stats["after_location"] = len(working)
+                elif location_resolution.region_id:
                     working = self._filter_location_region(working, location_resolution.region_id)
                     filters_applied.append("location")
                     filter_stats["after_location"] = len(working)
@@ -938,17 +938,16 @@ class FilterService(BaseService):
                 return candidates
 
             if location_resolution.requires_clarification:
-                candidate_ids = [
-                    c["region_id"]
-                    for c in (location_resolution.candidates or [])
-                    if isinstance(c, dict) and c.get("region_id")
-                ]
-                candidate_ids = list(dict.fromkeys(candidate_ids))
+                candidate_ids = LocationResolver.effective_region_ids(location_resolution)
                 return (
                     self._filter_location_regions(candidates, candidate_ids)
                     if candidate_ids
                     else []
                 )
+
+            region_ids = LocationResolver.effective_region_ids(location_resolution)
+            if len(region_ids) >= 2:
+                return self._filter_location_regions(candidates, region_ids)
 
             if location_resolution.region_id:
                 return self._filter_location_region(candidates, str(location_resolution.region_id))
@@ -975,16 +974,7 @@ class FilterService(BaseService):
             ):
                 return candidates
 
-            region_ids: List[str] = []
-            if location_resolution.region_id:
-                region_ids = [str(location_resolution.region_id)]
-            elif location_resolution.requires_clarification:
-                region_ids = [
-                    str(c.get("region_id"))
-                    for c in (location_resolution.candidates or [])
-                    if isinstance(c, dict) and c.get("region_id")
-                ]
-                region_ids = list(dict.fromkeys(region_ids))
+            region_ids = LocationResolver.effective_region_ids(location_resolution)
 
             if region_ids:
                 instructor_ids = list({c.instructor_id for c in candidates})

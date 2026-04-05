@@ -61,7 +61,6 @@ from app.models.service_catalog import (
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.conversation_repository import ConversationRepository
-from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.services.timezone_service import TimezoneService
 from app.utils.bitset import bits_from_windows, new_empty_bits
 from app.utils.location_privacy import jitter_coordinates
@@ -1447,8 +1446,6 @@ class DatabaseSeeder:
         by email, and default Manhattan neighborhoods otherwise.
         """
         with self._session_scope() as session:
-            region_repo = RegionBoundaryRepository(session)
-
             rules = self.loader.get_coverage_rules()
             defaults = rules.get(
                 "defaults",
@@ -1461,31 +1458,28 @@ class DatabaseSeeder:
                 },
             )
 
-            # Resolve ids for all distinct names in one pass
-            all_names = []
+            # Resolve all active display-name groups in one pass.
+            all_names: list[str] = []
             for cfg in defaults.get("names", []):
                 all_names.append(cfg["name"])
             overrides = rules.get("overrides", {})
             for ov in overrides.values():
                 for cfg in ov.get("names", []):
                     all_names.append(cfg["name"])
-            name_to_id = region_repo.find_region_ids_by_partial_names(list(dict.fromkeys(all_names)))
-            normalized_requested_names = {
-                str(name).strip().lower()
-                for name in all_names
-                if str(name).strip()
-            }
-            exact_name_to_id = {
-                str(region_name).strip().lower(): region_id
-                for region_name, region_id in (
-                    session.query(RegionBoundary.region_name, RegionBoundary.id)
-                    .filter(
-                        RegionBoundary.region_type == "nyc",
-                        func.lower(RegionBoundary.region_name).in_(normalized_requested_names),
-                    )
-                    .all()
+            display_name_rows = (
+                session.query(RegionBoundary.display_name, RegionBoundary.id)
+                .filter(
+                    RegionBoundary.region_type == "nyc",
+                    RegionBoundary.display_name.isnot(None),
+                    RegionBoundary.display_name.in_(list(dict.fromkeys(all_names))),
                 )
-            }
+                .all()
+            )
+            display_name_to_ids: dict[str, list[str]] = {}
+            for display_name, region_id in display_name_rows:
+                if not display_name or not region_id:
+                    continue
+                display_name_to_ids.setdefault(str(display_name), []).append(str(region_id))
 
             # Pre-load all instructors with roles in ONE query
             instructor_emails = [e for e in self.created_users.keys() if e.endswith("@example.com")]
@@ -1521,31 +1515,29 @@ class DatabaseSeeder:
                 cfg = overrides.get(email, defaults)
                 for item in cfg.get("names", []):
                     requested_name = str(item.get("name") or "").strip()
-                    rid = (
-                        exact_name_to_id.get(requested_name.lower())
-                        or name_to_id.get(requested_name)
-                    ) if requested_name else None
-                    if not rid:
+                    region_ids = display_name_to_ids.get(requested_name, []) if requested_name else []
+                    if not region_ids:
                         continue
 
-                    # Upsert using pre-loaded data (no query per area)
-                    key = (user_id, rid)
-                    existing = existing_lookup.get(key)
-                    if existing:
-                        existing.is_active = True
-                        if item.get("coverage_type"):
-                            existing.coverage_type = item.get("coverage_type")
-                        existing.max_distance_miles = float(cfg.get("max_distance_miles", 2.0))
-                    else:
-                        area = InstructorServiceArea(
-                            instructor_id=user_id,
-                            neighborhood_id=rid,
-                            coverage_type=item.get("coverage_type"),
-                            max_distance_miles=float(cfg.get("max_distance_miles", 2.0)),
-                            is_active=True,
-                        )
-                        session.add(area)
-                        existing_lookup[key] = area
+                    for rid in region_ids:
+                        # Upsert using pre-loaded data (no query per area)
+                        key = (user_id, rid)
+                        existing = existing_lookup.get(key)
+                        if existing:
+                            existing.is_active = True
+                            if item.get("coverage_type"):
+                                existing.coverage_type = item.get("coverage_type")
+                            existing.max_distance_miles = float(cfg.get("max_distance_miles", 2.0))
+                        else:
+                            area = InstructorServiceArea(
+                                instructor_id=user_id,
+                                neighborhood_id=rid,
+                                coverage_type=item.get("coverage_type"),
+                                max_distance_miles=float(cfg.get("max_distance_miles", 2.0)),
+                                is_active=True,
+                            )
+                            session.add(area)
+                            existing_lookup[key] = area
 
             session.flush()
             session.commit()

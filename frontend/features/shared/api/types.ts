@@ -297,9 +297,12 @@ export type AvailabilityUpdateErrorResponse = ApiErrorResponse & {
 };
 
 // Service areas and neighborhoods
-export type ServiceAreaItem = components['schemas']['ServiceAreaItem'];
+export type ServiceAreaNeighborhood = components['schemas']['ServiceAreaNeighborhood'];
+export type ServiceAreaItem = components['schemas']['ServiceAreaDisplayItem'];
 export type ServiceAreasResponse = components['schemas']['ServiceAreasResponse'];
-export type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
+export type NeighborhoodSelectorResponse = components['schemas']['NeighborhoodSelectorResponse'];
+export type SelectorBorough = components['schemas']['SelectorBorough'];
+export type SelectorDisplayItem = components['schemas']['SelectorDisplayItem'];
 export type NYCZipCheckResponse = components['schemas']['NYCZipCheckResponse'];
 export type AddressResponse = components['schemas']['AddressResponse'];
 export type AddressListResponse = components['schemas']['AddressListResponse'];

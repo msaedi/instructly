@@ -6,7 +6,7 @@ export type FetchWithAuthFn = typeof fetchWithAuthType;
 
 export type ServiceAreaSubmitOptions = {
   fetcher: FetchWithAuthFn;
-  payload: { neighborhood_ids: string[] };
+  payload: { display_keys: string[] };
   inFlightRef: MutableRefObject<boolean>;
   setSaving: (value: boolean) => void;
 };

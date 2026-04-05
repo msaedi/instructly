@@ -438,29 +438,24 @@ class TestProfileToDictServiceAreas:
         assert "+ 2 more" in result["service_area_summary"]
 
     def test_region_metadata_fallback(self):
-        """L1229-1234: region_metadata provides nta_code, nta_name, borough."""
+        """L1229-1234: display-layer service area data still includes borough metadata."""
         svc = _make_service()
 
         area = MagicMock()
         area.neighborhood_id = "N1"
         area.is_active = True
         region = MagicMock()
-        region.region_code = None
-        region.region_name = None
-        region.parent_region = None
-        region.region_metadata = {
-            "nta_code": "MN99",
-            "nta_name": "Chelsea",
-            "borough": "Manhattan",
-        }
+        region.display_name = "Chelsea / Hudson Yards"
+        region.display_key = "nyc-manhattan-chelsea-hudson-yards"
+        region.parent_region = "Manhattan"
         area.neighborhood = region
 
         profile = _make_mock_profile()
         profile.user.service_areas = [area]
 
         result = svc._profile_to_dict(profile)
-        assert result["service_area_neighborhoods"][0]["ntacode"] == "MN99"
-        assert result["service_area_neighborhoods"][0]["name"] == "Chelsea"
+        assert result["service_area_neighborhoods"][0]["display_name"] == "Chelsea / Hudson Yards"
+        assert result["service_area_neighborhoods"][0]["display_key"] == "nyc-manhattan-chelsea-hudson-yards"
         assert result["service_area_neighborhoods"][0]["borough"] == "Manhattan"
 
     def test_no_region_on_area(self):
@@ -476,7 +471,7 @@ class TestProfileToDictServiceAreas:
         profile.user.service_areas = [area]
 
         result = svc._profile_to_dict(profile)
-        assert result["service_area_neighborhoods"][0]["ntacode"] is None
+        assert result["service_area_neighborhoods"] == []
 
 
 @pytest.mark.unit

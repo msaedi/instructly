@@ -194,6 +194,37 @@ class LocationResolutionRepository:
                 logger.warning("Failed to rollback bulk region lookup", exc_info=True)
             return []
 
+    def get_regions_by_display_key(self, display_key: str) -> list[RegionBoundary]:
+        """Fetch all RegionBoundary rows sharing a display_key within this region_code."""
+        if not display_key:
+            return []
+        try:
+            regions = (
+                self.db.query(RegionBoundary)
+                .filter(
+                    RegionBoundary.region_type == self.region_code,
+                    RegionBoundary.display_key == display_key,
+                )
+                .order_by(
+                    func.coalesce(RegionBoundary.region_name, "").asc(),
+                    RegionBoundary.id.asc(),
+                )
+                .all()
+            )
+            return [r for r in regions if isinstance(r, RegionBoundary)]
+        except Exception as exc:
+            logger.warning(
+                "Display-key region lookup failed for '%s': %s",
+                display_key,
+                str(exc),
+                exc_info=True,
+            )
+            try:
+                self.db.rollback()
+            except Exception:
+                logger.warning("Failed to rollback display-key region lookup", exc_info=True)
+            return []
+
     def list_regions(self, *, limit: int = 2000) -> list[RegionBoundary]:
         """List RegionBoundary rows for this region_code (best-effort)."""
         try:

@@ -212,7 +212,7 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard',
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard', () => {
-  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle, boroughAccordionRefs }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ neighborhood_id: string }>) => void; onToggle?: () => void; boroughAccordionRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
+  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle, boroughAccordionRefs }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ display_key: string }>) => void; onToggle?: () => void; boroughAccordionRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
     return (
       <section>
         <div data-testid="service-areas-count">{selectedNeighborhoods.size}</div>
@@ -226,8 +226,8 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAr
         <button type="button" onClick={() => onToggleBoroughAccordion('Manhattan')}>Toggle Borough</button>
         <button type="button" onClick={() => onGlobalFilterChange('park')}>Filter</button>
         <button type="button" onClick={() => onToggleNeighborhood?.('test-neighborhood-1')}>Toggle Neighborhood</button>
-        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', true, [{ neighborhood_id: 'n1' }, { neighborhood_id: 'n2' }])}>Select All Manhattan</button>
-        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', false, [{ neighborhood_id: 'n1' }, { neighborhood_id: 'n2' }])}>Clear All Manhattan</button>
+        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', true, [{ display_key: 'n1' }, { display_key: 'n2' }])}>Select All Manhattan</button>
+        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', false, [{ display_key: 'n1' }, { display_key: 'n2' }])}>Clear All Manhattan</button>
         <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', true)}>Select Cached Manhattan</button>
         <button type="button" onClick={() => onToggle?.()}>Toggle Service Areas</button>
       </section>
@@ -311,14 +311,53 @@ mockUseInstructorProfileMe.mockReturnValue = ((value: unknown) =>
   originalMockInstructorProfileReturnValue(withDefaultInstructorYears(value as { data?: unknown }))) as typeof mockUseInstructorProfileMe.mockReturnValue;
 
 describe('InstructorProfileForm', () => {
-  const createWrapper = () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const Wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-    Wrapper.displayName = 'InstructorProfileFormWrapper';
-    return { Wrapper, queryClient };
+const createWrapper = () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'InstructorProfileFormWrapper';
+  return { Wrapper, queryClient };
+};
+
+function makeServiceAreaItem(
+  display_key: string,
+  display_name: string,
+  borough = 'Manhattan',
+) {
+  return { borough, display_key, display_name };
+}
+
+function makeSelectorResponse(
+  items: Array<{
+    borough?: string | null;
+    display_key?: string;
+    display_name?: string | null;
+  }>
+) {
+  const grouped = new Map<string, Array<{ borough: string; display_key: string | undefined; display_name: string }>>();
+
+  for (const item of items) {
+    const borough = item.borough ?? 'Manhattan';
+    const next = grouped.get(borough) ?? [];
+    next.push({
+      borough,
+      display_key: item.display_key,
+      display_name: item.display_name ?? '',
+    });
+    grouped.set(borough, next);
+  }
+
+  return {
+    boroughs: Array.from(grouped.entries()).map(([borough, boroughItems]) => ({
+      borough,
+      item_count: boroughItems.length,
+      items: boroughItems,
+    })),
+    market: 'nyc',
+    total_items: items.length,
   };
+}
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -391,7 +430,7 @@ describe('InstructorProfileForm', () => {
         non_travel_buffer_minutes: 15,
         travel_buffer_minutes: 60,
         overnight_protection_enabled: true,
-        service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+        service_area_neighborhoods: [makeServiceAreaItem('n1', 'Lower East Side')],
         service_area_boroughs: ['Manhattan'],
         preferred_teaching_locations: [{ address: 'Studio', label: 'Main' }],
         preferred_public_spaces: [{ address: 'Library' }],
@@ -402,7 +441,11 @@ describe('InstructorProfileForm', () => {
 
     mockFetchWithAuth.mockImplementation(async (url: string) => {
       if (url === '/api/v1/addresses/service-areas/me') {
-        return { ok: true, status: 200, json: async () => ({ items: [{ neighborhood_id: 'n1' }] }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [makeServiceAreaItem('n1', 'Lower East Side')] }),
+        };
       }
       if (url === API_ENDPOINTS.ME) {
         return { ok: true, status: 200, json: async () => ({}) };
@@ -626,7 +669,7 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  it('filters out neighborhoods without neighborhood_id during prefill', async () => {
+  it('filters out neighborhoods without display_key during prefill', async () => {
     const { Wrapper } = createWrapper();
     mockUseSession.mockReturnValue({
       data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
@@ -637,9 +680,9 @@ describe('InstructorProfileForm', () => {
       data: {
         bio: 'Test',
         service_area_neighborhoods: [
-          { neighborhood_id: 'n1', name: 'Valid' },
-          { name: 'Invalid no id' }, // No neighborhood_id
-          { neighborhood_id: 'n2', name: 'Another Valid' },
+          makeServiceAreaItem('n1', 'Valid'),
+          { borough: 'Manhattan', display_name: 'Invalid no key' },
+          makeServiceAreaItem('n2', 'Another Valid'),
         ],
       },
       isLoading: false,
@@ -680,9 +723,7 @@ describe('InstructorProfileForm', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            items: [{ neighborhood_id: 'n1', ntacode: 'MN01', name: 'Test' }],
-          }),
+          json: async () => makeSelectorResponse([makeServiceAreaItem('n1', 'Test')]),
         };
       }
       return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -719,9 +760,7 @@ describe('InstructorProfileForm', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            items: [{ neighborhood_id: 'n1', name: 'Greenwich Village' }],
-          }),
+          json: async () => makeSelectorResponse([makeServiceAreaItem('n1', 'Greenwich Village')]),
         };
       }
       return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -1555,8 +1594,8 @@ describe('InstructorProfileForm', () => {
       data: {
         bio: 'Test',
         service_area_neighborhoods: [
-          { neighborhood_id: 'n1', name: null },
-          { neighborhood_id: 'n2' }, // name missing entirely
+          { borough: 'Manhattan', display_key: 'n1', display_name: null },
+          { borough: 'Manhattan', display_key: 'n2' },
         ],
       },
       isLoading: false,
@@ -1708,16 +1747,28 @@ describe('InstructorProfileForm', () => {
     mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
     mockUseInstructorProfileMe.mockReturnValue({
-      data: {
-        bio: 'Test',
-        service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Test' }, { neighborhood_id: 'n2', name: 'Test2' }],
-      },
+        data: {
+          bio: 'Test',
+          service_area_neighborhoods: [
+            makeServiceAreaItem('n1', 'Test'),
+            makeServiceAreaItem('n2', 'Test2'),
+          ],
+        },
       isLoading: false,
     });
 
     mockFetchWithAuth.mockImplementation(async (url: string) => {
       if (url === '/api/v1/addresses/service-areas/me') {
-        return { ok: true, status: 200, json: async () => ({ items: [{ neighborhood_id: 'n1' }, { neighborhood_id: 'n2' }] }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              makeServiceAreaItem('n1', 'Test'),
+              makeServiceAreaItem('n2', 'Test2'),
+            ],
+          }),
+        };
       }
       return { ok: true, status: 200, json: async () => ({}) };
     });
@@ -2074,12 +2125,12 @@ describe('InstructorProfileForm', () => {
         }
         if (url.includes('/neighborhoods')) {
           return {
-            ok: true, status: 200, json: async () => ({
-              items: [
-                { id: 'n1', neighborhood_id: 'n1', name: 'Upper East Side', borough: 'Manhattan' },
-                { id: 'n2', neighborhood_id: 'n2', name: 'Upper West Side', borough: 'Manhattan' },
-              ]
-            })
+            ok: true,
+            status: 200,
+            json: async () => makeSelectorResponse([
+              makeServiceAreaItem('n1', 'Upper East Side'),
+              makeServiceAreaItem('n2', 'Upper West Side'),
+            ]),
           };
         }
         return { ok: true, status: 200, json: async () => ({}) };
@@ -2510,9 +2561,7 @@ describe('InstructorProfileForm', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({
-              items: [{ neighborhood_id: 'n1', ntacode: 'MN01', name: 'Test Hood' }],
-            }),
+            json: async () => makeSelectorResponse([makeServiceAreaItem('n1', 'Test Hood')]),
           };
         }
         return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -2888,7 +2937,7 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'Test',
           service_area_boroughs: ['Brooklyn', 'Queens'], // Non-empty from API
-          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Williamsburg', borough: 'Brooklyn' }],
+          service_area_neighborhoods: [makeServiceAreaItem('n1', 'Williamsburg', 'Brooklyn')],
         },
         isLoading: false,
       });
@@ -3496,7 +3545,7 @@ describe('InstructorProfileForm', () => {
   });
 
   describe('Service area prefill edge cases', () => {
-    it('uses id as fallback when neighborhood_id is missing in service areas response', async () => {
+    it('ignores service-area items without display_key during prefill', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
       mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
@@ -3512,8 +3561,8 @@ describe('InstructorProfileForm', () => {
             status: 200,
             json: async () => ({
               items: [
-                { id: 'fallback-id-1', name: 'Area 1' }, // No neighborhood_id, uses id as fallback
-                { neighborhood_id: 'normal-id-2', name: 'Area 2' },
+                { display_name: 'Area 1', borough: 'Manhattan' },
+                makeServiceAreaItem('normal-id-2', 'Area 2'),
               ],
             }),
           };
@@ -3527,9 +3576,9 @@ describe('InstructorProfileForm', () => {
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      // Both should be selected
+      // Only items with a display_key should be selected
       await waitFor(() => {
-        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('2');
+        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
       });
     });
 
@@ -3723,7 +3772,7 @@ describe('InstructorProfileForm', () => {
   });
 
   describe('Neighborhood loading edge cases', () => {
-    it('uses code as fallback for ntacode when ntacode is missing', async () => {
+    it('handles malformed selector items without display_key', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
       mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
@@ -3744,13 +3793,11 @@ describe('InstructorProfileForm', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({
-              items: [
-                { id: 'n1', code: 'MN01', name: 'TestHood' }, // No ntacode, has code as fallback
-                { neighborhood_id: 'n2', name: 'TestHood2' }, // No ntacode, no code
-                { name: 'NoId' }, // No id, no neighborhood_id — should be filtered out
-              ],
-            }),
+            json: async () => makeSelectorResponse([
+              makeServiceAreaItem('n1', 'TestHood'),
+              makeServiceAreaItem('n2', 'TestHood2'),
+              { borough: 'Manhattan', display_name: 'NoId' },
+            ]),
           };
         }
         return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -4010,8 +4057,8 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  describe('toggleBoroughAll with id fallback', () => {
-    it('selects neighborhoods using id field when neighborhood_id is absent', async () => {
+  describe('toggleBoroughAll', () => {
+    it('selects neighborhoods using display_key values from the override list', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
       mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
@@ -4038,7 +4085,7 @@ describe('InstructorProfileForm', () => {
 
       const user = userEvent.setup();
 
-      // Select all — the mock passes items with neighborhood_id
+      // Select all using the mocked override list
       await user.click(screen.getByRole('button', { name: /select all manhattan/i }));
 
       // After selecting, count should be 2 (n1 and n2 from the mock)
@@ -4055,8 +4102,8 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'Test',
           service_area_neighborhoods: [
-            { neighborhood_id: 'n1', name: 'Area 1' },
-            { neighborhood_id: 'n2', name: 'Area 2' },
+            makeServiceAreaItem('n1', 'Area 1'),
+            makeServiceAreaItem('n2', 'Area 2'),
           ],
         },
         isLoading: false,
@@ -4068,7 +4115,10 @@ describe('InstructorProfileForm', () => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [{ neighborhood_id: 'n1' }, { neighborhood_id: 'n2' }],
+              items: [
+                makeServiceAreaItem('n1', 'Area 1'),
+                makeServiceAreaItem('n2', 'Area 2'),
+              ],
             }),
           };
         }
@@ -5465,9 +5515,7 @@ describe('InstructorProfileForm', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({
-              items: [{ neighborhood_id: 'n1', name: 'Greenwich Village' }],
-            }),
+            json: async () => makeSelectorResponse([makeServiceAreaItem('n1', 'Greenwich Village')]),
           };
         }
         return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -6141,9 +6189,8 @@ describe('InstructorProfileForm', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({
-              items: [{ id: 'fallback-n1', code: 'MN99', name: 999 }],
-            }),
+            json: async () =>
+              makeSelectorResponse([{ borough: 'Manhattan', display_key: 'fallback-n1', display_name: '999' }]),
           };
         }
         return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
@@ -6282,7 +6329,7 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'A'.repeat(420),
           years_experience: 3,
-          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_neighborhoods: [makeServiceAreaItem('n1', 'Lower East Side')],
           service_area_boroughs: ['Manhattan'],
           preferred_teaching_locations: [],
           preferred_public_spaces: [],
@@ -6293,7 +6340,11 @@ describe('InstructorProfileForm', () => {
 
       mockFetchWithAuth.mockImplementation(async (url: string, options?: RequestInit) => {
         if (url === '/api/v1/addresses/service-areas/me' && !options?.method) {
-          return { ok: true, status: 200, json: async () => ({ items: [{ neighborhood_id: 'n1' }] }) };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [makeServiceAreaItem('n1', 'Lower East Side')] }),
+          };
         }
         if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT') {
           savedProfileBody = JSON.parse(String(options.body));
@@ -6332,7 +6383,7 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'A'.repeat(420),
           years_experience: 3,
-          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_neighborhoods: [makeServiceAreaItem('n1', 'Lower East Side')],
           service_area_boroughs: ['Manhattan'],
           preferred_teaching_locations: [],
           preferred_public_spaces: [],
@@ -6666,8 +6717,8 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  describe('Service areas prefill — fallback ID', () => {
-    it('uses id field when neighborhood_id is missing during prefill', async () => {
+  describe('Service areas prefill — clean break', () => {
+    it('ignores items without display_key during prefill', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
@@ -6686,8 +6737,8 @@ describe('InstructorProfileForm', () => {
             status: 200,
             json: async () => ({
               items: [
-                { id: 'fallback-id-1', name: 'Test Area' },  // no neighborhood_id
-                { neighborhood_id: 'normal-id-2', name: 'Normal Area' },
+                { display_name: 'Test Area', borough: 'Manhattan' },
+                makeServiceAreaItem('normal-id-2', 'Normal Area'),
               ],
             }),
           };
@@ -6698,8 +6749,7 @@ describe('InstructorProfileForm', () => {
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       await waitFor(() => {
-        // Both items should be counted as selected neighborhoods
-        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('2');
+        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
       });
     });
   });
@@ -6812,7 +6862,7 @@ describe('InstructorProfileForm', () => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+              items: [makeServiceAreaItem('n1', 'Test')],
             }),
           };
         }
@@ -6883,7 +6933,7 @@ describe('InstructorProfileForm', () => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+              items: [makeServiceAreaItem('n1', 'Test')],
             }),
           };
         }
@@ -6979,7 +7029,7 @@ describe('InstructorProfileForm', () => {
             ok: true,
             status: 200,
             json: async () => ({
-              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+              items: [makeServiceAreaItem('n1', 'Test')],
             }),
           };
         }

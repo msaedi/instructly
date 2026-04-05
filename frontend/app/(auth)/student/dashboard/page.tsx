@@ -625,7 +625,7 @@ function StudentDashboardContent() {
                         );
                         const primaryRate = services?.[0]?.min_hourly_rate as number | undefined;
                         const primarySubject = uniqueServices[0] || null;
-                        const primaryArea = getServiceAreaDisplay(fav.profile ?? {}) || null;
+                        const primaryArea = getServiceAreaDisplay(fav.profile) || null;
                         const yearsExp = fav.profile?.years_experience || null;
 
                         return (

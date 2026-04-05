@@ -41,13 +41,11 @@ export const updateOptionalPlaceLabel = <T extends AddressPlace>(
   });
 
 export const getNeighborhoodMatchId = (match: {
-  neighborhood_id?: string | null;
-  id?: string | null;
-}): string | null => match.neighborhood_id || match.id || null;
+  display_key?: string | null;
+}): string | null => match.display_key || null;
 
 export const getGlobalNeighborhoodMatchesWithIds = <T extends {
-  neighborhood_id?: string | null;
-  id?: string | null;
+  display_key?: string | null;
 }>(
   matches: T[],
 ): Array<{ id: string; match: T }> =>

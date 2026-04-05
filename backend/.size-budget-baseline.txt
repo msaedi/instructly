@@ -35,7 +35,6 @@ backend/app/services/instructor_admin_service.py
 backend/app/services/messaging/sse_stream.py
 backend/app/services/platform_analytics_service.py
 backend/app/services/pricing_service.py
-backend/app/services/privacy_service.py
 backend/app/services/refund_service.py
 backend/app/services/review_service.py
 backend/app/services/search/embedding_service.py

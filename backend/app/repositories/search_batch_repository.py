@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,14 +21,16 @@ class RegionInfo:
     region_id: str
     region_name: str
     borough: Optional[str]
+    display_name: Optional[str] = None
+    display_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class RegionEmbeddingInfo(RegionInfo):
     """Region metadata with name embedding for in-memory similarity."""
 
-    embedding: List[float]
-    norm: float
+    embedding: List[float] = field(default_factory=list)
+    norm: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,7 @@ class RegionLookup:
     by_name: Dict[str, RegionInfo]
     by_id: Dict[str, RegionInfo]
     embeddings: List[RegionEmbeddingInfo]
+    by_display_key: Dict[str, List[RegionInfo]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,7 @@ class SearchBatchRepository:
         by_name: Dict[str, RegionInfo] = {}
         by_id: Dict[str, RegionInfo] = {}
         embeddings: List[RegionEmbeddingInfo] = []
+        by_display_key: Dict[str, List[RegionInfo]] = {}
 
         for region in regions:
             if not isinstance(region, RegionBoundary):
@@ -151,23 +155,29 @@ class SearchBatchRepository:
             region_id = str(region.id)
             region_name = str(region.region_name or "").strip()
             borough = getattr(region, "parent_region", None)
+            display_name_raw = getattr(region, "display_name", None)
+            display_name = str(display_name_raw) if display_name_raw else None
+            display_key_raw = getattr(region, "display_key", None)
+            display_key = str(display_key_raw) if display_key_raw else None
+            info = RegionInfo(
+                region_id=region_id,
+                region_name=region_name,
+                borough=borough,
+                display_name=display_name,
+                display_key=display_key,
+            )
 
             if region_name:
                 key = region_name.lower()
                 if key not in by_name:
                     region_names.append(region_name)
-                    by_name[key] = RegionInfo(
-                        region_id=region_id,
-                        region_name=region_name,
-                        borough=borough,
-                    )
+                    by_name[key] = info
 
             if region_id and region_id not in by_id:
-                by_id[region_id] = RegionInfo(
-                    region_id=region_id,
-                    region_name=region_name,
-                    borough=borough,
-                )
+                by_id[region_id] = info
+
+            if display_key:
+                by_display_key.setdefault(display_key, []).append(info)
 
             embedding_raw = getattr(region, "name_embedding", None)
             if embedding_raw is None:
@@ -182,9 +192,17 @@ class SearchBatchRepository:
                     region_id=region_id,
                     region_name=region_name,
                     borough=borough,
+                    display_name=display_name,
+                    display_key=display_key,
                     embedding=embedding,
                     norm=norm,
                 )
+            )
+
+        for display_key, infos in by_display_key.items():
+            by_display_key[display_key] = sorted(
+                infos,
+                key=lambda info: (info.region_name.strip().lower(), info.region_id),
             )
 
         return RegionLookup(
@@ -192,4 +210,5 @@ class SearchBatchRepository:
             by_name=by_name,
             by_id=by_id,
             embeddings=embeddings,
+            by_display_key=by_display_key,
         )

@@ -107,6 +107,37 @@ class TestLoadRegionLookup:
         assert len(lookup.embeddings) == 1
         assert lookup.embeddings[0].region_name == "Tribeca"
 
+    def test_groups_regions_by_display_key(self) -> None:
+        """Consolidated neighborhoods are grouped under by_display_key."""
+        from app.models.region_boundary import RegionBoundary
+
+        repo, _mock_db = _make_repo()
+
+        r1 = MagicMock(spec=RegionBoundary)
+        r1.id = "reg-01"
+        r1.region_name = "Upper East Side-Carnegie Hill"
+        r1.parent_region = "Manhattan"
+        r1.display_name = "Upper East Side"
+        r1.display_key = "nyc-manhattan-upper-east-side"
+        r1.name_embedding = None
+
+        r2 = MagicMock(spec=RegionBoundary)
+        r2.id = "reg-02"
+        r2.region_name = "Upper East Side-Yorkville"
+        r2.parent_region = "Manhattan"
+        r2.display_name = "Upper East Side"
+        r2.display_key = "nyc-manhattan-upper-east-side"
+        r2.name_embedding = None
+
+        repo._location_repo = MagicMock()
+        repo._location_repo.list_regions.return_value = [r2, r1]
+
+        lookup = repo.load_region_lookup()
+
+        assert "nyc-manhattan-upper-east-side" in lookup.by_display_key
+        grouped = lookup.by_display_key["nyc-manhattan-upper-east-side"]
+        assert [info.region_id for info in grouped] == ["reg-01", "reg-02"]
+
 
 class TestGetCachedLlmAlias:
     """Cover get_cached_llm_alias branches."""

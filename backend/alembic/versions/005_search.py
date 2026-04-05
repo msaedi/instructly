@@ -321,6 +321,9 @@ def upgrade() -> None:
         sa.Column("region_code", sa.String(50), nullable=True),
         sa.Column("region_name", sa.String(100), nullable=True),
         sa.Column("parent_region", sa.String(100), nullable=True),
+        sa.Column("display_name", sa.String(120), nullable=True),
+        sa.Column("display_key", sa.String(150), nullable=True),
+        sa.Column("display_order", sa.Integer(), nullable=True),
         sa.Column("boundary", Geometry("MULTIPOLYGON", 4326), nullable=True),
         sa.Column("centroid", Geometry("POINT", 4326), nullable=True),
         sa.Column("region_metadata", sa.JSON(), nullable=True),
@@ -338,6 +341,19 @@ def upgrade() -> None:
     op.create_index("ix_region_boundaries_type", "region_boundaries", ["region_type"])
     op.create_index("ix_region_boundaries_region", "region_boundaries", ["region_type", "region_code"])
     op.create_index("ix_region_boundaries_name", "region_boundaries", ["region_type", "region_name"])
+    op.create_index(
+        "ix_region_boundaries_display_order",
+        "region_boundaries",
+        ["region_type", "parent_region", "display_order"],
+        postgresql_where=sa.text("display_name IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_region_boundaries_display_key",
+        "region_boundaries",
+        ["region_type", "display_key"],
+        postgresql_where=sa.text("display_key IS NOT NULL"),
+        unique=False,
+    )
     op.create_index(
         "region_boundaries_rtype_rcode_idx",
         "region_boundaries",
@@ -860,6 +876,8 @@ def downgrade() -> None:
     op.drop_index("ix_region_boundaries_name", table_name="region_boundaries")
     op.drop_index("ix_region_boundaries_region", table_name="region_boundaries")
     op.drop_index("ix_region_boundaries_type", table_name="region_boundaries")
+    op.drop_index("ix_region_boundaries_display_key", table_name="region_boundaries")
+    op.drop_index("ix_region_boundaries_display_order", table_name="region_boundaries")
     if is_postgres:
         op.drop_index("ix_region_boundaries_boundary", table_name="region_boundaries")
     op.drop_index("region_boundaries_rtype_rcode_idx", table_name="region_boundaries")

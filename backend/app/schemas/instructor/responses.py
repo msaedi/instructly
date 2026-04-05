@@ -130,6 +130,7 @@ class _InstructorProfileResponseCommon(InstructorProfileBase):
         boroughs: set[str] = set()
         neighborhoods_payload: List[ServiceAreaNeighborhoodOut] = []
         neighborhoods_source = getattr(instructor_profile, "service_area_neighborhoods", None)
+        seen_display_keys: set[str] = set()
 
         if not neighborhoods_source:
             return neighborhoods_payload, boroughs
@@ -142,23 +143,27 @@ class _InstructorProfileResponseCommon(InstructorProfileBase):
                 if getattr(entry, "is_active", True) is False:
                     continue
             if isinstance(entry, dict):
-                neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
-                ntacode = entry.get("ntacode") or entry.get("region_code")
-                name = entry.get("name") or entry.get("region_name")
+                display_name = entry.get("display_name")
+                display_key = entry.get("display_key")
                 borough = entry.get("borough") or entry.get("parent_region")
             else:
-                neighborhood_id = getattr(entry, "neighborhood_id", None) or getattr(
-                    entry, "id", None
-                )
-                ntacode = getattr(entry, "ntacode", None) or getattr(entry, "region_code", None)
-                name = getattr(entry, "name", None) or getattr(entry, "region_name", None)
+                display_name = getattr(entry, "display_name", None)
+                display_key = getattr(entry, "display_key", None)
                 borough = getattr(entry, "borough", None) or getattr(entry, "parent_region", None)
 
+            if not display_name or not display_key:
+                continue
+            display_key_value = str(display_key)
+            if display_key_value in seen_display_keys:
+                if borough:
+                    boroughs.add(borough)
+                continue
+
+            seen_display_keys.add(display_key_value)
             neighborhoods_payload.append(
                 ServiceAreaNeighborhoodOut(
-                    neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
-                    ntacode=ntacode,
-                    name=name,
+                    display_name=str(display_name),
+                    display_key=display_key_value,
                     borough=borough,
                 )
             )
@@ -180,26 +185,31 @@ class _InstructorProfileResponseCommon(InstructorProfileBase):
         if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
             user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
 
+        seen_display_keys = {entry.display_key for entry in neighborhoods_payload}
         for area in user_service_areas:
             if getattr(area, "is_active", True) is False:
                 continue
             neighborhood = getattr(area, "neighborhood", None)
-            neighborhood_id = getattr(area, "neighborhood_id", None)
             if neighborhood is None:
                 continue
 
             borough = getattr(neighborhood, "parent_region", None) or getattr(
                 neighborhood, "borough", None
             )
-            ntacode = getattr(neighborhood, "region_code", None) or getattr(
-                neighborhood, "ntacode", None
-            )
-            name = getattr(neighborhood, "region_name", None) or getattr(neighborhood, "name", None)
+            display_name = getattr(neighborhood, "display_name", None)
+            display_key = getattr(neighborhood, "display_key", None)
+            if not display_name or not display_key:
+                continue
+            display_key_value = str(display_key)
+            if display_key_value in seen_display_keys:
+                if borough:
+                    boroughs.add(borough)
+                continue
+            seen_display_keys.add(display_key_value)
             neighborhoods_payload.append(
                 ServiceAreaNeighborhoodOut(
-                    neighborhood_id=str(getattr(neighborhood, "id", neighborhood_id or "")),
-                    ntacode=ntacode,
-                    name=name,
+                    display_name=str(display_name),
+                    display_key=display_key_value,
                     borough=borough,
                 )
             )

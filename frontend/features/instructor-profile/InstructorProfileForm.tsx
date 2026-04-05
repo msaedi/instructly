@@ -28,7 +28,7 @@ import {
 import type {
   AddressListResponse,
   ApiErrorResponse,
-  NeighborhoodsListResponse,
+  NeighborhoodSelectorResponse,
   InstructorProfileResponse,
 } from '@/features/shared/api/types';
 import {
@@ -41,6 +41,7 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import type { ProfileFormState, ServiceAreaItem, ServiceAreasResponse, NYCZipCheck } from './types';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from '@/app/(auth)/instructor/profile/serviceAreaSubmit';
+import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
 import SkillsPricingInline, { type EnabledFormats } from '@/features/instructor-profile/SkillsPricingInline';
 import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
@@ -160,6 +161,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   // Removed selected neighborhoods pills panel state
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
   const [preferredAddress, setPreferredAddress] = useState<string>('');
   const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [neutralLocations, setNeutralLocations] = useState<string>('');
@@ -306,15 +308,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           ? (data['service_area_neighborhoods'] as ServiceAreaItem[])
           : [];
         const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
-          const neighborhoodId = item.neighborhood_id;
-          if (!neighborhoodId) {
+          if (!item.display_key) {
             return acc;
           }
           acc.push({
-            neighborhood_id: neighborhoodId,
-            ntacode: item.ntacode ?? null,
-            name: item.name ?? null,
-            borough: item.borough ?? null,
+            borough: item.borough,
+            display_key: item.display_key,
+            display_name: item.display_name,
           });
           return acc;
         }, []);
@@ -385,15 +385,14 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
             const ids = items
-              .map((a) => a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string)
-              .filter((v: string | undefined): v is string => typeof v === 'string');
+              .map((a) => a.display_key)
+              .filter((v): v is string => typeof v === 'string' && v.length > 0);
             setSelectedNeighborhoods(new Set(ids));
             // Prime name map so selections show even before a borough loads
             setIdToItem((prev) => {
               const next = { ...prev } as Record<string, ServiceAreaItem>;
               for (const a of items) {
-                const nid = a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string;
-                if (nid) next[nid] = a;
+                if (a.display_key) next[a.display_key] = a;
               }
               return next;
             });
@@ -477,48 +476,30 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    try {
-      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
-      const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
-      if (r.ok) {
-        const data = (await r.json()) as NeighborhoodsListResponse;
-        const list = (data.items ?? []).flatMap((raw) => {
-          const record = raw as Record<string, unknown>;
-          const neighborhoodId =
-            typeof record['neighborhood_id'] === 'string'
-              ? (record['neighborhood_id'] as string)
-              : typeof record['id'] === 'string'
-              ? (record['id'] as string)
-              : '';
-          if (!neighborhoodId) return [];
-          return [
-            {
-              neighborhood_id: neighborhoodId,
-              ntacode:
-                typeof record['ntacode'] === 'string'
-                  ? (record['ntacode'] as string)
-                  : typeof record['code'] === 'string'
-                  ? (record['code'] as string)
-                  : null,
-              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
-              borough: record['borough'] ?? null,
-            } as ServiceAreaItem,
-          ];
-        });
-        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const it of list) {
-            if (it.neighborhood_id) next[it.neighborhood_id] = it;
+    if (!selectorRequestRef.current) {
+      selectorRequestRef.current = (async () => {
+        try {
+          const url = withApiBase('/api/v1/addresses/neighborhoods/selector?market=nyc');
+          const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
+          if (r.ok) {
+            const data = (await r.json()) as NeighborhoodSelectorResponse;
+            const index = buildServiceAreaSelectorIndex(data);
+            setBoroughNeighborhoods(index.boroughNeighborhoods);
+            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
+            return index.boroughNeighborhoods;
           }
-          return next;
-        });
-        return list;
-      }
-    } catch (err) {
-      logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } catch (err) {
+          logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } finally {
+          selectorRequestRef.current = null;
+        }
+
+        return boroughNeighborhoods;
+      })();
     }
-    return boroughNeighborhoods[borough] || [];
+
+    const next = await selectorRequestRef.current;
+    return next[borough] || [];
   }, [boroughNeighborhoods]);
 
   // When using global neighborhood search, ensure borough lists are prefetched
@@ -762,7 +743,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
       // Persist service areas (StrictMode-safe guard)
       if (!inFlightServiceAreasRef.current) {
-        const serviceAreasPayload = { neighborhood_ids: Array.from(selectedNeighborhoods) };
+        const serviceAreasPayload = { display_keys: Array.from(selectedNeighborhoods) };
         debugProfilePayload('ServiceAreasPayload', serviceAreasPayload);
         try {
           await submitServiceAreasOnce({
@@ -839,7 +820,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((i) => i['neighborhood_id'] || (i as Record<string, unknown>)['id'] as string);
+    const ids = items.map((item) => item.display_key);
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       if (value) {

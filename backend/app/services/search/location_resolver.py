@@ -25,7 +25,7 @@ import logging
 import os
 from pathlib import Path
 import time as time_module
-from typing import Any, List, Optional, Sequence, TypedDict
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -38,6 +38,9 @@ from app.repositories.unresolved_location_query_repository import (
 )
 from app.services.search.location_embedding_service import LocationEmbeddingService
 from app.services.search.location_llm_service import LocationLLMService
+
+if TYPE_CHECKING:
+    from app.repositories.search_batch_repository import RegionLookup
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,17 @@ def _load_location_alias_seed_maps(
     return resolved, ambiguous
 
 
+def _unique_sorted_region_ids(region_ids: Sequence[object] | None) -> list[str]:
+    return sorted({str(region_id) for region_id in (region_ids or []) if region_id})
+
+
+def _logical_region_name(*, region_name: object, display_name: object) -> str:
+    display = str(display_name or "").strip()
+    if display:
+        return display
+    return str(region_name or "").strip()
+
+
 class ResolutionTier(Enum):
     EXACT = 1
     ALIAS = 2
@@ -114,6 +128,12 @@ class LocationCandidate(TypedDict):
     borough: str | None
 
 
+class LocationCandidateDisplay(LocationCandidate, total=False):
+    display_name: str | None
+    display_key: str | None
+    region_ids: List[str]
+
+
 @dataclass(frozen=True)
 class ResolvedLocation:
     """Result of location resolution."""
@@ -127,9 +147,10 @@ class ResolvedLocation:
     region_id: Optional[str] = None
     region_name: Optional[str] = None
     borough: Optional[str] = None
+    region_ids: Optional[List[str]] = None
 
     # Ambiguous data (if requires_clarification=True)
-    candidates: Optional[List[LocationCandidate]] = None
+    candidates: Optional[List[LocationCandidateDisplay]] = None
 
     # Metadata
     tier: Optional[ResolutionTier] = None
@@ -154,6 +175,7 @@ class ResolvedLocation:
         region_id: str,
         region_name: str,
         borough: Optional[str],
+        region_ids: Optional[Sequence[str]] = None,
         tier: ResolutionTier,
         confidence: float,
     ) -> "ResolvedLocation":
@@ -162,6 +184,7 @@ class ResolvedLocation:
             region_id=region_id,
             region_name=region_name,
             borough=borough,
+            region_ids=_unique_sorted_region_ids(region_ids or [region_id]),
             tier=tier,
             confidence=confidence,
             method=tier.name.lower(),
@@ -187,7 +210,7 @@ class ResolvedLocation:
     def from_ambiguous(
         cls,
         *,
-        candidates: List[LocationCandidate],
+        candidates: List[LocationCandidateDisplay],
         tier: ResolutionTier,
         confidence: float,
     ) -> "ResolvedLocation":
@@ -245,9 +268,11 @@ class LocationResolver:
         city_id: str = NYC_CITY_ID,
         repository: Optional[LocationResolutionRepository] = None,
         unresolved_repository: Optional[UnresolvedLocationQueryRepository] = None,
+        region_lookup: RegionLookup | None = None,
     ) -> None:
         self.region_code = region_code
         self.city_id = city_id
+        self._region_lookup = region_lookup
         self.repository = repository or LocationResolutionRepository(
             db, region_code=region_code, city_id=city_id
         )
@@ -326,7 +351,10 @@ class LocationResolver:
                     perf["fuzzy_gate_ms"] = int(
                         (time_module.perf_counter() - fuzzy_gate_start) * 1000
                     )
-                should_try_embedding = best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING
+                should_try_embedding = (
+                    best_fuzzy_score is not None
+                    and best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING
+                )
 
             if should_try_embedding:
                 tier_start = time_module.perf_counter()
@@ -490,10 +518,10 @@ class LocationResolver:
 
         region = self.repository.find_exact_region_by_name(normalized)
         if region and getattr(region, "id", None) and getattr(region, "region_name", None):
-            return ResolvedLocation.from_region(
-                region_id=region.id,
-                region_name=region.region_name,
-                borough=getattr(region, "parent_region", None),
+            regions = self._expand_regions_for_logical_resolution([region])
+            candidates = self._dedupe_candidates_by_display(self._format_candidates(regions))
+            return self._build_result_from_candidates(
+                candidates,
                 tier=ResolutionTier.EXACT,
                 confidence=1.0,
             )
@@ -509,24 +537,34 @@ class LocationResolver:
 
         if alias_row.is_ambiguous and alias_row.candidate_region_ids:
             regions = self.repository.get_regions_by_ids(list(alias_row.candidate_region_ids))
-            candidates = self._format_candidates(regions)
-            if len(candidates) >= 2:
-                return ResolvedLocation.from_ambiguous(
-                    candidates=candidates,
-                    tier=ResolutionTier.ALIAS,
-                    confidence=float(alias_row.confidence or 1.0),
-                )
+            candidates = self._dedupe_candidates_by_display(self._format_candidates(regions))
+            result = self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.ALIAS,
+                confidence=float(alias_row.confidence or 1.0),
+            )
+            if result.resolved or result.requires_clarification:
+                return result
 
         if alias_row.is_resolved and alias_row.region_boundary_id:
-            region = self.repository.get_region_by_id(str(alias_row.region_boundary_id))
-            if region and getattr(region, "id", None) and getattr(region, "region_name", None):
-                return ResolvedLocation.from_region(
-                    region_id=region.id,
-                    region_name=region.region_name,
-                    borough=getattr(region, "parent_region", None),
-                    tier=ResolutionTier.ALIAS,
-                    confidence=float(alias_row.confidence or 1.0),
-                )
+            supporting_ids = _unique_sorted_region_ids(
+                [str(alias_row.region_boundary_id), *(alias_row.candidate_region_ids or [])]
+            )
+            regions = self.repository.get_regions_by_ids(supporting_ids)
+            if not regions:
+                region = self.repository.get_region_by_id(str(alias_row.region_boundary_id))
+                regions = [region] if region else []
+            logical_regions = self._expand_regions_for_logical_resolution(regions)
+            candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(logical_regions)
+            )
+            result = self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.ALIAS,
+                confidence=float(alias_row.confidence or 1.0),
+            )
+            if result.resolved or result.requires_clarification:
+                return result
 
         return ResolvedLocation.from_not_found()
 
@@ -551,32 +589,24 @@ class LocationResolver:
             label_norm = self._normalize(str(region_label))
             exact = self.repository.find_exact_region_by_name(label_norm)
             if exact and getattr(exact, "id", None) and getattr(exact, "region_name", None):
-                return ResolvedLocation.from_region(
-                    region_id=exact.id,
-                    region_name=exact.region_name,
-                    borough=getattr(exact, "parent_region", None),
+                regions = self._expand_regions_for_logical_resolution([exact])
+                candidates = self._dedupe_candidates_by_display(self._format_candidates(regions))
+                return self._build_result_from_candidates(
+                    candidates,
                     tier=ResolutionTier.ALIAS,
                     confidence=confidence,
                 )
 
-            regions = self.repository.find_regions_by_name_fragment(label_norm)
-            candidates = self._format_candidates(regions)
-            if len(candidates) == 1:
-                only = candidates[0]
-                return ResolvedLocation.from_region(
-                    region_id=only["region_id"],
-                    region_name=only["region_name"],
-                    borough=only.get("borough"),
-                    tier=ResolutionTier.ALIAS,
-                    confidence=confidence,
-                )
-            if len(candidates) >= 2:
-                return ResolvedLocation.from_ambiguous(
-                    candidates=candidates,
-                    tier=ResolutionTier.ALIAS,
-                    confidence=confidence,
-                )
-            return ResolvedLocation.from_not_found()
+            fragment_regions = self.repository.find_regions_by_name_fragment(label_norm)
+            candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(fragment_regions)
+            )
+            candidates = self._prefer_exact_logical_candidates(label_norm, candidates)
+            return self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.ALIAS,
+                confidence=confidence,
+            )
 
         # Ambiguous alias: map candidate labels -> region_boundaries rows (union)
         candidate_labels = payload_row.get("candidates") or []
@@ -598,22 +628,15 @@ class LocationResolver:
                 if getattr(region, "id", None):
                     by_id[str(region.id)] = region
 
-            candidates = self._format_candidates(list(by_id.values()))
-            if len(candidates) == 1:
-                only = candidates[0]
-                return ResolvedLocation.from_region(
-                    region_id=only["region_id"],
-                    region_name=only["region_name"],
-                    borough=only.get("borough"),
-                    tier=ResolutionTier.ALIAS,
-                    confidence=confidence,
-                )
-            if len(candidates) >= 2:
-                return ResolvedLocation.from_ambiguous(
-                    candidates=candidates,
-                    tier=ResolutionTier.ALIAS,
-                    confidence=confidence,
-                )
+            candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(list(by_id.values()))
+            )
+            candidates = self._prefer_exact_logical_candidates(normalized, candidates)
+            return self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.ALIAS,
+                confidence=confidence,
+            )
 
         return ResolvedLocation.from_not_found()
 
@@ -636,37 +659,29 @@ class LocationResolver:
         if not regions:
             return ResolvedLocation.from_not_found()
 
-        # Prefer shorter names as a proxy for specificity; cap to keep payload small.
-        regions_sorted = sorted(
-            regions, key=lambda r: len(str(getattr(r, "region_name", "") or ""))
-        )[:5]
-        candidates = self._format_candidates(regions_sorted)
-        if len(candidates) == 1:
-            only = candidates[0]
-            return ResolvedLocation.from_region(
-                region_id=only["region_id"],
-                region_name=only["region_name"],
-                borough=only.get("borough"),
-                tier=ResolutionTier.FUZZY,
-                confidence=0.9,
-            )
-        if len(candidates) >= 2:
-            return ResolvedLocation.from_ambiguous(
-                candidates=candidates,
-                tier=ResolutionTier.FUZZY,
-                confidence=0.9,
-            )
-        return ResolvedLocation.from_not_found()
+        raw_candidates = self._format_candidates(regions)
+        candidates = self._dedupe_candidates_by_display(raw_candidates)
+        candidates = self._prefer_exact_logical_candidates(normalized, candidates)
+        if len(candidates) > 5:
+            candidates = sorted(
+                candidates,
+                key=lambda candidate: len(self._candidate_logical_name(candidate)),
+            )[:5]
+        return self._build_result_from_candidates(
+            candidates,
+            tier=ResolutionTier.FUZZY,
+            confidence=0.9,
+        )
 
     def _tier3_fuzzy_match(self, normalized: str) -> ResolvedLocation:
         region, similarity = self.repository.find_best_fuzzy_region(
             normalized, threshold=self.FUZZY_THRESHOLD
         )
         if region and getattr(region, "id", None) and getattr(region, "region_name", None):
-            return ResolvedLocation.from_region(
-                region_id=region.id,
-                region_name=region.region_name,
-                borough=getattr(region, "parent_region", None),
+            regions = self._expand_regions_for_logical_resolution([region])
+            candidates = self._dedupe_candidates_by_display(self._format_candidates(regions))
+            return self._build_result_from_candidates(
+                candidates,
                 tier=ResolutionTier.FUZZY,
                 confidence=float(similarity or 0.0),
             )
@@ -675,36 +690,26 @@ class LocationResolver:
     async def _tier4_embedding_match(self, normalized: str) -> ResolvedLocation:
         """Tier 4: Semantic match using OpenAI embeddings + pgvector on region_boundaries."""
         candidates = await self.embedding_service.get_candidates(normalized, limit=5)
-        best, ambiguous = self.embedding_service.pick_best_or_ambiguous(candidates)
+        logical_candidates = self._dedupe_candidates_by_display(candidates)
+        best, ambiguous = self.embedding_service.pick_best_or_ambiguous(logical_candidates)
 
         if best and best.get("region_id") and best.get("region_name"):
             return ResolvedLocation.from_region(
                 region_id=str(best["region_id"]),
-                region_name=str(best["region_name"]),
+                region_name=self._candidate_logical_name(best),
                 borough=best.get("borough"),
+                region_ids=self._candidate_region_ids(best),
                 tier=ResolutionTier.EMBEDDING,
                 confidence=float(best.get("similarity") or 0.0),
             )
 
         if ambiguous:
-            formatted: List[LocationCandidate] = []
-            for row in ambiguous:
-                if not row.get("region_id") or not row.get("region_name"):
-                    continue
-                formatted.append(
-                    {
-                        "region_id": str(row["region_id"]),
-                        "region_name": str(row["region_name"]),
-                        "borough": row.get("borough"),
-                    }
-                )
-            if len(formatted) >= 2:
-                top_sim = float(ambiguous[0].get("similarity") or 0.0)
-                return ResolvedLocation.from_ambiguous(
-                    candidates=formatted,
-                    tier=ResolutionTier.EMBEDDING,
-                    confidence=top_sim,
-                )
+            top_sim = float(ambiguous[0].get("similarity") or 0.0)
+            return self._build_result_from_candidates(
+                ambiguous,
+                tier=ResolutionTier.EMBEDDING,
+                confidence=top_sim,
+            )
 
         return ResolvedLocation.from_not_found()
 
@@ -740,30 +745,43 @@ class LocationResolver:
                 return cached, candidate_regions, "ambiguous"
 
             if cached.is_resolved and cached.region_boundary_id:
-                region = self.repository.get_region_by_id(str(cached.region_boundary_id))
-                return cached, [region] if region else [], "resolved"
+                supporting_ids = _unique_sorted_region_ids(
+                    [str(cached.region_boundary_id), *(cached.candidate_region_ids or [])]
+                )
+                supporting_regions = self.repository.get_regions_by_ids(supporting_ids)
+                if not supporting_regions:
+                    region = self.repository.get_region_by_id(str(cached.region_boundary_id))
+                    supporting_regions = [region] if region else []
+                return cached, supporting_regions, "resolved"
 
             return cached, [], None
 
         cached, cached_regions, cached_kind = await asyncio.to_thread(_load_cached)
         if cached and cached_kind == "ambiguous":
-            candidates = self._format_candidates(cached_regions or [])
-            if len(candidates) >= 2:
-                return ResolvedLocation.from_ambiguous(
-                    candidates=candidates,
-                    tier=ResolutionTier.LLM,
-                    confidence=float(cached.confidence or 0.5),
-                )
+            candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(cached_regions or [])
+            )
+            result = self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.LLM,
+                confidence=float(cached.confidence or 0.5),
+            )
+            if result.resolved or result.requires_clarification:
+                return result
         if cached and cached_kind == "resolved":
-            region = cached_regions[0] if cached_regions else None
-            if region and getattr(region, "id", None) and getattr(region, "region_name", None):
-                return ResolvedLocation.from_region(
-                    region_id=region.id,
-                    region_name=region.region_name,
-                    borough=getattr(region, "parent_region", None),
-                    tier=ResolutionTier.LLM,
-                    confidence=float(cached.confidence or 0.5),
-                )
+            resolved_cached_regions = self._expand_regions_for_logical_resolution(
+                cached_regions or []
+            )
+            candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(resolved_cached_regions)
+            )
+            result = self._build_result_from_candidates(
+                candidates,
+                tier=ResolutionTier.LLM,
+                confidence=float(cached.confidence or 0.5),
+            )
+            if result.resolved or result.requires_clarification:
+                return result
 
         allowed_names = await asyncio.to_thread(self.repository.list_region_names)
         llm_result = await self.llm_service.resolve(
@@ -802,78 +820,19 @@ class LocationResolver:
             return ResolvedLocation.from_not_found()
 
         confidence_val = float(llm_result.get("confidence") or 0.5)
-
-        # Cache as pending_review (best-effort).
-        def _cache_llm_alias() -> None:
-            try:
-                existing_any = self.repository.find_cached_alias(normalized)
-                if existing_any and isinstance(existing_any, LocationAlias):
-                    alias_row = existing_any
-                    alias_row.source = "llm"
-                    alias_row.status = "pending_review"
-                    alias_row.confidence = confidence_val
-                    alias_row.alias_type = "landmark"
-                    alias_row.deprecated_at = None
-                    alias_row.user_count = int(alias_row.user_count or 0) + 1
-                else:
-                    alias_row = LocationAlias(
-                        id=generate_ulid(),
-                        city_id=self.city_id,
-                        alias_normalized=normalized,
-                        source="llm",
-                        status="pending_review",
-                        confidence=confidence_val,
-                        user_count=1,
-                        alias_type="landmark",
-                    )
-                    self.repository.db.add(alias_row)
-
-                if len(resolved_regions) == 1:
-                    alias_row.region_boundary_id = resolved_regions[0].id
-                    alias_row.requires_clarification = False
-                    alias_row.candidate_region_ids = None
-                else:
-                    alias_row.region_boundary_id = None
-                    alias_row.requires_clarification = True
-                    alias_row.candidate_region_ids = [str(r.id) for r in resolved_regions]
-
-                self.repository.db.flush()
-            except Exception as exc:
-                logger.warning(
-                    "Failed to cache LLM alias '%s': %s",
-                    normalized,
-                    str(exc),
-                    exc_info=True,
-                )
-                try:
-                    self.repository.db.rollback()
-                except Exception as rollback_exc:
-                    logger.warning(
-                        "Failed to roll back LLM alias cache write for '%s': %s",
-                        normalized,
-                        str(rollback_exc),
-                        exc_info=True,
-                    )
-
-        await asyncio.to_thread(_cache_llm_alias)
-
-        candidates = self._format_candidates(resolved_regions)
-        if len(candidates) == 1:
-            only = candidates[0]
-            return ResolvedLocation.from_region(
-                region_id=only["region_id"],
-                region_name=only["region_name"],
-                borough=only.get("borough"),
-                tier=ResolutionTier.LLM,
-                confidence=confidence_val,
-            )
-        if len(candidates) >= 2:
-            return ResolvedLocation.from_ambiguous(
-                candidates=candidates,
-                tier=ResolutionTier.LLM,
-                confidence=confidence_val,
-            )
-        return ResolvedLocation.from_not_found()
+        logical_regions = self._expand_regions_for_logical_resolution(resolved_regions)
+        candidates = self._dedupe_candidates_by_display(self._format_candidates(logical_regions))
+        await asyncio.to_thread(
+            self.cache_llm_alias,
+            normalized,
+            self._collect_candidate_region_ids(candidates),
+            confidence=confidence_val,
+        )
+        return self._build_result_from_candidates(
+            candidates,
+            tier=ResolutionTier.LLM,
+            confidence=confidence_val,
+        )
 
     def cache_llm_alias(
         self,
@@ -883,7 +842,8 @@ class LocationResolver:
         confidence: float,
     ) -> None:
         """Cache an LLM-derived alias as pending_review (best-effort)."""
-        if not normalized or not resolved_region_ids:
+        deduped_input_ids = _unique_sorted_region_ids(resolved_region_ids)
+        if not normalized or not deduped_input_ids:
             return
 
         try:
@@ -909,14 +869,40 @@ class LocationResolver:
                 )
                 self.repository.db.add(alias_row)
 
-            if len(resolved_region_ids) == 1:
-                alias_row.region_boundary_id = resolved_region_ids[0]
+            regions: Sequence[object] = self.repository.get_regions_by_ids(deduped_input_ids)
+            regions = self._expand_regions_for_logical_resolution(regions)
+            logical_candidates = self._dedupe_candidates_by_display(
+                self._format_candidates(regions)
+            )
+
+            if not logical_candidates:
+                logical_candidates = [
+                    {
+                        "region_id": region_id,
+                        "region_name": region_id,
+                        "borough": None,
+                        "region_ids": [region_id],
+                    }
+                    for region_id in deduped_input_ids
+                ]
+
+            # Note: cached candidate_region_ids reflect the polygon set at cache time.
+            # If the display-layer mapping changes (neighborhood gains/loses NTAs),
+            # stale aliases are refreshed only when this DB-backed cache entry is replaced.
+            # location_aliases currently has no TTL-based expiry.
+            if len(logical_candidates) == 1:
+                region_ids = self._candidate_region_ids(logical_candidates[0]) or deduped_input_ids
+                alias_row.region_boundary_id = str(
+                    logical_candidates[0].get("region_id") or region_ids[0]
+                )
                 alias_row.requires_clarification = False
-                alias_row.candidate_region_ids = None
+                alias_row.candidate_region_ids = region_ids if len(region_ids) > 1 else None
             else:
                 alias_row.region_boundary_id = None
                 alias_row.requires_clarification = True
-                alias_row.candidate_region_ids = [str(rid) for rid in resolved_region_ids]
+                alias_row.candidate_region_ids = self._collect_candidate_region_ids(
+                    logical_candidates
+                )
 
             self.repository.db.flush()
         except Exception as exc:
@@ -937,16 +923,222 @@ class LocationResolver:
                 )
 
     @staticmethod
-    def _format_candidates(regions: Sequence[RegionBoundary]) -> List[LocationCandidate]:
-        out: List[LocationCandidate] = []
+    def _format_candidates(regions: Sequence[object]) -> List[LocationCandidateDisplay]:
+        out: List[LocationCandidateDisplay] = []
         for r in regions:
-            if not getattr(r, "id", None) or not getattr(r, "region_name", None):
+            region_id = getattr(r, "id", None) or getattr(r, "region_id", None)
+            region_name = getattr(r, "region_name", None)
+            if not region_id or not region_name:
                 continue
+            borough_value = getattr(r, "parent_region", None)
+            if borough_value is None:
+                borough_value = getattr(r, "borough", None)
+            borough = str(borough_value) if borough_value is not None else None
+            display_name_value = getattr(r, "display_name", None)
+            display_key_value = getattr(r, "display_key", None)
             out.append(
                 {
-                    "region_id": r.id,
-                    "region_name": r.region_name,
-                    "borough": getattr(r, "parent_region", None),
+                    "region_id": str(region_id),
+                    "region_name": str(region_name),
+                    "borough": borough,
+                    "display_name": (
+                        str(display_name_value) if display_name_value is not None else None
+                    ),
+                    "display_key": str(display_key_value)
+                    if display_key_value is not None
+                    else None,
+                    "region_ids": [str(region_id)],
                 }
             )
-        return out
+        return sorted(out, key=LocationResolver._candidate_sort_key)
+
+    @staticmethod
+    def _candidate_sort_key(candidate: Mapping[str, Any]) -> tuple[str, str]:
+        return (
+            str(candidate.get("region_name") or "").strip().lower(),
+            str(candidate.get("region_id") or ""),
+        )
+
+    @staticmethod
+    def _normalize_candidate_name(value: object) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @staticmethod
+    def _candidate_region_ids(candidate: Mapping[str, Any]) -> List[str]:
+        raw_ids = candidate.get("region_ids")
+        if isinstance(raw_ids, Sequence) and not isinstance(raw_ids, (str, bytes)):
+            ids = _unique_sorted_region_ids(raw_ids)
+            if ids:
+                return ids
+        region_id = candidate.get("region_id")
+        return [str(region_id)] if region_id else []
+
+    @staticmethod
+    def _candidate_logical_name(candidate: Mapping[str, Any]) -> str:
+        return _logical_region_name(
+            region_name=candidate.get("region_name"),
+            display_name=candidate.get("display_name"),
+        )
+
+    def _expand_regions_for_logical_resolution(
+        self,
+        regions: Sequence[object],
+    ) -> List[object]:
+        valid_regions = [
+            region
+            for region in regions
+            if region
+            and (getattr(region, "id", None) or getattr(region, "region_id", None))
+            and getattr(region, "region_name", None)
+        ]
+        if len(valid_regions) != 1:
+            return list(valid_regions)
+        display_key = getattr(valid_regions[0], "display_key", None)
+        if not display_key:
+            return list(valid_regions)
+        if self._region_lookup:
+            expanded_infos = self._region_lookup.by_display_key.get(str(display_key), [])
+            if expanded_infos:
+                return list(expanded_infos)
+        expanded_regions = self.repository.get_regions_by_display_key(str(display_key))
+        return list(expanded_regions or valid_regions)
+
+    @classmethod
+    def _candidate_output(cls, candidate: Mapping[str, Any]) -> LocationCandidateDisplay:
+        borough_value = candidate.get("borough")
+        output: LocationCandidateDisplay = {
+            "region_id": str(candidate.get("region_id") or ""),
+            "region_name": str(candidate.get("region_name") or ""),
+            "borough": str(borough_value) if borough_value is not None else None,
+            "region_ids": cls._candidate_region_ids(candidate),
+        }
+        if candidate.get("display_name") is not None:
+            output["display_name"] = str(candidate.get("display_name") or "")
+        if candidate.get("display_key") is not None:
+            output["display_key"] = str(candidate.get("display_key") or "")
+        return output
+
+    @classmethod
+    def _collect_candidate_region_ids(cls, candidates: Sequence[Mapping[str, Any]]) -> List[str]:
+        region_ids: list[str] = []
+        for candidate in candidates:
+            if not isinstance(candidate, Mapping):
+                continue
+            region_ids.extend(cls._candidate_region_ids(candidate))
+        return _unique_sorted_region_ids(region_ids)
+
+    @classmethod
+    def _prefer_exact_logical_candidates(
+        cls,
+        normalized: str,
+        candidates: Sequence[dict[str, Any]],
+    ) -> List[dict[str, Any]]:
+        exact_logical = [
+            candidate
+            for candidate in candidates
+            if cls._normalize_candidate_name(cls._candidate_logical_name(candidate)) == normalized
+        ]
+        if len(exact_logical) == 1:
+            return exact_logical
+
+        exact_raw = [
+            candidate
+            for candidate in candidates
+            if cls._normalize_candidate_name(candidate.get("region_name")) == normalized
+        ]
+        if len(exact_raw) == 1:
+            return exact_raw
+
+        return list(candidates)
+
+    @classmethod
+    def effective_region_ids(cls, location_resolution: Optional[ResolvedLocation]) -> List[str]:
+        if not location_resolution:
+            return []
+        if location_resolution.region_ids:
+            ids = _unique_sorted_region_ids(location_resolution.region_ids)
+            if ids:
+                return ids
+        if location_resolution.region_id:
+            return [str(location_resolution.region_id)]
+        if location_resolution.requires_clarification and location_resolution.candidates:
+            return cls._collect_candidate_region_ids(location_resolution.candidates)
+        return []
+
+    @classmethod
+    def _build_result_from_candidates(
+        cls,
+        candidates: Sequence[Mapping[str, Any]],
+        *,
+        tier: ResolutionTier,
+        confidence: float,
+    ) -> ResolvedLocation:
+        formatted = [cls._candidate_output(candidate) for candidate in candidates]
+        if len(formatted) == 1:
+            only = formatted[0]
+            return ResolvedLocation.from_region(
+                region_id=only["region_id"],
+                region_name=cls._candidate_logical_name(only),
+                borough=only.get("borough"),
+                region_ids=cls._candidate_region_ids(only),
+                tier=tier,
+                confidence=confidence,
+            )
+        if len(formatted) >= 2:
+            return ResolvedLocation.from_ambiguous(
+                candidates=formatted,
+                tier=tier,
+                confidence=confidence,
+            )
+        return ResolvedLocation.from_not_found()
+
+    @classmethod
+    def _dedupe_candidates_by_display(
+        cls,
+        candidates: Sequence[Mapping[str, Any]],
+    ) -> List[dict[str, Any]]:
+        seen: dict[str, dict[str, Any]] = {}
+        for candidate in sorted(candidates, key=cls._candidate_sort_key):
+            region_id = candidate.get("region_id")
+            region_name = candidate.get("region_name")
+            if not region_id or not region_name:
+                continue
+
+            dedupe_key = str(candidate.get("display_key") or region_id)
+            prepared: dict[str, Any] = dict(cls._candidate_output(candidate))
+            prepared["region_ids"] = cls._candidate_region_ids(candidate)
+            if candidate.get("similarity") is not None:
+                try:
+                    prepared["similarity"] = float(candidate.get("similarity") or 0.0)
+                except (TypeError, ValueError):
+                    prepared["similarity"] = 0.0
+
+            if dedupe_key not in seen:
+                seen[dedupe_key] = prepared
+                continue
+
+            existing = seen[dedupe_key]
+            existing["region_ids"] = _unique_sorted_region_ids(
+                [
+                    *cls._candidate_region_ids(existing),
+                    *cls._candidate_region_ids(prepared),
+                ]
+            )
+            if not existing.get("display_name") and prepared.get("display_name"):
+                existing["display_name"] = prepared.get("display_name")
+            if not existing.get("borough") and prepared.get("borough"):
+                existing["borough"] = prepared.get("borough")
+
+            if candidate.get("similarity") is not None:
+                try:
+                    similarity = float(candidate.get("similarity") or 0.0)
+                except (TypeError, ValueError):
+                    similarity = 0.0
+                try:
+                    existing_similarity = float(existing.get("similarity") or 0.0)
+                except (TypeError, ValueError):
+                    existing_similarity = 0.0
+                if similarity > existing_similarity:
+                    existing["similarity"] = similarity
+
+        return list(seen.values())

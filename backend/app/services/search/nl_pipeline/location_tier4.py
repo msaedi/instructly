@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, List, Optional
 
 from app.schemas.nl_search import StageStatus
 from app.services.search.location_resolver import (
-    LocationCandidate,
     LocationResolver,
     ResolutionTier,
     ResolvedLocation,
@@ -130,6 +129,8 @@ def _build_tier4_result(
             "region_id": row.region_id,
             "region_name": row.region_name,
             "borough": row.borough,
+            "display_name": getattr(row, "display_name", None),
+            "display_key": getattr(row, "display_key", None),
             "embedding": row.embedding,
             "norm": row.norm,
         }
@@ -144,12 +145,13 @@ def _build_tier4_result(
             LocationEmbeddingService.SIMILARITY_THRESHOLD,
         ),
     )
+    logical_candidates = LocationResolver._dedupe_candidates_by_display(candidates)
     embedding_candidate_names = _build_embedding_candidate_names(
-        candidates=candidates,
+        candidates=logical_candidates,
         location_llm_top_k=location_llm_top_k,
         llm_embedding_threshold=llm_embedding_threshold,
     )
-    resolved = _resolve_tier4_candidate(candidates)
+    resolved = _resolve_tier4_candidate(logical_candidates)
     if diagnostics:
         diagnostics.record_location_tier(
             tier=4,
@@ -200,29 +202,21 @@ def _resolve_tier4_candidate(
         for row in candidates
         if _candidate_similarity(row) >= LocationEmbeddingService.SIMILARITY_THRESHOLD
     ][:5]
+    resolver_candidates = LocationResolver._dedupe_candidates_by_display(resolver_candidates)
     best_candidate, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(resolver_candidates)
     if best_candidate and best_candidate.get("region_id") and best_candidate.get("region_name"):
         return ResolvedLocation.from_region(
             region_id=str(best_candidate["region_id"]),
-            region_name=str(best_candidate["region_name"]),
+            region_name=LocationResolver._candidate_logical_name(best_candidate),
             borough=best_candidate.get("borough"),
+            region_ids=LocationResolver._candidate_region_ids(best_candidate),
             tier=ResolutionTier.EMBEDDING,
             confidence=_candidate_similarity(best_candidate),
         )
     if ambiguous:
-        formatted: List[LocationCandidate] = [
-            {
-                "region_id": str(row["region_id"]),
-                "region_name": str(row["region_name"]),
-                "borough": row.get("borough"),
-            }
-            for row in ambiguous
-            if row.get("region_id") and row.get("region_name")
-        ]
-        if len(formatted) >= 2:
-            return ResolvedLocation.from_ambiguous(
-                candidates=formatted,
-                tier=ResolutionTier.EMBEDDING,
-                confidence=float(ambiguous[0].get("similarity") or 0.0),
-            )
+        return LocationResolver._build_result_from_candidates(
+            ambiguous,
+            tier=ResolutionTier.EMBEDDING,
+            confidence=float(ambiguous[0].get("similarity") or 0.0),
+        )
     return None
