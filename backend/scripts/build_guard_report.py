@@ -58,7 +58,7 @@ def main() -> None:
         md.write(
             "Preview routes are split between legacy cookie-authenticated instructor "
             "paths (e.g. `/instructors/*`) and `/api/*` routers that were wrapped with "
-            "`public_guard_dependency` in `backend/app/main.py:861-879`. "
+            "`public_guard_dependency` in `backend/app/core/router_registry.py`. "
             "The guard enforces Authorization headers because preview cookies "
             "(`SameSite=Lax`) are not sent cross-origin, leading to systematic 401s on `/api/*`.\n\n"
         )
@@ -95,7 +95,7 @@ def main() -> None:
             "`public_guard()` (`backend/app/api/dependencies/authz.py:173-279`) to fall "
             "back to `session_cookie_candidates()` when no Authorization header is present. "
             "Alternatively, remove `Depends(public_guard_dependency)` from the affected "
-            "routers in `backend/app/main.py:861-879`.\n"
+            "routers in `backend/app/core/router_registry.py`.\n"
         )
         md.write(
             "2. **Preserve bearer support for API clients** — continue honoring "
