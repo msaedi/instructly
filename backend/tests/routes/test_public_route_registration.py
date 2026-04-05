@@ -1,7 +1,7 @@
 # backend/tests/routes/test_public_route_registration.py
 """
 Simple test to verify public routes are registered.
-Run this first to ensure main.py is updated correctly.
+Run this first to ensure the shared router registry is updated correctly.
 """
 
 import pytest
@@ -21,11 +21,9 @@ def test_public_routes_registered(client):
             + "PUBLIC ROUTES NOT REGISTERED!\n"
             + "=" * 60
             + "\n"
-            + "You need to update backend/app/main.py:\n\n"
-            + "1. Add import at top:\n"
-            + "   from .routes import public\n\n"
-            + "2. Register router (with other routers):\n"
-            + "   app.include_router(public.router)\n\n"
+            + "You need to update backend/app/core/router_registry.py:\n\n"
+            + "1. Import the public router module in the shared registry.\n\n"
+            + "2. Register it in the correct API v1 router group and order.\n\n"
             + "=" * 60
             + "\n"
         )

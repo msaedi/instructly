@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+from typing import Any
 
 from pydantic import SecretStr
 import pytest
@@ -17,7 +18,7 @@ def test_nonprod_startup_without_key_does_not_raise(monkeypatch: pytest.MonkeyPa
     # Set environment so settings.site_mode property returns "dev"
     monkeypatch.setenv("SITE_MODE", "dev")
 
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     # For non-prod, no key is needed - should not raise
     _validate_startup_config()
@@ -32,14 +33,14 @@ def test_prod_startup_without_key_raises(monkeypatch: pytest.MonkeyPatch) -> Non
     # The validation function uses getattr(runtime_settings, "bgc_encryption_key", None)
     original_getattr = getattr
 
-    def mock_getattr(obj, name, *default):
+    def mock_getattr(obj: object, name: str, *default: Any) -> Any:
         if name == "bgc_encryption_key":
             return None
         return original_getattr(obj, name, *default)
 
     monkeypatch.setattr("builtins.getattr", mock_getattr)
 
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     with pytest.raises(RuntimeError, match="BGC_ENCRYPTION_KEY must be configured"):
         _validate_startup_config()
@@ -55,14 +56,14 @@ def test_prod_startup_with_valid_key_succeeds(monkeypatch: pytest.MonkeyPatch) -
     # Mock the getattr to return the valid key
     original_getattr = getattr
 
-    def mock_getattr(obj, name, *default):
+    def mock_getattr(obj: object, name: str, *default: Any) -> Any:
         if name == "bgc_encryption_key":
             return valid_key
         return original_getattr(obj, name, *default)
 
     monkeypatch.setattr("builtins.getattr", mock_getattr)
 
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     # Should not raise
     _validate_startup_config()
@@ -75,7 +76,7 @@ def test_hundredms_enabled_without_required_credentials_raises(
     monkeypatch.setenv("SITE_MODE", "dev")
 
     from app.core.config import settings as runtime_settings
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
     monkeypatch.setattr(runtime_settings, "hundredms_access_key", "", raising=False)
@@ -94,7 +95,7 @@ def test_hundredms_enabled_with_required_credentials_passes(
     monkeypatch.setenv("SITE_MODE", "dev")
 
     from app.core.config import settings as runtime_settings
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
     monkeypatch.setattr(runtime_settings, "hundredms_access_key", "test_access_key", raising=False)
@@ -122,7 +123,7 @@ def test_hundredms_enabled_missing_webhook_secret_raises(
     monkeypatch.setenv("SITE_MODE", "dev")
 
     from app.core.config import settings as runtime_settings
-    from app.main import _validate_startup_config
+    from app.core.lifespan import _validate_startup_config
 
     monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
     monkeypatch.setattr(runtime_settings, "hundredms_access_key", "test_access_key", raising=False)
