@@ -1,4 +1,3 @@
-backend/app/core/config.py
 backend/app/models/service_catalog.py
 backend/app/repositories/admin_ops_repository.py
 backend/app/repositories/filter_repository.py

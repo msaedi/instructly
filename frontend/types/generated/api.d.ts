@@ -1463,6 +1463,108 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/bookings/{booking_id}/force-cancel/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Force Cancel Execute */
+        post: operations["force_cancel_execute_api_v1_admin_mcp_bookings__booking_id__force_cancel_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/bookings/{booking_id}/force-cancel/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Force Cancel Preview */
+        post: operations["force_cancel_preview_api_v1_admin_mcp_bookings__booking_id__force_cancel_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/bookings/{booking_id}/force-complete/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Force Complete Execute */
+        post: operations["force_complete_execute_api_v1_admin_mcp_bookings__booking_id__force_complete_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/bookings/{booking_id}/force-complete/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Force Complete Preview */
+        post: operations["force_complete_preview_api_v1_admin_mcp_bookings__booking_id__force_complete_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/bookings/{booking_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Booking Note */
+        post: operations["add_booking_note_api_v1_admin_mcp_bookings__booking_id__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/bookings/{booking_id}/resend-notification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend Notification */
+        post: operations["resend_notification_api_v1_admin_mcp_bookings__booking_id__resend_notification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/celery/failed": {
         parameters: {
             query?: never;
@@ -1904,6 +2006,125 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/commission/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commission Execute */
+        post: operations["commission_execute_api_v1_admin_mcp_instructors__instructor_id__commission_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/commission/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commission Preview */
+        post: operations["commission_preview_api_v1_admin_mcp_instructors__instructor_id__commission_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/payout-hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Payout Hold */
+        post: operations["payout_hold_api_v1_admin_mcp_instructors__instructor_id__payout_hold_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/suspend/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend Execute */
+        post: operations["suspend_execute_api_v1_admin_mcp_instructors__instructor_id__suspend_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/suspend/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend Preview */
+        post: operations["suspend_preview_api_v1_admin_mcp_instructors__instructor_id__suspend_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unsuspend */
+        post: operations["unsuspend_api_v1_admin_mcp_instructors__instructor_id__unsuspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{instructor_id}/verify-override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Override */
+        post: operations["verify_override_api_v1_admin_mcp_instructors__instructor_id__verify_override_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/invites": {
         parameters: {
             query?: never;
@@ -2265,6 +2486,125 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/students/{student_id}/credits/adjust/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit Adjust Execute */
+        post: operations["credit_adjust_execute_api_v1_admin_mcp_students__student_id__credits_adjust_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/credits/adjust/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit Adjust Preview */
+        post: operations["credit_adjust_preview_api_v1_admin_mcp_students__student_id__credits_adjust_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/credits/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credit History */
+        get: operations["credit_history_api_v1_admin_mcp_students__student_id__credits_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/refunds/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Refund History */
+        get: operations["refund_history_api_v1_admin_mcp_students__student_id__refunds_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/suspend/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend Execute */
+        post: operations["suspend_execute_api_v1_admin_mcp_students__student_id__suspend_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/suspend/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend Preview */
+        post: operations["suspend_preview_api_v1_admin_mcp_students__student_id__suspend_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/students/{student_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unsuspend */
+        post: operations["unsuspend_api_v1_admin_mcp_students__student_id__unsuspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/webhooks": {
         parameters: {
             query?: never;
@@ -2422,6 +2762,26 @@ export type paths = {
         put?: never;
         /** Reset Search Config Admin */
         post: operations["reset_search_config_admin_api_v1_admin_search_config_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/force-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force Logout User
+         * @description Force logout for all active sessions belonging to a target user.
+         */
+        post: operations["force_logout_user_api_v1_admin_users__user_id__force_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7957,6 +8317,29 @@ export type components = {
             /** User Id */
             user_id: string;
         };
+        /** AddNoteRequest */
+        AddNoteRequest: {
+            /** @default general */
+            category: components["schemas"]["NoteCategory"];
+            /** Note */
+            note: string;
+            /** @default internal */
+            visibility: components["schemas"]["NoteVisibility"];
+        };
+        /** AddNoteResponse */
+        AddNoteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Note Id */
+            note_id: string;
+            /** Success */
+            success: boolean;
+        };
         /** AddressCreate */
         AddressCreate: {
             /** Administrative Area */
@@ -9675,9 +10058,6 @@ export type components = {
         /**
          * AvailabilityCheckRequest
          * @description Check if a specific time is available for booking.
-         *
-         *     Clean Architecture: Uses instructor, date, and time directly.
-         *     No slot references needed.
          */
         AvailabilityCheckRequest: {
             /**
@@ -10536,7 +10916,10 @@ export type components = {
              */
             week_start: string;
         };
-        /** BookingCancel */
+        /**
+         * BookingCancel
+         * @description Schema for cancelling a booking.
+         */
         BookingCancel: {
             /**
              * Reason
@@ -10630,8 +11013,6 @@ export type components = {
         /**
          * BookingCreateResponse
          * @description Response after creating a booking with payment setup.
-         *
-         *     Includes SetupIntent client_secret for collecting payment method.
          */
         BookingCreateResponse: {
             /** Auth Attempted At */
@@ -10976,9 +11357,6 @@ export type components = {
         /**
          * BookingRescheduleRequest
          * @description Request to reschedule an existing booking by specifying a new date/time and duration.
-         *
-         *     Frontend will subsequently create a new booking; this endpoint prepares the system by
-         *     cancelling the old booking according to policy and recording audit events.
          */
         BookingRescheduleRequest: {
             /**
@@ -11007,10 +11385,6 @@ export type components = {
         /**
          * BookingResponse
          * @description Complete booking response with privacy protection.
-         *
-         *     Shows instructor as "FirstName L.".
-         *     Students see their own full information.
-         *     Clean Architecture: No availability slot references.
          */
         BookingResponse: {
             /** Auth Attempted At */
@@ -11172,6 +11546,13 @@ export type components = {
             /** Name */
             name: string;
         };
+        /** BookingState */
+        BookingState: {
+            /** Payment Status */
+            payment_status?: string | null;
+            /** Status */
+            status: string;
+        };
         /**
          * BookingStatsResponse
          * @description Booking statistics for instructors.
@@ -11229,8 +11610,6 @@ export type components = {
         /**
          * BookingUpdate
          * @description Schema for updating booking details.
-         *
-         *     Limited fields can be updated after booking creation.
          */
         BookingUpdate: {
             /** Instructor Note */
@@ -12132,6 +12511,11 @@ export type components = {
          */
         CohortUserType: "student" | "instructor";
         /**
+         * CommissionAction
+         * @enum {string}
+         */
+        CommissionAction: "SET_TIER" | "GRANT_FOUNDING" | "REVOKE_FOUNDING" | "TEMPORARY_DISCOUNT";
+        /**
          * CommissionStatusResponse
          * @description Instructor-facing commission tier status.
          */
@@ -12182,6 +12566,11 @@ export type components = {
              */
             tiers?: components["schemas"]["TierInfo"][];
         };
+        /**
+         * CommissionTier
+         * @enum {string}
+         */
+        CommissionTier: "entry" | "growth" | "pro" | "founding";
         /**
          * CommunicationChannel
          * @enum {string}
@@ -12449,6 +12838,81 @@ export type components = {
              */
             size_bytes: number;
         };
+        /**
+         * CreditAdjustAction
+         * @enum {string}
+         */
+        CreditAdjustAction: "ADD" | "REMOVE" | "SET";
+        /** CreditAdjustExecuteRequest */
+        CreditAdjustExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** CreditAdjustExecuteResponse */
+        CreditAdjustExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Credits Created */
+            credits_created: number;
+            /** Credits Revoked */
+            credits_revoked: number;
+            /** Delta */
+            delta: string;
+            /** Error */
+            error?: string | null;
+            /** New Balance */
+            new_balance: string;
+            /** Previous Balance */
+            previous_balance: string;
+            /** Student Id */
+            student_id: string;
+            /** Success */
+            success: boolean;
+        };
+        /** CreditAdjustPreviewRequest */
+        CreditAdjustPreviewRequest: {
+            action: components["schemas"]["CreditAdjustAction"];
+            /** Amount */
+            amount: number | string;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Note */
+            note?: string | null;
+            reason_code: components["schemas"]["CreditAdjustReasonCode"];
+        };
+        /** CreditAdjustPreviewResponse */
+        CreditAdjustPreviewResponse: {
+            /** Confirm Token */
+            confirm_token?: string | null;
+            /** Current Balance */
+            current_balance: string;
+            /** Delta */
+            delta: string;
+            /** Eligible */
+            eligible: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** New Balance */
+            new_balance: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Create Credit */
+            will_create_credit: boolean;
+            /** Will Remove Credit */
+            will_remove_credit: boolean;
+        };
+        /**
+         * CreditAdjustReasonCode
+         * @enum {string}
+         */
+        CreditAdjustReasonCode: "GOODWILL" | "COMPENSATION" | "PROMOTIONAL" | "CORRECTION" | "REFERRAL_BONUS" | "REFUND_CONVERSION" | "FRAUD_RECOVERY";
         /** CreditBalanceResponse */
         CreditBalanceResponse: {
             /**
@@ -12466,6 +12930,59 @@ export type components = {
              * @description Reserved (pending) credits
              */
             pending: number;
+        };
+        /** CreditHistoryEntry */
+        CreditHistoryEntry: {
+            /** Amount */
+            amount: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credit Id */
+            credit_id: string;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Forfeited At */
+            forfeited_at?: string | null;
+            /** Reason */
+            reason: string;
+            /** Reserved Amount */
+            reserved_amount?: string | null;
+            /** Reserved For Booking Id */
+            reserved_for_booking_id?: string | null;
+            /** Revoked At */
+            revoked_at?: string | null;
+            /** Source Type */
+            source_type: string;
+            /** Status */
+            status: string;
+            /** Used At */
+            used_at?: string | null;
+        };
+        /** CreditHistoryResponse */
+        CreditHistoryResponse: {
+            /** Credits */
+            credits: components["schemas"]["CreditHistoryEntry"][];
+            /** Include Expired */
+            include_expired: boolean;
+            summary: components["schemas"]["CreditHistorySummary"];
+        };
+        /** CreditHistorySummary */
+        CreditHistorySummary: {
+            /** Available Balance */
+            available_balance: string;
+            /** Reserved Balance */
+            reserved_balance: string;
+            /** Total Earned */
+            total_earned: string;
+            /** Total Expired */
+            total_expired: string;
+            /** Total Forfeited */
+            total_forfeited: string;
+            /** Total Spent */
+            total_spent: string;
         };
         /**
          * DailyAlertCount
@@ -13261,6 +13778,156 @@ export type components = {
              */
             object_key: string;
         };
+        /** ForceCancelExecuteRequest */
+        ForceCancelExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** ForceCancelExecuteResponse */
+        ForceCancelExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Booking Id */
+            booking_id: string;
+            /** Error */
+            error?: string | null;
+            /** New Status */
+            new_status: string;
+            /** Notifications Sent */
+            notifications_sent: string[];
+            /** Previous Status */
+            previous_status: string;
+            /** Refund Amount */
+            refund_amount?: string | null;
+            /** Refund Id */
+            refund_id?: string | null;
+            /** Refund Issued */
+            refund_issued: boolean;
+            /** Refund Method */
+            refund_method?: string | null;
+            /** Success */
+            success: boolean;
+        };
+        /** ForceCancelPreviewRequest */
+        ForceCancelPreviewRequest: {
+            /** Note */
+            note: string;
+            reason_code: components["schemas"]["ForceCancelReasonCode"];
+            /** @default POLICY_BASED */
+            refund_preference: components["schemas"]["RefundPreference"];
+        };
+        /** ForceCancelPreviewResponse */
+        ForceCancelPreviewResponse: {
+            /** Confirm Token */
+            confirm_token?: string | null;
+            current_state: components["schemas"]["BookingState"];
+            /** Eligible */
+            eligible: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** Instructor Payout Impact */
+            instructor_payout_impact: string;
+            /** Platform Fee Impact */
+            platform_fee_impact: string;
+            /** Refund Amount */
+            refund_amount?: string | null;
+            /** Refund Method */
+            refund_method?: ("card" | "credit" | "none") | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Cancel Booking */
+            will_cancel_booking: boolean;
+            /** Will Notify Instructor */
+            will_notify_instructor: boolean;
+            /** Will Notify Student */
+            will_notify_student: boolean;
+            /** Will Refund */
+            will_refund: boolean;
+        };
+        /**
+         * ForceCancelReasonCode
+         * @enum {string}
+         */
+        ForceCancelReasonCode: "ADMIN_DISCRETION" | "INSTRUCTOR_NO_SHOW" | "STUDENT_NO_SHOW" | "DUPLICATE_BOOKING" | "TECHNICAL_ISSUE" | "DISPUTE_RESOLUTION";
+        /** ForceCompleteExecuteRequest */
+        ForceCompleteExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** ForceCompleteExecuteResponse */
+        ForceCompleteExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Booking Id */
+            booking_id: string;
+            /** Capture Amount */
+            capture_amount?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Instructor Payout Scheduled */
+            instructor_payout_scheduled: boolean;
+            /** New Status */
+            new_status: string;
+            /** Payment Captured */
+            payment_captured: boolean;
+            /** Payout Amount */
+            payout_amount?: string | null;
+            /** Previous Status */
+            previous_status: string;
+            /** Success */
+            success: boolean;
+        };
+        /** ForceCompletePreviewRequest */
+        ForceCompletePreviewRequest: {
+            /** Note */
+            note: string;
+            reason_code: components["schemas"]["ForceCompleteReasonCode"];
+        };
+        /** ForceCompletePreviewResponse */
+        ForceCompletePreviewResponse: {
+            /** Capture Amount */
+            capture_amount?: string | null;
+            /** Confirm Token */
+            confirm_token?: string | null;
+            current_state: components["schemas"]["BookingState"];
+            /** Eligible */
+            eligible: boolean;
+            /** Hours Since Scheduled */
+            hours_since_scheduled?: number | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** Instructor Payout */
+            instructor_payout: string;
+            /** Lesson Time Passed */
+            lesson_time_passed: boolean;
+            /** Platform Fee */
+            platform_fee: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Capture Payment */
+            will_capture_payment: boolean;
+            /** Will Mark Complete */
+            will_mark_complete: boolean;
+        };
+        /**
+         * ForceCompleteReasonCode
+         * @enum {string}
+         */
+        ForceCompleteReasonCode: "LESSON_CONFIRMED_BY_BOTH" | "INSTRUCTOR_CONFIRMED" | "STUDENT_CONFIRMED" | "ADMIN_VERIFIED";
         /**
          * FoundingCountResponse
          * @description Summary of founding instructor utilization.
@@ -13830,7 +14497,6 @@ export type components = {
          * @description Instructor information for booking display.
          *
          *     Privacy-aware: Only shows last initial for privacy protection.
-         *     Full last name never exposed to students.
          */
         InstructorInfo: {
             /** First Name */
@@ -14368,6 +15034,15 @@ export type components = {
             service_catalog_name?: string | null;
             /** Updated At */
             updated_at?: string | null;
+        };
+        /** InstructorState */
+        InstructorState: {
+            /** Account Status */
+            account_status: string;
+            /** Is Founding */
+            is_founding: boolean;
+            /** Is Verified */
+            is_verified: boolean;
         };
         /**
          * InstructorSummary
@@ -16549,6 +17224,16 @@ export type components = {
             /** Success */
             success: boolean;
         };
+        /**
+         * NoteCategory
+         * @enum {string}
+         */
+        NoteCategory: "support_interaction" | "dispute" | "fraud_flag" | "quality_issue" | "general";
+        /**
+         * NoteVisibility
+         * @enum {string}
+         */
+        NoteVisibility: "internal" | "shared_with_instructor" | "shared_with_student";
         /** NotificationHistoryEntry */
         NotificationHistoryEntry: {
             /** Audience Size */
@@ -16633,6 +17318,11 @@ export type components = {
             updates: components["schemas"]["PreferenceUpdate"][];
         };
         /**
+         * NotificationRecipient
+         * @enum {string}
+         */
+        NotificationRecipient: "student" | "instructor" | "both";
+        /**
          * NotificationResponse
          * @description Notification inbox entry.
          */
@@ -16659,6 +17349,20 @@ export type components = {
             /** Type */
             type: string;
         };
+        /** NotificationSent */
+        NotificationSent: {
+            /** Channel */
+            channel: string;
+            /** Recipient */
+            recipient: string;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /** Template */
+            template: string;
+        };
         /**
          * NotificationStatusResponse
          * @description Simple status response for notification actions.
@@ -16674,6 +17378,11 @@ export type components = {
             /** Templates */
             templates: components["schemas"]["TemplateInfo"][];
         };
+        /**
+         * NotificationType
+         * @enum {string}
+         */
+        NotificationType: "booking_confirmation" | "lesson_reminder_24h" | "lesson_reminder_1h" | "lesson_completed" | "cancellation_notice";
         /**
          * NotificationUnreadCountResponse
          * @description Unread notification count response.
@@ -17307,6 +18016,34 @@ export type components = {
              * @default 0
              */
             total_pending_cents: number;
+        };
+        /**
+         * PayoutHoldAction
+         * @enum {string}
+         */
+        PayoutHoldAction: "HOLD" | "RELEASE";
+        /** PayoutHoldRequest */
+        PayoutHoldRequest: {
+            action: components["schemas"]["PayoutHoldAction"];
+            /** Reason */
+            reason: string;
+        };
+        /** PayoutHoldResponse */
+        PayoutHoldResponse: {
+            /** Action */
+            action: string;
+            /** Audit Id */
+            audit_id: string;
+            /** Error */
+            error?: string | null;
+            /** Held Amount */
+            held_amount: string;
+            /** Instructor Id */
+            instructor_id: string;
+            /** Pending Payouts */
+            pending_payouts: number;
+            /** Success */
+            success: boolean;
         };
         /** PayoutScheduleResponse */
         PayoutScheduleResponse: {
@@ -19092,6 +19829,52 @@ export type components = {
             updated_booking?: components["schemas"]["UpdatedBooking"] | null;
             updated_payment?: components["schemas"]["UpdatedPayment"] | null;
         };
+        /** RefundFraudFlags */
+        RefundFraudFlags: {
+            /** High Refund Amount */
+            high_refund_amount: boolean;
+            /** High Refund Rate */
+            high_refund_rate: boolean;
+            /** Rapid Refunds */
+            rapid_refunds: boolean;
+            /** Refund Rate */
+            refund_rate: number;
+            /** Refunds Last 30 Days */
+            refunds_last_30_days: number;
+            /** Refunds Last 7 Days */
+            refunds_last_7_days: number;
+        };
+        /** RefundHistoryEntry */
+        RefundHistoryEntry: {
+            /** Amount */
+            amount: string;
+            /** Booking Id */
+            booking_id: string;
+            /** Method */
+            method: string;
+            /** Refunded At */
+            refunded_at?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** RefundHistoryResponse */
+        RefundHistoryResponse: {
+            fraud_flags: components["schemas"]["RefundFraudFlags"];
+            /** Refunds */
+            refunds: components["schemas"]["RefundHistoryEntry"][];
+            summary: components["schemas"]["RefundHistorySummary"];
+        };
+        /** RefundHistorySummary */
+        RefundHistorySummary: {
+            /** Refund Count */
+            refund_count: number;
+            /** Total Card Refunds */
+            total_card_refunds: string;
+            /** Total Credit Refunds */
+            total_credit_refunds: string;
+            /** Total Refunds */
+            total_refunds: string;
+        };
         /** RefundImpact */
         RefundImpact: {
             /** Instructor Payout Delta */
@@ -19118,6 +19901,11 @@ export type components = {
             /** Reason Code */
             reason_code: string;
         };
+        /**
+         * RefundPreference
+         * @enum {string}
+         */
+        RefundPreference: "FULL_CARD" | "POLICY_BASED" | "NO_REFUND";
         /** RefundPreviewRequest */
         RefundPreviewRequest: {
             amount: components["schemas"]["RefundAmount"];
@@ -19224,6 +20012,25 @@ export type components = {
              * Format: time
              */
             start_time: string;
+        };
+        /** ResendNotificationRequest */
+        ResendNotificationRequest: {
+            /** Note */
+            note: string;
+            notification_type: components["schemas"]["NotificationType"];
+            /** @default student */
+            recipient: components["schemas"]["NotificationRecipient"];
+        };
+        /** ResendNotificationResponse */
+        ResendNotificationResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Error */
+            error?: string | null;
+            /** Notifications Sent */
+            notifications_sent: components["schemas"]["NotificationSent"][];
+            /** Success */
+            success: boolean;
         };
         /**
          * ResultDistribution
@@ -20869,6 +21676,137 @@ export type components = {
             /** Last Initial */
             last_initial: string;
         };
+        /** StudentState */
+        StudentState: {
+            /** Account Status */
+            account_status: string;
+            /** Credit Balance */
+            credit_balance: string;
+            /** Is Restricted */
+            is_restricted: boolean;
+        };
+        /** StudentSuspendExecuteRequest */
+        StudentSuspendExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** StudentSuspendExecuteResponse */
+        StudentSuspendExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Bookings Cancelled */
+            bookings_cancelled: number;
+            /** Credits Forfeited */
+            credits_forfeited: string;
+            /** Error */
+            error?: string | null;
+            /** New Status */
+            new_status: string;
+            /** Notifications Sent */
+            notifications_sent: string[];
+            /** Previous Status */
+            previous_status: string;
+            /** Refunds Issued */
+            refunds_issued: number;
+            /** Student Id */
+            student_id: string;
+            /** Success */
+            success: boolean;
+            /** Total Refunded */
+            total_refunded: string;
+        };
+        /** StudentSuspendPreviewRequest */
+        StudentSuspendPreviewRequest: {
+            /**
+             * Cancel Pending Bookings
+             * @default true
+             */
+            cancel_pending_bookings: boolean;
+            /**
+             * Forfeit Credits
+             * @default false
+             */
+            forfeit_credits: boolean;
+            /** Note */
+            note: string;
+            /**
+             * Notify Student
+             * @default true
+             */
+            notify_student: boolean;
+            reason_code: components["schemas"]["StudentSuspendReasonCode"];
+        };
+        /** StudentSuspendPreviewResponse */
+        StudentSuspendPreviewResponse: {
+            /** Active Conversations */
+            active_conversations: number;
+            /** Confirm Token */
+            confirm_token?: string | null;
+            /** Credit Balance */
+            credit_balance: string;
+            current_state: components["schemas"]["StudentState"];
+            /** Eligible */
+            eligible: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** Pending Bookings Count */
+            pending_bookings_count: number;
+            /** Pending Bookings Value */
+            pending_bookings_value: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Cancel Bookings */
+            will_cancel_bookings: boolean;
+            /** Will Forfeit Credits */
+            will_forfeit_credits: boolean;
+            /** Will Notify Affected Instructors */
+            will_notify_affected_instructors: boolean;
+            /** Will Notify Student */
+            will_notify_student: boolean;
+            /** Will Refund Students */
+            will_refund_students: boolean;
+            /** Will Suspend */
+            will_suspend: boolean;
+        };
+        /**
+         * StudentSuspendReasonCode
+         * @enum {string}
+         */
+        StudentSuspendReasonCode: "FRAUD" | "ABUSE" | "PAYMENT_FRAUD" | "POLICY_VIOLATION" | "MULTIPLE_NO_SHOWS" | "HARASSMENT";
+        /** StudentUnsuspendRequest */
+        StudentUnsuspendRequest: {
+            /** Reason */
+            reason: string;
+            /**
+             * Restore Credits
+             * @default true
+             */
+            restore_credits: boolean;
+        };
+        /** StudentUnsuspendResponse */
+        StudentUnsuspendResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Credits Restored */
+            credits_restored: string;
+            /** Error */
+            error?: string | null;
+            /** New Status */
+            new_status: string;
+            /** Previous Status */
+            previous_status: string;
+            /** Student Id */
+            student_id: string;
+            /** Success */
+            success: boolean;
+        };
         /**
          * SubcategoryBrief
          * @description Minimal subcategory for list views (browse page pills).
@@ -21078,6 +22016,94 @@ export type components = {
             /** Total Availability Hours */
             total_availability_hours: string;
         };
+        /** SuspendExecuteRequest */
+        SuspendExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** SuspendExecuteResponse */
+        SuspendExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Bookings Cancelled */
+            bookings_cancelled: number;
+            /** Error */
+            error?: string | null;
+            /** Instructor Id */
+            instructor_id: string;
+            /** New Status */
+            new_status: string;
+            /** Notifications Sent */
+            notifications_sent: string[];
+            /** Previous Status */
+            previous_status: string;
+            /** Refunds Issued */
+            refunds_issued: number;
+            /** Success */
+            success: boolean;
+            /** Total Refunded */
+            total_refunded: string;
+        };
+        /** SuspendPreviewRequest */
+        SuspendPreviewRequest: {
+            /**
+             * Cancel Pending Bookings
+             * @default true
+             */
+            cancel_pending_bookings: boolean;
+            /** Note */
+            note: string;
+            /**
+             * Notify Instructor
+             * @default true
+             */
+            notify_instructor: boolean;
+            reason_code: components["schemas"]["SuspendReasonCode"];
+        };
+        /** SuspendPreviewResponse */
+        SuspendPreviewResponse: {
+            /** Active Conversations */
+            active_conversations: number;
+            /** Confirm Token */
+            confirm_token?: string | null;
+            current_state: components["schemas"]["InstructorState"];
+            /** Eligible */
+            eligible: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** Pending Bookings Count */
+            pending_bookings_count: number;
+            /** Pending Bookings Value */
+            pending_bookings_value: string;
+            /** Pending Payout Amount */
+            pending_payout_amount: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Cancel Bookings */
+            will_cancel_bookings: boolean;
+            /** Will Hold Payouts */
+            will_hold_payouts: boolean;
+            /** Will Notify Affected Students */
+            will_notify_affected_students: boolean;
+            /** Will Notify Instructor */
+            will_notify_instructor: boolean;
+            /** Will Refund Students */
+            will_refund_students: boolean;
+            /** Will Suspend */
+            will_suspend: boolean;
+        };
+        /**
+         * SuspendReasonCode
+         * @enum {string}
+         */
+        SuspendReasonCode: "FRAUD" | "POLICY_VIOLATION" | "SAFETY_CONCERN" | "QUALITY_ISSUES" | "BGC_FAILURE" | "PAYMENT_FRAUD" | "IDENTITY_MISMATCH" | "TEMPORARY_REVIEW";
         /** TFADisableRequest */
         TFADisableRequest: {
             /** Current Password */
@@ -21504,12 +22530,38 @@ export type components = {
             /** User Id */
             user_id: string;
         };
+        /** UnsuspendRequest */
+        UnsuspendRequest: {
+            /** Reason */
+            reason: string;
+            /**
+             * Restore Visibility
+             * @default true
+             */
+            restore_visibility: boolean;
+        };
+        /** UnsuspendResponse */
+        UnsuspendResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Error */
+            error?: string | null;
+            /** Instructor Id */
+            instructor_id: string;
+            /** New Status */
+            new_status: string;
+            /** Payout Hold Released */
+            payout_hold_released: boolean;
+            /** Previous Status */
+            previous_status: string;
+            /** Success */
+            success: boolean;
+            /** Visibility Restored */
+            visibility_restored: boolean;
+        };
         /**
          * UpcomingBookingResponse
          * @description Simplified response for upcoming bookings widget.
-         *
-         *     Privacy-aware: participant last-name fields expose initials only
-         *     except when users view their own identity.
          */
         UpcomingBookingResponse: {
             /**
@@ -21557,6 +22609,77 @@ export type components = {
             overnight_protection_enabled?: boolean | null;
             /** Travel Buffer Minutes */
             travel_buffer_minutes?: number | null;
+        };
+        /** UpdateCommissionExecuteRequest */
+        UpdateCommissionExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** UpdateCommissionExecuteResponse */
+        UpdateCommissionExecuteResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Error */
+            error?: string | null;
+            /** Founding Status Changed */
+            founding_status_changed: boolean;
+            /** Instructor Id */
+            instructor_id: string;
+            /** New Rate */
+            new_rate: string;
+            /** New Tier */
+            new_tier: string;
+            /** Previous Rate */
+            previous_rate: string;
+            /** Previous Tier */
+            previous_tier: string;
+            /** Success */
+            success: boolean;
+        };
+        /** UpdateCommissionPreviewRequest */
+        UpdateCommissionPreviewRequest: {
+            action: components["schemas"]["CommissionAction"];
+            /** Reason */
+            reason: string;
+            /** Temporary Rate */
+            temporary_rate?: number | string | null;
+            /** Temporary Until */
+            temporary_until?: string | null;
+            tier?: components["schemas"]["CommissionTier"] | null;
+        };
+        /** UpdateCommissionPreviewResponse */
+        UpdateCommissionPreviewResponse: {
+            /** Confirm Token */
+            confirm_token?: string | null;
+            /** Current Rate */
+            current_rate: string;
+            /** Current Tier */
+            current_tier: string;
+            /** Eligible */
+            eligible: boolean;
+            /** Estimated Monthly Impact */
+            estimated_monthly_impact: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Ineligible Reason */
+            ineligible_reason?: string | null;
+            /** Is Founding */
+            is_founding: boolean;
+            /** New Rate */
+            new_rate: string;
+            /** New Tier */
+            new_tier: string;
+            /** Rate Change */
+            rate_change: string;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Will Be Founding */
+            will_be_founding: boolean;
         };
         /**
          * UpdateConversationStateRequest
@@ -21981,6 +23104,11 @@ export type components = {
             /** Public Key */
             public_key: string;
         };
+        /**
+         * VerificationType
+         * @enum {string}
+         */
+        VerificationType: "IDENTITY" | "BACKGROUND_CHECK" | "PAYMENT_SETUP" | "FULL";
         /** VerifyEmailCodeRequest */
         VerifyEmailCodeRequest: {
             /** Code */
@@ -21997,6 +23125,41 @@ export type components = {
             expires_in_seconds: number;
             /** Verification Token */
             verification_token: string;
+        };
+        /** VerifyOverrideRequest */
+        VerifyOverrideRequest: {
+            /** Evidence */
+            evidence?: string | null;
+            /** Instructor Id */
+            instructor_id?: string | null;
+            /** Reason */
+            reason: string;
+            verification_type: components["schemas"]["VerificationType"];
+        };
+        /** VerifyOverrideResponse */
+        VerifyOverrideResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /** Error */
+            error?: string | null;
+            /** Instructor Id */
+            instructor_id: string;
+            /** New Status */
+            new_status: {
+                [key: string]: boolean;
+            };
+            /** Now Fully Verified */
+            now_fully_verified: boolean;
+            /** Previous Status */
+            previous_status: {
+                [key: string]: boolean;
+            };
+            /** Search Eligible */
+            search_eligible: boolean;
+            /** Success */
+            success: boolean;
+            /** Verification Type */
+            verification_type: string;
         };
         /**
          * VideoJoinResponse
@@ -24706,6 +25869,216 @@ export interface operations {
             };
         };
     };
+    force_cancel_execute_api_v1_admin_mcp_bookings__booking_id__force_cancel_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForceCancelExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForceCancelExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_cancel_preview_api_v1_admin_mcp_bookings__booking_id__force_cancel_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForceCancelPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForceCancelPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_complete_execute_api_v1_admin_mcp_bookings__booking_id__force_complete_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForceCompleteExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForceCompleteExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_complete_preview_api_v1_admin_mcp_bookings__booking_id__force_complete_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForceCompletePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForceCompletePreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_booking_note_api_v1_admin_mcp_bookings__booking_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddNoteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_notification_api_v1_admin_mcp_bookings__booking_id__resend_notification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendNotificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendNotificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_failed_tasks_api_v1_admin_mcp_celery_failed_get: {
         parameters: {
             query?: {
@@ -25366,6 +26739,251 @@ export interface operations {
             };
         };
     };
+    commission_execute_api_v1_admin_mcp_instructors__instructor_id__commission_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCommissionExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCommissionExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commission_preview_api_v1_admin_mcp_instructors__instructor_id__commission_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCommissionPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCommissionPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payout_hold_api_v1_admin_mcp_instructors__instructor_id__payout_hold_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutHoldRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutHoldResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_execute_api_v1_admin_mcp_instructors__instructor_id__suspend_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspendExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_preview_api_v1_admin_mcp_instructors__instructor_id__suspend_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspendPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsuspend_api_v1_admin_mcp_instructors__instructor_id__unsuspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnsuspendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnsuspendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_override_api_v1_admin_mcp_instructors__instructor_id__verify_override_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyOverrideResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_invites_api_v1_admin_mcp_invites_get: {
         parameters: {
             query?: {
@@ -25951,6 +27569,245 @@ export interface operations {
             };
         };
     };
+    credit_adjust_execute_api_v1_admin_mcp_students__student_id__credits_adjust_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditAdjustExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditAdjustExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    credit_adjust_preview_api_v1_admin_mcp_students__student_id__credits_adjust_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditAdjustPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditAdjustPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    credit_history_api_v1_admin_mcp_students__student_id__credits_history_get: {
+        parameters: {
+            query?: {
+                include_expired?: boolean;
+            };
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_history_api_v1_admin_mcp_students__student_id__refunds_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_execute_api_v1_admin_mcp_students__student_id__suspend_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentSuspendExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentSuspendExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_preview_api_v1_admin_mcp_students__student_id__suspend_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentSuspendPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentSuspendPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsuspend_api_v1_admin_mcp_students__student_id__unsuspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentUnsuspendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentUnsuspendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_webhooks_api_v1_admin_mcp_webhooks_get: {
         parameters: {
             query?: {
@@ -26216,6 +28073,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSearchConfigResponse"];
+                };
+            };
+        };
+    };
+    force_logout_user_api_v1_admin_users__user_id__force_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionInvalidationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

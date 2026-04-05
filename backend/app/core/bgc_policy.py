@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, cast
+from typing import Literal, Optional
 
 from .config import settings
 
@@ -13,7 +13,7 @@ def must_be_verified_for_public() -> bool:
     """Return True when production should restrict listings/bookings to verified instructors."""
 
     # settings.site_mode uses the SITE_MODE env var under the hood; "prod" indicates production.
-    site_mode = cast(str, settings.site_mode)
+    site_mode = settings.site_mode
     return site_mode == "prod"
 
 

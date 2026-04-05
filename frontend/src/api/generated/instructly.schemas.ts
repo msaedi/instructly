@@ -36,6 +36,41 @@ export interface AccountStatusResponse {
   user_id: string;
 }
 
+export type NoteCategory = (typeof NoteCategory)[keyof typeof NoteCategory];
+
+export const NoteCategory = {
+  support_interaction: 'support_interaction',
+  dispute: 'dispute',
+  fraud_flag: 'fraud_flag',
+  quality_issue: 'quality_issue',
+  general: 'general',
+} as const;
+
+export type NoteVisibility = (typeof NoteVisibility)[keyof typeof NoteVisibility];
+
+export const NoteVisibility = {
+  internal: 'internal',
+  shared_with_instructor: 'shared_with_instructor',
+  shared_with_student: 'shared_with_student',
+} as const;
+
+export interface AddNoteRequest {
+  category?: NoteCategory;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  visibility?: NoteVisibility;
+}
+
+export interface AddNoteResponse {
+  audit_id: string;
+  created_at: string;
+  note_id: string;
+  success: boolean;
+}
+
 export interface AddressCreate {
   administrative_area: string;
   country_code?: string;
@@ -1310,9 +1345,6 @@ export const AvailabilityCheckRequestLocationType = {
 
 /**
  * Check if a specific time is available for booking.
-
-Clean Architecture: Uses instructor, date, and time directly.
-No slot references needed.
  */
 export interface AvailabilityCheckRequest {
   /** Date to check */
@@ -1861,6 +1893,9 @@ export interface BookedSlotsResponse {
   week_start: string;
 }
 
+/**
+ * Schema for cancelling a booking.
+ */
 export interface BookingCancel {
   /**
    * Cancellation reason
@@ -1916,7 +1951,6 @@ export interface BookingCreate {
  * Instructor information for booking display.
 
 Privacy-aware: Only shows last initial for privacy protection.
-Full last name never exposed to students.
  */
 export interface InstructorInfo {
   first_name: string;
@@ -1985,8 +2019,6 @@ export interface StudentInfo {
 
 /**
  * Response after creating a booking with payment setup.
-
-Includes SetupIntent client_secret for collecting payment method.
  */
 export interface BookingCreateResponse {
   auth_attempted_at?: string | null;
@@ -2272,9 +2304,6 @@ export interface BookingPreviewResponse {
 
 /**
  * Request to reschedule an existing booking by specifying a new date/time and duration.
-
-Frontend will subsequently create a new booking; this endpoint prepares the system by
-cancelling the old booking according to policy and recording audit events.
  */
 export interface BookingRescheduleRequest {
   /** New date for the lesson */
@@ -2293,10 +2322,6 @@ export interface BookingRescheduleRequest {
 
 /**
  * Complete booking response with privacy protection.
-
-Shows instructor as "FirstName L.".
-Students see their own full information.
-Clean Architecture: No availability slot references.
  */
 export interface BookingResponse {
   auth_attempted_at?: string | null;
@@ -2371,6 +2396,11 @@ export interface BookingResponse {
   video_student_joined_at?: string | null;
 }
 
+export interface BookingState {
+  payment_status?: string | null;
+  status: string;
+}
+
 /**
  * Booking statistics for instructors.
  */
@@ -2404,8 +2434,6 @@ export interface BookingSummaryResponse {
 
 /**
  * Schema for updating booking details.
-
-Limited fields can be updated after booking creation.
  */
 export interface BookingUpdate {
   instructor_note?: string | null;
@@ -3064,6 +3092,15 @@ export const CohortUserType = {
   instructor: 'instructor',
 } as const;
 
+export type CommissionAction = (typeof CommissionAction)[keyof typeof CommissionAction];
+
+export const CommissionAction = {
+  SET_TIER: 'SET_TIER',
+  GRANT_FOUNDING: 'GRANT_FOUNDING',
+  REVOKE_FOUNDING: 'REVOKE_FOUNDING',
+  TEMPORARY_DISCOUNT: 'TEMPORARY_DISCOUNT',
+} as const;
+
 /**
  * Instructor tier metadata for commission ladder display.
  */
@@ -3115,6 +3152,15 @@ export interface CommissionStatusResponse {
   /** Entry/Growth/Pro ladder */
   tiers?: TierInfo[];
 }
+
+export type CommissionTier = (typeof CommissionTier)[keyof typeof CommissionTier];
+
+export const CommissionTier = {
+  entry: 'entry',
+  growth: 'growth',
+  pro: 'pro',
+  founding: 'founding',
+} as const;
 
 /**
  * Payload required to record FCRA consent.
@@ -3341,6 +3387,71 @@ export interface CreateSignedUploadRequest {
   size_bytes: number;
 }
 
+export type CreditAdjustAction = (typeof CreditAdjustAction)[keyof typeof CreditAdjustAction];
+
+export const CreditAdjustAction = {
+  ADD: 'ADD',
+  REMOVE: 'REMOVE',
+  SET: 'SET',
+} as const;
+
+export interface CreditAdjustExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface CreditAdjustExecuteResponse {
+  audit_id: string;
+  credits_created: number;
+  credits_revoked: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  delta: string;
+  error?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  new_balance: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  previous_balance: string;
+  student_id: string;
+  success: boolean;
+}
+
+export type CreditAdjustReasonCode =
+  (typeof CreditAdjustReasonCode)[keyof typeof CreditAdjustReasonCode];
+
+export const CreditAdjustReasonCode = {
+  GOODWILL: 'GOODWILL',
+  COMPENSATION: 'COMPENSATION',
+  PROMOTIONAL: 'PROMOTIONAL',
+  CORRECTION: 'CORRECTION',
+  REFERRAL_BONUS: 'REFERRAL_BONUS',
+  REFUND_CONVERSION: 'REFUND_CONVERSION',
+  FRAUD_RECOVERY: 'FRAUD_RECOVERY',
+} as const;
+
+export interface CreditAdjustPreviewRequest {
+  action: CreditAdjustAction;
+  amount: number | string;
+  expires_at?: string | null;
+  note?: string | null;
+  reason_code: CreditAdjustReasonCode;
+}
+
+export interface CreditAdjustPreviewResponse {
+  confirm_token?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  current_balance: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  delta: string;
+  eligible: boolean;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  new_balance: string;
+  warnings?: string[];
+  will_create_credit: boolean;
+  will_remove_credit: boolean;
+}
+
 export interface CreditBalanceResponse {
   /** Available credit balance */
   available: number;
@@ -3348,6 +3459,43 @@ export interface CreditBalanceResponse {
   expires_at?: string | null;
   /** Reserved (pending) credits */
   pending: number;
+}
+
+export interface CreditHistoryEntry {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  amount: string;
+  created_at: string;
+  credit_id: string;
+  expires_at?: string | null;
+  forfeited_at?: string | null;
+  reason: string;
+  reserved_amount?: string | null;
+  reserved_for_booking_id?: string | null;
+  revoked_at?: string | null;
+  source_type: string;
+  status: string;
+  used_at?: string | null;
+}
+
+export interface CreditHistorySummary {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  available_balance: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  reserved_balance: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_earned: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_expired: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_forfeited: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_spent: string;
+}
+
+export interface CreditHistoryResponse {
+  credits: CreditHistoryEntry[];
+  include_expired: boolean;
+  summary: CreditHistorySummary;
 }
 
 /**
@@ -3960,6 +4108,129 @@ export interface FinalizeProfilePicturePayload {
 export interface FinalizeProfilePictureRequest {
   /** Temporary upload object key from signed PUT */
   object_key: string;
+}
+
+export interface ForceCancelExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface ForceCancelExecuteResponse {
+  audit_id: string;
+  booking_id: string;
+  error?: string | null;
+  new_status: string;
+  notifications_sent: string[];
+  previous_status: string;
+  refund_amount?: string | null;
+  refund_id?: string | null;
+  refund_issued: boolean;
+  refund_method?: string | null;
+  success: boolean;
+}
+
+export type ForceCancelReasonCode =
+  (typeof ForceCancelReasonCode)[keyof typeof ForceCancelReasonCode];
+
+export const ForceCancelReasonCode = {
+  ADMIN_DISCRETION: 'ADMIN_DISCRETION',
+  INSTRUCTOR_NO_SHOW: 'INSTRUCTOR_NO_SHOW',
+  STUDENT_NO_SHOW: 'STUDENT_NO_SHOW',
+  DUPLICATE_BOOKING: 'DUPLICATE_BOOKING',
+  TECHNICAL_ISSUE: 'TECHNICAL_ISSUE',
+  DISPUTE_RESOLUTION: 'DISPUTE_RESOLUTION',
+} as const;
+
+export type RefundPreference = (typeof RefundPreference)[keyof typeof RefundPreference];
+
+export const RefundPreference = {
+  FULL_CARD: 'FULL_CARD',
+  POLICY_BASED: 'POLICY_BASED',
+  NO_REFUND: 'NO_REFUND',
+} as const;
+
+export interface ForceCancelPreviewRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  reason_code: ForceCancelReasonCode;
+  refund_preference?: RefundPreference;
+}
+
+export interface ForceCancelPreviewResponse {
+  confirm_token?: string | null;
+  current_state: BookingState;
+  eligible: boolean;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  instructor_payout_impact: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  platform_fee_impact: string;
+  refund_amount?: string | null;
+  refund_method?: 'card' | 'credit' | 'none' | null;
+  warnings?: string[];
+  will_cancel_booking: boolean;
+  will_notify_instructor: boolean;
+  will_notify_student: boolean;
+  will_refund: boolean;
+}
+
+export interface ForceCompleteExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface ForceCompleteExecuteResponse {
+  audit_id: string;
+  booking_id: string;
+  capture_amount?: string | null;
+  error?: string | null;
+  instructor_payout_scheduled: boolean;
+  new_status: string;
+  payment_captured: boolean;
+  payout_amount?: string | null;
+  previous_status: string;
+  success: boolean;
+}
+
+export type ForceCompleteReasonCode =
+  (typeof ForceCompleteReasonCode)[keyof typeof ForceCompleteReasonCode];
+
+export const ForceCompleteReasonCode = {
+  LESSON_CONFIRMED_BY_BOTH: 'LESSON_CONFIRMED_BY_BOTH',
+  INSTRUCTOR_CONFIRMED: 'INSTRUCTOR_CONFIRMED',
+  STUDENT_CONFIRMED: 'STUDENT_CONFIRMED',
+  ADMIN_VERIFIED: 'ADMIN_VERIFIED',
+} as const;
+
+export interface ForceCompletePreviewRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  reason_code: ForceCompleteReasonCode;
+}
+
+export interface ForceCompletePreviewResponse {
+  capture_amount?: string | null;
+  confirm_token?: string | null;
+  current_state: BookingState;
+  eligible: boolean;
+  hours_since_scheduled?: number | null;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  instructor_payout: string;
+  lesson_time_passed: boolean;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  platform_fee: string;
+  warnings?: string[];
+  will_capture_payment: boolean;
+  will_mark_complete: boolean;
 }
 
 /**
@@ -4596,6 +4867,12 @@ export interface InstructorServiceResponse {
   /** Human-readable name of the catalog service */
   service_catalog_name?: string | null;
   updated_at?: string | null;
+}
+
+export interface InstructorState {
+  account_status: string;
+  is_founding: boolean;
+  is_verified: boolean;
 }
 
 /**
@@ -6209,6 +6486,22 @@ export interface NotificationPreferencesBulkUpdateRequest {
   updates: PreferenceUpdate[];
 }
 
+export type NotificationRecipient =
+  (typeof NotificationRecipient)[keyof typeof NotificationRecipient];
+
+export const NotificationRecipient = {
+  student: 'student',
+  instructor: 'instructor',
+  both: 'both',
+} as const;
+
+export interface NotificationSent {
+  channel: string;
+  recipient: string;
+  sent_at: string;
+  template: string;
+}
+
 /**
  * Simple status response for notification actions.
  */
@@ -6229,6 +6522,16 @@ export interface TemplateInfo {
 export interface NotificationTemplatesResponse {
   templates: TemplateInfo[];
 }
+
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
+
+export const NotificationType = {
+  booking_confirmation: 'booking_confirmation',
+  lesson_reminder_24h: 'lesson_reminder_24h',
+  lesson_reminder_1h: 'lesson_reminder_1h',
+  lesson_completed: 'lesson_completed',
+  cancellation_notice: 'cancellation_notice',
+} as const;
 
 /**
  * Unread notification count response.
@@ -6363,9 +6666,6 @@ export interface PaginatedResponseUnionBookingResponseInstructorBookingResponse 
 
 /**
  * Simplified response for upcoming bookings widget.
-
-Privacy-aware: participant last-name fields expose initials only
-except when users view their own identity.
  */
 export interface UpcomingBookingResponse {
   booking_date: string;
@@ -6557,6 +6857,33 @@ export interface PayoutHistoryResponse {
   total_paid_cents?: number;
   /** Total amount pending payout */
   total_pending_cents?: number;
+}
+
+export type PayoutHoldAction = (typeof PayoutHoldAction)[keyof typeof PayoutHoldAction];
+
+export const PayoutHoldAction = {
+  HOLD: 'HOLD',
+  RELEASE: 'RELEASE',
+} as const;
+
+export interface PayoutHoldRequest {
+  action: PayoutHoldAction;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+}
+
+export interface PayoutHoldResponse {
+  action: string;
+  audit_id: string;
+  error?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  held_amount: string;
+  instructor_id: string;
+  pending_payouts: number;
+  success: boolean;
 }
 
 /**
@@ -7755,6 +8082,40 @@ export interface RefundExecuteResponse {
   updated_payment?: UpdatedPayment | null;
 }
 
+export interface RefundFraudFlags {
+  high_refund_amount: boolean;
+  high_refund_rate: boolean;
+  rapid_refunds: boolean;
+  refund_rate: number;
+  refunds_last_30_days: number;
+  refunds_last_7_days: number;
+}
+
+export interface RefundHistoryEntry {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  amount: string;
+  booking_id: string;
+  method: string;
+  refunded_at?: string | null;
+  status?: string | null;
+}
+
+export interface RefundHistorySummary {
+  refund_count: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_card_refunds: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_credit_refunds: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_refunds: string;
+}
+
+export interface RefundHistoryResponse {
+  fraud_flags: RefundFraudFlags;
+  refunds: RefundHistoryEntry[];
+  summary: RefundHistorySummary;
+}
+
 export interface RefundImpact {
   instructor_payout_delta: number;
   original_payment: OriginalPayment;
@@ -7805,6 +8166,23 @@ export interface RefundPreviewResponse {
  */
 export interface RegisterResponse {
   message: string;
+}
+
+export interface ResendNotificationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  notification_type: NotificationType;
+  recipient?: NotificationRecipient;
+}
+
+export interface ResendNotificationResponse {
+  audit_id: string;
+  error?: string | null;
+  notifications_sent: NotificationSent[];
+  success: boolean;
 }
 
 /**
@@ -8616,6 +8994,99 @@ export interface StudentBadgeView {
   status?: string | null;
 }
 
+export interface StudentState {
+  account_status: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  credit_balance: string;
+  is_restricted: boolean;
+}
+
+export interface StudentSuspendExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface StudentSuspendExecuteResponse {
+  audit_id: string;
+  bookings_cancelled: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  credits_forfeited: string;
+  error?: string | null;
+  new_status: string;
+  notifications_sent: string[];
+  previous_status: string;
+  refunds_issued: number;
+  student_id: string;
+  success: boolean;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_refunded: string;
+}
+
+export type StudentSuspendReasonCode =
+  (typeof StudentSuspendReasonCode)[keyof typeof StudentSuspendReasonCode];
+
+export const StudentSuspendReasonCode = {
+  FRAUD: 'FRAUD',
+  ABUSE: 'ABUSE',
+  PAYMENT_FRAUD: 'PAYMENT_FRAUD',
+  POLICY_VIOLATION: 'POLICY_VIOLATION',
+  MULTIPLE_NO_SHOWS: 'MULTIPLE_NO_SHOWS',
+  HARASSMENT: 'HARASSMENT',
+} as const;
+
+export interface StudentSuspendPreviewRequest {
+  cancel_pending_bookings?: boolean;
+  forfeit_credits?: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  notify_student?: boolean;
+  reason_code: StudentSuspendReasonCode;
+}
+
+export interface StudentSuspendPreviewResponse {
+  active_conversations: number;
+  confirm_token?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  credit_balance: string;
+  current_state: StudentState;
+  eligible: boolean;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  pending_bookings_count: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  pending_bookings_value: string;
+  warnings?: string[];
+  will_cancel_bookings: boolean;
+  will_forfeit_credits: boolean;
+  will_notify_affected_instructors: boolean;
+  will_notify_student: boolean;
+  will_refund_students: boolean;
+  will_suspend: boolean;
+}
+
+export interface StudentUnsuspendRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+  restore_credits?: boolean;
+}
+
+export interface StudentUnsuspendResponse {
+  audit_id: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  credits_restored: string;
+  error?: string | null;
+  new_status: string;
+  previous_status: string;
+  student_id: string;
+  success: boolean;
+}
+
 /**
  * Full subcategory detail for /category/subcategory pages.
 
@@ -8704,6 +9175,70 @@ export const SupplyDemandPeriod = {
   last_7_days: 'last_7_days',
   last_30_days: 'last_30_days',
 } as const;
+
+export interface SuspendExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface SuspendExecuteResponse {
+  audit_id: string;
+  bookings_cancelled: number;
+  error?: string | null;
+  instructor_id: string;
+  new_status: string;
+  notifications_sent: string[];
+  previous_status: string;
+  refunds_issued: number;
+  success: boolean;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_refunded: string;
+}
+
+export type SuspendReasonCode = (typeof SuspendReasonCode)[keyof typeof SuspendReasonCode];
+
+export const SuspendReasonCode = {
+  FRAUD: 'FRAUD',
+  POLICY_VIOLATION: 'POLICY_VIOLATION',
+  SAFETY_CONCERN: 'SAFETY_CONCERN',
+  QUALITY_ISSUES: 'QUALITY_ISSUES',
+  BGC_FAILURE: 'BGC_FAILURE',
+  PAYMENT_FRAUD: 'PAYMENT_FRAUD',
+  IDENTITY_MISMATCH: 'IDENTITY_MISMATCH',
+  TEMPORARY_REVIEW: 'TEMPORARY_REVIEW',
+} as const;
+
+export interface SuspendPreviewRequest {
+  cancel_pending_bookings?: boolean;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
+  notify_instructor?: boolean;
+  reason_code: SuspendReasonCode;
+}
+
+export interface SuspendPreviewResponse {
+  active_conversations: number;
+  confirm_token?: string | null;
+  current_state: InstructorState;
+  eligible: boolean;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  pending_bookings_count: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  pending_bookings_value: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  pending_payout_amount: string;
+  warnings?: string[];
+  will_cancel_bookings: boolean;
+  will_hold_payouts: boolean;
+  will_notify_affected_students: boolean;
+  will_notify_instructor: boolean;
+  will_refund_students: boolean;
+  will_suspend: boolean;
+}
 
 export interface TFADisableRequest {
   current_password: string;
@@ -8863,6 +9398,26 @@ export interface UnreadCountResponse {
   user_id: string;
 }
 
+export interface UnsuspendRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+  restore_visibility?: boolean;
+}
+
+export interface UnsuspendResponse {
+  audit_id: string;
+  error?: string | null;
+  instructor_id: string;
+  new_status: string;
+  payout_hold_released: boolean;
+  previous_status: string;
+  success: boolean;
+  visibility_restored: boolean;
+}
+
 /**
  * Editable instructor calendar settings surfaced on the availability page.
  */
@@ -8870,6 +9425,57 @@ export interface UpdateCalendarSettings {
   non_travel_buffer_minutes?: number | null;
   overnight_protection_enabled?: boolean | null;
   travel_buffer_minutes?: number | null;
+}
+
+export interface UpdateCommissionExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface UpdateCommissionExecuteResponse {
+  audit_id: string;
+  error?: string | null;
+  founding_status_changed: boolean;
+  instructor_id: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  new_rate: string;
+  new_tier: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  previous_rate: string;
+  previous_tier: string;
+  success: boolean;
+}
+
+export interface UpdateCommissionPreviewRequest {
+  action: CommissionAction;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+  temporary_rate?: number | string | null;
+  temporary_until?: string | null;
+  tier?: CommissionTier | null;
+}
+
+export interface UpdateCommissionPreviewResponse {
+  confirm_token?: string | null;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  current_rate: string;
+  current_tier: string;
+  eligible: boolean;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  estimated_monthly_impact: string;
+  idempotency_key?: string | null;
+  ineligible_reason?: string | null;
+  is_founding: boolean;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  new_rate: string;
+  new_tier: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  rate_change: string;
+  warnings?: string[];
+  will_be_founding: boolean;
 }
 
 export type UpdateConversationStateRequestState =
@@ -9112,6 +9718,15 @@ export interface VapidPublicKeyResponse {
   public_key: string;
 }
 
+export type VerificationType = (typeof VerificationType)[keyof typeof VerificationType];
+
+export const VerificationType = {
+  IDENTITY: 'IDENTITY',
+  BACKGROUND_CHECK: 'BACKGROUND_CHECK',
+  PAYMENT_SETUP: 'PAYMENT_SETUP',
+  FULL: 'FULL',
+} as const;
+
 export interface VerifyEmailCodeRequest {
   /**
    * @minLength 6
@@ -9125,6 +9740,33 @@ export interface VerifyEmailCodeRequest {
 export interface VerifyEmailCodeResponse {
   expires_in_seconds: number;
   verification_token: string;
+}
+
+export interface VerifyOverrideRequest {
+  evidence?: string | null;
+  instructor_id?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+  verification_type: VerificationType;
+}
+
+export type VerifyOverrideResponseNewStatus = { [key: string]: boolean };
+
+export type VerifyOverrideResponsePreviousStatus = { [key: string]: boolean };
+
+export interface VerifyOverrideResponse {
+  audit_id: string;
+  error?: string | null;
+  instructor_id: string;
+  new_status: VerifyOverrideResponseNewStatus;
+  now_fully_verified: boolean;
+  previous_status: VerifyOverrideResponsePreviousStatus;
+  search_eligible: boolean;
+  success: boolean;
+  verification_type: string;
 }
 
 /**
@@ -9848,6 +10490,10 @@ export type LookupServiceCatalogApiV1AdminMcpServicesLookupGetParams = {
    * @minLength 2
    */
   q: string;
+};
+
+export type CreditHistoryApiV1AdminMcpStudentsStudentIdCreditsHistoryGetParams = {
+  include_expired?: boolean;
 };
 
 export type ListWebhooksApiV1AdminMcpWebhooksGetParams = {
