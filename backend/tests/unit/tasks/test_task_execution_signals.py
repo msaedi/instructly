@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from app.models.task_execution import TaskExecution, TaskExecutionStatus
 
-celery_module = importlib.import_module("app.tasks.celery_app")
+signals_module = importlib.import_module("app.tasks.task_execution_signals")
 
 
 @contextmanager
@@ -39,11 +39,11 @@ def _make_task(
 
 
 def test_task_prerun_creates_execution_row(unit_db, monkeypatch) -> None:
-    monkeypatch.setattr(celery_module, "get_db_session", lambda: _db_session_ctx(unit_db))
-    monkeypatch.setattr(celery_module, "get_current_trace_id", lambda: "trace-123")
+    monkeypatch.setattr(signals_module, "get_db_session", lambda: _db_session_ctx(unit_db))
+    monkeypatch.setattr(signals_module, "get_current_trace_id", lambda: "trace-123")
     task = _make_task("app.tasks.payment.capture", task_id="task-prerun-1")
 
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="task-prerun-1",
         task=task,
@@ -65,11 +65,11 @@ def test_task_prerun_creates_execution_row(unit_db, monkeypatch) -> None:
 
 
 def test_task_postrun_success_updates_duration_and_result(unit_db, monkeypatch) -> None:
-    monkeypatch.setattr(celery_module, "get_db_session", lambda: _db_session_ctx(unit_db))
-    monkeypatch.setattr(celery_module, "get_current_trace_id", lambda: "trace-123")
+    monkeypatch.setattr(signals_module, "get_db_session", lambda: _db_session_ctx(unit_db))
+    monkeypatch.setattr(signals_module, "get_current_trace_id", lambda: "trace-123")
     task = _make_task("app.tasks.analytics.calculate", task_id="task-success-1")
 
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="task-success-1",
         task=task,
@@ -77,9 +77,9 @@ def test_task_postrun_success_updates_duration_and_result(unit_db, monkeypatch) 
         kwargs={},
     )
     task.request.task_execution_started_monotonic = 100.0
-    monkeypatch.setattr(celery_module.time, "monotonic", lambda: 100.25)
+    monkeypatch.setattr(signals_module.time, "monotonic", lambda: 100.25)
 
-    celery_module.on_task_postrun(
+    signals_module.on_task_postrun(
         sender=task,
         task_id="task-success-1",
         task=task,
@@ -101,19 +101,19 @@ def test_task_postrun_success_updates_duration_and_result(unit_db, monkeypatch) 
 
 
 def test_task_failure_records_error_details(unit_db, monkeypatch) -> None:
-    monkeypatch.setattr(celery_module, "get_db_session", lambda: _db_session_ctx(unit_db))
-    monkeypatch.setattr(celery_module, "get_current_trace_id", lambda: "trace-123")
+    monkeypatch.setattr(signals_module, "get_db_session", lambda: _db_session_ctx(unit_db))
+    monkeypatch.setattr(signals_module, "get_current_trace_id", lambda: "trace-123")
     task = _make_task("app.tasks.payment.capture", task_id="task-failure-1")
     message = "x" * 2500
 
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="task-failure-1",
         task=task,
         args=(),
         kwargs={},
     )
-    celery_module.on_task_failure(
+    signals_module.on_task_failure(
         sender=task,
         task_id="task-failure-1",
         exception=RuntimeError(message),
@@ -122,7 +122,7 @@ def test_task_failure_records_error_details(unit_db, monkeypatch) -> None:
         traceback=None,
         einfo=None,
     )
-    celery_module.on_task_postrun(
+    signals_module.on_task_postrun(
         sender=task,
         task_id="task-failure-1",
         task=task,
@@ -144,11 +144,11 @@ def test_task_failure_records_error_details(unit_db, monkeypatch) -> None:
 
 
 def test_task_retry_reuses_row_and_clears_previous_error(unit_db, monkeypatch) -> None:
-    monkeypatch.setattr(celery_module, "get_db_session", lambda: _db_session_ctx(unit_db))
-    monkeypatch.setattr(celery_module, "get_current_trace_id", lambda: "trace-123")
+    monkeypatch.setattr(signals_module, "get_db_session", lambda: _db_session_ctx(unit_db))
+    monkeypatch.setattr(signals_module, "get_current_trace_id", lambda: "trace-123")
     task = _make_task("app.tasks.payment.retryable", task_id="task-retry-1", retries=0)
 
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="task-retry-1",
         task=task,
@@ -161,7 +161,7 @@ def test_task_retry_reuses_row_and_clears_previous_error(unit_db, monkeypatch) -
         .one()
     )
 
-    celery_module.on_task_retry(
+    signals_module.on_task_retry(
         sender=task,
         request=task.request,
         reason=ValueError("try again"),
@@ -177,7 +177,7 @@ def test_task_retry_reuses_row_and_clears_previous_error(unit_db, monkeypatch) -
     assert retried.error_type == "ValueError"
 
     task.request.retries = 1
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="task-retry-1",
         task=task,
@@ -198,10 +198,10 @@ def test_task_retry_reuses_row_and_clears_previous_error(unit_db, monkeypatch) -
 
 
 def test_built_in_celery_tasks_are_ignored(unit_db, monkeypatch) -> None:
-    monkeypatch.setattr(celery_module, "get_db_session", lambda: _db_session_ctx(unit_db))
+    monkeypatch.setattr(signals_module, "get_db_session", lambda: _db_session_ctx(unit_db))
     task = _make_task("celery.backend_cleanup", task_id="celery-internal-1")
 
-    celery_module.on_task_prerun(
+    signals_module.on_task_prerun(
         sender=task,
         task_id="celery-internal-1",
         task=task,

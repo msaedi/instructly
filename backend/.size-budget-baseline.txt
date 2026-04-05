@@ -21,8 +21,6 @@ backend/app/routes/v1/public.py
 backend/app/routes/v1/search.py
 backend/app/routes/v1/webhooks_checkr.py
 backend/app/routes/v1/webhooks_hundredms.py
-backend/app/schemas/booking.py
-backend/app/schemas/instructor.py
 backend/app/services/admin_booking_service.py
 backend/app/services/admin_ops_service.py
 backend/app/services/auth_service.py
