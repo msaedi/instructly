@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.base_repository import RepositoryException
-from app.schemas.booking import _extract_satellite_fields
+from app.schemas.booking.responses import _extract_satellite_fields
 
 # ---------------------------------------------------------------------------
 # Test 1: ensure_* IntegrityError retry path

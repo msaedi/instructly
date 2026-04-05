@@ -7,7 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.schemas.booking import BookingResponse, _extract_satellite_fields
+from app.schemas.booking import BookingResponse
+from app.schemas.booking.responses import _extract_satellite_fields
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -147,7 +148,9 @@ class TestJoinWindowComputation:
 
     @pytest.fixture(autouse=True)
     def _enable_hundredms(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("app.schemas.booking.settings.hundredms_enabled", True, raising=False)
+        monkeypatch.setattr(
+            "app.schemas.booking.responses.settings.hundredms_enabled", True, raising=False
+        )
 
     def test_can_join_true_within_window(self) -> None:
         """Inside join window → can_join_lesson=True."""
@@ -299,7 +302,9 @@ class TestJoinWindowComputation:
     def test_join_window_suppressed_when_feature_disabled(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("app.schemas.booking.settings.hundredms_enabled", False, raising=False)
+        monkeypatch.setattr(
+            "app.schemas.booking.responses.settings.hundredms_enabled", False, raising=False
+        )
         booking = _make_booking(
             booking_start_utc=datetime.now(timezone.utc) + timedelta(minutes=2),
             duration_minutes=60,

@@ -62,12 +62,6 @@
       "reason": "FastAPI's exported typing surface trips mypy on this import form in this environment."
     },
     {
-      "path": "app/schemas/instructor.py",
-      "code": "assignment",
-      "match": "preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(",
-      "reason": "Pydantic response-model inheritance widens the public teaching-location field for private/self responses."
-    },
-    {
       "path": "app/utils/strict_router.py",
       "code": "assignment",
       "match": "response_model: Type[BaseModel] | None = _MISSING,",

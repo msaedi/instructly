@@ -17,7 +17,7 @@ Policy:
 - Every approved ignore must have a reason in the JSON allowlist and must remain narrow.
 - The pre-commit audit fails on both new unapproved ignores and stale allowlist entries.
 
-Current approved production ignores: `12`
+Current approved production ignores: `11`
 
 ## Approved Entries
 
@@ -29,7 +29,6 @@ Current approved production ignores: `12`
 | [app/models/types.py](/Users/mehdisaedi/instructly/backend/app/models/types.py) | `misc`, `misc`, `misc` | Custom `TypeDecorator[Any]` subclasses hit SQLAlchemy generic typing limitations. |
 | [app/repositories/referral_repository.py](/Users/mehdisaedi/instructly/backend/app/repositories/referral_repository.py) | `override` | The repository intentionally narrows `create(**kwargs)` to a typed keyword-only API. |
 | [app/routes/v1/uploads.py](/Users/mehdisaedi/instructly/backend/app/routes/v1/uploads.py) | `attr-defined` | FastAPI import typing is incomplete for this import form in the current toolchain. |
-| [app/schemas/instructor.py](/Users/mehdisaedi/instructly/backend/app/schemas/instructor.py) | `assignment` | Pydantic response inheritance widens `preferred_teaching_locations` for private/self responses. |
 | [app/utils/strict_router.py](/Users/mehdisaedi/instructly/backend/app/utils/strict_router.py) | `assignment` | A sentinel default is required to detect missing `response_model` values. |
 
 ## Maintenance
