@@ -67,6 +67,49 @@ jobs:
             rm -rf /var/lib/apt/lists/*
           '
 
+      - name: Set up extensions schema (matching Supabase layout)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Creating extensions schema to match Supabase dump format..."
+
+          psql -h localhost -p 5432 -U postgres -d instainstru_test -v ON_ERROR_STOP=1 <<'SQL'
+          -- Supabase installs extensions in a dedicated 'extensions' schema.
+          -- pg_dump qualifies types as extensions.geometry(), extensions.vector(), etc.
+          -- We must mirror this layout for restore to succeed.
+          CREATE SCHEMA IF NOT EXISTS extensions;
+          SQL
+
+          if psql -h localhost -p 5432 -U postgres -d instainstru_test -v ON_ERROR_STOP=1 \
+            -c "ALTER EXTENSION postgis SET SCHEMA extensions;"; then
+            echo "Moved PostGIS into extensions schema."
+          else
+            echo "ALTER EXTENSION postgis SET SCHEMA failed; recreating PostGIS in extensions schema..."
+            psql -h localhost -p 5432 -U postgres -d instainstru_test -v ON_ERROR_STOP=1 <<'SQL'
+            DROP EXTENSION IF EXISTS postgis CASCADE;
+            CREATE EXTENSION IF NOT EXISTS postgis SCHEMA extensions;
+            SQL
+          fi
+
+          psql -h localhost -p 5432 -U postgres -d instainstru_test -v ON_ERROR_STOP=1 <<'SQL'
+          -- Install remaining extensions in the extensions schema.
+          CREATE EXTENSION IF NOT EXISTS vector SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS fuzzystrmatch SCHEMA extensions;
+
+          -- Set search_path so unqualified references resolve correctly.
+          ALTER DATABASE instainstru_test SET search_path TO public, extensions;
+
+          -- Verify the extension layout matches the Supabase dump expectations.
+          SELECT extname, nspname
+          FROM pg_extension e
+          JOIN pg_namespace n ON e.extnamespace = n.oid
+          WHERE extname IN ('postgis', 'vector', 'btree_gist', 'pg_trgm', 'uuid-ossp', 'fuzzystrmatch')
+          ORDER BY extname;
+          SQL
+
       - name: Download latest backup from R2
         id: download
         env:
@@ -231,7 +274,7 @@ jobs:
 
           while IFS= read -r line; do
             if printf '%s\n' "$line" | grep -Eqi \
-              'role ".*" does not exist|must be owner of extension|schema ".*" already exists|extension ".*" already exists|extension "vector" is not available|could not open extension control file ".*/vector\.control"|COMMENT ON EXTENSION'; then
+              'role ".*" does not exist|must be owner of extension|schema ".*" already exists|extension ".*" already exists|extension "vector" is not available|could not open extension control file ".*/vector\.control"|COMMENT ON EXTENSION|type "extensions\.vector" does not exist'; then
               printf '%s\n' "$line" >> restore_warning_lines.log
             else
               printf '%s\n' "$line" >> restore_fatal_lines.log
