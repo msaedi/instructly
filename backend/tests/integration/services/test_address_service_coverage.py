@@ -216,11 +216,13 @@ def test_geometry_fallbacks(db):
     assert fallback["coordinates"]
 
 
-def test_create_address_test_mode_fallback_and_update(db, test_student, monkeypatch):
-    geocoder = FakeGeocoder(details=None, geocode_result=None)
+def test_create_address_with_explicit_coords_and_update_from_geocoder(
+    db, test_student, monkeypatch
+):
+    create_geocoder = FakeGeocoder(details=None, geocode_result=None)
     monkeypatch.setattr(
         "app.services.address_service.create_geocoding_provider",
-        lambda *_: geocoder,
+        lambda *_: create_geocoder,
     )
 
     service = AddressService(db, cache_service=CacheServiceSyncAdapter(FakeCacheService()))
@@ -234,11 +236,30 @@ def test_create_address_test_mode_fallback_and_update(db, test_student, monkeypa
             "postal_code": "10001",
             "country_code": "US",
             "place_id": "mock:missing",
+            "latitude": 40.7128,
+            "longitude": -74.0060,
         },
     )
-    assert created["verification_status"] == "verified"
-    assert created["latitude"] is not None
+    assert created["latitude"] == 40.7128
+    assert created["longitude"] == -74.0060
     assert created["recipient_name"]
+
+    update_geocoder = FakeGeocoder(
+        details=SimpleNamespace(
+            latitude=40.7580,
+            longitude=-73.9855,
+            city="New York",
+            state="NY",
+            postal_code="10036",
+            country="US",
+            formatted_address="1515 Broadway, New York, NY",
+        ),
+        geocode_result=None,
+    )
+    monkeypatch.setattr(
+        "app.services.address_service.create_geocoding_provider",
+        lambda *_: update_geocoder,
+    )
 
     updated = service.update_address(
         test_student.id,
@@ -247,6 +268,8 @@ def test_create_address_test_mode_fallback_and_update(db, test_student, monkeypa
     )
     assert updated is not None
     assert updated["verification_status"] == "verified"
+    assert updated["latitude"] == 40.7580
+    assert updated["longitude"] == -73.9855
 
 
 def test_address_helper_utilities(db):

@@ -197,45 +197,42 @@ class TestCreateAddressBranches:
                     }
                     mock_enrich_cls.return_value = mock_enricher
 
-                    with patch("app.services.address_service.settings") as mock_settings:
-                        mock_settings.is_testing = False
+                    svc.user_repo.find_one_by.return_value = None
 
-                        svc.user_repo.find_one_by.return_value = None
+                    mock_entity = MagicMock()
+                    mock_entity.id = "ADDR_01"
+                    mock_entity.label = "Home"
+                    mock_entity.custom_label = None
+                    mock_entity.recipient_name = None
+                    mock_entity.street_line1 = "123 Main St"
+                    mock_entity.street_line2 = None
+                    mock_entity.locality = "NYC"
+                    mock_entity.administrative_area = "NY"
+                    mock_entity.postal_code = "10001"
+                    mock_entity.country_code = "US"
+                    mock_entity.latitude = 40.75
+                    mock_entity.longitude = -73.99
+                    mock_entity.place_id = "google:abc"
+                    mock_entity.verification_status = "verified"
+                    mock_entity.is_default = False
+                    mock_entity.is_active = True
+                    mock_entity.district = None
+                    mock_entity.neighborhood = None
+                    mock_entity.subneighborhood = None
+                    mock_entity.location_metadata = None
+                    mock_entity.created_at = MagicMock()
+                    mock_entity.updated_at = MagicMock()
+                    svc.address_repo.create.return_value = mock_entity
 
-                        mock_entity = MagicMock()
-                        mock_entity.id = "ADDR_01"
-                        mock_entity.label = "Home"
-                        mock_entity.custom_label = None
-                        mock_entity.recipient_name = None
-                        mock_entity.street_line1 = "123 Main St"
-                        mock_entity.street_line2 = None
-                        mock_entity.locality = "NYC"
-                        mock_entity.administrative_area = "NY"
-                        mock_entity.postal_code = "10001"
-                        mock_entity.country_code = "US"
-                        mock_entity.latitude = 40.75
-                        mock_entity.longitude = -73.99
-                        mock_entity.place_id = "google:abc"
-                        mock_entity.verification_status = "verified"
-                        mock_entity.is_default = False
-                        mock_entity.is_active = True
-                        mock_entity.district = None
-                        mock_entity.neighborhood = None
-                        mock_entity.subneighborhood = None
-                        mock_entity.location_metadata = None
-                        mock_entity.created_at = MagicMock()
-                        mock_entity.updated_at = MagicMock()
-                        svc.address_repo.create.return_value = mock_entity
+                    svc.db.begin_nested = MagicMock()
+                    svc.db.begin_nested.return_value.__enter__ = MagicMock()
+                    svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
-                        svc.db.begin_nested = MagicMock()
-                        svc.db.begin_nested.return_value.__enter__ = MagicMock()
-                        svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
-
-                        result = svc.create_address(
-                            "USR_01",
-                            {"place_id": "google:abc", "street_line1": "123 Main St"},
-                        )
-                        assert result["id"] == "ADDR_01"
+                    result = svc.create_address(
+                        "USR_01",
+                        {"place_id": "google:abc", "street_line1": "123 Main St"},
+                    )
+                    assert result["id"] == "ADDR_01"
 
     def test_place_id_details_unavailable_fallback_geocode(self):
         """L153-181: place details are None -> falls back to geocode composed address."""
@@ -269,36 +266,33 @@ class TestCreateAddressBranches:
                     }
                     mock_enrich_cls.return_value = mock_enricher
 
-                    with patch("app.services.address_service.settings") as mock_settings:
-                        mock_settings.is_testing = False
+                    svc.user_repo.find_one_by.return_value = None
 
-                        svc.user_repo.find_one_by.return_value = None
+                    mock_entity = MagicMock()
+                    for attr in ["id", "label", "custom_label", "recipient_name",
+                                 "street_line1", "street_line2", "locality",
+                                 "administrative_area", "postal_code", "country_code",
+                                 "latitude", "longitude", "place_id",
+                                 "verification_status", "is_default", "is_active",
+                                 "district", "neighborhood", "subneighborhood",
+                                 "location_metadata", "created_at", "updated_at"]:
+                        setattr(mock_entity, attr, MagicMock())
+                    mock_entity.latitude = 40.75
+                    mock_entity.longitude = -73.99
+                    svc.address_repo.create.return_value = mock_entity
 
-                        mock_entity = MagicMock()
-                        for attr in ["id", "label", "custom_label", "recipient_name",
-                                     "street_line1", "street_line2", "locality",
-                                     "administrative_area", "postal_code", "country_code",
-                                     "latitude", "longitude", "place_id",
-                                     "verification_status", "is_default", "is_active",
-                                     "district", "neighborhood", "subneighborhood",
-                                     "location_metadata", "created_at", "updated_at"]:
-                            setattr(mock_entity, attr, MagicMock())
-                        mock_entity.latitude = 40.75
-                        mock_entity.longitude = -73.99
-                        svc.address_repo.create.return_value = mock_entity
+                    svc.db.begin_nested = MagicMock()
+                    svc.db.begin_nested.return_value.__enter__ = MagicMock()
+                    svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
-                        svc.db.begin_nested = MagicMock()
-                        svc.db.begin_nested.return_value.__enter__ = MagicMock()
-                        svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
-
-                        svc.create_address(
-                            "USR_01",
-                            {
-                                "place_id": "google:abc",
-                                "street_line1": "123 Main St",
-                                "locality": "NYC",
-                            },
-                        )
+                    svc.create_address(
+                        "USR_01",
+                        {
+                            "place_id": "google:abc",
+                            "street_line1": "123 Main St",
+                            "locality": "NYC",
+                        },
+                    )
 
     def test_recipient_name_default_from_user(self):
         """L200-209: no recipient_name -> defaults to user's full name."""
@@ -327,16 +321,13 @@ class TestCreateAddressBranches:
         svc.db.begin_nested.return_value.__enter__ = MagicMock()
         svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
-        with patch("app.services.address_service.settings") as mock_settings:
-            mock_settings.is_testing = False
+        svc.create_address(
+            "USR_01",
+            {"street_line1": "123 Main St", "latitude": 40.75, "longitude": -73.99},
+        )
 
-            svc.create_address(
-                "USR_01",
-                {"street_line1": "123 Main St", "latitude": 40.75, "longitude": -73.99},
-            )
-
-            # The data dict should have recipient_name set
-            # recipient_name should have been set to "Jane Smith"
+        # The data dict should have recipient_name set
+        # recipient_name should have been set to "Jane Smith"
 
     def test_recipient_name_user_not_found(self):
         """L201-202: user not found -> recipient_name stays unset."""
@@ -361,9 +352,7 @@ class TestCreateAddressBranches:
         svc.db.begin_nested.return_value.__enter__ = MagicMock()
         svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
-        with patch("app.services.address_service.settings") as mock_settings:
-            mock_settings.is_testing = False
-            svc.create_address("USR_01", {"street_line1": "123 Main St"})
+        svc.create_address("USR_01", {"street_line1": "123 Main St"})
 
 
 @pytest.mark.unit

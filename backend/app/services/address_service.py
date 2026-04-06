@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
 from ..core.exceptions import BusinessRuleException
 from ..domain.neighborhood_config import (
     ABBREVIATION_VARIANTS,
@@ -186,12 +185,6 @@ class AddressService(BaseService):
                             or self._normalize_country_code(getattr(geo2, "country", None)),
                         )
                         data["verification_status"] = "verified"
-            if settings.is_testing and data.get("verification_status") != "verified":
-                data["verification_status"] = "verified"
-                if data.get("latitude") is None:
-                    data["latitude"] = 40.7580
-                if data.get("longitude") is None:
-                    data["longitude"] = -73.9855
         if data.get("latitude") and data.get("longitude"):
             enricher = LocationEnrichmentService(self.db)
             enr = enricher.enrich(float(data["latitude"]), float(data["longitude"]))
@@ -251,10 +244,6 @@ class AddressService(BaseService):
                         if geo2:
                             data["latitude"] = data.get("latitude") or geo2.latitude
                             data["longitude"] = data.get("longitude") or geo2.longitude
-        if place_id and settings.is_testing and data.get("verification_status") != "verified":
-            data["verification_status"] = "verified"
-            data.setdefault("latitude", 0.0)
-            data.setdefault("longitude", 0.0)
         if data.get("latitude") and data.get("longitude"):
             enricher = LocationEnrichmentService(self.db)
             enr = enricher.enrich(float(data["latitude"]), float(data["longitude"]))

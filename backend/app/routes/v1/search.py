@@ -26,7 +26,6 @@ from ...api.dependencies.auth import (
     require_beta_phase_access,
 )
 from ...api.dependencies.services import get_cache_service_dep
-from ...core.config import settings
 from ...database import get_db, get_db_session
 from ...dependencies.permissions import require_permission
 from ...models import User
@@ -181,27 +180,16 @@ async def nl_search(
             if cached_coords:
                 user_location = (cached_coords["lng"], cached_coords["lat"])
             else:
-                if getattr(settings, "is_testing", False):
+
+                def _get_user_address(db: Session, user_id: str) -> Optional[tuple[float, float]]:
                     address_repo = UserAddressRepository(db)
-                    # async-blocking-ignore: test-only path must use the request-scoped session
-                    address = address_repo.get_default_address(
-                        current_user.id
-                    )  # async-blocking-ignore
+                    address = address_repo.get_default_address(user_id)
                     if address and address.latitude and address.longitude:
                         # Return as (lng, lat) for PostGIS
-                        user_location = (float(address.longitude), float(address.latitude))
-                else:
-                    # DB lookup
-                    def _get_user_address() -> Optional[tuple[float, float]]:
-                        with get_db_session() as db:
-                            address_repo = UserAddressRepository(db)
-                            address = address_repo.get_default_address(current_user.id)
-                            if address and address.latitude and address.longitude:
-                                # Return as (lng, lat) for PostGIS
-                                return (float(address.longitude), float(address.latitude))
-                            return None
+                        return (float(address.longitude), float(address.latitude))
+                    return None
 
-                    user_location = await asyncio.to_thread(_get_user_address)
+                user_location = await asyncio.to_thread(_get_user_address, db, current_user.id)
                 # Cache if found (1 hour TTL)
                 if user_location:
                     await cache_service.set_json(

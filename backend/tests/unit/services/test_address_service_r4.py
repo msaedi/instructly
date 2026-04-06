@@ -312,7 +312,7 @@ def test_create_address_without_place_id_sets_recipient_and_enrichment(db, monke
     assert created["recipient_name"] == "Test User"
 
 
-def test_create_address_place_id_no_details_uses_test_fallback(db, monkeypatch):
+def test_create_address_place_id_no_details_keeps_explicit_coordinates(db, monkeypatch):
     service = AddressService(db)
     service.address_repo = Mock()
     service._to_dict = lambda _entity: {"id": "addr"}
@@ -341,10 +341,19 @@ def test_create_address_place_id_no_details_uses_test_fallback(db, monkeypatch):
             "street_line1": "123 Test St",
             "place_id": "mock:missing",
             "latitude": 1.0,
+            "longitude": 2.0,
         },
     )
 
     assert created["id"] == "addr"
+    service.address_repo.create.assert_called_once()
+    _, create_kwargs = service.address_repo.create.call_args
+    assert create_kwargs["user_id"] == "user-1"
+    assert create_kwargs["label"] == "home"
+    assert create_kwargs["street_line1"] == "123 Test St"
+    assert create_kwargs["place_id"] == "mock:missing"
+    assert create_kwargs["latitude"] == 1.0
+    assert create_kwargs["longitude"] == 2.0
 
 
 def test_update_address_place_id_enriches_and_defaults_name(db, monkeypatch):
