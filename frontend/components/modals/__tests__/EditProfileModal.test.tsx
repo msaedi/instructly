@@ -127,12 +127,12 @@ jest.mock('@/features/shared/components/SelectedNeighborhoodChips', () => ({
   }) => (
     <div data-testid="neighborhood-chips">
       {selected.map((s) => (
-        <span key={s.neighborhood_id} data-testid={`chip-${s.neighborhood_id}`}>
-          {s.name}
+        <span key={s.display_key} data-testid={`chip-${s.display_key}`}>
+          {s.display_name}
           <button
             type="button"
-            data-testid={`remove-${s.neighborhood_id}`}
-            onClick={() => onRemove(s.neighborhood_id)}
+            data-testid={`remove-${s.display_key}`}
+            onClick={() => onRemove(s.display_key)}
           >
             ×
           </button>
@@ -161,6 +161,37 @@ const createWrapper = () => {
   }
   return Wrapper;
 };
+
+function makeSelectorResponse(
+  items: Array<{
+    borough?: string | null;
+    display_key?: string;
+    display_name?: string | null;
+  }>
+) {
+  const grouped = new Map<string, Array<{ borough: string; display_key: string | undefined; display_name: string }>>();
+
+  for (const item of items) {
+    const borough = item.borough ?? 'Manhattan';
+    const next = grouped.get(borough) ?? [];
+    next.push({
+      borough,
+      display_key: item.display_key,
+      display_name: item.display_name ?? '',
+    });
+    grouped.set(borough, next);
+  }
+
+  return {
+    boroughs: Array.from(grouped.entries()).map(([borough, boroughItems]) => ({
+      borough,
+      item_count: boroughItems.length,
+      items: boroughItems,
+    })),
+    market: 'nyc',
+    total_items: items.length,
+  };
+}
 
 const mockInstructorProfile = {
   id: 'inst-123',
@@ -391,7 +422,7 @@ describe('EditProfileModal', () => {
 
     it('uses prefilled selectedServiceAreas', async () => {
       const selectedAreas = [
-        { neighborhood_id: 'n1', name: 'Upper East Side', borough: 'Manhattan' },
+        { display_key: 'n1', display_name: 'Upper East Side', borough: 'Manhattan' },
       ];
 
       render(
@@ -855,7 +886,7 @@ describe('EditProfileModal', () => {
           onSave={onSave}
           onSuccess={onSuccess}
           onClose={onClose}
-          selectedServiceAreas={[{ neighborhood_id: 'n1', name: 'Upper East Side' }]}
+          selectedServiceAreas={[{ display_key: 'n1', display_name: 'Upper East Side' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -961,11 +992,12 @@ describe('EditProfileModal', () => {
     beforeEach(() => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+            ])
+          ),
       });
     });
 
@@ -1016,12 +1048,13 @@ describe('EditProfileModal', () => {
       // Mock global fetch for borough neighborhoods
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-2', id: 'nh-2', name: 'Upper West Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-2', display_name: 'Upper West Side', borough: 'Manhattan' },
+            ])
+          ),
       });
     });
 
@@ -1275,7 +1308,7 @@ describe('EditProfileModal', () => {
             json: () => Promise.resolve({
               ...mockInstructorProfile,
               service_area_neighborhoods: [
-                { neighborhood_id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
+                { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
               ],
             }),
           });
@@ -1360,7 +1393,7 @@ describe('EditProfileModal', () => {
       useInstructorServiceAreasMock.mockReturnValue({
         data: {
           items: [
-            { neighborhood_id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
+            { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
           ],
         },
       });
@@ -1474,8 +1507,8 @@ describe('EditProfileModal', () => {
     it('shows neighborhoods section in areas variant', async () => {
       // Provide selected service areas so the chips component renders
       const selectedAreas = [
-        { neighborhood_id: 'n-1', name: 'Upper East Side' },
-        { neighborhood_id: 'n-2', name: 'Chelsea' },
+        { display_key: 'n-1', display_name: 'Upper East Side' },
+        { display_key: 'n-2', display_name: 'Chelsea' },
       ];
 
       render(
@@ -1621,7 +1654,7 @@ describe('EditProfileModal', () => {
       const onClose = jest.fn();
 
       const selectedAreas = [
-        { neighborhood_id: 'n-1', name: 'Upper East Side' },
+        { display_key: 'n-1', display_name: 'Upper East Side' },
       ];
 
       render(
@@ -2750,7 +2783,7 @@ describe('EditProfileModal', () => {
           variant="areas"
           onSuccess={onSuccess}
           onClose={onClose}
-          selectedServiceAreas={[{ neighborhood_id: 'n1', name: 'Upper East Side' }]}
+          selectedServiceAreas={[{ display_key: 'n1', display_name: 'Upper East Side' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -2844,13 +2877,14 @@ describe('EditProfileModal', () => {
     beforeEach(() => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-2', id: 'nh-2', name: 'Upper West Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-3', id: 'nh-3', name: 'Midtown', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-2', display_name: 'Upper West Side', borough: 'Manhattan' },
+              { display_key: 'nh-3', display_name: 'Midtown', borough: 'Manhattan' },
+            ])
+          ),
       });
     });
 
@@ -2888,8 +2922,8 @@ describe('EditProfileModal', () => {
           {...defaultProps}
           variant="areas"
           selectedServiceAreas={[
-            { neighborhood_id: 'nh-1', name: 'Upper East Side' },
-            { neighborhood_id: 'nh-2', name: 'Upper West Side' },
+            { display_key: 'nh-1', display_name: 'Upper East Side' },
+            { display_key: 'nh-2', display_name: 'Upper West Side' },
           ]}
         />,
         { wrapper: createWrapper() }
@@ -2914,12 +2948,13 @@ describe('EditProfileModal', () => {
     beforeEach(() => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-2', id: 'nh-2', name: 'Upper West Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-2', display_name: 'Upper West Side', borough: 'Manhattan' },
+            ])
+          ),
       });
     });
 
@@ -2969,8 +3004,8 @@ describe('EditProfileModal', () => {
           {...defaultProps}
           variant="areas"
           selectedServiceAreas={[
-            { neighborhood_id: 'n1', name: 'Upper East Side' },
-            { neighborhood_id: 'n2', name: 'Chelsea' },
+            { display_key: 'n1', display_name: 'Upper East Side' },
+            { display_key: 'n2', display_name: 'Chelsea' },
           ]}
         />,
         { wrapper: createWrapper() }
@@ -2995,12 +3030,13 @@ describe('EditProfileModal', () => {
     beforeEach(() => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-2', id: 'nh-2', name: 'Upper West Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-2', display_name: 'Upper West Side', borough: 'Manhattan' },
+            ])
+          ),
       });
     });
 
@@ -3031,8 +3067,8 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('neighborhood data without neighborhood_id', () => {
-    it('handles neighborhood items without neighborhood_id', async () => {
+  describe('neighborhood data without display_key', () => {
+    it('handles neighborhood items without display_key', async () => {
       fetchWithAuthMock.mockImplementation((url: string) => {
         if (url.includes('instructors/me')) {
           return Promise.resolve({
@@ -3040,8 +3076,8 @@ describe('EditProfileModal', () => {
             json: () => Promise.resolve({
               ...mockInstructorProfile,
               service_area_neighborhoods: [
-                { name: 'Valid', borough: 'Manhattan', neighborhood_id: 'valid-id' },
-                { name: 'Invalid', borough: 'Manhattan' }, // no neighborhood_id
+                { display_key: 'valid-id', display_name: 'Valid', borough: 'Manhattan' },
+                { display_name: 'Invalid', borough: 'Manhattan' }, // no display_key
               ],
             }),
           });
@@ -3173,11 +3209,12 @@ describe('EditProfileModal', () => {
     it('responds to Enter key on borough header', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3339,12 +3376,13 @@ describe('EditProfileModal', () => {
     it('handles toggling neighborhood on and off', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-ues', id: 'nh-ues', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-uws', id: 'nh-uws', name: 'Upper West Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-ues', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-uws', display_name: 'Upper West Side', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3372,12 +3410,13 @@ describe('EditProfileModal', () => {
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-2', id: 'nh-2', name: 'Upper West Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+              { display_key: 'nh-2', display_name: 'Upper West Side', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3410,11 +3449,12 @@ describe('EditProfileModal', () => {
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3640,11 +3680,12 @@ describe('EditProfileModal', () => {
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-soho', id: 'nh-soho', name: 'SoHo', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-soho', display_name: 'SoHo', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3700,11 +3741,12 @@ describe('EditProfileModal', () => {
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-harlem', id: 'nh-harlem', name: 'Harlem', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-harlem', display_name: 'Harlem', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3740,12 +3782,13 @@ describe('EditProfileModal', () => {
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-tribeca', id: 'nh-tribeca', name: 'Tribeca', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-chelsea', id: 'nh-chelsea', name: 'Chelsea', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-tribeca', display_name: 'Tribeca', borough: 'Manhattan' },
+              { display_key: 'nh-chelsea', display_name: 'Chelsea', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3846,12 +3889,13 @@ describe('EditProfileModal', () => {
       // Mock neighborhoods that will appear in global search
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-fidi', id: 'nh-fidi', name: 'Financial District', borough: 'Manhattan' },
-            { neighborhood_id: 'nh-midtown', id: 'nh-midtown', name: 'Midtown', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-fidi', display_name: 'Financial District', borough: 'Manhattan' },
+              { display_key: 'nh-midtown', display_name: 'Midtown', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       render(
@@ -3932,7 +3976,7 @@ describe('EditProfileModal', () => {
       useInstructorServiceAreasMock.mockReturnValue({
         data: {
           boroughs: ['Manhattan'],
-          neighborhoods: [{ neighborhood_id: 'nh-1', name: 'SoHo' }],
+          neighborhoods: [{ display_key: 'nh-1', display_name: 'SoHo' }],
         },
       });
 
@@ -3964,7 +4008,7 @@ describe('EditProfileModal', () => {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({
-              items: [{ neighborhood_id: 'nh-1', name: 'SoHo', borough: 'Manhattan' }],
+              items: [{ display_key: 'nh-1', display_name: 'SoHo', borough: 'Manhattan' }],
             }),
           });
         }
@@ -4637,7 +4681,7 @@ describe('EditProfileModal', () => {
           variant="areas"
           onSuccess={onSuccess}
           onClose={onClose}
-          selectedServiceAreas={[{ neighborhood_id: 'nh-1', name: 'SoHo' }]}
+          selectedServiceAreas={[{ display_key: 'nh-1', display_name: 'SoHo' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -4693,7 +4737,7 @@ describe('EditProfileModal', () => {
         <EditProfileModal
           {...defaultProps}
           variant="areas"
-          selectedServiceAreas={[{ neighborhood_id: 'nh-1', name: 'SoHo' }]}
+          selectedServiceAreas={[{ display_key: 'nh-1', display_name: 'SoHo' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -4722,7 +4766,7 @@ describe('EditProfileModal', () => {
           onSave={onSave}
           onSuccess={onSuccess}
           onClose={onClose}
-          selectedServiceAreas={[{ neighborhood_id: 'nh-1', name: 'SoHo' }]}
+          selectedServiceAreas={[{ display_key: 'nh-1', display_name: 'SoHo' }]}
           preferredTeaching={[{ address: '100 Broadway', label: 'Studio' }]}
           preferredPublic={[{ address: 'Washington Sq Park' }]}
         />,
@@ -4737,7 +4781,7 @@ describe('EditProfileModal', () => {
         expect(onSave).toHaveBeenCalledWith(
           expect.objectContaining({
             neighborhoods: expect.arrayContaining([
-              expect.objectContaining({ neighborhood_id: 'nh-1' }),
+              expect.objectContaining({ display_key: 'nh-1' }),
             ]),
             preferredTeaching: expect.arrayContaining([
               expect.objectContaining({ address: '100 Broadway' }),
@@ -5448,7 +5492,7 @@ describe('EditProfileModal', () => {
         <EditProfileModal
           {...defaultProps}
           variant="areas"
-          selectedServiceAreas={[{ neighborhood_id: 'nh-1', name: 'SoHo' }]}
+          selectedServiceAreas={[{ display_key: 'nh-1', display_name: 'SoHo' }]}
           preferredTeaching={[{ address: '100 Broadway' }]}
         />,
         { wrapper: createWrapper() }
@@ -5750,8 +5794,8 @@ describe('EditProfileModal', () => {
       expect(bioInput).toHaveValue('');
     });
 
-    /* ---------- profile with empty service_area_neighborhoods (no neighborhood_id) ---------- */
-    it('skips neighborhoods without neighborhood_id', async () => {
+    /* ---------- profile with empty service_area_neighborhoods (no display_key) ---------- */
+    it('skips neighborhoods without display_key', async () => {
       fetchWithAuthMock.mockImplementation((url: string) => {
         if (url.includes('instructors/me')) {
           return Promise.resolve({
@@ -5759,9 +5803,9 @@ describe('EditProfileModal', () => {
             json: () => Promise.resolve({
               ...mockInstructorProfile,
               service_area_neighborhoods: [
-                { neighborhood_id: 'nh-1', name: 'SoHo', borough: 'Manhattan' },
-                { name: 'NoID', borough: 'Brooklyn' },
-                { neighborhood_id: '', name: 'EmptyID', borough: 'Queens' },
+                { display_key: 'nh-1', display_name: 'SoHo', borough: 'Manhattan' },
+                { display_name: 'NoID', borough: 'Brooklyn' },
+                { display_key: '', display_name: 'EmptyID', borough: 'Queens' },
               ],
             }),
           });
@@ -6487,14 +6531,15 @@ describe('EditProfileModal', () => {
 
     describe('borough accordion keyboard handler (line 1474)', () => {
       beforeEach(() => {
-        global.fetch = jest.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve({
-            items: [
-              { neighborhood_id: 'nh-1', id: 'nh-1', name: 'Upper East Side', borough: 'Manhattan' },
-            ],
-          }),
-        });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-1', display_name: 'Upper East Side', borough: 'Manhattan' },
+            ])
+          ),
+      });
       });
 
       afterEach(() => {
@@ -6875,7 +6920,7 @@ describe('EditProfileModal', () => {
             { address: '  ' },
           ]}
           selectedServiceAreas={[
-            { neighborhood_id: 'n-1', name: 'UES' },
+            { display_key: 'n-1', display_name: 'UES' },
           ]}
         />,
         { wrapper: createWrapper() }
@@ -6921,8 +6966,8 @@ describe('EditProfileModal', () => {
             { address: 'Central Park', label: '' },
           ]}
           selectedServiceAreas={[
-            { neighborhood_id: '', name: 'Bad ID' },
-            { neighborhood_id: 'good-id', name: 'Good' },
+            { display_key: '', display_name: 'Bad ID' },
+            { display_key: 'good-id', display_name: 'Good' },
           ]}
         />,
         { wrapper: createWrapper() }
@@ -6938,12 +6983,13 @@ describe('EditProfileModal', () => {
     it('handles neighborhoods with missing name using fallback to nid', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          items: [
-            { neighborhood_id: 'nh-nameless', id: 'nh-nameless', name: null, borough: 'Manhattan' },
-            { neighborhood_id: null, id: null, name: 'No ID', borough: 'Manhattan' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-nameless', display_name: '', borough: 'Manhattan' },
+              { display_name: 'No ID', borough: 'Manhattan' },
+            ])
+          ),
       });
 
       const user = userEvent.setup();
@@ -6987,7 +7033,7 @@ describe('EditProfileModal', () => {
       useInstructorServiceAreasMock.mockReturnValue({
         data: {
           items: [
-            { neighborhood_id: 'nh-1', name: 'UES', borough: 'Manhattan' },
+            { display_key: 'nh-1', display_name: 'UES', borough: 'Manhattan' },
           ],
         },
       });
@@ -7011,7 +7057,7 @@ describe('EditProfileModal', () => {
           variant="areas"
           onClose={onClose}
           onSuccess={onSuccess}
-          selectedServiceAreas={[{ neighborhood_id: 'nh-1', name: 'UES' }]}
+          selectedServiceAreas={[{ display_key: 'nh-1', display_name: 'UES' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -7036,7 +7082,7 @@ describe('EditProfileModal', () => {
       useInstructorServiceAreasMock.mockReturnValue({
         data: {
           items: [
-            { neighborhood_id: 'orphan-id', name: '', borough: null },
+            { display_key: 'orphan-id', display_name: '', borough: null },
           ],
         },
       });
@@ -7045,7 +7091,7 @@ describe('EditProfileModal', () => {
         <EditProfileModal
           {...defaultProps}
           variant="areas"
-          selectedServiceAreas={[{ neighborhood_id: 'orphan-id', name: '' }]}
+          selectedServiceAreas={[{ display_key: 'orphan-id', display_name: '' }]}
         />,
         { wrapper: createWrapper() }
       );
@@ -7072,7 +7118,7 @@ describe('EditProfileModal', () => {
               service_area_summary: null,
               service_area_boroughs: null,
               service_area_neighborhoods: [
-                { neighborhood_id: 'n-1', name: 'Midtown', ntacode: null, borough: 'Manhattan' },
+                { display_key: 'n-1', display_name: 'Midtown', borough: 'Manhattan' },
               ],
             }),
           });
@@ -7098,7 +7144,7 @@ describe('EditProfileModal', () => {
   });
 
   describe('branch coverage: fetchProfile — neighborhoods with missing id (line 412)', () => {
-    it('skips neighborhoods without neighborhood_id', async () => {
+    it('skips neighborhoods without display_key', async () => {
       fetchWithAuthMock.mockImplementation((url: string) => {
         if (url.includes('instructors/me')) {
           return Promise.resolve({
@@ -7106,8 +7152,8 @@ describe('EditProfileModal', () => {
             json: () => Promise.resolve({
               ...mockInstructorProfile,
               service_area_neighborhoods: [
-                { neighborhood_id: null, name: 'Bad' },
-                { neighborhood_id: 'ok-1', name: 'Good', ntacode: 'NT01', borough: 'Manhattan' },
+                { display_name: 'Bad' },
+                { display_key: 'ok-1', display_name: 'Good', borough: 'Manhattan' },
               ],
             }),
           });
@@ -7132,14 +7178,14 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('branch coverage: serviceAreasData prefill with mixed IDs (line 498/504)', () => {
-    it('prefers neighborhood_id over id for mapping', async () => {
+  describe('branch coverage: serviceAreasData prefill with missing display keys', () => {
+    it('only keeps items that have display_key values', async () => {
       useInstructorServiceAreasMock.mockReturnValue({
         data: {
           items: [
-            { neighborhood_id: 'primary-id', id: 'fallback-id', name: 'Primary', borough: 'Manhattan' },
-            { neighborhood_id: undefined, id: 'only-id', name: 'Only ID', borough: 'Brooklyn' },
-            { neighborhood_id: undefined, id: undefined, name: 'No IDs', borough: 'Queens' },
+            { display_key: 'primary-id', display_name: 'Primary', borough: 'Manhattan' },
+            { display_name: 'Only ID', borough: 'Brooklyn' },
+            { display_name: 'No IDs', borough: 'Queens' },
           ],
         },
       });
@@ -7331,12 +7377,12 @@ describe('EditProfileModal', () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         json: () =>
-          Promise.resolve({
-            items: [
-              { neighborhood_id: 'nh-valid', id: 'nh-valid', name: 'Tribeca', borough: 'Manhattan' },
-              { name: 'Ghost Result', borough: 'Manhattan' },
-            ],
-          }),
+          Promise.resolve(
+            makeSelectorResponse([
+              { display_key: 'nh-valid', display_name: 'Tribeca', borough: 'Manhattan' },
+              { display_name: 'Ghost Result', borough: 'Manhattan' },
+            ])
+          ),
       }) as typeof fetch;
 
       try {

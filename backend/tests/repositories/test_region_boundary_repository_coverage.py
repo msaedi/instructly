@@ -4,8 +4,10 @@ from typing import List
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import text
 
 from app.core.ulid_helper import generate_ulid
+from app.models.region_boundary import RegionBoundary
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 
 
@@ -34,6 +36,22 @@ class TestRegionBoundaryRepositoryCoverage:
             parent_region=parent_region,
             wkt_polygon=wkt,
             metadata={"source": "unit_test"},
+        )
+        db.execute(
+            text(
+                """
+                UPDATE region_boundaries
+                SET display_name = :display_name,
+                    display_key = :display_key,
+                    display_order = 0
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": region_id,
+                "display_name": region_name,
+                "display_key": f"nyc-{parent_region.lower()}-{region_id.lower()}",
+            },
         )
         db.commit()
 
@@ -137,3 +155,71 @@ class TestRegionBoundaryRepositoryCoverage:
         assert repo.delete_by_region_code("code") == 0
         assert repo.get_simplified_geojson_by_ids([]) == []
         assert repo.find_region_ids_by_partial_names([]) == {}
+
+    def test_find_region_by_point_skips_dropped_polygons_and_uses_display_name(self, db):
+        repo = RegionBoundaryRepository(db)
+
+        if not repo.table_has_boundary() or not repo.has_postgis():
+            pytest.skip("PostGIS boundary column unavailable in test DB")
+
+        dropped_code = f"MN-CPK-{generate_ulid()[-6:]}"
+        active_code = f"MN-UES-{generate_ulid()[-6:]}"
+        dropped = RegionBoundary(
+            id=generate_ulid(),
+            region_type="nyc",
+            region_code=dropped_code,
+            region_name="Central Park",
+            display_name=None,
+            display_key=None,
+            display_order=None,
+            parent_region="Manhattan",
+        )
+        active = RegionBoundary(
+            id=generate_ulid(),
+            region_type="nyc",
+            region_code=active_code,
+            region_name="Upper East Side-Carnegie Hill",
+            display_name="Upper East Side",
+            display_key="nyc-manhattan-upper-east-side",
+            display_order=0,
+            parent_region="Manhattan",
+        )
+        db.add_all([dropped, active])
+        db.flush()
+
+        db.execute(
+            text(
+                """
+                UPDATE region_boundaries
+                SET boundary = ST_Multi(ST_GeomFromText(:wkt, 4326)),
+                    centroid = ST_Centroid(ST_Multi(ST_GeomFromText(:wkt, 4326)))
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": dropped.id,
+                "wkt": _square_wkt(-73.9685, 40.7800, -73.9620, 40.7850),
+            },
+        )
+        db.execute(
+            text(
+                """
+                UPDATE region_boundaries
+                SET boundary = ST_Multi(ST_GeomFromText(:wkt, 4326)),
+                    centroid = ST_Centroid(ST_Multi(ST_GeomFromText(:wkt, 4326)))
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": active.id,
+                "wkt": _square_wkt(-73.9580, 40.7720, -73.9520, 40.7780),
+            },
+        )
+        db.commit()
+
+        assert repo.find_region_by_point(40.7825, -73.9650, "nyc") is None
+
+        found = repo.find_region_by_point(40.7750, -73.9550, "nyc")
+        assert found is not None
+        assert found["region_name"] == "Upper East Side"
+        assert found["display_key"] == "nyc-manhattan-upper-east-side"

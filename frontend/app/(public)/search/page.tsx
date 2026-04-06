@@ -366,10 +366,9 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
           service_area_summary: coverageAreas.join(', '),
           service_area_boroughs: coverageAreas,
           service_area_neighborhoods: [] as Array<{
-            neighborhood_id: string;
-            ntacode: string | null;
-            name: string | null;
-            borough: string | null;
+            borough: string;
+            display_key: string;
+            display_name: string;
           }>,
           years_experience: yearsExperience,
           teaching_locations: teachingLocations,

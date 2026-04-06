@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from ._strict_base import StrictModel
 
@@ -29,28 +29,47 @@ class AddressDeleteResponse(StrictModel):
     message: str
 
 
-class NeighborhoodItem(StrictModel):
-    """Single neighborhood entry with optional borough metadata."""
+class SelectorSearchTerm(StrictModel):
+    """A searchable alias for a display item."""
 
-    id: str
-    name: str
-    borough: Optional[str] = None
-    code: Optional[str] = None
+    term: str
+    type: str
 
 
-class NeighborhoodsListResponse(StrictModel):
-    """Paginated list of neighborhoods."""
+class SelectorDisplayItem(StrictModel):
+    """A single selectable neighborhood entry."""
 
-    items: List[NeighborhoodItem]
-    total: int
-    page: Optional[int] = None
-    per_page: Optional[int] = None
+    display_name: str
+    display_key: str
+    borough: str
+    nta_ids: List[str]
+    display_order: int
+    search_terms: List[SelectorSearchTerm]
+    additional_boroughs: List[str] = Field(default_factory=list)
+
+
+class SelectorBorough(StrictModel):
+    """A borough group."""
+
+    borough: str
+    items: List[SelectorDisplayItem]
+    item_count: int
+
+
+class NeighborhoodSelectorResponse(StrictModel):
+    """Complete selector data for a market."""
+
+    market: str
+    boroughs: List[SelectorBorough]
+    total_items: int
 
 
 __all__ = [
     "AddressDeleteResponse",
     "CoverageFeatureCollectionResponse",
-    "NeighborhoodItem",
-    "NeighborhoodsListResponse",
+    "NeighborhoodSelectorResponse",
     "NYCZipCheckResponse",
+    "SelectorBorough",
+    "SelectorDisplayItem",
+    "SelectorSearchTerm",
 ]

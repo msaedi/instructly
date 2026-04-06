@@ -98,10 +98,11 @@ class TestInstructorRoutes:
                 region_type="nyc",
                 region_code="01TESTNEIGHBORHOOD",
                 region_name="Test Neighborhood",
+                display_name="Test Neighborhood",
+                display_key="nyc-manhattan-test-neighborhood",
+                display_order=0,
                 parent_region="Manhattan",
                 region_metadata={
-                    "nta_code": "01TESTNEIGHBORHOOD",
-                    "nta_name": "Test Neighborhood",
                     "borough": "Manhattan",
                 },
             )
@@ -173,10 +174,11 @@ class TestInstructorRoutes:
                 region_type="nyc",
                 region_code="01TESTNEIGHBORHOOD",
                 region_name="Test Neighborhood",
+                display_name="Test Neighborhood",
+                display_key="nyc-manhattan-test-neighborhood",
+                display_order=0,
                 parent_region="Manhattan",
                 region_metadata={
-                    "nta_code": "01TESTNEIGHBORHOOD",
-                    "nta_name": "Test Neighborhood",
                     "borough": "Manhattan",
                 },
             )
@@ -355,7 +357,7 @@ class TestInstructorRoutes:
         neighborhoods = data.get("service_area_neighborhoods", [])
         assert neighborhoods, "Expected service area neighborhoods to be present"
         for entry in neighborhoods:
-            assert {"neighborhood_id", "ntacode", "name", "borough"}.issubset(entry.keys())
+            assert {"display_name", "display_key", "borough"}.issubset(entry.keys())
         assert {entry["borough"] for entry in neighborhoods if entry.get("borough")} == {
             "Brooklyn",
             "Manhattan",

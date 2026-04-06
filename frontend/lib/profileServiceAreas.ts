@@ -2,7 +2,7 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
 
 type ServiceAreaSource = {
   service_area_summary?: string | null;
-  service_area_boroughs?: (string | { name?: string | null; label?: string | null })[] | null;
+  service_area_boroughs?: string[] | null;
   service_area_neighborhoods?: ServiceAreaNeighborhood[] | null;
 };
 
@@ -10,41 +10,20 @@ function deriveBoroughsFromNeighborhoods(
   neighborhoods: ServiceAreaNeighborhood[] | null | undefined,
 ): string[] {
   if (!neighborhoods) return [];
-  const boroughs = new Set<string>();
-  neighborhoods.forEach((neighborhood) => {
-    const rawBorough = neighborhood?.borough as unknown;
-    let boroughName = '';
-    if (typeof rawBorough === 'string') {
-      boroughName = rawBorough.trim();
-    } else if (rawBorough && typeof rawBorough === 'object') {
-      const label = typeof (rawBorough as { label?: string }).label === 'string'
-        ? (rawBorough as { label?: string }).label?.trim()
-        : undefined;
-      const name = typeof (rawBorough as { name?: string }).name === 'string'
-        ? (rawBorough as { name?: string }).name?.trim()
-        : undefined;
-      boroughName = label || name || '';
-    }
-
-    if (boroughName.length > 0) {
-      boroughs.add(boroughName);
-    }
-  });
-  return Array.from(boroughs.values());
+  return Array.from(
+    new Set(
+      neighborhoods
+        .map((neighborhood) => neighborhood.borough.trim())
+        .filter((borough) => borough.length > 0),
+    ),
+  );
 }
 
-export function getServiceAreaBoroughs(source: ServiceAreaSource): string[] {
+export function getServiceAreaBoroughs(source?: ServiceAreaSource | null): string[] {
+  if (!source) return [];
   if (source.service_area_boroughs && source.service_area_boroughs.length > 0) {
     const normalized = source.service_area_boroughs
-      .map((value) => {
-        if (typeof value === 'string') return value.trim();
-        if (value && typeof value === 'object') {
-          const label = typeof value.label === 'string' ? value.label.trim() : undefined;
-          const name = typeof value.name === 'string' ? value.name.trim() : undefined;
-          return label || name || '';
-        }
-        return '';
-      })
+      .map((value) => value.trim())
       .filter((value) => value.length > 0);
     return Array.from(new Set(normalized));
   }
@@ -52,7 +31,8 @@ export function getServiceAreaBoroughs(source: ServiceAreaSource): string[] {
   return deriveBoroughsFromNeighborhoods(source.service_area_neighborhoods);
 }
 
-export function getServiceAreaDisplay(source: ServiceAreaSource): string {
+export function getServiceAreaDisplay(source?: ServiceAreaSource | null): string {
+  if (!source) return '';
   const summary = (source.service_area_summary ?? '').trim();
   if (summary.length > 0) {
     return summary;
@@ -66,20 +46,7 @@ export function getServiceAreaDisplay(source: ServiceAreaSource): string {
   const neighborhoodBoroughs = Array.from(
     new Set(
       (source.service_area_neighborhoods || [])
-        .map((n) => {
-          const raw = n.borough as unknown;
-          if (typeof raw === 'string') return raw.trim();
-          if (raw && typeof raw === 'object') {
-            const label = typeof (raw as { label?: string }).label === 'string'
-              ? (raw as { label?: string }).label?.trim()
-              : undefined;
-            const name = typeof (raw as { name?: string }).name === 'string'
-              ? (raw as { name?: string }).name?.trim()
-              : undefined;
-            return label || name || '';
-          }
-          return '';
-        })
+        .map((n) => n.borough.trim())
         .filter((borough) => borough.length > 0),
     ),
   );

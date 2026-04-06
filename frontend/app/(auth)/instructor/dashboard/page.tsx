@@ -60,7 +60,7 @@ import { getPublicProfileLaunchState } from '@/lib/publicProfileLaunch';
 type DashboardLinkResponse = components['schemas']['DashboardLinkResponse'];
 type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
 
-type NeighborhoodSelection = { neighborhood_id: string; name: string };
+type NeighborhoodSelection = { display_key: string; display_name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string; label?: string };
 
@@ -529,9 +529,9 @@ export default function InstructorDashboardNew() {
     }
     const selectionMap = new Map<string, NeighborhoodSelection>();
     for (const item of serviceAreaResponse.items) {
-      const id = item.neighborhood_id;
-      const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
-      selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
+      const id = item.display_key;
+      const rawName = item.display_name.trim();
+      selectionMap.set(id, { display_key: id, display_name: rawName || id });
     }
     setServiceAreaSelections(Array.from(selectionMap.values()));
   }, [serviceAreaResponse]);
@@ -655,8 +655,8 @@ export default function InstructorDashboardNew() {
     preferredPublic: PreferredPublicSpace[];
   }) => {
     try {
-      const neighborhoodIds = payload.neighborhoods.map((item) => item.neighborhood_id);
-      await httpPut('/api/v1/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
+      const displayKeys = payload.neighborhoods.map((item) => item.display_key);
+      await httpPut('/api/v1/addresses/service-areas/me', { display_keys: displayKeys });
       await httpPut('/instructors/me', {
         preferred_teaching_locations: payload.preferredTeaching,
         preferred_public_spaces: payload.preferredPublic,

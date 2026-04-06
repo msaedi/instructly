@@ -13,7 +13,8 @@ describe('search list schema', () => {
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'n1',
+              display_key: 'n1',
+              display_name: 'Chelsea',
               borough: 'Manhattan',
             },
           ],

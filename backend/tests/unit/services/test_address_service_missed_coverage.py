@@ -448,12 +448,24 @@ class TestReplaceServiceAreas:
         svc = _make_address_service()
         svc.cache = MagicMock()
 
+        svc.region_repo.resolve_display_keys_to_ids.return_value = {
+            "nyc-manhattan-neighborhood-one": ["N1"],
+            "nyc-brooklyn-neighborhood-two": ["N2"],
+            "nyc-queens-neighborhood-three": ["N3"],
+        }
         svc.service_area_repo.replace_areas.return_value = 3
         svc.db.begin_nested = MagicMock()
         svc.db.begin_nested.return_value.__enter__ = MagicMock()
         svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
-        result = svc.replace_service_areas("USR_01", ["N1", "N2", "N3"])
+        result = svc.replace_service_areas(
+            "USR_01",
+            [
+                "nyc-manhattan-neighborhood-one",
+                "nyc-brooklyn-neighborhood-two",
+                "nyc-queens-neighborhood-three",
+            ],
+        )
         assert result == 3
         svc.cache.delete.assert_called_once()
 

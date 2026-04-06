@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
 
-    class DatabaseTask(Task[Any, Any]):
+    class DatabaseTask:
         """Base task type for privacy tasks."""
 
 else:

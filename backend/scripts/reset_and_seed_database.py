@@ -61,6 +61,27 @@ EXCLUDE_FROM_CLEANUP = [
 # Test password for all dummy accounts
 TEST_PASSWORD = "TestPassword123!"
 
+LEGACY_DISPLAY_AREA_NAMES = {
+    "Manhattan - Upper East Side": "Upper East Side",
+    "Manhattan - Upper West Side": "Upper West Side",
+    "Manhattan - Midtown": "Midtown",
+    "Manhattan - Chelsea": "Chelsea / Hudson Yards",
+    "Manhattan - Greenwich Village": "Greenwich Village",
+    "Manhattan - SoHo": "SoHo / Hudson Square / Little Italy",
+    "Manhattan - Financial District": "Financial District / Battery Park City",
+    "Manhattan - Chinatown": "Chinatown / Two Bridges",
+    "Brooklyn - Williamsburg": "Williamsburg",
+    "Brooklyn - Park Slope": "Park Slope",
+    "Brooklyn - DUMBO": "Downtown Brooklyn / DUMBO / Boerum Hill",
+    "Queens - Astoria": "Astoria",
+    "Queens - Long Island City": "Long Island City / Hunters Point",
+    "Queens - Flushing": "Flushing",
+}
+
+
+def _normalize_display_area_name(area_name: str) -> str:
+    return LEGACY_DISPLAY_AREA_NAMES.get(area_name, area_name)
+
 # NYC areas for instructors
 NYC_AREAS = [
     "Manhattan - Upper East Side",
@@ -771,12 +792,16 @@ def create_dummy_instructors(session: Session):
         )
 
         for area_name in template.get("areas", []):
-            neighborhood = (
+            display_name = _normalize_display_area_name(area_name)
+            neighborhoods = (
                 session.query(RegionBoundary)
-                .filter(RegionBoundary.region_type == "nyc", RegionBoundary.region_name == area_name)
-                .first()
+                .filter(
+                    RegionBoundary.region_type == "nyc",
+                    RegionBoundary.display_name == display_name,
+                )
+                .all()
             )
-            if neighborhood:
+            for neighborhood in neighborhoods:
                 session.add(
                     InstructorServiceArea(
                         instructor_id=user.id,

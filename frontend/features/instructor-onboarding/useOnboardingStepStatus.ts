@@ -19,7 +19,7 @@ export type OnboardingStepStatuses = Record<OnboardingStepKey, OnboardingStepSta
 type ProfileData = components['schemas']['InstructorProfileResponse'];
 type UserData = components['schemas']['AuthUserWithPermissionsResponse'];
 type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
-type ServiceAreaItem = components['schemas']['ServiceAreaItem'];
+type ServiceAreaItem = components['schemas']['ServiceAreaDisplayItem'];
 type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
 
 const DEFAULT_STEP_STATUS: OnboardingStepStatuses = {

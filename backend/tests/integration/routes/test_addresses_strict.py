@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from tests.integration.routes.conftest import strict_schema_app
 import ulid
 
+from app.domain.neighborhood_config import generate_display_key
 from app.models.region_boundary import RegionBoundary
 
 
@@ -40,11 +41,15 @@ def test_replace_service_areas_uses_region_boundary(
     unique_nyc_region_code: str,
 ):
     region_id = str(ulid.ULID())
+    display_key = generate_display_key("nyc", "Manhattan", "Test Neighborhood")
     boundary = RegionBoundary(
         id=region_id,
         region_type="nyc",
         region_code=unique_nyc_region_code,
         region_name="Test Neighborhood",
+        display_name="Test Neighborhood",
+        display_key=display_key,
+        display_order=0,
         parent_region="Manhattan",
     )
     db.add(boundary)
@@ -52,7 +57,7 @@ def test_replace_service_areas_uses_region_boundary(
 
     resp = client.put(
         "/api/v1/addresses/service-areas/me",
-        json={"neighborhood_ids": [region_id]},
+        json={"display_keys": [display_key]},
         headers=auth_headers_instructor,
     )
 
@@ -60,9 +65,8 @@ def test_replace_service_areas_uses_region_boundary(
     payload = resp.json()
     assert payload["total"] == 1
     first = payload["items"][0]
-    assert first["neighborhood_id"] == region_id
-    assert first["ntacode"] == unique_nyc_region_code
-    assert first["name"] == "Test Neighborhood"
+    assert first["display_name"] == "Test Neighborhood"
+    assert first["display_key"] == display_key
     assert first["borough"] == "Manhattan"
 
 
@@ -72,7 +76,7 @@ def test_replace_service_areas_blocks_last_area_when_travel_enabled(
 ) -> None:
     resp = client.put(
         "/api/v1/addresses/service-areas/me",
-        json={"neighborhood_ids": []},
+        json={"display_keys": []},
         headers=auth_headers_instructor,
     )
 

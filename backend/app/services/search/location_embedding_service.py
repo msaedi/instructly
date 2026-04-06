@@ -77,7 +77,7 @@ class LocationEmbeddingService:
         Return similar region candidates for a location query.
 
         Output shape:
-            [{region_id, region_name, borough, similarity}, ...]
+            [{region_id, region_name, borough, display_name, display_key, similarity}, ...]
         """
         normalized = " ".join(str(query or "").strip().split())
         if not normalized:
@@ -123,6 +123,8 @@ class LocationEmbeddingService:
                     "region_id": str(region.id),
                     "region_name": str(getattr(region, "region_name", "") or ""),
                     "borough": getattr(region, "parent_region", None),
+                    "display_name": getattr(region, "display_name", None),
+                    "display_key": getattr(region, "display_key", None),
                     "similarity": sim_val,
                 }
             )
@@ -170,7 +172,7 @@ class LocationEmbeddingService:
         Build region candidates from preloaded embeddings without DB access.
 
         region_embeddings expects entries with:
-        - region_id, region_name, borough, embedding, norm
+        - region_id, region_name, borough, display_name, display_key, embedding, norm
         """
         if not query_embedding or not region_embeddings:
             return []
@@ -202,6 +204,8 @@ class LocationEmbeddingService:
                     "region_id": str(row.get("region_id") or ""),
                     "region_name": str(row.get("region_name") or ""),
                     "borough": row.get("borough"),
+                    "display_name": row.get("display_name"),
+                    "display_key": row.get("display_key"),
                     "similarity": similarity,
                 }
             )

@@ -10,11 +10,12 @@ import { extractApiErrorMessage } from '@/lib/apiErrors';
 import type {
   ApiErrorResponse,
   CategoryServiceDetail,
-  NeighborhoodsListResponse,
+  NeighborhoodSelectorResponse,
   ServiceCategory,
 } from '@/features/shared/api/types';
 import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 import { logger } from '@/lib/logger';
+import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
 import { submitSkillRequest } from '@/lib/api/skillRequest';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import {
@@ -202,6 +203,7 @@ function Step3SkillsPricingInner() {
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState<string>('');
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
 
   // ── Preferred Locations state (for PreferredLocationsCard) ──
   const [preferredAddress, setPreferredAddress] = useState<string>('');
@@ -221,48 +223,30 @@ function Step3SkillsPricingInner() {
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    try {
-      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
-      const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
-      if (r.ok) {
-        const data = (await r.json()) as NeighborhoodsListResponse;
-        const list = (data.items ?? []).flatMap((raw) => {
-          const record = raw as Record<string, unknown>;
-          const neighborhoodId =
-            typeof record['neighborhood_id'] === 'string'
-              ? (record['neighborhood_id'] as string)
-              : typeof record['id'] === 'string'
-              ? (record['id'] as string)
-              : '';
-          if (!neighborhoodId) return [];
-          return [
-            {
-              neighborhood_id: neighborhoodId,
-              ntacode:
-                typeof record['ntacode'] === 'string'
-                  ? (record['ntacode'] as string)
-                  : typeof record['code'] === 'string'
-                  ? (record['code'] as string)
-                  : null,
-              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
-              borough: record['borough'] ?? null,
-            } as ServiceAreaItem,
-          ];
-        });
-        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const it of list) {
-            if (it.neighborhood_id) next[it.neighborhood_id] = it;
+    if (!selectorRequestRef.current) {
+      selectorRequestRef.current = (async () => {
+        try {
+          const url = withApiBase('/api/v1/addresses/neighborhoods/selector?market=nyc');
+          const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
+          if (r.ok) {
+            const data = (await r.json()) as NeighborhoodSelectorResponse;
+            const index = buildServiceAreaSelectorIndex(data);
+            setBoroughNeighborhoods(index.boroughNeighborhoods);
+            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
+            return index.boroughNeighborhoods;
           }
-          return next;
-        });
-        return list;
-      }
-    } catch (err) {
-      logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } catch (err) {
+          logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } finally {
+          selectorRequestRef.current = null;
+        }
+
+        return boroughNeighborhoods;
+      })();
     }
-    return boroughNeighborhoods[borough] || [];
+
+    const next = await selectorRequestRef.current;
+    return next[borough] || [];
   }, [boroughNeighborhoods]);
 
   useEffect(() => {
@@ -299,8 +283,7 @@ function Step3SkillsPricingInner() {
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       for (const n of items) {
-        const nid = n.neighborhood_id;
-        if (!nid) continue;
+        const nid = n.display_key;
         if (value) next.add(nid);
         else next.delete(nid);
       }
@@ -373,20 +356,14 @@ function Step3SkillsPricingInner() {
 
     const serviceAreaItems = (serviceAreasDataFromHook?.items ?? []) as ServiceAreaItem[];
     const ids = serviceAreaItems
-      .map((item) => {
-        const record = item as Record<string, unknown>;
-        return item.neighborhood_id || (typeof record['id'] === 'string' ? record['id'] : undefined);
-      })
-      .filter((value): value is string => typeof value === 'string');
+      .map((item) => item.display_key)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
     setSelectedNeighborhoods(new Set(ids));
     setIdToItem((prev) => {
       const next = { ...prev } as Record<string, ServiceAreaItem>;
       for (const item of serviceAreaItems) {
-        const record = item as Record<string, unknown>;
-        const neighborhoodId =
-          item.neighborhood_id || (typeof record['id'] === 'string' ? record['id'] : undefined);
-        if (neighborhoodId) {
-          next[neighborhoodId] = item;
+        if (item.display_key) {
+          next[item.display_key] = item;
         }
       }
       return next;
@@ -1053,11 +1030,11 @@ function Step3SkillsPricingInner() {
 
       // Save service areas before the profile PUT (backend validates they exist)
       if (anyServiceUsesStudentLocation && selectedNeighborhoods.size > 0) {
-        const neighborhoodIds = [...selectedNeighborhoods];
+        const displayKeys = [...selectedNeighborhoods];
         const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
+          body: JSON.stringify({ display_keys: displayKeys }),
         });
         if (!areasRes.ok) {
           setError('Failed to save service areas. Please try again.');

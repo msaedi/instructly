@@ -32,10 +32,9 @@ export async function loadSearchListSchema() {
       service_area_neighborhoods: z
         .array(
           z.object({
-            neighborhood_id: z.string(),
-            ntacode: z.string().optional().nullable(),
-            name: z.string().optional().nullable(),
-            borough: z.string().optional().nullable(),
+            borough: z.string(),
+            display_key: z.string(),
+            display_name: z.string(),
           }),
         )
         .optional()

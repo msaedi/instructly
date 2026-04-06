@@ -847,6 +847,12 @@ def seed_system_data(verbose: bool = True) -> None:
     except Exception as e:
         print(f"  ⚠ Skipping region_settings seed: {e}")
 
+    if verbose:
+        print("\n▶ Seeding neighborhood display metadata…")
+    from seed_neighborhood_display import seed_neighborhood_display  # noqa: E402
+
+    seed_neighborhood_display(engine, verbose=verbose, region_type="nyc", market="nyc")
+
     # Seed location aliases for NL search
     if verbose:
         print("\n▶ Seeding location aliases for NL search…")

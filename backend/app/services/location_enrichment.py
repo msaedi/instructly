@@ -2,9 +2,9 @@
 
 Adds region-specific metadata for addresses in a globally scalable way.
 
-Scaffold: basic region detection (NYC bbox) and NYC enrichment via PostGIS
-ST_Contains against the `nyc_neighborhoods` table when available. Falls back
-to generic metadata if enrichment is unavailable or no match is found.
+Scaffold: basic region detection (NYC bbox) and NYC display-area enrichment
+via PostGIS-backed region boundaries. Falls back to generic metadata if
+enrichment is unavailable or no match is found.
 """
 
 from __future__ import annotations
@@ -52,30 +52,25 @@ class LocationEnrichmentService:
         return EnrichmentResult(location_metadata={"region_type": "generic"})
 
     def _enrich_nyc(self, lat: float, lng: float) -> EnrichmentResult:
-        """NYC-specific enrichment: lookup NTA (neighborhood) via PostGIS.
-
-        Reads from `nyc_neighborhoods` polygon table. If not available, falls back.
-        """
+        """NYC-specific enrichment using display neighborhoods from region boundaries."""
         # Prefer generic region_boundaries via repository helper
         repo = self._repo()
         row = repo.find_region_by_point(lat, lng, region_type="nyc")
 
         if row:
             borough = row.get("parent_region")
-            ntacode = row.get("region_code")
-            ntaname = row.get("region_name")
+            neighborhood = row.get("display_name") or row.get("region_name")
             meta = row.get("region_metadata") or {}
             community_district = meta.get("community_district")
             return EnrichmentResult(
                 district=borough,
-                neighborhood=ntaname,
+                neighborhood=neighborhood,
                 location_metadata={
                     "country": "US",
                     "region_type": "nyc",
                     "nyc": {
                         "borough": borough,
-                        "nta_code": ntacode,
-                        "nta_name": ntaname,
+                        "neighborhood": neighborhood,
                         "community_district": community_district,
                     },
                 },

@@ -60,8 +60,8 @@ const mockInstructor = {
   service_area_boroughs: ['Manhattan'],
   service_area_neighborhoods: [
     {
-      neighborhood_id: 'upper-west-side',
-      name: 'Upper West Side',
+      display_key: 'upper-west-side',
+      display_name: 'Upper West Side',
       borough: 'Manhattan',
     },
   ],

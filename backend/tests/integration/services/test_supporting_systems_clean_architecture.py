@@ -10,7 +10,7 @@ FIXED: Changed assertion to expect "Test Studio" instead of placeholder bug
 FIXED: Dynamic date checking instead of hardcoded day names for timezone compatibility
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import os
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -20,6 +20,8 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.services.cache_service import CacheService
 from app.services.notification_service import NotificationService
+from app.services.reminder_selection import resolve_booking_reminder_timezone
+from app.services.timezone_service import TimezoneService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -30,10 +32,17 @@ except ModuleNotFoundError:  # pragma: no cover
 class TestSupportingSystemsIntegration:
     """Test that all supporting systems work together cleanly."""
 
+    @staticmethod
+    def _local_tomorrow_for_timezone(timezone_name: str) -> date:
+        """Match reminder selection, which targets tomorrow in the booking timezone."""
+        local_now = TimezoneService.utc_to_local(datetime.now(timezone.utc), timezone_name)
+        return local_now.date() + timedelta(days=1)
+
     @pytest.fixture
     def full_booking(self, db, test_student, test_instructor_with_availability):
         """Create a complete booking for integration tests."""
-        tomorrow = date.today() + timedelta(days=1)
+        lesson_timezone = TimezoneService.DEFAULT_TIMEZONE
+        tomorrow = self._local_tomorrow_for_timezone(lesson_timezone)
 
         # Get instructor's profile and service
         from app.models.instructor import InstructorProfile
@@ -71,6 +80,8 @@ class TestSupportingSystemsIntegration:
             location_type="neutral_location",
             student_note="Looking forward to the lesson",
         )
+        booking.lesson_timezone = lesson_timezone
+        booking.instructor_tz_at_booking = lesson_timezone
         # Add relationships for email templates
         booking.student = test_student
         booking.instructor = test_instructor_with_availability
@@ -169,6 +180,9 @@ class TestSupportingSystemsIntegration:
         await cache_service.cache_week_availability(
             full_booking.instructor_id, week_start, availability_data
         )
+
+        reminder_timezone = resolve_booking_reminder_timezone(full_booking)
+        assert full_booking.booking_date == self._local_tomorrow_for_timezone(reminder_timezone)
 
         # Send reminders
         count = notification_service.send_reminder_emails()

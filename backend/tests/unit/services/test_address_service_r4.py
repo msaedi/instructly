@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -46,6 +47,22 @@ class CacheRaiseSet:
 
     def set(self, *_args, **_kwargs):
         raise RuntimeError("boom")
+
+    def delete(self, *_args, **_kwargs):
+        return True
+
+
+class CacheSpy:
+    def __init__(self, value=None):
+        self._value = value
+        self.set_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def get(self, _key):
+        return self._value
+
+    def set(self, *args, **kwargs):
+        self.set_calls.append((args, kwargs))
+        return True
 
     def delete(self, *_args, **_kwargs):
         return True
@@ -338,27 +355,22 @@ def test_resolve_place_id_with_unknown_prefix(db):
     assert place_id == "foo:bar"
 
 
-def test_list_service_areas_with_metadata(db):
+def test_list_service_areas_with_display_metadata(db):
     service = AddressService(db)
     service.service_area_repo = Mock()
 
     region = SimpleNamespace(
-        region_code=None,
-        region_name=None,
-        parent_region=None,
-        borough=None,
-        region_metadata={
-            "nta_code": "MN-1",
-            "nta_name": "Test NTA",
-            "borough": "Manhattan",
-        },
+        display_name="Test Neighborhood",
+        display_key="nyc-manhattan-test-neighborhood",
+        parent_region="Manhattan",
     )
     area = SimpleNamespace(neighborhood_id="n1", neighborhood=region)
     service.service_area_repo.list_for_instructor.return_value = [area]
 
     items = service.list_service_areas("inst-1")
 
-    assert items[0]["ntacode"] == "MN-1"
+    assert items[0]["display_name"] == "Test Neighborhood"
+    assert items[0]["display_key"] == "nyc-manhattan-test-neighborhood"
     assert items[0]["borough"] == "Manhattan"
 
 
@@ -379,12 +391,268 @@ def test_replace_service_areas_blocks_travel_only(db):
 def test_replace_service_areas_clears_cache(db):
     service = AddressService(db)
     service.service_area_repo = Mock()
+    service.region_repo = Mock()
+    service.region_repo.resolve_display_keys_to_ids.return_value = {
+        "nyc-manhattan-test-neighborhood": ["n1", "n2"]
+    }
     service.service_area_repo.replace_areas.return_value = 2
     service.cache = CacheHit(None)
 
-    count = service.replace_service_areas("inst-1", ["n1"])
+    count = service.replace_service_areas("inst-1", ["nyc-manhattan-test-neighborhood"])
 
     assert count == 2
+
+
+def test_replace_service_areas_empty_skips_display_key_resolution(db):
+    service = AddressService(db)
+    service.profile_repository = Mock()
+    service.profile_repository.get_by_user_id.return_value = None
+    service.instructor_service_repository = Mock()
+    service.service_area_repo = Mock()
+    service.service_area_repo.replace_areas.return_value = 0
+    service.region_repo = Mock()
+
+    count = service.replace_service_areas("inst-1", [])
+
+    assert count == 0
+    service.region_repo.resolve_display_keys_to_ids.assert_not_called()
+    service.service_area_repo.replace_areas.assert_called_once_with("inst-1", [])
+
+
+def test_get_neighborhood_selector_contract_aliases_and_cross_boroughs(db):
+    service = AddressService(db)
+    service.region_repo = Mock()
+    service.region_repo.get_selector_items.return_value = [
+        {
+            "id": "q1",
+            "region_name": "Baisley Park",
+            "parent_region": "Queens",
+            "display_name": "South Jamaica",
+            "display_key": "nyc-queens-south-jamaica",
+            "display_order": 1,
+        },
+        {
+            "id": "q2",
+            "region_name": "South Jamaica",
+            "parent_region": "Queens",
+            "display_name": "South Jamaica",
+            "display_key": "nyc-queens-south-jamaica",
+            "display_order": 1,
+        },
+        {
+            "id": "b1",
+            "region_name": "Bay Ridge",
+            "parent_region": "Brooklyn",
+            "display_name": "Bay Ridge",
+            "display_key": "nyc-brooklyn-bay-ridge",
+            "display_order": 1,
+        },
+        {
+            "id": "b2",
+            "region_name": "Fort Hamilton",
+            "parent_region": "Brooklyn",
+            "display_name": "Bay Ridge",
+            "display_key": "nyc-brooklyn-bay-ridge",
+            "display_order": 1,
+        },
+        {
+            "id": "q3",
+            "region_name": "Springfield Gardens (North)-Rochdale Village",
+            "parent_region": "Queens",
+            "display_name": "Springfield Gardens",
+            "display_key": "nyc-queens-springfield-gardens",
+            "display_order": 2,
+        },
+        {
+            "id": "q4",
+            "region_name": "Springfield Gardens (South)-Brookville",
+            "parent_region": "Queens",
+            "display_name": "Springfield Gardens",
+            "display_key": "nyc-queens-springfield-gardens",
+            "display_order": 2,
+        },
+        {
+            "id": "q5",
+            "region_name": "Jamaica Estates-Holliswood",
+            "parent_region": "Queens",
+            "display_name": "Jamaica Estates",
+            "display_key": "nyc-queens-jamaica-estates",
+            "display_order": 3,
+        },
+        {
+            "id": "x1",
+            "region_name": "Soundview-Bruckner-Bronx River",
+            "parent_region": "Bronx",
+            "display_name": "Soundview",
+            "display_key": "nyc-bronx-soundview",
+            "display_order": 1,
+        },
+        {
+            "id": "x2",
+            "region_name": "Soundview-Clason Point",
+            "parent_region": "Bronx",
+            "display_name": "Soundview",
+            "display_key": "nyc-bronx-soundview",
+            "display_order": 1,
+        },
+        {
+            "id": "s1",
+            "region_name": "Tompkinsville-Stapleton-Clifton-Fox Hills",
+            "parent_region": "Staten Island",
+            "display_name": "Tompkinsville / Stapleton / Clifton",
+            "display_key": "nyc-staten-island-tompkinsville-stapleton-clifton",
+            "display_order": 1,
+        },
+        {
+            "id": "m1",
+            "region_name": "Kingsbridge-Marble Hill",
+            "parent_region": "Bronx",
+            "display_name": "Kingsbridge / Marble Hill",
+            "display_key": "nyc-bronx-kingsbridge-marble-hill",
+            "display_order": 2,
+        },
+        {
+            "id": "m2",
+            "region_name": "Kingsbridge Heights-Van Cortlandt Village",
+            "parent_region": "Bronx",
+            "display_name": "Kingsbridge / Marble Hill",
+            "display_key": "nyc-bronx-kingsbridge-marble-hill",
+            "display_order": 2,
+        },
+    ]
+
+    result = service.get_neighborhood_selector("nyc")
+    items = {
+        item["display_key"]: item
+        for borough in result["boroughs"]
+        for item in borough["items"]
+    }
+
+    south_jamaica_terms = {term["term"] for term in items["nyc-queens-south-jamaica"]["search_terms"]}
+    assert "Baisley Park" in south_jamaica_terms
+
+    bay_ridge_terms = {term["term"] for term in items["nyc-brooklyn-bay-ridge"]["search_terms"]}
+    assert "Fort Hamilton" in bay_ridge_terms
+
+    springfield_terms = {
+        term["term"] for term in items["nyc-queens-springfield-gardens"]["search_terms"]
+    }
+    assert "Rochdale Village" in springfield_terms
+
+    jamaica_estates_terms = {
+        term["term"] for term in items["nyc-queens-jamaica-estates"]["search_terms"]
+    }
+    assert "Holliswood" in jamaica_estates_terms
+
+    soundview_terms = {term["term"] for term in items["nyc-bronx-soundview"]["search_terms"]}
+    assert "Clason Point" in soundview_terms
+
+    stapleton_terms = {
+        term["term"]
+        for term in items["nyc-staten-island-tompkinsville-stapleton-clifton"]["search_terms"]
+    }
+    assert "Fox Hills" in stapleton_terms
+
+    marble_hill_item = items["nyc-bronx-kingsbridge-marble-hill"]
+    marble_hill_terms = {term["term"] for term in marble_hill_item["search_terms"]}
+    assert "Marble Hill" in marble_hill_terms
+    assert marble_hill_item["additional_boroughs"] == ["Manhattan"]
+
+    assert all(item["display_name"] != "Central Park" for item in items.values())
+
+
+def test_get_neighborhood_selector_rejects_unsupported_market(db):
+    service = AddressService(db)
+
+    with pytest.raises(BusinessRuleException, match="Unsupported market"):
+        service.get_neighborhood_selector("la")
+
+
+def test_get_neighborhood_selector_cache_hit_skips_repo(db):
+    cached = {"market": "nyc", "boroughs": [], "total_items": 0}
+    service = AddressService(db)
+    service.cache = CacheHit(cached)
+    service.region_repo = Mock()
+
+    result = service.get_neighborhood_selector("nyc")
+
+    assert result == cached
+    service.region_repo.get_selector_items.assert_not_called()
+
+
+def test_get_neighborhood_selector_cache_miss_stores_with_ttl(db):
+    service = AddressService(db)
+    service.region_repo = Mock()
+    service.region_repo.get_selector_items.return_value = []
+    service.cache = CacheSpy()
+
+    result = service.get_neighborhood_selector("nyc")
+
+    assert result == {"market": "nyc", "boroughs": [], "total_items": 0}
+    assert service.cache.set_calls == [
+        (("neighborhood_selector:nyc", result), {"ttl": 86400})
+    ]
+
+
+def test_get_neighborhood_selector_preserves_repository_order_without_resort(db):
+    service = AddressService(db)
+    service.region_repo = Mock()
+    service.region_repo.get_selector_items.return_value = [
+        {
+            "id": "b2",
+            "region_name": "Zulu",
+            "parent_region": "Manhattan",
+            "display_name": "Beta",
+            "display_key": "beta",
+            "display_order": 2,
+        },
+        {
+            "id": "b1",
+            "region_name": "Alpha",
+            "parent_region": "Manhattan",
+            "display_name": "Beta",
+            "display_key": "beta",
+            "display_order": 2,
+        },
+        {
+            "id": "a2",
+            "region_name": "Zulu",
+            "parent_region": "Manhattan",
+            "display_name": "Alpha",
+            "display_key": "alpha",
+            "display_order": 1,
+        },
+    ]
+
+    result = service.get_neighborhood_selector("nyc")
+
+    borough_items = result["boroughs"][0]["items"]
+    assert [item["display_key"] for item in borough_items] == ["beta", "alpha"]
+    assert borough_items[0]["nta_ids"] == ["b2", "b1"]
+
+
+def test_replace_service_areas_rejects_invalid_display_key(db):
+    service = AddressService(db)
+    service.region_repo = Mock()
+    service.region_repo.resolve_display_keys_to_ids.return_value = {}
+
+    with pytest.raises(BusinessRuleException):
+        service.replace_service_areas("inst-1", ["nyc-manhattan-central-park"])
+
+
+def test_public_api_has_no_neighborhood_ids_references():
+    backend_root = Path(__file__).resolve().parents[3]
+    schema_and_route_files = [
+        *sorted((backend_root / "app" / "schemas").rglob("*.py")),
+        *sorted((backend_root / "app" / "routes").rglob("*.py")),
+    ]
+    assert schema_and_route_files
+    matches = [
+        str(path)
+        for path in schema_and_route_files
+        if "neighborhood_ids" in path.read_text(encoding="utf-8")
+    ]
+    assert matches == []
 
 
 def test_get_coverage_geojson_empty_instructors(db):

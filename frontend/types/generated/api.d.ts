@@ -396,6 +396,23 @@ export type paths = {
         patch: operations["update_my_address_api_v1_addresses_me__address_id__patch"];
         trace?: never;
     };
+    "/api/v1/addresses/neighborhoods/selector": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Selector data for instructor service area selection */
+        get: operations["get_neighborhood_selector_api_v1_addresses_neighborhoods_selector_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/addresses/places/autocomplete": {
         parameters: {
             query?: never;
@@ -432,26 +449,6 @@ export type paths = {
          *     Frontend uses this to auto-fill form fields without exposing provider payloads.
          */
         get: operations["place_details_api_v1_addresses_places_details_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/addresses/regions/neighborhoods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Neighborhoods
-         * @description List neighborhoods for a region type.
-         */
-        get: operations["list_neighborhoods_api_v1_addresses_regions_neighborhoods_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -17113,32 +17110,16 @@ export type components = {
             is_nyc: boolean;
         };
         /**
-         * NeighborhoodItem
-         * @description Single neighborhood entry with optional borough metadata.
+         * NeighborhoodSelectorResponse
+         * @description Complete selector data for a market.
          */
-        NeighborhoodItem: {
-            /** Borough */
-            borough?: string | null;
-            /** Code */
-            code?: string | null;
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-        };
-        /**
-         * NeighborhoodsListResponse
-         * @description Paginated list of neighborhoods.
-         */
-        NeighborhoodsListResponse: {
-            /** Items */
-            items: components["schemas"]["NeighborhoodItem"][];
-            /** Page */
-            page?: number | null;
-            /** Per Page */
-            per_page?: number | null;
-            /** Total */
-            total: number;
+        NeighborhoodSelectorResponse: {
+            /** Boroughs */
+            boroughs: components["schemas"]["SelectorBorough"][];
+            /** Market */
+            market: string;
+            /** Total Items */
+            total_items: number;
         };
         /**
          * NextAvailableSlotResponse
@@ -20957,6 +20938,48 @@ export type components = {
              */
             percentage: number;
         };
+        /**
+         * SelectorBorough
+         * @description A borough group.
+         */
+        SelectorBorough: {
+            /** Borough */
+            borough: string;
+            /** Item Count */
+            item_count: number;
+            /** Items */
+            items: components["schemas"]["SelectorDisplayItem"][];
+        };
+        /**
+         * SelectorDisplayItem
+         * @description A single selectable neighborhood entry.
+         */
+        SelectorDisplayItem: {
+            /** Additional Boroughs */
+            additional_boroughs?: string[];
+            /** Borough */
+            borough: string;
+            /** Display Key */
+            display_key: string;
+            /** Display Name */
+            display_name: string;
+            /** Display Order */
+            display_order: number;
+            /** Nta Ids */
+            nta_ids: string[];
+            /** Search Terms */
+            search_terms: components["schemas"]["SelectorSearchTerm"][];
+        };
+        /**
+         * SelectorSearchTerm
+         * @description A searchable alias for a display item.
+         */
+        SelectorSearchTerm: {
+            /** Term */
+            term: string;
+            /** Type */
+            type: string;
+        };
         /** SendEmailVerificationRequest */
         SendEmailVerificationRequest: {
             /**
@@ -21021,42 +21044,41 @@ export type components = {
              */
             lng: number;
         };
-        /** ServiceAreaItem */
-        ServiceAreaItem: {
+        /**
+         * ServiceAreaDisplayItem
+         * @description An instructor's selected neighborhood (display-level).
+         */
+        ServiceAreaDisplayItem: {
             /** Borough */
-            borough?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Neighborhood Id */
-            neighborhood_id: string;
-            /** Ntacode */
-            ntacode?: string | null;
+            borough: string;
+            /** Display Key */
+            display_key: string;
+            /** Display Name */
+            display_name: string;
         };
         /**
          * ServiceAreaNeighborhood
-         * @description Normalized neighborhood metadata used in instructor service area responses.
+         * @description Normalized display-level metadata used in instructor service area responses.
          */
         ServiceAreaNeighborhood: {
             /** Borough */
-            borough?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Neighborhood Id */
-            neighborhood_id: string;
-            /** Ntacode */
-            ntacode?: string | null;
+            borough: string;
+            /** Display Key */
+            display_key: string;
+            /** Display Name */
+            display_name: string;
         };
         /** ServiceAreasResponse */
         ServiceAreasResponse: {
             /** Items */
-            items: components["schemas"]["ServiceAreaItem"][];
+            items: components["schemas"]["ServiceAreaDisplayItem"][];
             /** Total */
             total: number;
         };
         /** ServiceAreasUpdateRequest */
         ServiceAreasUpdateRequest: {
-            /** Neighborhood Ids */
-            neighborhood_ids: string[];
+            /** Display Keys */
+            display_keys: string[];
         };
         /**
          * ServiceCatalogDetail
@@ -23978,6 +24000,37 @@ export interface operations {
             };
         };
     };
+    get_neighborhood_selector_api_v1_addresses_neighborhoods_selector_get: {
+        parameters: {
+            query?: {
+                market?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborhoodSelectorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     places_autocomplete_api_v1_addresses_places_autocomplete_get: {
         parameters: {
             query: {
@@ -24030,40 +24083,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceDetails"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_neighborhoods_api_v1_addresses_regions_neighborhoods_get: {
-        parameters: {
-            query?: {
-                region_type?: string;
-                borough?: string | null;
-                page?: number;
-                per_page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NeighborhoodsListResponse"];
                 };
             };
             /** @description Validation Error */

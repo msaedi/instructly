@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.core.ulid_helper import generate_ulid
 from app.models.region_boundary import RegionBoundary
 from app.services.address_service import AddressService
 from app.services.cache_service import CacheServiceSyncAdapter
@@ -124,20 +125,60 @@ def test_service_areas_geojson_and_neighborhoods(db, test_instructor):
     areas = service.list_service_areas(test_instructor.id)
     assert areas
 
-    neighborhood_ids = [area["neighborhood_id"] for area in areas if area.get("neighborhood_id")]
-    assert neighborhood_ids
+    display_keys = [area["display_key"] for area in areas if area.get("display_key")]
+    assert display_keys
 
-    assert service.replace_service_areas(test_instructor.id, neighborhood_ids) >= 1
+    assert service.replace_service_areas(test_instructor.id, display_keys) >= 1
 
     coverage = service.get_coverage_geojson_for_instructors([test_instructor.id])
     assert coverage["type"] == "FeatureCollection"
     assert coverage["features"]
 
-    regions = db.query(RegionBoundary).order_by(RegionBoundary.region_name).limit(5).all()
-    assert regions
-    borough = regions[0].parent_region
-    neighborhoods = service.list_neighborhoods(borough=borough, limit=10, offset=0)
-    assert neighborhoods
+    selector = service.get_neighborhood_selector("nyc")
+    assert selector["market"] == "nyc"
+    assert selector["boroughs"]
+
+
+def test_service_area_display_key_round_trip(db, test_instructor):
+    service = AddressService(db, cache_service=CacheServiceSyncAdapter(FakeCacheService()))
+    code_suffix = generate_ulid()[-6:]
+
+    boundaries = [
+        RegionBoundary(
+            region_type="nyc",
+            region_code=f"MN-UES-{code_suffix}-1",
+            region_name="Upper East Side-Carnegie Hill",
+            display_name="Upper East Side",
+            display_key="nyc-manhattan-upper-east-side",
+            display_order=0,
+            parent_region="Manhattan",
+        ),
+        RegionBoundary(
+            region_type="nyc",
+            region_code=f"MN-UES-{code_suffix}-2",
+            region_name="Upper East Side-Yorkville",
+            display_name="Upper East Side",
+            display_key="nyc-manhattan-upper-east-side",
+            display_order=0,
+            parent_region="Manhattan",
+        ),
+    ]
+    db.add_all(boundaries)
+    db.commit()
+
+    replaced = service.replace_service_areas(
+        test_instructor.id, ["nyc-manhattan-upper-east-side"]
+    )
+    assert replaced >= 2
+
+    items = service.list_service_areas(test_instructor.id)
+    assert items == [
+        {
+            "display_name": "Upper East Side",
+            "display_key": "nyc-manhattan-upper-east-side",
+            "borough": "Manhattan",
+        }
+    ]
 
 
 def test_geometry_fallbacks(db):
@@ -151,6 +192,9 @@ def test_geometry_fallbacks(db):
     boundary = RegionBoundary(
         region_type="nyc",
         region_name="Test Region",
+        display_name="Test Region",
+        display_key="nyc-manhattan-test-region",
+        display_order=0,
         parent_region="Manhattan",
         region_metadata={"centroid": [-73.9, 40.7]},
     )

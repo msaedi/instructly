@@ -3,7 +3,7 @@ import type { FetchWithAuthFn } from '@/app/(auth)/instructor/profile/serviceAre
 
 describe('submitServiceAreasOnce', () => {
   it('guards against concurrent submissions', async () => {
-    const payload = { neighborhood_ids: ['MN01', 'MN02'] };
+    const payload = { display_keys: ['nyc-manhattan-upper-west-side', 'nyc-manhattan-chelsea'] };
     const inFlightRef = { current: false };
     // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
     const setSaving: jest.Mock<void, [boolean]> = jest.fn();

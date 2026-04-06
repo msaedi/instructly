@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.exceptions import BusinessRuleException
+from ..domain.neighborhood_config import (
+    ABBREVIATION_VARIANTS,
+    CROSS_BOROUGH_ALIASES,
+    HIDDEN_ALIASES,
+)
+from ..domain.neighborhood_helpers import display_area_from_region
 from ..models.region_boundary import RegionBoundary
 from ..models.service_catalog import InstructorService
 from ..repositories.address_repository import (
@@ -33,6 +40,8 @@ _BOROUGH_CENTROID: Dict[str, Tuple[float, float]] = {
     "Bronx": (-73.900, 40.850),
     "Staten Island": (-74.150, 40.580),
 }
+
+SUPPORTED_MARKETS = {"nyc"}
 
 
 def _square_polygon(lon: float, lat: float, delta: float = 0.01) -> Dict[str, Any]:
@@ -299,47 +308,162 @@ class AddressService(BaseService):
                 return prefix, remainder
         return None, place_id
 
+    @staticmethod
+    def _append_search_term(
+        terms: list[dict[str, str]],
+        seen: set[str],
+        term: str | None,
+        term_type: str,
+    ) -> None:
+        normalized = " ".join(str(term or "").split()).strip()
+        if not normalized:
+            return
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        terms.append({"term": normalized, "type": term_type})
+
+    @staticmethod
+    def _abbreviated_variants_for_part(part: str) -> list[str]:
+        variants: list[str] = []
+        for full_word, abbreviation in ABBREVIATION_VARIANTS.items():
+            pattern = re.compile(rf"\b{re.escape(full_word)}\b", flags=re.IGNORECASE)
+            if not pattern.search(part):
+                continue
+            variants.append(pattern.sub(abbreviation, part))
+        return variants
+
+    @BaseService.measure_operation("get_neighborhood_selector")
+    def get_neighborhood_selector(self, market: str = "nyc") -> dict[str, Any]:
+        if market not in SUPPORTED_MARKETS:
+            supported = ", ".join(sorted(SUPPORTED_MARKETS))
+            raise BusinessRuleException(f"Unsupported market: {market}. Supported: {supported}")
+
+        cache_key = f"neighborhood_selector:{market}"
+        if self.cache:
+            try:
+                cached_raw = self.cache.get(cache_key)
+                cached = cast(dict[str, Any] | None, cached_raw)
+                if cached is not None:
+                    return cached
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+
+        rows = self.region_repo.get_selector_items(region_type=market)
+
+        borough_order: list[str] = []
+        seen_boroughs: set[str] = set()
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+
+        for row in rows:
+            borough = str(row["parent_region"] or "")
+            display_key = str(row["display_key"] or "")
+            display_name = str(row["display_name"] or "")
+            if borough not in seen_boroughs:
+                seen_boroughs.add(borough)
+                borough_order.append(borough)
+
+            group = grouped.setdefault(
+                (borough, display_key),
+                {
+                    "display_name": display_name,
+                    "display_key": display_key,
+                    "borough": borough,
+                    "display_order": int(row["display_order"] or 0),
+                    "rows": [],
+                },
+            )
+            group["rows"].append(row)
+
+        items_by_borough: dict[str, list[dict[str, Any]]] = {
+            borough: [] for borough in borough_order
+        }
+        for group in grouped.values():
+            group_rows = cast(list[dict[str, Any]], group["rows"])
+            search_terms: list[dict[str, str]] = []
+            seen_terms: set[str] = set()
+
+            display_name = str(group["display_name"])
+            borough = str(group["borough"])
+            display_parts = [part.strip() for part in display_name.split(" / ") if part.strip()]
+
+            self._append_search_term(search_terms, seen_terms, display_name, "display")
+            for part in display_parts:
+                self._append_search_term(search_terms, seen_terms, part, "display_part")
+
+            for row in group_rows:
+                raw_name = str(row["region_name"] or "").strip()
+                if raw_name and raw_name != display_name:
+                    self._append_search_term(search_terms, seen_terms, raw_name, "raw_nta")
+
+            for alias in HIDDEN_ALIASES.get((display_name, borough), []):
+                self._append_search_term(search_terms, seen_terms, alias, "hidden_subarea")
+
+            for part in display_parts:
+                for abbreviated in self._abbreviated_variants_for_part(part):
+                    self._append_search_term(search_terms, seen_terms, abbreviated, "abbreviation")
+
+            items_by_borough.setdefault(borough, []).append(
+                {
+                    "display_name": display_name,
+                    "display_key": group["display_key"],
+                    "borough": borough,
+                    "nta_ids": [str(row["id"]) for row in group_rows if row.get("id")],
+                    "display_order": int(group["display_order"]),
+                    "search_terms": search_terms,
+                    "additional_boroughs": CROSS_BOROUGH_ALIASES.get(group["display_key"], []),
+                }
+            )
+
+        boroughs_payload: list[dict[str, Any]] = []
+        total_items = 0
+        for borough in borough_order:
+            items = items_by_borough.get(borough, [])
+            if not items:
+                continue
+            total_items += len(items)
+            boroughs_payload.append(
+                {
+                    "borough": borough,
+                    "items": items,
+                    "item_count": len(items),
+                }
+            )
+
+        result = {
+            "market": market,
+            "boroughs": boroughs_payload,
+            "total_items": total_items,
+        }
+        if self.cache:
+            try:
+                self.cache.set(cache_key, result, ttl=86400)
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+        return result
+
     # Instructor service areas
     @BaseService.measure_operation("list_service_areas")
     def list_service_areas(self, instructor_id: str) -> list[dict[str, Any]]:
         areas = self.service_area_repo.list_for_instructor(instructor_id)
+        seen: set[str] = set()
         items: list[dict[str, Any]] = []
         for area in areas:
             region = getattr(area, "neighborhood", None)
-            region_code = None
-            region_name = None
-            borough = None
-            region_meta: dict[str, Any] | None = None
-            if region is not None:
-                region_code = getattr(region, "region_code", None) or getattr(
-                    region, "ntacode", None
-                )
-                region_name = getattr(region, "region_name", None) or getattr(
-                    region, "ntaname", None
-                )
-                borough = getattr(region, "parent_region", None) or getattr(region, "borough", None)
-                meta_candidate = getattr(region, "region_metadata", None)
-                if isinstance(meta_candidate, dict):
-                    region_meta = meta_candidate
-            if region_meta:
-                region_code = (
-                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
-                )
-                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
-                borough = borough or region_meta.get("borough")
-            items.append(
-                {
-                    "neighborhood_id": area.neighborhood_id,
-                    "ntacode": region_code,
-                    "name": region_name,
-                    "borough": borough,
-                }
-            )
-        return items
+            item = display_area_from_region(region)
+            if not item or item["display_key"] in seen:
+                continue
+            seen.add(item["display_key"])
+            items.append(item)
+        return sorted(items, key=lambda item: (item["borough"], item["display_name"]))
 
     @BaseService.measure_operation("replace_service_areas")
-    def replace_service_areas(self, instructor_id: str, neighborhood_ids: list[str]) -> int:
-        if not neighborhood_ids:
+    def replace_service_areas(self, instructor_id: str, display_keys: list[str]) -> int:
+        normalized_keys = list(
+            dict.fromkeys(str(key).strip() for key in display_keys if str(key).strip())
+        )
+        if not normalized_keys:
             profile = self.profile_repository.get_by_user_id(instructor_id)
             if profile:
                 services = self.instructor_service_repository.find_by(
@@ -352,9 +476,22 @@ class AddressService(BaseService):
                         "Either add another service area first, or disable 'I travel to students' "
                         "on your skills."
                     )
+            resolved_nta_ids: list[str] = []
+        else:
+            resolved = self.region_repo.resolve_display_keys_to_ids(normalized_keys)
+            missing = [key for key in normalized_keys if key not in resolved]
+            if missing:
+                raise BusinessRuleException(
+                    f"Unrecognized service area key(s): {', '.join(missing)}"
+                )
+            resolved_nta_ids = [
+                nta_id
+                for display_key in normalized_keys
+                for nta_id in sorted(resolved.get(display_key, []))
+            ]
 
         with self.transaction():
-            count = self.service_area_repo.replace_areas(instructor_id, neighborhood_ids)
+            count = self.service_area_repo.replace_areas(instructor_id, resolved_nta_ids)
 
             # Invalidate cached service area context for this instructor
             if self.cache:
@@ -406,7 +543,7 @@ class AddressService(BaseService):
                         "geometry": self._geometry_for_boundary(row),
                         "properties": {
                             "region_id": row["id"],
-                            "name": row["region_name"],
+                            "name": row.get("display_name") or row["region_name"],
                             "borough": row["parent_region"],
                             "region_type": row["region_type"],
                             "instructors": serving,

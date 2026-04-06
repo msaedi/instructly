@@ -765,16 +765,18 @@ class TestRoutingInvariants:
             "/api/v1/addresses/me",  # GET, POST
             "/api/v1/addresses/me/{address_id}",  # GET, PATCH, DELETE
             "/api/v1/addresses/service-areas/me",  # GET, PUT
+            "/api/v1/addresses/neighborhoods/selector",  # GET
             "/api/v1/addresses/places/autocomplete",  # GET
             "/api/v1/addresses/places/details",  # GET
             "/api/v1/addresses/coverage/bulk",  # GET
-            "/api/v1/addresses/regions/neighborhoods",  # GET
         ]
 
         missing = []
         for expected in expected_addresses_endpoints:
             if expected not in paths:
                 missing.append(expected)
+
+        assert "/api/v1/addresses/regions/neighborhoods" not in paths
 
         if missing:
             pytest.fail(

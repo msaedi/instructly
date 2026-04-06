@@ -303,6 +303,22 @@ export type paths = {
  patch: operations["update_my_address_api_v1_addresses_me__address_id__patch"];
  trace?: never;
  };
+ "/api/v1/addresses/neighborhoods/selector": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_neighborhood_selector_api_v1_addresses_neighborhoods_selector_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/addresses/places/autocomplete": {
  parameters: {
  query?: never;
@@ -327,22 +343,6 @@ export type paths = {
  cookie?: never;
  };
  get: operations["place_details_api_v1_addresses_places_details_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/v1/addresses/regions/neighborhoods": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["list_neighborhoods_api_v1_addresses_regions_neighborhoods_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -9527,17 +9527,10 @@ export type components = {
  borough?: string | null;
  is_nyc: boolean;
  };
- NeighborhoodItem: {
- borough?: string | null;
- code?: string | null;
- id: string;
- name: string;
- };
- NeighborhoodsListResponse: {
- items: components["schemas"]["NeighborhoodItem"][];
- page?: number | null;
- per_page?: number | null;
- total: number;
+ NeighborhoodSelectorResponse: {
+ boroughs: components["schemas"]["SelectorBorough"][];
+ market: string;
+ total_items: number;
  };
  NextAvailableSlotResponse: {
  date?: string | null;
@@ -10842,6 +10835,24 @@ export type components = {
  count: number;
  percentage: number;
  };
+ SelectorBorough: {
+ borough: string;
+ item_count: number;
+ items: components["schemas"]["SelectorDisplayItem"][];
+ };
+ SelectorDisplayItem: {
+ additional_boroughs?: string[];
+ borough: string;
+ display_key: string;
+ display_name: string;
+ display_order: number;
+ nta_ids: string[];
+ search_terms: components["schemas"]["SelectorSearchTerm"][];
+ };
+ SelectorSearchTerm: {
+ term: string;
+ type: string;
+ };
  SendEmailVerificationRequest: {
  email: string;
  };
@@ -10865,24 +10876,22 @@ export type components = {
  lat: number;
  lng: number;
  };
- ServiceAreaItem: {
- borough?: string | null;
- name?: string | null;
- neighborhood_id: string;
- ntacode?: string | null;
+ ServiceAreaDisplayItem: {
+ borough: string;
+ display_key: string;
+ display_name: string;
  };
  ServiceAreaNeighborhood: {
- borough?: string | null;
- name?: string | null;
- neighborhood_id: string;
- ntacode?: string | null;
+ borough: string;
+ display_key: string;
+ display_name: string;
  };
  ServiceAreasResponse: {
- items: components["schemas"]["ServiceAreaItem"][];
+ items: components["schemas"]["ServiceAreaDisplayItem"][];
  total: number;
  };
  ServiceAreasUpdateRequest: {
- neighborhood_ids: string[];
+ display_keys: string[];
  };
  ServiceCatalogDetail: {
  default_duration_minutes: number;
@@ -12297,6 +12306,35 @@ export interface operations {
  };
  };
  };
+ get_neighborhood_selector_api_v1_addresses_neighborhoods_selector_get: {
+ parameters: {
+ query?: {
+ market?: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NeighborhoodSelectorResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  places_autocomplete_api_v1_addresses_places_autocomplete_get: {
  parameters: {
  query: {
@@ -12346,38 +12384,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["PlaceDetails"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- list_neighborhoods_api_v1_addresses_regions_neighborhoods_get: {
- parameters: {
- query?: {
- region_type?: string;
- borough?: string | null;
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["NeighborhoodsListResponse"];
  };
  };
  422: {

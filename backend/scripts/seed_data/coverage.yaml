@@ -12,29 +12,29 @@ overrides:
   sarah.chen@example.com:
     max_distance_miles: 2.0
     names:
-      - name: East Midtown-Turtle Bay
+      - name: Midtown East / Turtle Bay
         coverage_type: primary
-      - name: Upper West Side (Central)
+      - name: Upper West Side
         coverage_type: primary
-      - name: Upper East Side-Carnegie Hill
+      - name: Upper East Side
         coverage_type: secondary
   emily.park@example.com:
     max_distance_miles: 2.5
     names:
-      - name: East Midtown-Turtle Bay
+      - name: Midtown East / Turtle Bay
         coverage_type: primary
       - name: Morningside Heights
         coverage_type: primary
-      - name: Harlem (North)
+      - name: Harlem
         coverage_type: secondary
   michael.rodriguez@example.com:
     max_distance_miles: 3.0
     names:
       - name: Greenwich Village
         coverage_type: primary
-      - name: Chelsea
+      - name: Chelsea / Hudson Yards
         coverage_type: primary
-      - name: SoHo
+      - name: SoHo / Hudson Square / Little Italy
         coverage_type: secondary
   dr.james.wilson@example.com:
     max_distance_miles: 1.0
@@ -46,16 +46,16 @@ overrides:
   priya.sharma@example.com:
     max_distance_miles: 2.0
     names:
-      - name: Tribeca
+      - name: Tribeca / Civic Center
         coverage_type: primary
-      - name: Financial District
+      - name: Financial District / Battery Park City
         coverage_type: primary
-      - name: SoHo
+      - name: SoHo / Hudson Square / Little Italy
         coverage_type: secondary
   james.williams@example.com:
     max_distance_miles: 2.0
     names:
-      - name: Upper West Side (Central)
+      - name: Upper West Side
         coverage_type: primary
       - name: West Village
         coverage_type: primary

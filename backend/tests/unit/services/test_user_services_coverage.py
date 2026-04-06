@@ -996,19 +996,19 @@ class TestPrivacyServiceCoverage:
         mock_area1 = Mock()
         mock_area1.neighborhood_id = "region1"
         mock_region1 = Mock()
-        mock_region1.region_code = None
-        mock_region1.region_name = None
-        mock_region1.parent_region = None
-        mock_region1.region_metadata = {"nta_code": "BX-01", "nta_name": "Bronx Park", "borough": "Bronx"}
+        mock_region1.display_name = "Bronx Park"
+        mock_region1.display_key = "nyc-bronx-bronx-park"
+        mock_region1.parent_region = "Bronx"
+        mock_region1.region_metadata = {"borough": "Bronx"}
         mock_area1.neighborhood = mock_region1
 
         mock_area2 = Mock()
         mock_area2.neighborhood_id = "region2"
         mock_region2 = Mock()
-        mock_region2.region_code = None
-        mock_region2.region_name = None
-        mock_region2.parent_region = None
-        mock_region2.region_metadata = {"nta_code": "BK-01", "nta_name": "Downtown", "borough": "Brooklyn"}
+        mock_region2.display_name = "Downtown"
+        mock_region2.display_key = "nyc-brooklyn-downtown"
+        mock_region2.parent_region = "Brooklyn"
+        mock_region2.region_metadata = {"borough": "Brooklyn"}
         mock_area2.neighborhood = mock_region2
 
         # Set up repository mocks
@@ -1068,8 +1068,8 @@ class TestPrivacyServiceCoverage:
         mock_area = Mock()
         mock_area.neighborhood_id = "region1"
         mock_region = Mock()
-        mock_region.region_code = "TEST-01"
-        mock_region.region_name = "Test Region"
+        mock_region.display_name = "Test Region"
+        mock_region.display_key = "nyc-test-borough-test-region"
         mock_region.parent_region = "Test Borough"
         mock_region.region_metadata = None  # None metadata
         mock_area.neighborhood = mock_region
@@ -1102,9 +1102,8 @@ class TestPrivacyServiceCoverage:
         profile = result["instructor_profile"]
         assert profile is not None
         assert len(profile["service_area_neighborhoods"]) == 1
-        # Should use region_code and region_name from the region object
-        assert profile["service_area_neighborhoods"][0]["ntacode"] == "TEST-01"
-        assert profile["service_area_neighborhoods"][0]["name"] == "Test Region"
+        assert profile["service_area_neighborhoods"][0]["display_name"] == "Test Region"
+        assert profile["service_area_neighborhoods"][0]["display_key"] == "nyc-test-borough-test-region"
 
     def test_delete_user_data_exception_handling(self, db: Session, monkeypatch):
         """Lines 274-278: Exception handling during deletion."""
@@ -1253,9 +1252,9 @@ class TestPrivacyServiceCoverage:
             area = Mock()
             area.neighborhood_id = f"region{i}"
             region = Mock()
-            region.region_code = None
-            region.region_name = None
-            region.parent_region = None
+            region.display_name = f"{borough} Display"
+            region.display_key = f"nyc-{borough.lower()}-{i}"
+            region.parent_region = borough
             region.region_metadata = {"borough": borough}
             area.neighborhood = region
             mock_areas.append(area)

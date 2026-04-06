@@ -30,12 +30,14 @@ import {
   getGlobalNeighborhoodMatchesWithIds,
   updateOptionalPlaceLabel,
 } from './EditProfileModal.helpers';
+import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
+import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
 type AddressListResponse = components['schemas']['AddressListResponse'];
 type AddressResponse = components['schemas']['AddressResponse'];
-type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
+type NeighborhoodSelectorResponse = components['schemas']['NeighborhoodSelectorResponse'];
 // Simple address type for profile editing
 type AddressItem = AddressResponse;
 
@@ -168,30 +170,22 @@ export default function EditProfileModal({
     'Long Island City',
   ];
 
-  // Neighborhood-based service areas (NYC style) - used in areas-only modal variant
-  type ServiceAreaItem = {
-    neighborhood_id?: string;
-    id?: string;
-    name?: string | null;
-    borough?: string | null;
-    ntacode?: string | null;
-    code?: string | null;
-  };
   const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
+  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
   const globalNeighborhoodMatches = useMemo(() => {
     const query = globalNeighborhoodFilter.trim().toLowerCase();
     if (!query) return [];
     const seen = new Set<string>();
     const matches = NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-      .filter((n) => (n.name || '').toLowerCase().includes(query));
+      .filter((n) => n.display_name.toLowerCase().includes(query));
     const results: ServiceAreaItem[] = [];
     for (const match of matches) {
-      const nid = match.neighborhood_id || match.id;
+      const nid = match.display_key;
       if (!nid || seen.has(nid)) continue;
       seen.add(nid);
       results.push(match);
@@ -241,15 +235,13 @@ export default function EditProfileModal({
         ? data.service_area_neighborhoods
         : [];
       const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
-        const neighborhoodId = item.neighborhood_id;
-        if (!neighborhoodId) {
+        if (!item.display_key) {
           return acc;
         }
         acc.push({
-          neighborhood_id: neighborhoodId,
-          ntacode: item.ntacode ?? null,
-          name: item.name ?? null,
-          borough: item.borough ?? null,
+          borough: item.borough,
+          display_key: item.display_key,
+          display_name: item.display_name,
         });
         return acc;
       }, []);
@@ -325,14 +317,13 @@ export default function EditProfileModal({
 
     const items = (serviceAreasData.items || []) as ServiceAreaItem[];
     const ids = items
-      .map((a) => a.neighborhood_id || a.id)
-      .filter((v): v is string => typeof v === 'string');
+      .map((a) => a.display_key)
+      .filter((v): v is string => typeof v === 'string' && v.length > 0);
     setSelectedNeighborhoods(new Set(ids));
     setIdToItem((prev) => {
       const next = { ...prev } as Record<string, ServiceAreaItem>;
       for (const a of items) {
-        const nid = a.neighborhood_id || a.id;
-        if (nid) next[nid] = a;
+        if (a.display_key) next[a.display_key] = a;
       }
       return next;
     });
@@ -351,18 +342,18 @@ export default function EditProfileModal({
 
     if (Array.isArray(selectedServiceAreas)) {
       const nextIds = selectedServiceAreas
-        .map((item) => item?.neighborhood_id)
+        .map((item) => item?.display_key)
         .filter((id): id is string => typeof id === 'string' && id.length > 0);
       setSelectedNeighborhoods(new Set(nextIds));
       if (selectedServiceAreas.length > 0) {
         setIdToItem((prev) => {
           const next = { ...prev } as Record<string, ServiceAreaItem>;
           for (const item of selectedServiceAreas) {
-            if (!item?.neighborhood_id) continue;
-            next[item.neighborhood_id] = {
-              neighborhood_id: item.neighborhood_id,
-              id: item.neighborhood_id,
-              name: item.name,
+            if (!item?.display_key) continue;
+            next[item.display_key] = {
+              borough: '',
+              display_key: item.display_key,
+              display_name: item.display_name,
             };
           }
           return next;
@@ -412,27 +403,31 @@ export default function EditProfileModal({
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    try {
-      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
-      const r = await fetchWithSessionRefresh(url);
-      if (r.ok) {
-        const data = (await r.json()) as NeighborhoodsListResponse;
-        const list = (data.items || []) as ServiceAreaItem[];
-        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const it of list) {
-            const nid = it.neighborhood_id || it.id;
-            if (nid) next[nid] = it;
+    if (!selectorRequestRef.current) {
+      selectorRequestRef.current = (async () => {
+        try {
+          const apiBase = process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000';
+          const url = `${apiBase}/api/v1/addresses/neighborhoods/selector?market=nyc`;
+          const r = await fetchWithSessionRefresh(url);
+          if (r.ok) {
+            const data = (await r.json()) as NeighborhoodSelectorResponse;
+            const index = buildServiceAreaSelectorIndex(data);
+            setBoroughNeighborhoods(index.boroughNeighborhoods);
+            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
+            return index.boroughNeighborhoods;
           }
-          return next;
-        });
-        return list;
-      }
-    } catch (err) {
-      logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } catch (err) {
+          logger.warn('Failed to load borough neighborhoods', { borough, err });
+        } finally {
+          selectorRequestRef.current = null;
+        }
+
+        return boroughNeighborhoods;
+      })();
     }
-    return boroughNeighborhoods[borough] || [];
+
+    const next = await selectorRequestRef.current;
+    return next[borough] || [];
   }, [boroughNeighborhoods]);
 
   // Prefetch borough lists when filtering globally
@@ -506,9 +501,9 @@ export default function EditProfileModal({
   const selectedNeighborhoodList = useMemo<SelectedNeighborhood[]>(() => {
     return Array.from(selectedNeighborhoods).map((id) => {
       const item = idToItem[id];
-      const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
+      const rawName = item?.display_name?.trim() ?? '';
       const normalizedName = rawName.length > 0 ? rawName : id;
-      return { neighborhood_id: id, name: normalizedName };
+      return { display_key: id, display_name: normalizedName };
     });
   }, [idToItem, selectedNeighborhoods]);
 
@@ -518,7 +513,7 @@ export default function EditProfileModal({
       return;
     }
 
-    const neighborhoodIds = selectedNeighborhoodList.map((item) => item.neighborhood_id);
+    const displayKeys = selectedNeighborhoodList.map((item) => item.display_key);
     const teachingPayload = teachingPlaces.slice(0, 2).map((place) => {
       const address = place.address.trim();
       const label = place.label?.trim();
@@ -551,7 +546,7 @@ export default function EditProfileModal({
       const serviceAreasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
+        body: JSON.stringify({ display_keys: displayKeys }),
       });
       if (serviceAreasRes.ok === false) {
         const message = await getErrorMessage(serviceAreasRes);
@@ -588,7 +583,7 @@ export default function EditProfileModal({
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((i) => i.neighborhood_id || i.id).filter((id): id is string => typeof id === 'string');
+    const ids = items.map((item) => item.display_key);
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       if (value) ids.forEach((id) => next.add(id));
@@ -1049,7 +1044,7 @@ export default function EditProfileModal({
                                 checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
-                              <span className="truncate text-left">{n.name || nid}</span>
+                              <span className="truncate text-left">{n.display_name || nid}</span>
                               <span className="ml-2">{checked ? '✓' : '+'}</span>
                             </button>
                           );
@@ -1109,10 +1104,10 @@ export default function EditProfileModal({
                         {isOpen && (
                           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                             {(list || []).map((n) => {
-                              const nid = n.neighborhood_id || n.id;
+                              const nid = n.display_key;
                               if (!nid) return null;
                               const checked = selectedNeighborhoods.has(nid);
-                              const label = String(n.name || nid)
+                              const label = String(n.display_name || nid)
                                 .trim()
                                 .toLowerCase()
                                 .split(' ')

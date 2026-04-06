@@ -383,20 +383,24 @@ class TestPrivacyService:
     ):
         """Ensure service area summaries use region metadata and borough rollups."""
         user_id = sample_instructor_for_privacy.id
+        unique_suffix = user_id[-6:]
 
         region_specs = [
-            ("Bronx", "BX-01", "Bronx Park"),
-            ("Manhattan", "MN-01", "Lower Manhattan"),
-            ("Queens", "QN-01", "Long Island City"),
+            ("Bronx", f"BX-{unique_suffix}-1", "Bronx Park"),
+            ("Manhattan", f"MN-{unique_suffix}-1", "Lower Manhattan"),
+            ("Queens", f"QN-{unique_suffix}-1", "Long Island City"),
         ]
         regions = []
         for borough, code, name in region_specs:
             region = RegionBoundary(
                 region_type="nyc",
-                region_code=None,
-                region_name=None,
-                parent_region=None,
-                region_metadata={"nta_code": code, "nta_name": name, "borough": borough},
+                region_code=code,
+                region_name=name,
+                display_name=name,
+                display_key=f"nyc-{borough.lower().replace(' ', '-')}-{name.lower().replace(' ', '-')}",
+                display_order=0,
+                parent_region=borough,
+                region_metadata={"borough": borough},
             )
             db.add(region)
             db.flush()

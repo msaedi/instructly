@@ -8,11 +8,16 @@ Tests authentication behavior for different account statuses:
 - Deactivated users cannot login
 """
 
+from types import SimpleNamespace
+import uuid
+
 import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
 from app.core.config import settings
+from app.models.address import InstructorServiceArea
+from app.models.region_boundary import RegionBoundary
 from app.models.user import User
 from app.services.auth_service import AuthService
 
@@ -185,6 +190,77 @@ class TestAuthServiceAccountStatus:
         db_user = db.query(User).filter(User.email == "newuser@example.com").first()
         assert db_user is not None
         assert db_user.account_status == "active"
+
+    def test_register_instructor_bootstraps_all_consolidated_service_areas(
+        self, auth_service: AuthService, db: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Consolidated display keys create one service-area row per backing polygon."""
+        code_prefix = uuid.uuid4().hex[:8].upper()
+        display_name = f"Registration Test {code_prefix}"
+        display_key = f"nyc-manhattan-registration-test-{code_prefix.lower()}"
+        boundaries = [
+            RegionBoundary(
+                region_type="nyc",
+                region_code=f"REG-{code_prefix}-{index}",
+                region_name=region_name,
+                parent_region="Manhattan",
+                display_name=display_name,
+                display_key=display_key,
+            )
+            for index, region_name in enumerate(
+                [
+                    "Registration Test-Alpha",
+                    "Registration Test-Beta",
+                    "Registration Test-Gamma",
+                ],
+                start=1,
+            )
+        ]
+        db.add_all(boundaries)
+        db.commit()
+
+        class FakeGeocoder:
+            async def geocode(self, _query: str):
+                return SimpleNamespace(latitude=40.77, longitude=-73.96, city="New York")
+
+        monkeypatch.setattr(
+            "app.services.geocoding.factory.create_geocoding_provider",
+            lambda *_args, **_kwargs: FakeGeocoder(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.region_boundary_repository.RegionBoundaryRepository.find_region_by_point",
+            lambda *_args, **_kwargs: {"region_name": display_name, "display_key": display_key},
+        )
+
+        email = f"register-{uuid.uuid4().hex[:8]}@example.com"
+        user = auth_service.register_user(
+            email=email,
+            password="password123",
+            first_name="New",
+            last_name="Instructor",
+            zip_code="10021",
+            role="instructor",
+        )
+
+        assert user is not None
+        rows = (
+            db.query(InstructorServiceArea)
+            .filter(InstructorServiceArea.instructor_id == user.id)
+            .all()
+        )
+        assert len(rows) == 3
+
+        region_ids = sorted({row.neighborhood_id for row in rows if row.neighborhood_id})
+        expected_ids = sorted(str(boundary.id) for boundary in boundaries)
+        assert region_ids == expected_ids
+
+        matched_boundaries = (
+            db.query(RegionBoundary)
+            .filter(RegionBoundary.id.in_(region_ids))
+            .all()
+        )
+        assert matched_boundaries
+        assert {boundary.display_key for boundary in matched_boundaries} == {display_key}
 
     def test_api_login_endpoint_with_deactivated_user(self, client, deactivated_instructor: User, test_password: str):
         """Test that login endpoint rejects deactivated users with specific message."""

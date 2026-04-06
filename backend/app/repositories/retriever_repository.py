@@ -398,7 +398,7 @@ class RetrieverRepository:
         Fetch coverage area names for a list of instructor (user) IDs.
 
         Uses instructor_service_areas.neighborhood_id → region_boundaries.id and
-        returns region_boundaries.region_name values.
+        returns display-friendly region labels.
 
         Returns:
             List of dicts with keys:
@@ -412,7 +412,10 @@ class RetrieverRepository:
             """
             SELECT
                 isa.instructor_id,
-                array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as coverage_areas
+                array_agg(
+                    DISTINCT COALESCE(rb.display_name, rb.region_name)
+                    ORDER BY COALESCE(rb.display_name, rb.region_name)
+                ) as coverage_areas
             FROM instructor_service_areas isa
             JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
             WHERE isa.instructor_id = ANY(:instructor_ids)
@@ -473,7 +476,10 @@ class RetrieverRepository:
             LEFT JOIN (
                 SELECT
                     isa.instructor_id,
-                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as coverage_areas
+                    array_agg(
+                        DISTINCT COALESCE(rb.display_name, rb.region_name)
+                        ORDER BY COALESCE(rb.display_name, rb.region_name)
+                    ) as coverage_areas
                 FROM instructor_service_areas isa
                 JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
                 WHERE isa.instructor_id = ANY(:instructor_ids)
@@ -683,7 +689,10 @@ class RetrieverRepository:
             coverage AS (
                 SELECT
                     isa.instructor_id,
-                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as areas
+                    array_agg(
+                        DISTINCT COALESCE(rb.display_name, rb.region_name)
+                        ORDER BY COALESCE(rb.display_name, rb.region_name)
+                    ) as areas
                 FROM instructor_service_areas isa
                 JOIN region_boundaries rb ON isa.neighborhood_id = rb.id
                 WHERE isa.instructor_id IN (SELECT instructor_id FROM instructor_matches)
@@ -860,7 +869,10 @@ class RetrieverRepository:
             coverage AS (
                 SELECT
                     isa.instructor_id,
-                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as areas
+                    array_agg(
+                        DISTINCT COALESCE(rb.display_name, rb.region_name)
+                        ORDER BY COALESCE(rb.display_name, rb.region_name)
+                    ) as areas
                 FROM instructor_service_areas isa
                 JOIN region_boundaries rb ON isa.neighborhood_id = rb.id
                 WHERE isa.instructor_id IN (SELECT instructor_id FROM instructor_matches)

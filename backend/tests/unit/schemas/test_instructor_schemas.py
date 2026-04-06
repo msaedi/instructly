@@ -848,9 +848,8 @@ class TestInstructorProfileResponseFromOrm:
 
         profile.service_area_neighborhoods = [
             {
-                "neighborhood_id": "01HNEIGHBORHOODID123456",
-                "ntacode": "MN01",
-                "name": "Midtown",
+                "display_name": "Midtown",
+                "display_key": "nyc-manhattan-midtown",
                 "borough": "Manhattan",
                 "is_active": True,
             }
@@ -867,8 +866,8 @@ class TestInstructorProfileResponseFromOrm:
 
         profile.service_area_neighborhoods = [
             {
-                "neighborhood_id": "01HNEIGHBORHOODID123456",
-                "name": "Midtown",
+                "display_name": "Midtown",
+                "display_key": "nyc-manhattan-midtown",
                 "borough": "Manhattan",
                 "is_active": False,  # Inactive
             }
@@ -882,12 +881,8 @@ class TestInstructorProfileResponseFromOrm:
         profile = self._create_mock_profile()
 
         neighborhood = MagicMock()
-        neighborhood.neighborhood_id = "01HNEIGHBORHOODID123456"
-        neighborhood.id = None
-        neighborhood.ntacode = "MN01"
-        neighborhood.region_code = None
-        neighborhood.name = "Midtown"
-        neighborhood.region_name = None
+        neighborhood.display_name = "Midtown"
+        neighborhood.display_key = "nyc-manhattan-midtown"
         neighborhood.borough = "Manhattan"
         neighborhood.parent_region = None
         neighborhood.is_active = True
@@ -909,12 +904,10 @@ class TestInstructorProfileResponseFromOrm:
 
         neighborhood = MagicMock()
         neighborhood.id = "01HNEIGHBORHOODID123456"
+        neighborhood.display_name = "Midtown"
+        neighborhood.display_key = "nyc-manhattan-midtown"
         neighborhood.parent_region = "Manhattan"
         neighborhood.borough = None
-        neighborhood.region_code = "MN01"
-        neighborhood.ntacode = None
-        neighborhood.region_name = "Midtown"
-        neighborhood.name = None
         area.neighborhood = neighborhood
 
         profile.user.service_areas = [area]
@@ -956,9 +949,24 @@ class TestInstructorProfileResponseFromOrm:
         profile = self._create_mock_profile()
 
         profile.service_area_neighborhoods = [
-            {"name": "Midtown", "borough": "Manhattan", "is_active": True},
-            {"name": "Downtown", "borough": "Manhattan", "is_active": True},
-            {"name": "Williamsburg", "borough": "Brooklyn", "is_active": True},
+            {
+                "display_name": "Midtown",
+                "display_key": "nyc-manhattan-midtown",
+                "borough": "Manhattan",
+                "is_active": True,
+            },
+            {
+                "display_name": "Downtown",
+                "display_key": "nyc-manhattan-downtown",
+                "borough": "Manhattan",
+                "is_active": True,
+            },
+            {
+                "display_name": "Williamsburg",
+                "display_key": "nyc-brooklyn-williamsburg",
+                "borough": "Brooklyn",
+                "is_active": True,
+            },
         ]
 
         response = InstructorProfileResponse.from_orm(profile)
@@ -969,9 +977,24 @@ class TestInstructorProfileResponseFromOrm:
         profile = self._create_mock_profile()
 
         profile.service_area_neighborhoods = [
-            {"name": "Midtown", "borough": "Manhattan", "is_active": True},
-            {"name": "Williamsburg", "borough": "Brooklyn", "is_active": True},
-            {"name": "Astoria", "borough": "Queens", "is_active": True},
+            {
+                "display_name": "Midtown",
+                "display_key": "nyc-manhattan-midtown",
+                "borough": "Manhattan",
+                "is_active": True,
+            },
+            {
+                "display_name": "Williamsburg",
+                "display_key": "nyc-brooklyn-williamsburg",
+                "borough": "Brooklyn",
+                "is_active": True,
+            },
+            {
+                "display_name": "Astoria",
+                "display_key": "nyc-queens-astoria",
+                "borough": "Queens",
+                "is_active": True,
+            },
         ]
 
         response = InstructorProfileResponse.from_orm(profile)
@@ -983,8 +1006,18 @@ class TestInstructorProfileResponseFromOrm:
         profile = self._create_mock_profile()
 
         profile.service_area_neighborhoods = [
-            {"name": "Midtown", "borough": "Manhattan", "is_active": True},
-            {"name": "Williamsburg", "borough": "Brooklyn", "is_active": True},
+            {
+                "display_name": "Midtown",
+                "display_key": "nyc-manhattan-midtown",
+                "borough": "Manhattan",
+                "is_active": True,
+            },
+            {
+                "display_name": "Williamsburg",
+                "display_key": "nyc-brooklyn-williamsburg",
+                "borough": "Brooklyn",
+                "is_active": True,
+            },
         ]
 
         response = InstructorProfileResponse.from_orm(profile)

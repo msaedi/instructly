@@ -154,6 +154,7 @@ Systematic reduction of the size budget baseline through decomposition and metho
 **Completed:**
 - `payment_repository.py` (1,679 → 80 lines) — 8 domain mixins following booking pattern
 - `main.py` (1,467 → 129 lines) — 5 extracted modules: lifespan, background_jobs, router_registry, middleware_setup, internal_metrics. Shared router builder eliminates openapi_app duplication.
+- `config.py` (1,490 → 427 lines) — 12 flat settings mixins: auth, database, communications, integrations, search, payments, privacy, availability, rate_limiting, referrals, runtime, operations. Order-sensitive validators tightened.
 - `celery_app.py` (834 → 585 lines) — signal handlers extracted to task_execution_signals.py
 - `schemas/instructor.py` (930 → package) — 5 modules: locations, services, requests, responses, commission
 - `schemas/booking.py` (1,233 → package) — 3 modules: requests, responses, availability
@@ -161,12 +162,11 @@ Systematic reduction of the size budget baseline through decomposition and metho
 - Size budget scope expanded from services+tasks to all of `backend/app/`
 - `service_catalog.py` (936 lines) — baselined, tight FK coupling makes splitting counterproductive
 
-**Baseline progression:** 29 → 60 (expanded scope) → 54 → 51 → ~47
+**Baseline progression:** 29 → 60 (expanded scope) → 54 → 51 → ~47 → ~45
 
 ### Backend Remaining Large Files (P3)
-- `core/config.py` (1,490) — highest risk, phased sub-model extraction needed
 - `instructor_profile_repository.py` (1,582) — mixin decomposition (BGC-heavy)
-- ~45 other baselined files across services, routes, repositories
+- ~44 other baselined files across services, routes, repositories
 
 ### Blocked / External Dependencies
 - redis-py 7.4.0 upgrade — blocked by Kombu `<6.5` cap

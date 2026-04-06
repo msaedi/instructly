@@ -430,23 +430,29 @@ def test_profile_to_dict_handles_non_iterable_services_and_service_areas():
     service = _build_service()
     service.preferred_place_repository.list_for_instructor.return_value = []
 
-    region_meta = {
-        "nta_code": "N1",
-        "nta_name": "Neighborhood One",
-        "borough": "Brooklyn",
-    }
     areas = [
-        SimpleNamespace(neighborhood_id="n1", neighborhood=SimpleNamespace(region_metadata=region_meta)),
+        SimpleNamespace(
+            neighborhood_id="n1",
+            neighborhood=SimpleNamespace(
+                display_name="Neighborhood One",
+                display_key="nyc-brooklyn-neighborhood-one",
+                parent_region="Brooklyn",
+            ),
+        ),
         SimpleNamespace(
             neighborhood_id="n2",
             neighborhood=SimpleNamespace(
-                region_metadata={"nta_code": "N2", "nta_name": "Neighborhood Two", "borough": "Manhattan"}
+                display_name="Neighborhood Two",
+                display_key="nyc-manhattan-neighborhood-two",
+                parent_region="Manhattan",
             ),
         ),
         SimpleNamespace(
             neighborhood_id="n3",
             neighborhood=SimpleNamespace(
-                region_metadata={"nta_code": "N3", "nta_name": "Neighborhood Three", "borough": "Queens"}
+                display_name="Neighborhood Three",
+                display_key="nyc-queens-neighborhood-three",
+                parent_region="Queens",
             ),
         ),
     ]

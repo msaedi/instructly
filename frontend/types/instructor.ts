@@ -1,6 +1,7 @@
 // frontend/types/instructor.ts
 
 import { formatDisplayName } from '@/lib/format/displayName';
+import type { ServiceAreaNeighborhood as ApiServiceAreaNeighborhood } from '@/features/shared/api/types';
 
 /**
  * Instructor Type Definitions
@@ -19,12 +20,7 @@ import { formatDisplayName } from '@/lib/format/displayName';
  *
  * @interface InstructorBasic
  */
-export interface ServiceAreaNeighborhood {
-  neighborhood_id: string;
-  ntacode?: string | null;
-  name?: string | null;
-  borough?: string | { name?: string | null; label?: string | null } | null;
-}
+export type ServiceAreaNeighborhood = ApiServiceAreaNeighborhood;
 
 export type ServiceLocationType = 'in_person' | 'online';
 

@@ -3913,13 +3913,12 @@ export interface PreferredTeachingLocationPublicOut {
 }
 
 /**
- * Normalized neighborhood metadata used in instructor service area responses.
+ * Normalized display-level metadata used in instructor service area responses.
  */
 export interface ServiceAreaNeighborhood {
-  borough?: string | null;
-  name?: string | null;
-  neighborhood_id: string;
-  ntacode?: string | null;
+  borough: string;
+  display_key: string;
+  display_name: string;
 }
 
 export type ServiceFormatPriceOutFormat =
@@ -6319,23 +6318,42 @@ export interface NYCZipCheckResponse {
 }
 
 /**
- * Single neighborhood entry with optional borough metadata.
+ * A searchable alias for a display item.
  */
-export interface NeighborhoodItem {
-  borough?: string | null;
-  code?: string | null;
-  id: string;
-  name: string;
+export interface SelectorSearchTerm {
+  term: string;
+  type: string;
 }
 
 /**
- * Paginated list of neighborhoods.
+ * A single selectable neighborhood entry.
  */
-export interface NeighborhoodsListResponse {
-  items: NeighborhoodItem[];
-  page?: number | null;
-  per_page?: number | null;
-  total: number;
+export interface SelectorDisplayItem {
+  additional_boroughs?: string[];
+  borough: string;
+  display_key: string;
+  display_name: string;
+  display_order: number;
+  nta_ids: string[];
+  search_terms: SelectorSearchTerm[];
+}
+
+/**
+ * A borough group.
+ */
+export interface SelectorBorough {
+  borough: string;
+  item_count: number;
+  items: SelectorDisplayItem[];
+}
+
+/**
+ * Complete selector data for a market.
+ */
+export interface NeighborhoodSelectorResponse {
+  boroughs: SelectorBorough[];
+  market: string;
+  total_items: number;
 }
 
 /**
@@ -8807,20 +8825,22 @@ export interface SendRemindersResponse {
   reminders_sent: number;
 }
 
-export interface ServiceAreaItem {
-  borough?: string | null;
-  name?: string | null;
-  neighborhood_id: string;
-  ntacode?: string | null;
+/**
+ * An instructor's selected neighborhood (display-level).
+ */
+export interface ServiceAreaDisplayItem {
+  borough: string;
+  display_key: string;
+  display_name: string;
 }
 
 export interface ServiceAreasResponse {
-  items: ServiceAreaItem[];
+  items: ServiceAreaDisplayItem[];
   total: number;
 }
 
 export interface ServiceAreasUpdateRequest {
-  neighborhood_ids: string[];
+  display_keys: string[];
 }
 
 export type ServiceCatalogDetailEligibleAgeGroupsItem =
@@ -9884,6 +9904,10 @@ export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
   ids: string;
 };
 
+export type GetNeighborhoodSelectorApiV1AddressesNeighborhoodsSelectorGetParams = {
+  market?: string;
+};
+
 export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams = {
   q: string;
   provider?: string | null;
@@ -9893,13 +9917,6 @@ export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams = {
 export type PlaceDetailsApiV1AddressesPlacesDetailsGetParams = {
   place_id: string;
   provider?: string | null;
-};
-
-export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams = {
-  region_type?: string;
-  borough?: string | null;
-  page?: number;
-  per_page?: number;
 };
 
 export type IsNycZipApiV1AddressesZipIsNycGetParams = {

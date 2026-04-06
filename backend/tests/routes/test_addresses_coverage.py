@@ -122,17 +122,45 @@ def test_update_and_delete_address_not_found(test_student):
     assert excinfo.value.status_code == 404
 
 
-def test_list_service_areas_and_neighborhoods_clamp(test_instructor):
+def test_list_service_areas_and_selector(test_instructor):
     class StubService:
         def __init__(self):
-            self.neighborhood_args = None
+            self.selector_market = None
 
         def list_service_areas(self, _user_id):
-            return [{"neighborhood_id": "area1", "name": "Chelsea", "borough": "Manhattan"}]
+            return [
+                {
+                    "display_name": "Chelsea / Hudson Yards",
+                    "display_key": "nyc-manhattan-chelsea-hudson-yards",
+                    "borough": "Manhattan",
+                }
+            ]
 
-        def list_neighborhoods(self, region_type, borough, limit, offset):
-            self.neighborhood_args = (region_type, borough, limit, offset)
-            return [{"id": "n1", "name": "Chelsea", "borough": "Manhattan"}]
+        def get_neighborhood_selector(self, market):
+            self.selector_market = market
+            return {
+                "market": market,
+                "boroughs": [
+                    {
+                        "borough": "Manhattan",
+                        "item_count": 1,
+                        "items": [
+                            {
+                                "display_name": "Chelsea / Hudson Yards",
+                                "display_key": "nyc-manhattan-chelsea-hudson-yards",
+                                "borough": "Manhattan",
+                                "nta_ids": ["n1"],
+                                "display_order": 1,
+                                "search_terms": [
+                                    {"term": "Chelsea / Hudson Yards", "type": "display"}
+                                ],
+                                "additional_boroughs": [],
+                            }
+                        ],
+                    }
+                ],
+                "total_items": 1,
+            }
 
     service = StubService()
 
@@ -141,18 +169,18 @@ def test_list_service_areas_and_neighborhoods_clamp(test_instructor):
         service=service,
     )
     assert service_areas.total == 1
-    assert service_areas.items[0].name == "Chelsea"
+    assert service_areas.items[0].display_name == "Chelsea / Hudson Yards"
 
-    neighborhoods = addresses_routes.list_neighborhoods(
-        region_type="nyc",
-        borough="Manhattan",
-        page=0,
-        per_page=600,
+    response = Response()
+    neighborhoods = addresses_routes.get_neighborhood_selector(
+        response=response,
+        market="nyc",
         service=service,
     )
-    assert neighborhoods.page == 1
-    assert neighborhoods.per_page == 500
-    assert service.neighborhood_args == ("nyc", "Manhattan", 500, 0)
+    assert neighborhoods.total_items == 1
+    assert neighborhoods.boroughs[0].items[0].display_name == "Chelsea / Hudson Yards"
+    assert response.headers["Cache-Control"] == "public, max-age=86400"
+    assert service.selector_market == "nyc"
 
 
 def test_places_autocomplete_scopes(monkeypatch):
@@ -312,18 +340,26 @@ def test_replace_my_service_areas(test_instructor):
         def __init__(self):
             self.replaced = None
 
-        def replace_service_areas(self, _user_id, neighborhood_ids):
-            self.replaced = neighborhood_ids
+        def replace_service_areas(self, _user_id, display_keys):
+            self.replaced = display_keys
 
         def list_service_areas(self, _user_id):
-            return [{"neighborhood_id": "area1", "name": "Chelsea"}]
+            return [
+                {
+                    "display_name": "Chelsea / Hudson Yards",
+                    "display_key": "nyc-manhattan-chelsea-hudson-yards",
+                    "borough": "Manhattan",
+                }
+            ]
 
     service = StubService()
 
     response = addresses_routes.replace_my_service_areas(
-        payload=addresses_routes.ServiceAreasUpdateRequest(neighborhood_ids=["area1"]),
+        payload=addresses_routes.ServiceAreasUpdateRequest(
+            display_keys=["nyc-manhattan-chelsea-hudson-yards"]
+        ),
         current_user=test_instructor,
         service=service,
     )
-    assert service.replaced == ["area1"]
+    assert service.replaced == ["nyc-manhattan-chelsea-hudson-yards"]
     assert response.total == 1

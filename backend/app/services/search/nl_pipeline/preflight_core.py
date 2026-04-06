@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from typing import TYPE_CHECKING, AbstractSet, Callable, Dict, List, Literal, Optional, Tuple
 
@@ -263,7 +264,10 @@ def resolve_pre_location_tiers(
             location_llm_candidates=location_llm_candidates,
         )
     location_normalized = normalize_location_text(parsed_query.location_text)
-    resolver = location_resolver_cls(db, region_code=region_code)
+    if "region_lookup" in inspect.signature(location_resolver_cls).parameters:
+        resolver = location_resolver_cls(db, region_code=region_code, region_lookup=region_lookup)
+    else:
+        resolver = location_resolver_cls(db, region_code=region_code)
     non_semantic = resolver.resolve_sync(
         parsed_query.location_text,
         original_query=parsed_query.original_query,

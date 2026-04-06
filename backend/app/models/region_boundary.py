@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Column, DateTime, String
+from sqlalchemy import JSON, Column, DateTime, Integer, String
 import ulid
 
 from ..database import Base
@@ -17,6 +17,19 @@ class RegionBoundary(Base):
     region_code = Column(String(50), nullable=True)
     region_name = Column(String(100), nullable=True)
     parent_region = Column(String(100), nullable=True)
+
+    # Display layer - presentation-only, does not affect spatial matching.
+    # NULL display_name = dropped from selector (parks, cemeteries, airports).
+    # Shared display_name across multiple rows = consolidated into one selector entry.
+    display_name = Column(String(120), nullable=True)
+
+    # Stable identifier for API contracts. Format: {market}-{borough}-{slug}.
+    # Survives display_name label changes. Set once at seed time.
+    # Example: "nyc-manhattan-upper-east-side"
+    display_key = Column(String(150), nullable=True)
+
+    # Sort position within borough. All NTAs sharing a display_name get the same value.
+    display_order = Column(Integer(), nullable=True)
 
     # Geometry columns exist in DB via migration; not mapped here to avoid geoalchemy2 dep
     # boundary POLYGON, centroid POINT (SRID 4326)

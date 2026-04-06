@@ -10,9 +10,8 @@ import { logger } from '@/lib/logger';
 import type { ProfileFormState, ServiceAreaItem } from '@/features/instructor-profile/types';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
-import type { components } from '@/features/shared/api/types';
-
-type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
+import type { NeighborhoodSelectorResponse } from '@/features/shared/api/types';
+import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
 
 const WEBHOOK_URL = 'https://instainstru.app.n8n.cloud/webhook/instructor-lead';
 
@@ -89,6 +88,7 @@ export default function InstructorApplyPage() {
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
 
   const categories = useMemo(
     () => (Array.isArray(categoriesData) ? categoriesData : []),
@@ -113,49 +113,30 @@ export default function InstructorApplyPage() {
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    try {
-      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
-      const response = await fetchWithSessionRefresh(url, { credentials: 'include' });
-      if (response.ok) {
-        const data = (await response.json()) as NeighborhoodsListResponse;
-        const list = (data.items ?? []).flatMap((raw) => {
-          const record = raw as Record<string, unknown>;
-          const neighborhoodId =
-            typeof record['neighborhood_id'] === 'string'
-              ? (record['neighborhood_id'] as string)
-              : typeof record['id'] === 'string'
-              ? (record['id'] as string)
-              : '';
-          if (!neighborhoodId) return [];
-          return [
-            {
-              neighborhood_id: neighborhoodId,
-              ntacode:
-                typeof record['ntacode'] === 'string'
-                  ? (record['ntacode'] as string)
-                  : typeof record['code'] === 'string'
-                  ? (record['code'] as string)
-                  : null,
-              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
-              borough: record['borough'] ?? null,
-            } as ServiceAreaItem,
-          ];
-        });
-        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const item of list) {
-            const id = item.neighborhood_id;
-            if (id) next[id] = item;
+    if (!selectorRequestRef.current) {
+      selectorRequestRef.current = (async () => {
+        try {
+          const url = withApiBase('/api/v1/addresses/neighborhoods/selector?market=nyc');
+          const response = await fetchWithSessionRefresh(url, { credentials: 'include' });
+          if (response.ok) {
+            const data = (await response.json()) as NeighborhoodSelectorResponse;
+            const index = buildServiceAreaSelectorIndex(data);
+            setBoroughNeighborhoods(index.boroughNeighborhoods);
+            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
+            return index.boroughNeighborhoods;
           }
-          return next;
-        });
-        return list;
-      }
-    } catch (error) {
-      logger.warn('Failed to load neighborhood list', error as Error);
+        } catch (error) {
+          logger.warn('Failed to load neighborhood selector', error as Error);
+        } finally {
+          selectorRequestRef.current = null;
+        }
+
+        return boroughNeighborhoods;
+      })();
     }
-    return boroughNeighborhoods[borough] || [];
+
+    const next = await selectorRequestRef.current;
+    return next[borough] || [];
   }, [boroughNeighborhoods]);
 
   useEffect(() => {
@@ -174,7 +155,7 @@ export default function InstructorApplyPage() {
 
   const selectedNeighborhoodId = useMemo(() => Array.from(selectedNeighborhoods.values())[0] || '', [selectedNeighborhoods]);
   const selectedNeighborhoodName = selectedNeighborhoodId
-    ? toTitle(String(idToItem[selectedNeighborhoodId]?.name || selectedNeighborhoodId))
+    ? toTitle(String(idToItem[selectedNeighborhoodId]?.display_name || selectedNeighborhoodId))
     : '';
 
   const toggleNeighborhood = (id: string) => {
@@ -201,7 +182,7 @@ export default function InstructorApplyPage() {
       return;
     }
     const list = itemsOverride || (await loadBoroughNeighborhoods(borough));
-    const first = list[0]?.neighborhood_id;
+    const first = list[0]?.display_key;
     if (first) {
       setSelectedNeighborhoods(new Set([first]));
     }

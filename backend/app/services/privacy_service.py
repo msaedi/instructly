@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth_cache import invalidate_cached_user_by_id_sync
 from ..core.config import settings
+from ..domain.neighborhood_helpers import display_area_from_region
 from ..repositories.factory import RepositoryFactory
 from ..schemas.privacy import PrivacyStatistics, RetentionStats
 from .base import BaseService
@@ -121,36 +122,22 @@ class PrivacyService(BaseService):
             service_area_records = self.service_area_repository.list_for_instructor(user_id)
             service_area_neighborhoods: list[dict[str, Any]] = []
             boroughs: set[str] = set()
+            seen_display_keys: set[str] = set()
 
             for area in service_area_records:
                 region = getattr(area, "neighborhood", None)
-                region_code: str | None = getattr(region, "region_code", None)
-                region_name: str | None = getattr(region, "region_name", None)
-                borough: str | None = getattr(region, "parent_region", None)
-                region_meta = getattr(region, "region_metadata", None)
+                item = display_area_from_region(region)
+                if not item:
+                    continue
 
-                if isinstance(region_meta, dict):
-                    region_code = (
-                        region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
-                    )
-                    region_name = (
-                        region_name or region_meta.get("nta_name") or region_meta.get("name")
-                    )
-                    meta_borough = region_meta.get("borough")
-                    if isinstance(meta_borough, str) and meta_borough:
-                        borough = meta_borough
-
+                borough = item["borough"]
                 if borough:
                     boroughs.add(borough)
 
-                service_area_neighborhoods.append(
-                    {
-                        "neighborhood_id": area.neighborhood_id,
-                        "ntacode": region_code,
-                        "name": region_name,
-                        "borough": borough,
-                    }
-                )
+                if item["display_key"] in seen_display_keys:
+                    continue
+                seen_display_keys.add(item["display_key"])
+                service_area_neighborhoods.append(item)
 
             sorted_boroughs = sorted(boroughs)
             if sorted_boroughs:

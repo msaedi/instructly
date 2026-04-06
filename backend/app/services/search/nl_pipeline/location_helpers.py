@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, List, Mapping, Optional
 
 from app.schemas.nl_search import StageStatus
 from app.services.search.location_resolver import (
-    LocationCandidate,
+    LocationCandidateDisplay,
+    LocationResolver,
     ResolutionTier,
     ResolvedLocation,
 )
@@ -28,6 +29,10 @@ if TYPE_CHECKING:
     from app.repositories.search_batch_repository import CachedAliasInfo, RegionInfo, RegionLookup
 
 logger = logging.getLogger(__name__)
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def normalize_location_text(text_value: str) -> str:
@@ -91,7 +96,7 @@ def resolve_cached_alias(
     region_lookup: RegionLookup,
 ) -> Optional[ResolvedLocation]:
     if cached_alias.is_ambiguous and cached_alias.candidate_region_ids:
-        candidates: List[LocationCandidate] = []
+        candidates: List[LocationCandidateDisplay] = []
         for region_id in cached_alias.candidate_region_ids:
             info = region_lookup.by_id.get(region_id)
             if not info:
@@ -101,40 +106,57 @@ def resolve_cached_alias(
                     "region_id": info.region_id,
                     "region_name": info.region_name,
                     "borough": info.borough,
+                    "display_name": _optional_string(getattr(info, "display_name", None)),
+                    "display_key": _optional_string(getattr(info, "display_key", None)),
+                    "region_ids": [info.region_id],
                 }
             )
-        if len(candidates) >= 2:
-            return ResolvedLocation.from_ambiguous(
-                candidates=candidates,
-                tier=ResolutionTier.LLM,
-                confidence=cached_alias.confidence,
-            )
+        logical_candidates = LocationResolver._dedupe_candidates_by_display(candidates)
+        result = LocationResolver._build_result_from_candidates(
+            logical_candidates,
+            tier=ResolutionTier.LLM,
+            confidence=cached_alias.confidence,
+        )
+        if result.resolved or result.requires_clarification:
+            return result
     if cached_alias.is_resolved and cached_alias.region_id:
-        info = region_lookup.by_id.get(cached_alias.region_id)
-        if info:
-            return ResolvedLocation.from_region(
-                region_id=info.region_id,
-                region_name=info.region_name,
-                borough=info.borough,
-                tier=ResolutionTier.LLM,
-                confidence=cached_alias.confidence,
+        supporting_ids = list(
+            dict.fromkeys(
+                [
+                    str(cached_alias.region_id),
+                    *[str(region_id) for region_id in cached_alias.candidate_region_ids],
+                ]
             )
+        )
+        resolved_candidates: List[LocationCandidateDisplay] = []
+        for region_id in supporting_ids:
+            info = region_lookup.by_id.get(region_id)
+            if not info:
+                continue
+            resolved_candidates.append(
+                {
+                    "region_id": info.region_id,
+                    "region_name": info.region_name,
+                    "borough": info.borough,
+                    "display_name": _optional_string(getattr(info, "display_name", None)),
+                    "display_key": _optional_string(getattr(info, "display_key", None)),
+                    "region_ids": [info.region_id],
+                }
+            )
+        logical_candidates = LocationResolver._dedupe_candidates_by_display(resolved_candidates)
+        result = LocationResolver._build_result_from_candidates(
+            logical_candidates,
+            tier=ResolutionTier.LLM,
+            confidence=cached_alias.confidence,
+        )
+        if result.resolved or result.requires_clarification:
+            return result
     return None
 
 
 def distance_region_ids(location_resolution: Optional[ResolvedLocation]) -> Optional[List[str]]:
-    if not location_resolution:
-        return None
-    if location_resolution.region_id:
-        return [str(location_resolution.region_id)]
-    if location_resolution.requires_clarification and location_resolution.candidates:
-        candidate_ids = [
-            str(candidate.get("region_id"))
-            for candidate in location_resolution.candidates
-            if isinstance(candidate, dict) and candidate.get("region_id")
-        ]
-        return list(dict.fromkeys(candidate_ids)) or None
-    return None
+    region_ids = LocationResolver.effective_region_ids(location_resolution)
+    return region_ids or None
 
 
 def consume_task_result(
@@ -230,14 +252,12 @@ def parse_llm_location_response(
     if not isinstance(neighborhoods, list) or not neighborhoods:
         return None, None, unresolved
     regions: List[RegionInfo] = []
-    seen_ids: set[str] = set()
     for name in neighborhoods:
         if not isinstance(name, str):
             continue
         info = region_lookup.by_name.get(name.strip().lower())
-        if not info or info.region_id in seen_ids:
+        if not info:
             continue
-        seen_ids.add(info.region_id)
         regions.append(info)
     if not regions:
         return None, None, unresolved
@@ -249,38 +269,32 @@ def parse_llm_location_response(
             confidence_val = 0.5
     else:
         confidence_val = 0.5
-    llm_cache = LocationLLMCache(
-        normalized=normalized_value,
-        confidence=confidence_val,
-        region_ids=[region.region_id for region in regions],
-    )
-    if len(regions) == 1:
-        region = regions[0]
-        return (
-            ResolvedLocation.from_region(
-                region_id=region.region_id,
-                region_name=region.region_name,
-                borough=region.borough,
-                tier=ResolutionTier.LLM,
-                confidence=confidence_val,
-            ),
-            llm_cache,
-            None,
-        )
-    candidates: List[LocationCandidate] = [
+    candidates: List[LocationCandidateDisplay] = [
         {
             "region_id": region.region_id,
             "region_name": region.region_name,
             "borough": region.borough,
+            "display_name": _optional_string(getattr(region, "display_name", None)),
+            "display_key": _optional_string(getattr(region, "display_key", None)),
+            "region_ids": [region.region_id],
         }
         for region in regions
     ]
+    logical_candidates = LocationResolver._dedupe_candidates_by_display(candidates)
+    llm_cache = LocationLLMCache(
+        normalized=normalized_value,
+        confidence=confidence_val,
+        region_ids=LocationResolver._collect_candidate_region_ids(logical_candidates),
+    )
+    result = LocationResolver._build_result_from_candidates(
+        logical_candidates,
+        tier=ResolutionTier.LLM,
+        confidence=confidence_val,
+    )
+    if not (result.resolved or result.requires_clarification):
+        return None, None, unresolved
     return (
-        ResolvedLocation.from_ambiguous(
-            candidates=candidates,
-            tier=ResolutionTier.LLM,
-            confidence=confidence_val,
-        ),
+        result,
         llm_cache,
         None,
     )

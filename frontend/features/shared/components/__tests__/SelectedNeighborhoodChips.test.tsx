@@ -24,8 +24,8 @@ describe('SelectedNeighborhoodChips', () => {
 
   it('renders chips for each selected neighborhood', () => {
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: 'Upper West Side' },
-      { neighborhood_id: 'n2', name: 'Chelsea' },
+      { display_key: 'n1', display_name: 'Upper West Side' },
+      { display_key: 'n2', display_name: 'Chelsea' },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
@@ -36,7 +36,7 @@ describe('SelectedNeighborhoodChips', () => {
 
   it('renders remove buttons for each chip', () => {
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: 'Upper West Side' },
+      { display_key: 'n1', display_name: 'Upper West Side' },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
@@ -46,8 +46,8 @@ describe('SelectedNeighborhoodChips', () => {
 
   it('calls onRemove with correct id when remove button is clicked', () => {
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: 'Upper West Side' },
-      { neighborhood_id: 'n2', name: 'Chelsea' },
+      { display_key: 'n1', display_name: 'Upper West Side' },
+      { display_key: 'n2', display_name: 'Chelsea' },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
@@ -60,7 +60,7 @@ describe('SelectedNeighborhoodChips', () => {
 
   it('shows fallback text when neighborhood name is empty', () => {
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: '' },
+      { display_key: 'n1', display_name: '' },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
@@ -71,7 +71,7 @@ describe('SelectedNeighborhoodChips', () => {
 
   it('has proper test ids for container and chips', () => {
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: 'SoHo' },
+      { display_key: 'n1', display_name: 'SoHo' },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
@@ -83,7 +83,7 @@ describe('SelectedNeighborhoodChips', () => {
   it('truncates long neighborhood names with title attribute', () => {
     const longName = 'This is a very long neighborhood name that should be truncated';
     const selected: SelectedNeighborhood[] = [
-      { neighborhood_id: 'n1', name: longName },
+      { display_key: 'n1', display_name: longName },
     ];
 
     render(<SelectedNeighborhoodChips selected={selected} onRemove={mockOnRemove} />);
