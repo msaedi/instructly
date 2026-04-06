@@ -186,10 +186,9 @@ const stubInstructorProfile = async (
     service_area_boroughs: ['Manhattan'],
     service_area_neighborhoods: [
       {
-        neighborhood_id: 'MN01',
-        name: 'Central Village',
+        display_key: 'mn-central-village',
+        display_name: 'Central Village',
         borough: 'Manhattan',
-        ntacode: 'MN01',
       },
     ],
     years_experience: 5,

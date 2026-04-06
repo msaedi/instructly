@@ -41,6 +41,53 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   if (!LIVE_MODE) {
     await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });
 
+    const selectorResponse = {
+      market: 'nyc',
+      boroughs: [
+        {
+          borough: 'Manhattan',
+          items: [
+            {
+              borough: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
+              display_order: 1,
+              nta_ids: ['MN01'],
+              search_terms: [{ term: 'Manhattan', type: 'display_name' }],
+              additional_boroughs: [],
+            },
+          ],
+        },
+      ],
+      total_items: 1,
+    };
+
+    const polygonResponse = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [-74.01, 40.72],
+              [-73.99, 40.72],
+              [-73.99, 40.74],
+              [-74.01, 40.74],
+              [-74.01, 40.72],
+            ]],
+          },
+          properties: {
+            id: 'MN01',
+            display_key: 'mock-manhattan',
+            display_name: 'Manhattan',
+            borough: 'Manhattan',
+            region_name: 'Manhattan',
+          },
+        },
+      ],
+    };
+
     const state = {
       preferredTeaching: [] as Array<{ address: string; label?: string }>,
       preferredPublic: [] as Array<{ address: string }>,
@@ -68,8 +115,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'mock-manhattan',
-              name: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
               borough: 'Manhattan',
             },
           ],
@@ -125,8 +172,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'mock-manhattan',
-              name: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
               borough: 'Manhattan',
             },
           ],
@@ -180,8 +227,12 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       return fulfillJson(route, { items: [], total: 0 });
     });
 
-    await page.route('**/api/v1/addresses/regions/neighborhoods*', (route) =>
-      fulfillJson(route, { items: [], total: 0, page: 1, per_page: 0 })
+    await page.route('**/api/v1/addresses/neighborhoods/selector*', (route) =>
+      fulfillJson(route, selectorResponse)
+    );
+
+    await page.route('**/api/v1/addresses/neighborhoods/polygons*', (route) =>
+      fulfillJson(route, polygonResponse)
     );
 
     await page.route('**/api/v1/addresses/places/autocomplete*', (route) =>

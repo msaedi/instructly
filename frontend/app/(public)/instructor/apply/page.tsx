@@ -1,17 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Script from 'next/script';
 import { BRAND } from '@/app/config/brand';
+import { NeighborhoodSelector } from '@/components/neighborhoods/NeighborhoodSelector';
 import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
-import { withApiBase } from '@/lib/apiBase';
-import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
-import { logger } from '@/lib/logger';
-import type { ProfileFormState, ServiceAreaItem } from '@/features/instructor-profile/types';
-import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
+import type { ProfileFormState } from '@/features/instructor-profile/types';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
-import type { NeighborhoodSelectorResponse } from '@/features/shared/api/types';
-import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
 
 const WEBHOOK_URL = 'https://instainstru.app.n8n.cloud/webhook/instructor-lead';
 
@@ -41,18 +36,7 @@ type FormErrors = Partial<Record<FormErrorKey, string>>;
 
 type SubmitStatus = 'idle' | 'loading' | 'success' | 'error';
 
-const NYC_BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const;
-
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const toTitle = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 
 export default function InstructorApplyPage() {
   const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
@@ -82,13 +66,8 @@ export default function InstructorApplyPage() {
   const [status, setStatus] = useState<SubmitStatus>('idle');
   const inFlightRef = useRef(false);
 
-  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
-  const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
-  const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
-  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
-  const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
+  const [selectedNeighborhoodKey, setSelectedNeighborhoodKey] = useState('');
+  const [selectedNeighborhoodName, setSelectedNeighborhoodName] = useState('');
 
   const categories = useMemo(
     () => (Array.isArray(categoriesData) ? categoriesData : []),
@@ -111,83 +90,6 @@ export default function InstructorApplyPage() {
     }
   }, [category, subcategory, subcategoryOptions]);
 
-  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
-    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    if (!selectorRequestRef.current) {
-      selectorRequestRef.current = (async () => {
-        try {
-          const url = withApiBase('/api/v1/addresses/neighborhoods/selector?market=nyc');
-          const response = await fetchWithSessionRefresh(url, { credentials: 'include' });
-          if (response.ok) {
-            const data = (await response.json()) as NeighborhoodSelectorResponse;
-            const index = buildServiceAreaSelectorIndex(data);
-            setBoroughNeighborhoods(index.boroughNeighborhoods);
-            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
-            return index.boroughNeighborhoods;
-          }
-        } catch (error) {
-          logger.warn('Failed to load neighborhood selector', error as Error);
-        } finally {
-          selectorRequestRef.current = null;
-        }
-
-        return boroughNeighborhoods;
-      })();
-    }
-
-    const next = await selectorRequestRef.current;
-    return next[borough] || [];
-  }, [boroughNeighborhoods]);
-
-  useEffect(() => {
-    NYC_BOROUGHS.forEach((borough) => {
-      void loadBoroughNeighborhoods(borough);
-    });
-  }, [loadBoroughNeighborhoods]);
-
-  useEffect(() => {
-    if (globalNeighborhoodFilter.trim().length > 0) {
-      NYC_BOROUGHS.forEach((borough) => {
-        void loadBoroughNeighborhoods(borough);
-      });
-    }
-  }, [globalNeighborhoodFilter, loadBoroughNeighborhoods]);
-
-  const selectedNeighborhoodId = useMemo(() => Array.from(selectedNeighborhoods.values())[0] || '', [selectedNeighborhoods]);
-  const selectedNeighborhoodName = selectedNeighborhoodId
-    ? toTitle(String(idToItem[selectedNeighborhoodId]?.display_name || selectedNeighborhoodId))
-    : '';
-
-  const toggleNeighborhood = (id: string) => {
-    setSelectedNeighborhoods((prev) => {
-      if (prev.has(id)) return new Set();
-      return new Set([id]);
-    });
-    clearError('neighborhood');
-  };
-
-  const toggleBoroughAccordion = async (borough: string) => {
-    setOpenBoroughs((prev) => {
-      const next = new Set(prev);
-      if (next.has(borough)) next.delete(borough);
-      else next.add(borough);
-      return next;
-    });
-    await loadBoroughNeighborhoods(borough);
-  };
-
-  const toggleBoroughAll = async (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
-    if (!value) {
-      setSelectedNeighborhoods(new Set());
-      return;
-    }
-    const list = itemsOverride || (await loadBoroughNeighborhoods(borough));
-    const first = list[0]?.display_key;
-    if (first) {
-      setSelectedNeighborhoods(new Set([first]));
-    }
-  };
-
   const clearError = (key: FormErrorKey) => {
     setErrors((prev) => {
       if (!prev[key]) return prev;
@@ -208,7 +110,7 @@ export default function InstructorApplyPage() {
     if (!teachesKids && !teachesAdults) nextErrors.ageGroup = 'Select at least one age group.';
     if (!category) nextErrors.category = 'Select a service category.';
     if (!subcategory) nextErrors.subcategory = 'Select a subcategory.';
-    if (!selectedNeighborhoodId) nextErrors.neighborhood = 'Select your primary neighborhood.';
+    if (!selectedNeighborhoodKey) nextErrors.neighborhood = 'Select your primary neighborhood.';
 
     const rateValue = hourlyRate.trim().length > 0 ? Number(hourlyRate) : null;
     if (rateValue !== null && (Number.isNaN(rateValue) || rateValue < 0 || rateValue > 500)) {
@@ -270,8 +172,7 @@ export default function InstructorApplyPage() {
       }
 
       setStatus('success');
-    } catch (error) {
-      logger.error('Failed to submit founding instructor application', error as Error);
+    } catch {
       setStatus('error');
     } finally {
       inFlightRef.current = false;
@@ -536,34 +437,18 @@ export default function InstructorApplyPage() {
               </div>
 
               <div>
-                <ServiceAreasCard
-                  context="onboarding"
-                  title={(
-                    <span>
-                      NYC Neighborhood <span className="text-rose-500">*</span>
-                    </span>
-                  )}
-                  subtitle="Choose your primary neighborhood so we can match local demand."
-                  helperText="Pick the main neighborhood you plan to teach in."
+                <NeighborhoodSelector
+                  context="apply"
                   selectionMode="single"
-                  showBulkActions={false}
-                  globalNeighborhoodFilter={globalNeighborhoodFilter}
-                  onGlobalFilterChange={(value) => {
-                    setGlobalNeighborhoodFilter(value);
+                  showMap={false}
+                  value={selectedNeighborhoodKey ? [selectedNeighborhoodKey] : []}
+                  onSelectionChange={(keys, items) => {
+                    const nextKey = keys[0] ?? '';
+                    const nextItem = items[0];
+                    setSelectedNeighborhoodKey(nextKey);
+                    setSelectedNeighborhoodName(nextItem?.display_name ?? '');
                     clearError('neighborhood');
                   }}
-                  nycBoroughs={NYC_BOROUGHS}
-                  boroughNeighborhoods={boroughNeighborhoods}
-                  selectedNeighborhoods={selectedNeighborhoods}
-                  onToggleNeighborhood={toggleNeighborhood}
-                  openBoroughs={openBoroughs}
-                  onToggleBoroughAccordion={toggleBoroughAccordion}
-                  loadBoroughNeighborhoods={loadBoroughNeighborhoods}
-                  toggleBoroughAll={toggleBoroughAll}
-                  boroughAccordionRefs={boroughAccordionRefs}
-                  idToItem={idToItem}
-                  isNYC
-                  formatNeighborhoodName={toTitle}
                 />
                 {errors.neighborhood && (
                   <p className="mt-2 text-sm text-red-600" id="neighborhood-error">

@@ -138,6 +138,14 @@ def test_service_areas_geojson_and_neighborhoods(db, test_instructor):
     assert selector["market"] == "nyc"
     assert selector["boroughs"]
 
+    polygons = service.get_neighborhood_polygons("nyc")
+    assert polygons["type"] == "FeatureCollection"
+    assert len(polygons["features"]) == 199
+    assert all(
+        feature["properties"].get("display_key") and feature["properties"].get("display_name")
+        for feature in polygons["features"]
+    )
+
 
 def test_service_area_display_key_round_trip(db, test_instructor):
     service = AddressService(db, cache_service=CacheServiceSyncAdapter(FakeCacheService()))

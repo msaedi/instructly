@@ -30,6 +30,7 @@ import type {
   AutocompleteResponse,
   CoverageFeatureCollectionResponse,
   GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
   GetNeighborhoodSelectorApiV1AddressesNeighborhoodsSelectorGetParams,
   HTTPValidationError,
   IsNycZipApiV1AddressesZipIsNycGetParams,
@@ -631,6 +632,189 @@ export const useUpdateMyAddressApiV1AddressesMeAddressIdPatch = <
     queryClient
   );
 };
+/**
+ * @summary GeoJSON polygons for display-active neighborhoods
+ */
+export const getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetUrl = (
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/addresses/neighborhoods/polygons?${stringifiedParams}`
+    : `/api/v1/addresses/neighborhoods/polygons`;
+};
+
+export const getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet = async (
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options?: RequestInit
+): Promise<CoverageFeatureCollectionResponse> => {
+  return customFetch<CoverageFeatureCollectionResponse>(
+    getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryKey = (
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams
+) => {
+  return [`/api/v1/addresses/neighborhoods/polygons`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>
+  > = ({ signal }) =>
+    getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet(params, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>
+>;
+export type GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet<
+  TData = Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet<
+  TData = Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet<
+  TData = Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GeoJSON polygons for display-active neighborhoods
+ */
+
+export function useGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet<
+  TData = Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * @summary Selector data for instructor service area selection
  */

@@ -54,7 +54,9 @@ describe('useInstructorProfile', () => {
         },
         services: [],
         service_area_boroughs: ['Manhattan'],
-        service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'SoHo' }],
+        service_area_neighborhoods: [
+          { display_key: 'n1', display_name: 'SoHo', borough: 'Manhattan' },
+        ],
         service_area_summary: 'NYC area',
         favorited_count: 10,
       },

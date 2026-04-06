@@ -117,6 +117,239 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   ),
 }));
 
+jest.mock('@/components/neighborhoods/NeighborhoodSelector', () => {
+  function NeighborhoodSelector({
+    value,
+    selectionMode = 'multi',
+    onSelectionChange,
+  }: {
+    value?: string[];
+    selectionMode?: 'single' | 'multi';
+    onSelectionChange?: (
+      keys: string[],
+      items: Array<{ display_key: string; display_name: string; borough: string }>
+    ) => void;
+  }) {
+    const React = jest.requireActual('react') as typeof import('react');
+    const [query, setQuery] = React.useState('');
+    const [openBoroughs, setOpenBoroughs] = React.useState<Set<string>>(new Set());
+    const [loadedOptions, setLoadedOptions] = React.useState<
+      Array<{ display_key: string; display_name: string; borough: string }>
+    >([]);
+    const hasLoadedRef = React.useRef(false);
+    const baseOptions = [
+      { display_key: 'n1', display_name: 'Upper East Side', borough: 'Manhattan' },
+      { display_key: 'n2', display_name: 'Harlem', borough: 'Manhattan' },
+      { display_key: 'n3', display_name: 'Park Slope', borough: 'Brooklyn' },
+    ];
+    const options = loadedOptions.length > 0 ? loadedOptions : baseOptions;
+    const selected = value ?? [];
+    const emit = (keys: string[]) => {
+      const normalizedKeys = selectionMode === 'single' ? keys.slice(0, 1) : keys;
+      onSelectionChange?.(
+        normalizedKeys,
+        normalizedKeys.map((key) => {
+          const option = options.find((entry) => entry.display_key === key);
+          return {
+            display_key: key,
+            display_name: option?.display_name ?? key,
+            borough: option?.borough ?? '',
+          };
+        }),
+      );
+    };
+
+    const loadOptions = React.useCallback(async () => {
+      if (hasLoadedRef.current) {
+        return;
+      }
+      hasLoadedRef.current = true;
+      try {
+        const response = await global.fetch?.(
+          '/api/v1/addresses/neighborhoods/selector?market=nyc',
+          { method: 'GET' },
+        );
+        const payload = (await response?.json?.()) as
+          | {
+              boroughs?: Array<{
+                borough?: string;
+                items?: Array<{
+                  display_key?: string;
+                  display_name?: string;
+                  borough?: string;
+                }>;
+              }>;
+            }
+          | undefined;
+        const nextOptions = payload?.boroughs?.flatMap((boroughGroup) =>
+          (boroughGroup.items ?? []).flatMap((item) =>
+            item.display_key
+              ? [{
+                  display_key: item.display_key,
+                  display_name: item.display_name ?? item.display_key,
+                  borough: item.borough ?? boroughGroup.borough ?? '',
+                }]
+              : [],
+          ),
+        ) ?? [];
+        if (nextOptions.length > 0) {
+          setLoadedOptions(nextOptions);
+        }
+      } catch {
+        // Keep the stable base options for modal tests when selector loading fails.
+      }
+    }, []);
+
+    const visibleOptions = query.trim()
+      ? options.filter((option) =>
+          option.display_name.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+      : options;
+    const visibleBoroughs = Array.from(new Set(visibleOptions.map((option) => option.borough)));
+    const toggleBorough = async (borough: string) => {
+      await loadOptions();
+      setOpenBoroughs((previous) => {
+        const next = new Set(previous);
+        if (next.has(borough)) {
+          next.delete(borough);
+        } else {
+          next.add(borough);
+        }
+        return next;
+      });
+    };
+
+    return (
+      <section data-testid="service-areas-card">
+        <input
+          data-testid="neighborhood-search-input"
+          placeholder="Search neighborhoods..."
+          value={query}
+          onChange={(event) => {
+            void loadOptions();
+            setQuery(event.target.value);
+          }}
+        />
+        <div data-testid="service-areas-count">{selected.length}</div>
+        <div data-testid="formatted-name">Lower East</div>
+        <button type="button" onClick={() => void loadOptions()}>
+          Filter
+        </button>
+        {query.trim() ? <div>Results</div> : null}
+        <div data-testid="neighborhood-chips">
+          {selected.map((key) => {
+            const selectedOption = options.find((option) => option.display_key === key);
+            const label = selectedOption?.display_name || key;
+            return (
+              <span key={key} data-testid={`chip-${key}`}>
+                {label}
+                <button
+                  type="button"
+                  data-testid={`remove-${key}`}
+                  onClick={() => emit(selected.filter((selectedKey) => selectedKey !== key))}
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+        </div>
+        {visibleBoroughs.map((borough) => {
+          const hasSelectedInBorough = options.some(
+            (option) => option.borough === borough && selected.includes(option.display_key),
+          );
+          const isOpen =
+            query.trim().length > 0 || openBoroughs.has(borough) || hasSelectedInBorough;
+          const boroughOptions = visibleOptions.filter((option) => option.borough === borough);
+          return (
+            <div
+              key={borough}
+              role="button"
+              tabIndex={0}
+              aria-label={`${borough} neighborhoods`}
+              aria-expanded={isOpen}
+              onClick={() => {
+                void toggleBorough(borough);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void toggleBorough(borough);
+                }
+              }}
+            >
+              <div>
+                <span>{borough}</span> neighborhoods
+              </div>
+              <div onClick={(event) => event.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadOptions();
+                    emit(
+                      visibleOptions
+                        .filter((option) => option.borough === borough)
+                        .map((option) => option.display_key),
+                    );
+                  }}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadOptions();
+                    emit(
+                      selected.filter(
+                        (key) =>
+                          !visibleOptions.some(
+                            (option) =>
+                              option.borough === borough && option.display_key === key,
+                          ),
+                      ),
+                    );
+                  }}
+                >
+                  Clear all
+                </button>
+              </div>
+              {isOpen
+                ? boroughOptions.map((option) => {
+                    const isSelected = selected.includes(option.display_key);
+                    return (
+                      <button
+                        key={option.display_key}
+                        type="button"
+                        data-testid={`service-area-chip-${option.display_key}`}
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          if (selectionMode === 'single') {
+                            emit(isSelected ? [] : [option.display_key]);
+                            return;
+                          }
+                          emit(
+                            isSelected
+                              ? selected.filter((key) => key !== option.display_key)
+                              : [...selected, option.display_key],
+                          );
+                        }}
+                      >
+                        <span>{option.display_name || option.display_key}</span>{' '}
+                        <span>{isSelected ? '✓' : '+'}</span>
+                      </button>
+                    );
+                  })
+                : null}
+            </div>
+          );
+        })}
+      </section>
+    );
+  }
+
+  return { NeighborhoodSelector };
+});
+
 jest.mock('@/features/shared/components/SelectedNeighborhoodChips', () => ({
   SelectedNeighborhoodChips: ({
     selected,
@@ -3944,7 +4177,7 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('loadBoroughNeighborhoods error handling', () => {
+  describe('selector loading error handling', () => {
     it('handles fetch error gracefully', async () => {
       // Mock fetch to fail
       global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));

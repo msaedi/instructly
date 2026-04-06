@@ -1,17 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tag } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { User as UserIcon, ChevronDown, Camera } from 'lucide-react';
+import { NeighborhoodSelector } from '@/components/neighborhoods/NeighborhoodSelector';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { withApiBase } from '@/lib/apiBase';
 import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
-import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useSession } from '@/src/api/hooks/useSession';
@@ -28,7 +27,6 @@ import {
 import type {
   AddressListResponse,
   ApiErrorResponse,
-  NeighborhoodSelectorResponse,
   InstructorProfileResponse,
 } from '@/features/shared/api/types';
 import {
@@ -38,14 +36,12 @@ import {
   type PreferredTeachingLocationPayload,
 } from '@/lib/profileSchemaDebug';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
-import type { ProfileFormState, ServiceAreaItem, ServiceAreasResponse, NYCZipCheck } from './types';
+import type { ProfileFormState, ServiceAreaItem, ServiceAreasResponse } from './types';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from '@/app/(auth)/instructor/profile/serviceAreaSubmit';
-import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
 import SkillsPricingInline, { type EnabledFormats } from '@/features/instructor-profile/SkillsPricingInline';
 import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
-import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
 
 function getYearsExperienceValue(profile: ProfileFormState): number {
@@ -101,19 +97,6 @@ function buildInstructorAddressPayload(profile: ProfileFormState): InstructorAdd
   return payload;
 }
 
-function toTitle(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .map((w) => {
-      const firstChar = w.charAt(0);
-      return firstChar ? firstChar.toUpperCase() + w.slice(1) : w;
-    })
-    .join(' ');
-}
-
 type InstructorProfileFormProps = {
   context?: 'dashboard' | 'onboarding';
   embedded?: boolean;
@@ -153,15 +136,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     }
     setProfile((prev) => ({ ...prev, ...updates }));
   }, []);
-  const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
-  const [openBoroughsMain, setOpenBoroughsMain] = useState<Set<string>>(new Set());
-  const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState<string>('');
-  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
-  // Removed selected neighborhoods pills panel state
-  const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
   const [preferredAddress, setPreferredAddress] = useState<string>('');
   const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
   const [neutralLocations, setNeutralLocations] = useState<string>('');
@@ -202,7 +177,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const shouldDefaultExpand = isOnboarding;
   const [openPersonal, setOpenPersonal] = useState(shouldDefaultExpand);
   const [openDetails, setOpenDetails] = useState(shouldDefaultExpand);
-  const [openServiceAreas, setOpenServiceAreas] = useState(shouldDefaultExpand);
+  const [openServiceAreas, setOpenServiceAreas] = useState(true);
   const [openPreferredLocations, setOpenPreferredLocations] = useState(shouldDefaultExpand);
   const [openSkills, setOpenSkills] = useState(false);
   const shouldRenderPersonalInfo = isOnboarding || showPersonalInfo;
@@ -388,39 +363,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               .map((a) => a.display_key)
               .filter((v): v is string => typeof v === 'string' && v.length > 0);
             setSelectedNeighborhoods(new Set(ids));
-            // Prime name map so selections show even before a borough loads
-            setIdToItem((prev) => {
-              const next = { ...prev } as Record<string, ServiceAreaItem>;
-              for (const a of items) {
-                if (a.display_key) next[a.display_key] = a;
-              }
-              return next;
-            });
           }
         } catch (err) {
           logger.warn('Failed to prefill service areas', err);
-        }
-
-        // Detect NYC from default address postal code using hook data
-        try {
-          if (addressesDataFromHook?.items) {
-            const items = addressesDataFromHook.items;
-            const def = items.find((a) => a.is_default) ?? items[0];
-            const zip = def?.postal_code;
-            if (zip) {
-              const nycRes = await fetchWithSessionRefresh(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
-                credentials: 'include',
-              });
-              logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
-              if (nycRes.ok) {
-                const nyc: NYCZipCheck = await nycRes.json();
-                setIsNYC(!!nyc['is_nyc']);
-                logger.debug('Prefill: NYC zip check body', nyc);
-              }
-            }
-          }
-        } catch (err) {
-          logger.warn('Failed to check NYC zip', err);
         }
       } catch (e) {
         logger.error('Failed to load profile', e);
@@ -470,70 +415,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
 
   // Removed selected neighborhoods panel prefetch effect
-
-  // NYC helpers
-  const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
-
-  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
-    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    if (!selectorRequestRef.current) {
-      selectorRequestRef.current = (async () => {
-        try {
-          const url = withApiBase('/api/v1/addresses/neighborhoods/selector?market=nyc');
-          const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
-          if (r.ok) {
-            const data = (await r.json()) as NeighborhoodSelectorResponse;
-            const index = buildServiceAreaSelectorIndex(data);
-            setBoroughNeighborhoods(index.boroughNeighborhoods);
-            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
-            return index.boroughNeighborhoods;
-          }
-        } catch (err) {
-          logger.warn('Failed to load borough neighborhoods', { borough, err });
-        } finally {
-          selectorRequestRef.current = null;
-        }
-
-        return boroughNeighborhoods;
-      })();
-    }
-
-    const next = await selectorRequestRef.current;
-    return next[borough] || [];
-  }, [boroughNeighborhoods]);
-
-  // When using global neighborhood search, ensure borough lists are prefetched
-  useEffect(() => {
-    if (globalNeighborhoodFilter.trim().length > 0) {
-      NYC_BOROUGHS.forEach((b) => {
-        void loadBoroughNeighborhoods(b);
-      });
-    }
-  }, [globalNeighborhoodFilter, NYC_BOROUGHS, loadBoroughNeighborhoods]);
-
-  // Removed selected neighborhoods panel accordion handlers
-
-  // Toggle main borough accordion with scroll-position preservation
-  const toggleMainBoroughOpen = async (b: string) => {
-    const el = boroughAccordionRefs.current[b];
-    const prevTop = el?.getBoundingClientRect().top ?? 0;
-    setOpenBoroughsMain((prev) => {
-      const next = new Set(prev);
-      if (next.has(b)) next.delete(b);
-      else next.add(b);
-      return next;
-    });
-    await loadBoroughNeighborhoods(b);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const newTop = boroughAccordionRefs.current[b]?.getBoundingClientRect().top ?? prevTop;
-        const delta = newTop - prevTop;
-        if (delta !== 0) {
-          window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
-        }
-      });
-    });
-  };
 
   const save = async (options?: { redirectTo?: string }) => {
     const redirectTo = options?.redirectTo;
@@ -818,29 +699,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     save: (options) => save(options),
   }));
 
-  const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
-    const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((item) => item.display_key);
-    setSelectedNeighborhoods((prev) => {
-      const next = new Set(prev);
-      if (value) {
-        ids.forEach((id) => next.add(id));
-      } else {
-        ids.forEach((id) => next.delete(id));
-      }
-      return next;
-    });
-  };
-
-  const toggleNeighborhood = (id: string) => {
-    setSelectedNeighborhoods((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   // Note: Borough counts helper can be added back if indeterminate styling is needed in the future
 
   // Avoid early return to prevent hydration mismatches; render a lightweight inline loader instead
@@ -1020,25 +878,35 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
             {/* Service Areas Section */}
-            <ServiceAreasCard
-              context={context}
-              isOpen={openServiceAreas}
-              onToggle={() => setOpenServiceAreas((v) => !v)}
-              globalNeighborhoodFilter={globalNeighborhoodFilter}
-              onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
-              nycBoroughs={NYC_BOROUGHS}
-              boroughNeighborhoods={boroughNeighborhoods}
-              selectedNeighborhoods={selectedNeighborhoods}
-              onToggleNeighborhood={toggleNeighborhood}
-              openBoroughs={openBoroughsMain}
-              onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
-              loadBoroughNeighborhoods={loadBoroughNeighborhoods}
-              toggleBoroughAll={toggleBoroughAll}
-              boroughAccordionRefs={boroughAccordionRefs}
-              idToItem={idToItem}
-              isNYC={isNYC}
-              formatNeighborhoodName={toTitle}
-            />
+            <div className="p-4 sm:p-6 insta-surface-card">
+              <button
+                type="button"
+                className={`insta-dashboard-accordion-trigger ${openServiceAreas ? 'mb-4' : ''}`}
+                onClick={() => setOpenServiceAreas((v) => !v)}
+                aria-expanded={openServiceAreas}
+              >
+                <div className="insta-dashboard-accordion-leading">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-(--color-brand-dark)" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="insta-dashboard-accordion-title">Service Areas</span>
+                    <span className="insta-dashboard-accordion-subtitle">Select the neighborhoods where you’re available for lessons.</span>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openServiceAreas ? 'rotate-180' : ''}`} />
+              </button>
+              {openServiceAreas ? (
+                <NeighborhoodSelector
+                  context={context}
+                  selectionMode="multi"
+                  value={Array.from(selectedNeighborhoods)}
+                  onSelectionChange={(keys) => {
+                    setSelectedNeighborhoods(new Set(keys));
+                  }}
+                />
+              ) : null}
+            </div>
           </>
         )}
 

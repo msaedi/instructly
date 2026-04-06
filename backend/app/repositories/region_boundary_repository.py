@@ -267,6 +267,56 @@ class RegionBoundaryRepository:
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
+    def get_all_active_polygons_geojson(
+        self, region_type: str = "nyc", tolerance: float = 0.001
+    ) -> list[dict[str, Any]]:
+        """Return simplified GeoJSON rows for all display-active neighborhoods."""
+        try:
+            rows = cast(
+                List[Mapping[str, Any]],
+                self.db.execute(
+                    text(
+                        """
+                        SELECT
+                            id,
+                            region_name,
+                            parent_region,
+                            display_name,
+                            display_key,
+                            ST_AsGeoJSON(ST_Simplify(boundary, :tol)) AS geojson
+                        FROM region_boundaries
+                        WHERE region_type = :rtype
+                          AND display_name IS NOT NULL
+                          AND boundary IS NOT NULL
+                        ORDER BY parent_region, display_order, display_name, region_name, id
+                        """
+                    ),
+                    {"rtype": region_type, "tol": tolerance},
+                )
+                .mappings()
+                .all(),
+            )
+
+            results: list[dict[str, Any]] = []
+            for row in rows:
+                results.append(
+                    {
+                        "id": row["id"],
+                        "region_name": row["region_name"],
+                        "parent_region": row["parent_region"],
+                        "display_name": row["display_name"],
+                        "display_key": row["display_key"],
+                        "geometry": (row["geojson"] and json.loads(row["geojson"])) or None,
+                    }
+                )
+            return results
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            return []
+
     def find_region_ids_by_partial_names(
         self, names: list[str], region_type: str = "nyc"
     ) -> dict[str, str]:

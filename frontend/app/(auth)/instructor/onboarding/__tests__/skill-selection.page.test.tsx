@@ -81,6 +81,34 @@ jest.mock('@/hooks/queries/useInstructorServiceAreas', () => ({
   useInstructorServiceAreas: jest.fn(),
 }));
 
+jest.mock('@/components/neighborhoods/NeighborhoodSelector', () => ({
+  NeighborhoodSelector: ({
+    value,
+    onSelectionChange,
+  }: {
+    value?: string[];
+    onSelectionChange?: (
+      keys: string[],
+      items: Array<{ display_key: string; display_name: string }>
+    ) => void;
+  }) => (
+    <div data-testid="service-areas-card">
+      <div data-testid="service-areas-count">{value?.length ?? 0}</div>
+      <button
+        type="button"
+        onClick={() =>
+          onSelectionChange?.(['n1'], [{ display_key: 'n1', display_name: 'Upper East Side' }])
+        }
+      >
+        Select Neighborhood
+      </button>
+      <button type="button" onClick={() => onSelectionChange?.([], [])}>
+        Clear Neighborhoods
+      </button>
+    </div>
+  ),
+}));
+
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (url: string) => url,
 }));

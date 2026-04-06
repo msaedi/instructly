@@ -163,6 +163,59 @@ def test_get_coverage_geojson_cache_set_error(db):
     assert result["features"]
 
 
+def test_get_neighborhood_polygons_cache_hit(db):
+    service = AddressService(db)
+    cached = {"type": "FeatureCollection", "features": [{"type": "Feature"}]}
+    service.cache = CacheHit(cached)
+
+    result = service.get_neighborhood_polygons("nyc")
+
+    assert result == cached
+
+
+def test_get_neighborhood_polygons_cache_miss_stores_json(db):
+    service = AddressService(db)
+    service.cache = CacheSpy()
+    service.region_repo = Mock()
+    service.region_repo.get_all_active_polygons_geojson.return_value = [
+        {
+            "id": "n1",
+            "region_name": "Upper East Side-Carnegie Hill",
+            "parent_region": "Manhattan",
+            "display_name": "Upper East Side",
+            "display_key": "nyc-manhattan-upper-east-side",
+            "geometry": {"type": "Polygon", "coordinates": []},
+        }
+    ]
+
+    result = service.get_neighborhood_polygons("nyc")
+
+    assert result["type"] == "FeatureCollection"
+    assert result["features"] == [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": []},
+            "properties": {
+                "id": "n1",
+                "display_key": "nyc-manhattan-upper-east-side",
+                "display_name": "Upper East Side",
+                "borough": "Manhattan",
+                "region_name": "Upper East Side-Carnegie Hill",
+            },
+        }
+    ]
+    assert service.cache.set_calls == [
+        (("neighborhood_polygons:nyc", '{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": []}, "properties": {"id": "n1", "display_key": "nyc-manhattan-upper-east-side", "display_name": "Upper East Side", "borough": "Manhattan", "region_name": "Upper East Side-Carnegie Hill"}}]}'), {"ttl": 86400})
+    ]
+
+
+def test_get_neighborhood_polygons_rejects_unsupported_market(db):
+    service = AddressService(db)
+
+    with pytest.raises(BusinessRuleException):
+        service.get_neighborhood_polygons("la")
+
+
 def test_list_neighborhoods_cache_hit(db):
     service = AddressService(db)
     cached = [{"id": "1", "name": "Test", "borough": "Manhattan", "code": "MN"}]

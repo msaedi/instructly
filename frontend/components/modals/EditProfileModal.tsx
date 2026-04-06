@@ -1,14 +1,14 @@
 // frontend/components/modals/EditProfileModal.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, ChevronDown, MapPin } from 'lucide-react';
+import { X, MapPin } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import Modal from '@/components/Modal';
+import { NeighborhoodSelector } from '@/components/neighborhoods/NeighborhoodSelector';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
-import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
@@ -20,24 +20,20 @@ import {
   TEACHING_ADDRESS_REQUIRED_MESSAGE,
 } from '@/lib/teachingLocations';
 import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
-import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
+import type { SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
 import { toast } from 'sonner';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
   addPreferredPlace,
-  getGlobalNeighborhoodMatchesWithIds,
   updateOptionalPlaceLabel,
 } from './EditProfileModal.helpers';
-import { buildServiceAreaSelectorIndex } from '@/lib/serviceAreaSelector';
-import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
 type AddressListResponse = components['schemas']['AddressListResponse'];
 type AddressResponse = components['schemas']['AddressResponse'];
-type NeighborhoodSelectorResponse = components['schemas']['NeighborhoodSelectorResponse'];
 // Simple address type for profile editing
 type AddressItem = AddressResponse;
 
@@ -170,28 +166,8 @@ export default function EditProfileModal({
     'Long Island City',
   ];
 
-  const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
-  const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
-  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
-  const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
-  const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
-  const selectorRequestRef = useRef<Promise<Record<string, ServiceAreaItem[]>> | null>(null);
-  const globalNeighborhoodMatches = useMemo(() => {
-    const query = globalNeighborhoodFilter.trim().toLowerCase();
-    if (!query) return [];
-    const seen = new Set<string>();
-    const matches = NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-      .filter((n) => n.display_name.toLowerCase().includes(query));
-    const results: ServiceAreaItem[] = [];
-    for (const match of matches) {
-      const nid = match.display_key;
-      if (!nid || seen.has(nid)) continue;
-      seen.add(nid);
-      results.push(match);
-    }
-    return results;
-  }, [NYC_BOROUGHS, boroughNeighborhoods, globalNeighborhoodFilter]);
+  const [selectedNeighborhoodKeys, setSelectedNeighborhoodKeys] = useState<string[]>([]);
+  const [selectedNeighborhoodList, setSelectedNeighborhoodList] = useState<SelectedNeighborhood[]>([]);
   // Preferred locations (teaching address and public spaces) — UI-only like onboarding
   const [preferredAddress, setPreferredAddress] = useState('');
   const [teachingPlaces, setTeachingPlaces] = useState<PreferredTeachingLocationInput[]>([]);
@@ -315,18 +291,19 @@ export default function EditProfileModal({
     if (!isOpen || !serviceAreasData || serviceAreasPrefillAppliedRef.current) return;
     serviceAreasPrefillAppliedRef.current = true;
 
-    const items = (serviceAreasData.items || []) as ServiceAreaItem[];
-    const ids = items
-      .map((a) => a.display_key)
-      .filter((v): v is string => typeof v === 'string' && v.length > 0);
-    setSelectedNeighborhoods(new Set(ids));
-    setIdToItem((prev) => {
-      const next = { ...prev } as Record<string, ServiceAreaItem>;
-      for (const a of items) {
-        if (a.display_key) next[a.display_key] = a;
-      }
-      return next;
-    });
+    const items = (serviceAreasData.items || [])
+      .map((item) => ({
+        display_key: item.display_key,
+        display_name: item.display_name,
+      }))
+      .filter(
+        (item): item is SelectedNeighborhood =>
+          typeof item.display_key === 'string' &&
+          item.display_key.length > 0 &&
+          typeof item.display_name === 'string',
+      );
+    setSelectedNeighborhoodKeys(items.map((item) => item.display_key));
+    setSelectedNeighborhoodList(items);
   }, [isOpen, serviceAreasData]);
 
   useEffect(() => {
@@ -341,24 +318,14 @@ export default function EditProfileModal({
     areasPrefillAppliedRef.current = true;
 
     if (Array.isArray(selectedServiceAreas)) {
-      const nextIds = selectedServiceAreas
-        .map((item) => item?.display_key)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0);
-      setSelectedNeighborhoods(new Set(nextIds));
-      if (selectedServiceAreas.length > 0) {
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const item of selectedServiceAreas) {
-            if (!item?.display_key) continue;
-            next[item.display_key] = {
-              borough: '',
-              display_key: item.display_key,
-              display_name: item.display_name,
-            };
-          }
-          return next;
-        });
-      }
+      const nextItems = selectedServiceAreas.filter(
+        (item): item is SelectedNeighborhood =>
+          typeof item?.display_key === 'string' &&
+          item.display_key.length > 0 &&
+          typeof item.display_name === 'string',
+      );
+      setSelectedNeighborhoodKeys(nextItems.map((item) => item.display_key));
+      setSelectedNeighborhoodList(nextItems);
     }
 
     const normalizeTeaching = (input?: PreferredTeachingLocationInput[]): PreferredTeachingLocationInput[] => {
@@ -398,55 +365,6 @@ export default function EditProfileModal({
     setTeachingPlaces(normalizeTeaching(preferredTeaching));
     setPublicPlaces(normalizePublic(preferredPublic));
   }, [isAreasVariant, isOpen, preferredPublic, preferredTeaching, selectedServiceAreas, areasPrefillAppliedRef]);
-
-
-
-  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
-    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    if (!selectorRequestRef.current) {
-      selectorRequestRef.current = (async () => {
-        try {
-          const apiBase = process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000';
-          const url = `${apiBase}/api/v1/addresses/neighborhoods/selector?market=nyc`;
-          const r = await fetchWithSessionRefresh(url);
-          if (r.ok) {
-            const data = (await r.json()) as NeighborhoodSelectorResponse;
-            const index = buildServiceAreaSelectorIndex(data);
-            setBoroughNeighborhoods(index.boroughNeighborhoods);
-            setIdToItem((prev) => ({ ...prev, ...index.idToItem }));
-            return index.boroughNeighborhoods;
-          }
-        } catch (err) {
-          logger.warn('Failed to load borough neighborhoods', { borough, err });
-        } finally {
-          selectorRequestRef.current = null;
-        }
-
-        return boroughNeighborhoods;
-      })();
-    }
-
-    const next = await selectorRequestRef.current;
-    return next[borough] || [];
-  }, [boroughNeighborhoods]);
-
-  // Prefetch borough lists when filtering globally
-  useEffect(() => {
-    if (globalNeighborhoodFilter.trim().length > 0) {
-      NYC_BOROUGHS.forEach((b) => {
-        void loadBoroughNeighborhoods(b);
-      });
-    }
-  }, [globalNeighborhoodFilter, NYC_BOROUGHS, loadBoroughNeighborhoods]);
-
-  const toggleNeighborhood = (id: string) => {
-    setSelectedNeighborhoods((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const addTeachingPlace = () => {
     let didAdd = false;
@@ -498,22 +416,13 @@ export default function EditProfileModal({
     setPublicPlaces((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const selectedNeighborhoodList = useMemo<SelectedNeighborhood[]>(() => {
-    return Array.from(selectedNeighborhoods).map((id) => {
-      const item = idToItem[id];
-      const rawName = item?.display_name?.trim() ?? '';
-      const normalizedName = rawName.length > 0 ? rawName : id;
-      return { display_key: id, display_name: normalizedName };
-    });
-  }, [idToItem, selectedNeighborhoods]);
-
   const handleAreasSave = useCallback(async () => {
     if (teachingAddressError) {
       setError(teachingAddressError);
       return;
     }
 
-    const displayKeys = selectedNeighborhoodList.map((item) => item.display_key);
+    const displayKeys = [...selectedNeighborhoodKeys];
     const teachingPayload = teachingPlaces.slice(0, 2).map((place) => {
       const address = place.address.trim();
       const label = place.label?.trim();
@@ -579,28 +488,7 @@ export default function EditProfileModal({
     } finally {
       setSavingAreas(false);
     }
-  }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodList, teachingAddressError, teachingPlaces]);
-
-  const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
-    const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((item) => item.display_key);
-    setSelectedNeighborhoods((prev) => {
-      const next = new Set(prev);
-      if (value) ids.forEach((id) => next.add(id));
-      else ids.forEach((id) => next.delete(id));
-      return next;
-    });
-  };
-
-  const toggleBoroughOpen = async (borough: string) => {
-    setOpenBoroughs((prev) => {
-      const next = new Set(prev);
-      if (next.has(borough)) next.delete(borough);
-      else next.add(borough);
-      return next;
-    });
-    await loadBoroughNeighborhoods(borough);
-  };
+  }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodKeys, selectedNeighborhoodList, teachingAddressError, teachingPlaces]);
 
   /**
    * Handle profile update submission
@@ -1002,142 +890,20 @@ export default function EditProfileModal({
                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Select the neighborhoods where you teach</p>
                   </div>
                 </div>
-                {/* Global neighborhood search (no wrapper label) */}
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    value={globalNeighborhoodFilter}
-                    onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
-                    placeholder="Search neighborhoods..."
-                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none"
-                  />
-                </div>
-                {selectedNeighborhoodList.length > 0 && (
-                  <div className="mb-4">
-                    <SelectedNeighborhoodChips
-                      selected={selectedNeighborhoodList}
-                      onRemove={(id) => {
-                        setSelectedNeighborhoods((prev) => {
-                          const next = new Set(prev);
-                          next.delete(id);
-                          return next;
-                        });
-                      }}
-                    />
-                  </div>
-                )}
-                {globalNeighborhoodFilter.trim().length > 0 && (
-                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 mb-3">
-                    <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
-                    <div className="flex flex-wrap gap-2">
-                      {getGlobalNeighborhoodMatchesWithIds(globalNeighborhoodMatches)
-                        .slice(0, 200)
-                        .map(({ match: n, id: nid }, index) => {
-                          const checked = selectedNeighborhoods.has(nid);
-                          return (
-                            <button
-                              key={`global-${nid}-${index}`}
-                              type="button"
-                              onClick={() => toggleNeighborhood(nid)}
-                              aria-pressed={checked}
-                              className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none ${
-                                checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                              }`}
-                            >
-                              <span className="truncate text-left">{n.display_name || nid}</span>
-                              <span className="ml-2">{checked ? '✓' : '+'}</span>
-                            </button>
-                          );
-                        })
-                        .filter(Boolean)}
-                      {globalNeighborhoodMatches.length === 0 && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">No matches found</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {/* Per-borough accordions */}
-                <div className="mt-3 space-y-3">
-                  {NYC_BOROUGHS.map((borough) => {
-                    const isOpen = openBoroughs.has(borough);
-                    const list = boroughNeighborhoods[borough] || [];
-                    return (
-                      <div key={`accordion-${borough}`} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
-                        <div
-                          className="flex items-center justify-between cursor-pointer"
-                          onClick={async () => { await toggleBoroughOpen(borough); }}
-                          aria-expanded={isOpen}
-                          aria-label={`${borough} neighborhoods`}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleBoroughOpen(borough); } }}
-                        >
-                          <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200 font-medium">
-                            <span className="tracking-wide text-sm">{borough}</span>
-                            <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-                          </div>
-                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-(--color-brand-dark) hover:bg-purple-200 dark:hover:bg-purple-800/40"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
-                                toggleBoroughAll(borough, true, listNow);
-                              }}
-                            >
-                              Select all
-                            </button>
-                            <button
-                              type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
-                                toggleBoroughAll(borough, false, listNow);
-                              }}
-                            >
-                              Clear all
-                            </button>
-                          </div>
-                        </div>
-                        {isOpen && (
-                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
-                            {(list || []).map((n) => {
-                              const nid = n.display_key;
-                              if (!nid) return null;
-                              const checked = selectedNeighborhoods.has(nid);
-                              const label = String(n.display_name || nid)
-                                .trim()
-                                .toLowerCase()
-                                .split(' ')
-                                .filter(Boolean)
-                                .map((w) => w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : '')
-                                .join(' ');
-                              return (
-                                <button
-                                  key={`${borough}-${nid}`}
-                                  type="button"
-                                  onClick={() => toggleNeighborhood(nid)}
-                                  aria-pressed={checked}
-                                  className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none ${
-                                    checked ? 'bg-(--color-brand-dark) text-white border border-(--color-brand-dark)' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                  }`}
-                                >
-                                  <span className="truncate text-left">{label}</span>
-                                  <span className="ml-2">{checked ? '✓' : '+'}</span>
-                                </button>
-                              );
-                            })}
-                            {list.length === 0 && (
-                              <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">Loading…</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                <NeighborhoodSelector
+                  context="dashboard"
+                  selectionMode="multi"
+                  value={selectedNeighborhoodKeys}
+                  onSelectionChange={(keys, items) => {
+                    setSelectedNeighborhoodKeys(keys);
+                    setSelectedNeighborhoodList(
+                      items.map((item) => ({
+                        display_key: item.display_key,
+                        display_name: item.display_name,
+                      })),
                     );
-                  })}
-                </div>
+                  }}
+                />
                 {/* Teaching Location */}
                 <div className="mt-6">
                   <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">

@@ -14,6 +14,7 @@ Endpoints:
     GET /service-areas/me                → List instructor service areas
     PUT /service-areas/me                → Replace instructor service areas
     GET /neighborhoods/selector          → Selector neighborhoods
+    GET /neighborhoods/polygons          → Display-active neighborhood polygons
     GET /places/autocomplete             → Autocomplete address search
     GET /places/details                  → Get place details
     GET /coverage/bulk                   → Get bulk coverage GeoJSON
@@ -255,6 +256,30 @@ def get_neighborhood_selector(
     result = service.get_neighborhood_selector(market)
     response.headers["Cache-Control"] = "public, max-age=86400"
     return NeighborhoodSelectorResponse(**result)
+
+
+@router.get(
+    "/neighborhoods/polygons",
+    response_model=CoverageFeatureCollectionResponse,
+    summary="GeoJSON polygons for display-active neighborhoods",
+)
+def get_neighborhood_polygons(
+    response: Response,
+    market: str = "nyc",
+    service: AddressService = Depends(get_address_service),
+) -> CoverageFeatureCollectionResponse:
+    if market != "nyc":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported market",
+        )
+
+    result = cast(Mapping[str, Any], service.get_neighborhood_polygons(market))
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return CoverageFeatureCollectionResponse(
+        type=cast(str, result.get("type", "FeatureCollection")),
+        features=cast(list[dict[str, Any]], result.get("features", [])),
+    )
 
 
 # NYC bias: Center on Midtown Manhattan with tighter radius to prioritize NY over NJ

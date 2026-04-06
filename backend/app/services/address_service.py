@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any, Dict, Optional, Tuple, cast
@@ -555,6 +556,51 @@ class AddressService(BaseService):
         if self.cache and cache_key:
             try:
                 self.cache.set(cache_key, result, tier="hot")  # ~5 minutes
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+        return result
+
+    @BaseService.measure_operation("get_neighborhood_polygons")
+    def get_neighborhood_polygons(self, market: str = "nyc") -> dict[str, Any]:
+        if market not in SUPPORTED_MARKETS:
+            supported = ", ".join(sorted(SUPPORTED_MARKETS))
+            raise BusinessRuleException(f"Unsupported market: {market}. Supported: {supported}")
+
+        cache_key = f"neighborhood_polygons:{market}"
+        if self.cache:
+            try:
+                cached_raw = self.cache.get(cache_key)
+                if isinstance(cached_raw, dict):
+                    return cast(dict[str, Any], cached_raw)
+                if isinstance(cached_raw, str) and cached_raw:
+                    return cast(dict[str, Any], json.loads(cached_raw))
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+
+        rows = self.region_repo.get_all_active_polygons_geojson(region_type=market)
+        features: list[dict[str, Any]] = []
+        for row in rows:
+            geometry = row.get("geometry")
+            if not isinstance(geometry, dict):
+                continue
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "id": row["id"],
+                        "display_key": row["display_key"],
+                        "display_name": row["display_name"],
+                        "borough": row["parent_region"],
+                        "region_name": row["region_name"],
+                    },
+                }
+            )
+
+        result = {"type": "FeatureCollection", "features": features}
+        if self.cache:
+            try:
+                self.cache.set(cache_key, json.dumps(result), ttl=86400)
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
         return result
