@@ -11,15 +11,82 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });
   await page.setViewportSize({ width: 1440, height: 900 });
   const neighborhoods = [
-    { id: 'MN01', code: 'MN01', name: 'Central Village', borough: 'Manhattan' },
-    { id: 'MN02', code: 'MN02', name: 'Hudson Heights', borough: 'Manhattan' },
-    { id: 'BK01', code: 'BK01', name: 'Brooklyn Heights', borough: 'Brooklyn' },
+    { display_key: 'mn-central-village', nta_id: 'MN01', name: 'Central Village', borough: 'Manhattan' },
+    { display_key: 'mn-hudson-heights', nta_id: 'MN02', name: 'Hudson Heights', borough: 'Manhattan' },
+    { display_key: 'bk-brooklyn-heights', nta_id: 'BK01', name: 'Brooklyn Heights', borough: 'Brooklyn' },
   ];
 
   let serviceAreaSelections: string[] = [];
 
   const fulfillJson = async (route: import('@playwright/test').Route, body: unknown, status = 200) => {
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+  };
+
+  const selectorResponse = {
+    market: 'nyc',
+    boroughs: [
+      {
+        borough: 'Manhattan',
+        items: neighborhoods
+          .filter((item) => item.borough === 'Manhattan')
+          .map((item, index) => ({
+            borough: item.borough,
+            display_key: item.display_key,
+            display_name: item.name,
+            display_order: index + 1,
+            nta_ids: [item.nta_id],
+            search_terms: [
+              { term: item.name, type: 'display_name' },
+            ],
+            additional_boroughs: [],
+          })),
+      },
+      {
+        borough: 'Brooklyn',
+        items: neighborhoods
+          .filter((item) => item.borough === 'Brooklyn')
+          .map((item, index) => ({
+            borough: item.borough,
+            display_key: item.display_key,
+            display_name: item.name,
+            display_order: index + 1,
+            nta_ids: [item.nta_id],
+            search_terms: [
+              { term: item.name, type: 'display_name' },
+            ],
+            additional_boroughs: [],
+          })),
+      },
+    ],
+    total_items: neighborhoods.length,
+  };
+
+  const polygonResponse = {
+    type: 'FeatureCollection',
+    features: neighborhoods.map((item, index) => {
+      const x = -74.05 + index * 0.02;
+      const y = 40.68 + index * 0.02;
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [x, y],
+            [x + 0.01, y],
+            [x + 0.01, y + 0.01],
+            [x, y + 0.01],
+            [x, y],
+          ]],
+        },
+        properties: {
+          id: item.nta_id,
+          display_key: item.display_key,
+          display_name: item.name,
+          borough: item.borough,
+          region_name: item.name,
+        },
+      };
+    }),
   };
 
   await page.route('**/instructors/me', async (route, request) => {
@@ -29,10 +96,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
         service_area_summary: 'Manhattan',
         service_area_boroughs: ['Manhattan'],
         service_area_neighborhoods: neighborhoods.map((n) => ({
-          neighborhood_id: n.id,
-          name: n.name,
+          display_key: n.display_key,
+          display_name: n.name,
           borough: n.borough,
-          ntacode: n.code,
         })),
         years_experience: 5,
         non_travel_buffer_minutes: 15,
@@ -49,10 +115,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
         service_area_summary: 'Manhattan',
         service_area_boroughs: ['Manhattan'],
         service_area_neighborhoods: neighborhoods.map((n) => ({
-          neighborhood_id: n.id,
-          name: n.name,
+          display_key: n.display_key,
+          display_name: n.name,
           borough: n.borough,
-          ntacode: n.code,
         })),
         years_experience: 5,
         non_travel_buffer_minutes: 15,
@@ -111,12 +176,11 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
   await page.route('**/api/v1/addresses/service-areas/me', async (route, request) => {
     if (request.method() === 'GET') {
-      const items = serviceAreaSelections.map((id) => {
-        const meta = neighborhoods.find((n) => n.id === id);
+      const items = serviceAreaSelections.map((key) => {
+        const meta = neighborhoods.find((n) => n.display_key === key);
         return {
-          neighborhood_id: id,
-          ntacode: meta?.code ?? id,
-          name: meta?.name ?? id,
+          display_key: key,
+          display_name: meta?.name ?? key,
           borough: meta?.borough ?? 'Unknown',
         };
       });
@@ -126,13 +190,12 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
     if (request.method() === 'PUT') {
       const data = await request.postDataJSON();
-      serviceAreaSelections = Array.isArray(data?.neighborhood_ids) ? data.neighborhood_ids : [];
-      const items = serviceAreaSelections.map((id) => {
-        const meta = neighborhoods.find((n) => n.id === id);
+      serviceAreaSelections = Array.isArray(data?.display_keys) ? data.display_keys : [];
+      const items = serviceAreaSelections.map((key) => {
+        const meta = neighborhoods.find((n) => n.display_key === key);
         return {
-          neighborhood_id: id,
-          ntacode: meta?.code ?? id,
-          name: meta?.name ?? id,
+          display_key: key,
+          display_name: meta?.name ?? key,
           borough: meta?.borough ?? 'Unknown',
         };
       });
@@ -143,28 +206,24 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     await fulfillJson(route, { items: [], total: 0 });
   });
 
-  await page.route('**/api/v1/addresses/regions/neighborhoods*', (route) =>
-    fulfillJson(route, {
-      items: neighborhoods,
-      total: neighborhoods.length,
-      page: 1,
-      per_page: neighborhoods.length,
-    })
+  await page.route('**/api/v1/addresses/neighborhoods/selector*', (route) =>
+    fulfillJson(route, selectorResponse)
+  );
+
+  await page.route('**/api/v1/addresses/neighborhoods/polygons*', (route) =>
+    fulfillJson(route, polygonResponse)
   );
 
   await page.goto('/instructor/profile');
 
-  const serviceAreasCard = page.getByTestId('service-areas-card');
+  const serviceAreasCard = page.getByTestId('neighborhood-selector');
   await serviceAreasCard.waitFor();
   await serviceAreasCard.scrollIntoViewIfNeeded();
-  await serviceAreasCard.click();
 
-  await page.getByTestId('service-area-borough-manhattan').click();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
-  await page.getByTestId('service-area-chip-MN01').waitFor();
-
-  await page.getByTestId('service-area-chip-MN01').click();
-  await page.getByTestId('service-area-chip-MN02').click();
+  await page.getByTestId('neighborhood-chip-mn-central-village').click();
+  await page.getByTestId('neighborhood-chip-mn-hudson-heights').click();
 
   const putPromise = page.waitForResponse((response) =>
     response.url().includes('/api/v1/addresses/service-areas/me') &&
@@ -181,22 +240,18 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   await page.goto('/instructor/profile');
   await page.waitForURL('**/instructor/profile**');
 
-  const serviceAreasCardReload = page.getByTestId('service-areas-card');
+  const serviceAreasCardReload = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReload.scrollIntoViewIfNeeded();
-  await serviceAreasCardReload.click();
-  await page.getByTestId('service-area-borough-manhattan').click();
-  await page.getByTestId('service-area-chip-MN01').waitFor();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
-  expect(serviceAreaSelections).toEqual(['MN01', 'MN02']);
+  expect(serviceAreaSelections).toEqual(['mn-central-village', 'mn-hudson-heights']);
 
   await page.reload();
 
-  const serviceAreasCardReloadSecond = page.getByTestId('service-areas-card');
+  const serviceAreasCardReloadSecond = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReloadSecond.scrollIntoViewIfNeeded();
-  await serviceAreasCardReloadSecond.click();
-  await page.getByTestId('service-area-borough-manhattan').click();
-  await page.getByTestId('service-area-chip-MN01').waitFor();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
-  await expect(page.getByTestId('service-area-chip-MN01')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('service-area-chip-MN02')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('neighborhood-chip-mn-central-village')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('neighborhood-chip-mn-hudson-heights')).toHaveAttribute('aria-pressed', 'true');
 });

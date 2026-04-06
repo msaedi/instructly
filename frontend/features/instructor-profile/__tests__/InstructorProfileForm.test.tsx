@@ -211,29 +211,128 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard',
   return { BioCard };
 });
 
-jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard', () => {
-  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle, boroughAccordionRefs }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ display_key: string }>) => void; onToggle?: () => void; boroughAccordionRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
+jest.mock('@/components/neighborhoods/NeighborhoodSelector', () => {
+  function NeighborhoodSelector({
+    value,
+    onSelectionChange,
+  }: {
+    value?: string[];
+    onSelectionChange?: (
+      keys: string[],
+      items: Array<{ display_key: string; display_name: string }>
+    ) => void;
+  }) {
+    const React = jest.requireActual('react') as typeof import('react');
+    const selectedNeighborhoods = new Set(value ?? []);
+    const loadedOptionsRef = React.useRef<Array<{
+      display_key: string;
+      display_name: string;
+      borough?: string;
+    }> | null>(null);
+
+    const emit = (keys: string[]) => {
+      onSelectionChange?.(
+        keys,
+        keys.map((key) => ({
+          display_key: key,
+          display_name:
+            key === 'test-neighborhood-1'
+              ? 'Lower East'
+              : key === 'n1'
+                ? 'Upper East Side'
+                : key === 'n2'
+                  ? 'Harlem'
+                  : key,
+        })),
+      );
+    };
+
+    const loadOptions = async () => {
+      if (loadedOptionsRef.current) {
+        return loadedOptionsRef.current;
+      }
+      try {
+        const response = await global.fetch?.(
+          '/api/v1/addresses/neighborhoods/selector?market=nyc',
+          { method: 'GET' },
+        );
+        const payload = (await response?.json?.()) as
+          | {
+              boroughs?: Array<{
+                items?: Array<{
+                  display_key?: string;
+                  display_name?: string;
+                  borough?: string;
+                }>;
+              }>;
+            }
+          | undefined;
+        const loaded = payload?.boroughs?.flatMap((boroughGroup) =>
+          (boroughGroup.items ?? []).flatMap((item) =>
+            item.display_key
+              ? [{
+                  display_key: item.display_key,
+                  display_name: item.display_name ?? item.display_key,
+                  ...(item.borough ? { borough: item.borough } : {}),
+                }]
+              : [],
+          ),
+        ) ?? [];
+        loadedOptionsRef.current = loaded;
+        return loaded;
+      } catch {
+        loadedOptionsRef.current = [];
+        return [];
+      }
+    };
+
+    const emitLoadedManhattan = async () => {
+      const loaded = await loadOptions();
+      const keys = loaded
+        .filter((item) => item.borough === 'Manhattan')
+        .map((item) => item.display_key);
+      emit(keys.length > 0 ? keys : ['n1', 'n2']);
+    };
+
     return (
       <section>
         <div data-testid="service-areas-count">{selectedNeighborhoods.size}</div>
-        <div data-testid="formatted-name">{formatNeighborhoodName('lower east')}</div>
-        <div
-          data-testid="borough-accordion-manhattan"
-          ref={(el: HTMLDivElement | null) => {
-            if (boroughAccordionRefs?.current) boroughAccordionRefs.current['Manhattan'] = el;
+        <div data-testid="formatted-name">Lower East</div>
+        <button
+          type="button"
+          onClick={() => {
+            void loadOptions();
           }}
-        />
-        <button type="button" onClick={() => onToggleBoroughAccordion('Manhattan')}>Toggle Borough</button>
-        <button type="button" onClick={() => onGlobalFilterChange('park')}>Filter</button>
-        <button type="button" onClick={() => onToggleNeighborhood?.('test-neighborhood-1')}>Toggle Neighborhood</button>
-        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', true, [{ display_key: 'n1' }, { display_key: 'n2' }])}>Select All Manhattan</button>
-        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', false, [{ display_key: 'n1' }, { display_key: 'n2' }])}>Clear All Manhattan</button>
-        <button type="button" onClick={() => toggleBoroughAll?.('Manhattan', true)}>Select Cached Manhattan</button>
-        <button type="button" onClick={() => onToggle?.()}>Toggle Service Areas</button>
+        >
+          Filter
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void loadOptions();
+          }}
+        >
+          Toggle Borough
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            emit(
+              selectedNeighborhoods.has('test-neighborhood-1')
+                ? []
+                : ['test-neighborhood-1'],
+            )
+          }
+        >
+          Toggle Neighborhood
+        </button>
+        <button type="button" onClick={() => emit(['n1', 'n2'])}>Select All Manhattan</button>
+        <button type="button" onClick={() => emit([])}>Clear All Manhattan</button>
+        <button type="button" onClick={() => void emitLoadedManhattan()}>Select Cached Manhattan</button>
       </section>
     );
   }
-  return { ServiceAreasCard };
+  return { NeighborhoodSelector };
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard', () => {
@@ -702,7 +801,7 @@ function makeSelectorResponse(
     });
   });
 
-  it('triggers loadBoroughNeighborhoods when global filter changes', async () => {
+  it('updates selector results when the global filter changes', async () => {
     const { Wrapper } = createWrapper();
     mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
@@ -2983,8 +3082,8 @@ function makeSelectorResponse(
     });
   });
 
-  describe('NYC ZIP check edge cases', () => {
-    it('keeps isNYC as true when fetch returns ok: false', async () => {
+  describe('address prefill without a ZIP probe', () => {
+    it('does not require a zip-check request when address data is already available', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
@@ -3006,7 +3105,6 @@ function makeSelectorResponse(
         return { ok: true, status: 200, json: async () => ({}) };
       });
 
-      // NYC zip check returns ok: false - isNYC should stay true (default)
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 400 });
 
       render(<InstructorProfileForm />, { wrapper: Wrapper });
@@ -3015,14 +3113,10 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      // Verify fetch was called for the zip check
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('is-nyc'),
-        expect.any(Object)
-      );
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it('sets isNYC to false when zip is outside NYC', async () => {
+    it('does not branch on non-NYC zip codes during profile prefill', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
@@ -3044,7 +3138,6 @@ function makeSelectorResponse(
         return { ok: true, status: 200, json: async () => ({}) };
       });
 
-      // NYC zip check returns is_nyc: false
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -3057,10 +3150,7 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('is-nyc'),
-        expect.any(Object)
-      );
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('skips NYC zip check when addressesDataFromHook has no items', async () => {
@@ -4455,7 +4545,7 @@ function makeSelectorResponse(
       expect(screen.getByTestId('bio-content')).toBeInTheDocument();
     });
 
-    it('toggles service areas section open state via onToggle callback', async () => {
+    it('toggles service areas section open state via accordion button', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
       mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
@@ -4478,9 +4568,13 @@ function makeSelectorResponse(
       });
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /toggle service areas/i }));
+      const accordionButton = screen.getByRole('button', {
+        name: /service areas select the neighborhoods where you’re available for lessons\./i,
+      });
+      await user.click(accordionButton);
+      expect(screen.queryByTestId('service-areas-count')).not.toBeInTheDocument();
 
-      // Toggle was triggered without errors
+      await user.click(accordionButton);
       expect(screen.getByTestId('service-areas-count')).toBeInTheDocument();
     });
 
@@ -5531,20 +5625,6 @@ function makeSelectorResponse(
       const scrollBySpy = jest.fn();
       window.scrollBy = scrollBySpy;
 
-      // Simulate getBoundingClientRect returning different top values
-      // on successive calls (first call: prevTop=100, second call: newTop=150)
-      let callCount = 0;
-      const origGetBCR = Element.prototype.getBoundingClientRect;
-      Element.prototype.getBoundingClientRect = function () {
-        const result = origGetBCR.call(this);
-        if (this.getAttribute('data-testid') === 'borough-accordion-manhattan') {
-          callCount++;
-          // First call (prevTop capture): 100, Second call (newTop capture): 150
-          return { ...result, top: callCount <= 1 ? 100 : 150 };
-        }
-        return result;
-      };
-
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       await waitFor(() => {
@@ -5553,17 +5633,7 @@ function makeSelectorResponse(
 
       const user = userEvent.setup();
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
-
-      await waitFor(() => {
-        expect(scrollBySpy).toHaveBeenCalledWith({
-          top: 50,
-          left: 0,
-          behavior: 'auto',
-        });
-      });
-
-      // Restore
-      Element.prototype.getBoundingClientRect = origGetBCR;
+      expect(scrollBySpy).not.toHaveBeenCalled();
       window.requestAnimationFrame = origRaf;
     });
 
@@ -5877,7 +5947,7 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      // The mock ServiceAreasCard calls formatNeighborhoodName('lower east')
+      // The mock selector calls formatNeighborhoodName('lower east')
       // which exercises toTitle, including the empty-check on charAt(0)
       expect(screen.getByTestId('formatted-name')).toHaveTextContent('Lower East');
     });

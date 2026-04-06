@@ -15,6 +15,14 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   ),
 }));
 
+jest.mock('@/components/neighborhoods/NeighborhoodSelector', () => ({
+  NeighborhoodSelector: ({
+    value,
+  }: {
+    value?: string[];
+  }) => <div data-testid="service-areas-count">{value?.length ?? 0}</div>,
+}));
+
 jest.mock('@/lib/instructorServices', () => {
   // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
   const normalizeInstructorServices = jest.fn<Promise<never[]>, [unknown]>(async () => []);

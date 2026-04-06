@@ -48,16 +48,14 @@ export async function mockInstructorProfile(page: Page) {
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'upper-west-side',
-              name: 'Upper West Side',
+              display_key: 'upper-west-side',
+              display_name: 'Upper West Side',
               borough: 'Manhattan',
-              ntacode: null,
             },
             {
-              neighborhood_id: 'midtown',
-              name: 'Midtown',
+              display_key: 'midtown',
+              display_name: 'Midtown',
               borough: 'Manhattan',
-              ntacode: null,
             },
           ],
           years_experience: 10,
@@ -817,16 +815,14 @@ export async function setupAllMocks(
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'upper-west-side',
-              name: 'Upper West Side',
+              display_key: 'upper-west-side',
+              display_name: 'Upper West Side',
               borough: 'Manhattan',
-              ntacode: null,
             },
             {
-              neighborhood_id: 'midtown',
-              name: 'Midtown',
+              display_key: 'midtown',
+              display_name: 'Midtown',
               borough: 'Manhattan',
-              ntacode: null,
             },
           ],
           years_experience: 10,

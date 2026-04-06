@@ -41,6 +41,53 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   if (!LIVE_MODE) {
     await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });
 
+    const selectorResponse = {
+      market: 'nyc',
+      boroughs: [
+        {
+          borough: 'Manhattan',
+          items: [
+            {
+              borough: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
+              display_order: 1,
+              nta_ids: ['MN01'],
+              search_terms: [{ term: 'Manhattan', type: 'display_name' }],
+              additional_boroughs: [],
+            },
+          ],
+        },
+      ],
+      total_items: 1,
+    };
+
+    const polygonResponse = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [-74.01, 40.72],
+              [-73.99, 40.72],
+              [-73.99, 40.74],
+              [-74.01, 40.74],
+              [-74.01, 40.72],
+            ]],
+          },
+          properties: {
+            id: 'MN01',
+            display_key: 'mock-manhattan',
+            display_name: 'Manhattan',
+            borough: 'Manhattan',
+            region_name: 'Manhattan',
+          },
+        },
+      ],
+    };
+
     const state = {
       preferredTeaching: [] as Array<{ address: string; label?: string }>,
       preferredPublic: [] as Array<{ address: string }>,
@@ -68,8 +115,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'mock-manhattan',
-              name: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
               borough: 'Manhattan',
             },
           ],
@@ -125,8 +172,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
             {
-              neighborhood_id: 'mock-manhattan',
-              name: 'Manhattan',
+              display_key: 'mock-manhattan',
+              display_name: 'Manhattan',
               borough: 'Manhattan',
             },
           ],
@@ -180,8 +227,12 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       return fulfillJson(route, { items: [], total: 0 });
     });
 
-    await page.route('**/api/v1/addresses/regions/neighborhoods*', (route) =>
-      fulfillJson(route, { items: [], total: 0, page: 1, per_page: 0 })
+    await page.route('**/api/v1/addresses/neighborhoods/selector*', (route) =>
+      fulfillJson(route, selectorResponse)
+    );
+
+    await page.route('**/api/v1/addresses/neighborhoods/polygons*', (route) =>
+      fulfillJson(route, polygonResponse)
     );
 
     await page.route('**/api/v1/addresses/places/autocomplete*', (route) =>
@@ -268,10 +319,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
 
-  const serviceAreasCard = page.getByTestId('service-areas-card').first();
-  await serviceAreasCard.waitFor();
-  await serviceAreasCard.scrollIntoViewIfNeeded();
-  await serviceAreasCard.click();
+  const neighborhoodSelector = page.getByTestId('neighborhood-selector').first();
+  await neighborhoodSelector.waitFor();
+  await neighborhoodSelector.scrollIntoViewIfNeeded();
   const preferredPlacesCard = page.getByTestId('preferred-places-card').first();
   await preferredPlacesCard.waitFor();
   await preferredPlacesCard.scrollIntoViewIfNeeded();
@@ -312,7 +362,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
 
-  await page.getByTestId('service-areas-card').click();
+  await page.getByTestId('neighborhood-selector').first().scrollIntoViewIfNeeded();
   const preferredPlacesCardReload = page.getByTestId('preferred-places-card').first();
   await preferredPlacesCardReload.scrollIntoViewIfNeeded();
   await preferredPlacesCardReload.click();

@@ -27,9 +27,11 @@ except ModuleNotFoundError:
         sys.path.insert(0, str(_REPO_ROOT))
 
 import asyncio
+from collections import defaultdict
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from functools import lru_cache
+import hashlib
 import importlib
 import json
 import os
@@ -238,7 +240,7 @@ from app.auth import get_password_hash
 # Now we can import from app
 from app.core.enums import PermissionName, RoleName
 from app.database import Base, get_db
-from app.domain.neighborhood_config import generate_display_key
+from app.domain.neighborhood_config import NEIGHBORHOOD_MAPPING, generate_display_key
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
 from app.models import SearchEvent, SearchHistory
 
@@ -294,6 +296,8 @@ BOROUGH_ABBR: dict[str, str] = {
     "Bronx": "BR",
     "Staten Island": "SI",
 }
+
+_UNSET = object()
 
 
 def _build_service_format_price_rows(
@@ -371,15 +375,35 @@ def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
     return True
 
 
-def _ensure_boundary_columns(db: Session, boundary: RegionBoundary, borough: str) -> None:
+def _ensure_boundary_columns(
+    db: Session,
+    boundary: RegionBoundary,
+    borough: str,
+    *,
+    display_name_override: str | None | object = _UNSET,
+    display_key_override: str | None | object = _UNSET,
+    display_order_override: int | None | object = _UNSET,
+) -> None:
     display_name = getattr(boundary, "display_name", None) or getattr(boundary, "region_name", None)
+    if display_name_override is not _UNSET:
+        display_name = display_name_override
     setattr(boundary, "display_name", display_name)
-    if display_name:
+
+    if display_name is not None:
         display_key = getattr(boundary, "display_key", None) or generate_display_key(
             "nyc", borough, str(display_name)
         )
-        setattr(boundary, "display_key", display_key)
-        setattr(boundary, "display_order", getattr(boundary, "display_order", None) or 0)
+        if display_key_override is not _UNSET:
+            display_key = display_key_override
+        display_order = getattr(boundary, "display_order", None) or 0
+        if display_order_override is not _UNSET:
+            display_order = display_order_override
+    else:
+        display_key = None if display_key_override is _UNSET else display_key_override
+        display_order = None if display_order_override is _UNSET else display_order_override
+
+    setattr(boundary, "display_key", display_key)
+    setattr(boundary, "display_order", display_order)
 
     if not db.bind or db.bind.dialect.name == "sqlite":
         return
@@ -436,6 +460,188 @@ def _ensure_boundary_columns(db: Session, boundary: RegionBoundary, borough: str
         db.flush()
     except Exception:
         return
+
+
+@lru_cache(maxsize=1)
+def _canonical_nyc_boundary_rows() -> dict[tuple[str, str], dict[str, object | None]]:
+    display_names_by_borough: dict[str, set[str]] = defaultdict(set)
+    for (borough, _region_name), display_name in NEIGHBORHOOD_MAPPING.items():
+        if display_name is not None:
+            display_names_by_borough[borough].add(display_name)
+
+    display_order_by_group: dict[tuple[str, str], int] = {}
+    for borough, display_names in display_names_by_borough.items():
+        for index, display_name in enumerate(sorted(display_names)):
+            display_order_by_group[(borough, display_name)] = index
+
+    canonical_rows: dict[tuple[str, str], dict[str, object | None]] = {}
+    for (borough, region_name), display_name in NEIGHBORHOOD_MAPPING.items():
+        canonical_rows[(borough, region_name)] = {
+            "borough": borough,
+            "region_name": region_name,
+            "display_name": display_name,
+            "display_key": (
+                generate_display_key("nyc", borough, display_name)
+                if display_name is not None
+                else None
+            ),
+            "display_order": (
+                display_order_by_group[(borough, display_name)]
+                if display_name is not None
+                else None
+            ),
+        }
+    return canonical_rows
+
+
+def _canonical_region_code(borough: str, region_name: str) -> str:
+    abbr = BOROUGH_ABBR.get(borough, borough[:2].upper()) or "XX"
+    digest = hashlib.sha1(f"{borough}:{region_name}".encode("utf-8")).hexdigest()[:10].upper()
+    return f"{abbr}-CFG-{digest}"
+
+
+def _apply_canonical_boundary_display(
+    db: Session,
+    boundary: RegionBoundary,
+    borough: str,
+    *,
+    display_name: str | None,
+    display_key: str | None,
+    display_order: int | None,
+) -> None:
+    _ensure_boundary_columns(
+        db,
+        boundary,
+        borough,
+        display_name_override=display_name,
+        display_key_override=display_key,
+        display_order_override=display_order,
+    )
+
+
+def _normalize_region_boundaries_to_canonical_nyc(db: Session) -> bool:
+    canonical_rows = _canonical_nyc_boundary_rows()
+    boundary_presence = {
+        str(row["id"]): bool(row["has_boundary"])
+        for row in db.execute(
+            text(
+                """
+                SELECT id, boundary IS NOT NULL AS has_boundary
+                FROM region_boundaries
+                WHERE region_type = 'nyc'
+                """
+            )
+        ).mappings()
+    }
+    existing_rows = (
+        db.query(RegionBoundary)
+        .filter(RegionBoundary.region_type == "nyc")
+        .order_by(RegionBoundary.parent_region, RegionBoundary.region_name, RegionBoundary.id)
+        .all()
+    )
+
+    rows_by_key: dict[tuple[str, str], list[RegionBoundary]] = defaultdict(list)
+    remove_ids: list[str] = []
+    changed = False
+
+    for boundary in existing_rows:
+        key = (str(boundary.parent_region or ""), str(boundary.region_name or ""))
+        if key not in canonical_rows:
+            remove_ids.append(str(boundary.id))
+            changed = True
+            continue
+        rows_by_key[key].append(boundary)
+
+    kept_rows: dict[tuple[str, str], RegionBoundary] = {}
+    for key, boundaries in rows_by_key.items():
+        boundaries.sort(
+            key=lambda boundary: (
+                not boundary_presence.get(str(boundary.id), False),
+                str(getattr(boundary, "created_at", "") or ""),
+                str(boundary.id),
+            )
+        )
+        kept_rows[key] = boundaries[0]
+        duplicate_ids = [str(boundary.id) for boundary in boundaries[1:]]
+        if duplicate_ids:
+            remove_ids.extend(duplicate_ids)
+            changed = True
+
+    if remove_ids:
+        db.query(InstructorServiceArea).filter(
+            InstructorServiceArea.neighborhood_id.in_(remove_ids)
+        ).delete(synchronize_session=False)
+        db.query(RegionBoundary).filter(RegionBoundary.id.in_(remove_ids)).delete(
+            synchronize_session=False
+        )
+        db.flush()
+
+    for key, payload in canonical_rows.items():
+        borough = str(payload["borough"])
+        region_name = str(payload["region_name"])
+        display_name = payload["display_name"]
+        display_key = payload["display_key"]
+        display_order = payload["display_order"]
+
+        boundary = kept_rows.get(key)
+        if boundary is None:
+            boundary = RegionBoundary(
+                region_type="nyc",
+                region_code=_canonical_region_code(borough, region_name),
+                region_name=region_name,
+                parent_region=borough,
+                region_metadata={"borough": borough},
+            )
+            db.add(boundary)
+            db.flush()
+            kept_rows[key] = boundary
+            changed = True
+
+        metadata = dict(boundary.region_metadata or {})
+        if metadata.get("borough") != borough:
+            metadata["borough"] = borough
+            boundary.region_metadata = metadata
+            changed = True
+
+        if not getattr(boundary, "region_code", None):
+            boundary.region_code = _canonical_region_code(borough, region_name)
+            changed = True
+
+        if _ensure_boundary_geometry(boundary, borough):
+            changed = True
+
+        if (
+            getattr(boundary, "display_name", None) != display_name
+            or getattr(boundary, "display_key", None) != display_key
+            or getattr(boundary, "display_order", None) != display_order
+        ):
+            changed = True
+
+        _apply_canonical_boundary_display(
+            db,
+            boundary,
+            borough,
+            display_name=display_name if isinstance(display_name, str) else None,
+            display_key=display_key if isinstance(display_key, str) else None,
+            display_order=display_order if isinstance(display_order, int) else None,
+        )
+
+    return changed
+
+
+def _normalize_test_region_boundaries() -> None:
+    session = TestSessionLocal()
+    try:
+        changed = _normalize_region_boundaries_to_canonical_nyc(session)
+        if changed:
+            session.commit()
+        else:
+            session.rollback()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 def unique_email(prefix: str = "test.user") -> str:
     """Generate a unique email for tests to avoid collisions."""
@@ -1182,6 +1388,7 @@ def ensure_test_database_ready() -> None:
         else:
             _prepare_database()
 
+        _normalize_test_region_boundaries()
         _DB_PREPARED = True
 
 # ============================================================================
@@ -1455,6 +1662,7 @@ def cleanup_test_database() -> None:
 
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
+        _normalize_region_boundaries_to_canonical_nyc(cleanup_db)
         cleanup_db.commit()
     except Exception as e:  # pragma: no cover - cleanup best effort
         print(f"\n⚠️  Error during test cleanup: {e}")
@@ -1809,13 +2017,13 @@ def test_instructor(db: Session, test_password: str) -> User:
     # Ensure instructor has service area coverage for Manhattan and Brooklyn
     neighborhoods = [
         {
-            "region_name": "Manhattan - Midtown",
-            "region_code": "MN-MID",
+            "region_name": "Midtown-Times Square",
+            "region_code": "MN-MTS",
             "parent_region": "Manhattan",
         },
         {
-            "region_name": "Brooklyn - Williamsburg",
-            "region_code": "BK-WIL",
+            "region_name": "Williamsburg",
+            "region_code": "BK-WMB",
             "parent_region": "Brooklyn",
         },
     ]
@@ -1968,13 +2176,13 @@ def test_instructor_2(db: Session, test_password: str) -> User:
 
     neighborhoods = [
         {
-            "region_name": "Queens - Astoria",
-            "region_code": "QN-AST",
+            "region_name": "Astoria (Central)",
+            "region_code": "QN-AST-C",
             "parent_region": "Queens",
         },
         {
-            "region_name": "Bronx - Fordham",
-            "region_code": "BX-FOR",
+            "region_name": "Fordham Heights",
+            "region_code": "BX-FDH",
             "parent_region": "Bronx",
         },
     ]

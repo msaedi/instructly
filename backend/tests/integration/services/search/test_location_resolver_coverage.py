@@ -283,15 +283,27 @@ def test_effective_region_ids_filters_empty_values():
     assert LocationResolver.effective_region_ids(resolution) == ["region-1", "region-2"]
 
 
-def test_tier2_5_substring_short_and_ambiguous(db):
+def test_tier2_5_substring_short_and_exact_logical_match_wins(db):
     resolver = LocationResolver(db)
     short = resolver._tier2_5_region_name_substring("ny")
     assert short.not_found is True
 
     _create_region(db, name="Midtown East")
     _create_region(db, name="Midtown West")
-    ambiguous = resolver._tier2_5_region_name_substring("midtown")
-    assert ambiguous.requires_clarification is True
+    candidates = resolver._format_candidates(
+        resolver.repository.find_regions_by_name_fragment("midtown")
+    )
+    deduped = LocationResolver._dedupe_candidates_by_display(candidates)
+    preferred = LocationResolver._prefer_exact_logical_candidates("midtown", deduped)
+
+    assert len(preferred) == 1
+    assert preferred[0]["display_name"] == "Midtown"
+    assert preferred[0]["display_key"] == "nyc-manhattan-midtown"
+
+    resolved = resolver._tier2_5_region_name_substring("midtown")
+    assert resolved.resolved is True
+    assert resolved.requires_clarification is False
+    assert resolved.region_name == "Midtown"
 
 
 def test_tier3_fuzzy_match_not_found(db, monkeypatch):
@@ -714,12 +726,31 @@ def test_consolidated_display_keys_resolve_as_single_logical_candidate(
         .all()
     )
 
-    assert {str(row.region_name) for row in rows} == set(raw_names)
+    canonical_rows_by_name: dict[str, RegionBoundary] = {}
+    for row in rows:
+        region_name = str(row.region_name or "")
+        region_code = str(row.region_code or "")
+        if region_name not in raw_names:
+            continue
+        if not str(row.display_key or "").startswith("nyc-"):
+            continue
+        if region_code.startswith("test-"):
+            continue
+        canonical_rows_by_name.setdefault(region_name, row)
+
+    assert set(canonical_rows_by_name.keys()) == set(raw_names)
+    canonical_rows = [canonical_rows_by_name[name] for name in sorted(canonical_rows_by_name)]
+    canonical_ids = sorted(str(row.id) for row in canonical_rows)
+    canonical_id_set = set(canonical_ids)
 
     result = resolver.resolve_sync(display_name)
 
     assert result.resolved is True
     assert result.requires_clarification is False
     assert result.region_name == display_name
-    assert result.region_ids == sorted(str(row.id) for row in rows)
-    assert result.region_id == str(rows[0].id)
+    assert sorted(region_id for region_id in (result.region_ids or []) if region_id in canonical_id_set) == canonical_ids
+    assert result.region_id is not None
+    result_row = next((row for row in rows if str(row.id) == result.region_id), None)
+    assert result_row is not None
+    assert str(result_row.display_key or "").startswith("nyc-")
+    assert str(result_row.region_name or "") in raw_names

@@ -11,12 +11,17 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from ..models.region_boundary import RegionBoundary
+
 logger = logging.getLogger(__name__)
 
 
 class RegionBoundaryRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def get_boundary_geometry(self, boundary_id: str) -> RegionBoundary | None:
+        return cast(Optional[RegionBoundary], self.db.get(RegionBoundary, boundary_id))
 
     def insert_wkt(
         self,
@@ -257,6 +262,56 @@ class RegionBoundaryRepository:
                         "parent_region": row["parent_region"],
                         "region_type": row["region_type"],
                         "geometry": (row["geojson"] and _json.loads(row["geojson"])) or None,
+                    }
+                )
+            return results
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            return []
+
+    def get_all_active_polygons_geojson(
+        self, region_type: str = "nyc", tolerance: float = 0.001
+    ) -> list[dict[str, Any]]:
+        """Return simplified GeoJSON rows for all display-active neighborhoods."""
+        try:
+            rows = cast(
+                List[Mapping[str, Any]],
+                self.db.execute(
+                    text(
+                        """
+                        SELECT
+                            id,
+                            region_name,
+                            parent_region,
+                            display_name,
+                            display_key,
+                            ST_AsGeoJSON(ST_Simplify(boundary, :tol)) AS geojson
+                        FROM region_boundaries
+                        WHERE region_type = :rtype
+                          AND display_name IS NOT NULL
+                          AND boundary IS NOT NULL
+                        ORDER BY parent_region, display_order, display_name, region_name, id
+                        """
+                    ),
+                    {"rtype": region_type, "tol": tolerance},
+                )
+                .mappings()
+                .all(),
+            )
+
+            results: list[dict[str, Any]] = []
+            for row in rows:
+                results.append(
+                    {
+                        "id": row["id"],
+                        "region_name": row["region_name"],
+                        "parent_region": row["parent_region"],
+                        "display_name": row["display_name"],
+                        "display_key": row["display_key"],
+                        "geometry": (row["geojson"] and json.loads(row["geojson"])) or None,
                     }
                 )
             return results
