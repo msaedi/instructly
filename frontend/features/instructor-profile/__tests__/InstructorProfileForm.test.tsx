@@ -458,6 +458,26 @@ function makeSelectorResponse(
   };
 }
 
+function getServiceAreasAccordionButton() {
+  return screen.getByRole('button', {
+    name: /service areas select the neighborhoods where you’re available for lessons\./i,
+  });
+}
+
+async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => {
+    expect(getServiceAreasAccordionButton()).toBeInTheDocument();
+  });
+
+  if (getServiceAreasAccordionButton().getAttribute('aria-expanded') !== 'true') {
+    await user.click(getServiceAreasAccordionButton());
+  }
+
+  await waitFor(() => {
+    expect(getServiceAreasAccordionButton()).toHaveAttribute('aria-expanded', 'true');
+  });
+}
+
   beforeEach(() => {
     jest.clearAllMocks();
     capturedPhoneVerificationOptions = undefined;
@@ -830,7 +850,12 @@ function makeSelectorResponse(
 
     render(<InstructorProfileForm />, { wrapper: Wrapper });
 
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
     await user.click(screen.getByRole('button', { name: /filter/i }));
 
     await waitFor(() => {
@@ -867,7 +892,12 @@ function makeSelectorResponse(
 
     render(<InstructorProfileForm />, { wrapper: Wrapper });
 
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
     await user.click(screen.getByRole('button', { name: /toggle borough/i }));
 
     await waitFor(() => {
@@ -1120,9 +1150,14 @@ function makeSelectorResponse(
     render(<InstructorProfileForm />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      // The formatted name "lower east" should become "Lower East"
-      expect(screen.getByTestId('formatted-name')).toHaveTextContent('Lower East');
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
     });
+
+    const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
+
+    // The formatted name "lower east" should become "Lower East"
+    expect(screen.getByTestId('formatted-name')).toHaveTextContent('Lower East');
   });
 
   it('handles address PATCH error when zip code changes', async () => {
@@ -1493,6 +1528,7 @@ function makeSelectorResponse(
     });
 
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
     await user.click(screen.getByRole('button', { name: /toggle borough/i }));
 
     // Should not crash, just handle the error silently
@@ -1803,6 +1839,7 @@ function makeSelectorResponse(
     });
 
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
 
     // Toggle a neighborhood - should work without throwing
     await user.click(screen.getByRole('button', { name: /toggle neighborhood/i }));
@@ -1834,6 +1871,7 @@ function makeSelectorResponse(
     });
 
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
 
     // Select all Manhattan neighborhoods - should work without throwing
     await user.click(screen.getByRole('button', { name: /select all manhattan/i }));
@@ -1879,6 +1917,7 @@ function makeSelectorResponse(
     });
 
     const user = userEvent.setup();
+    await openServiceAreasAccordion(user);
 
     // Clear all Manhattan neighborhoods - should work without throwing
     await user.click(screen.getByRole('button', { name: /clear all manhattan/i }));
@@ -2242,6 +2281,7 @@ function makeSelectorResponse(
       });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
 
       // Select all Manhattan neighborhoods
       await user.click(screen.getByRole('button', { name: /select all manhattan/i }));
@@ -2669,6 +2709,7 @@ function makeSelectorResponse(
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       // First toggle loads neighborhoods
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
 
@@ -2712,6 +2753,7 @@ function makeSelectorResponse(
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
 
       // Should not crash
@@ -3666,6 +3708,9 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+
       // Only items with a display_key should be selected
       await waitFor(() => {
         expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
@@ -3695,6 +3740,8 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
     });
   });
@@ -3896,6 +3943,7 @@ function makeSelectorResponse(
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
 
       await waitFor(() => {
@@ -4170,10 +4218,11 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+
       // Initial count should be 0
       expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
-
-      const user = userEvent.setup();
 
       // Select all using the mocked override list
       await user.click(screen.getByRole('button', { name: /select all manhattan/i }));
@@ -4217,11 +4266,12 @@ function makeSelectorResponse(
 
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+
       await waitFor(() => {
         expect(screen.getByTestId('service-areas-count')).toHaveTextContent('2');
       });
-
-      const user = userEvent.setup();
 
       // Clear all — should remove n1 and n2
       await user.click(screen.getByRole('button', { name: /clear all manhattan/i }));
@@ -4356,9 +4406,10 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
-
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+
+      expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
 
       // Add a neighborhood
       await user.click(screen.getByRole('button', { name: /toggle neighborhood/i }));
@@ -4571,11 +4622,14 @@ function makeSelectorResponse(
       const accordionButton = screen.getByRole('button', {
         name: /service areas select the neighborhoods where you’re available for lessons\./i,
       });
-      await user.click(accordionButton);
       expect(screen.queryByTestId('service-areas-count')).not.toBeInTheDocument();
+      expect(accordionButton).toHaveAttribute('aria-expanded', 'false');
 
       await user.click(accordionButton);
       expect(screen.getByTestId('service-areas-count')).toBeInTheDocument();
+
+      await user.click(accordionButton);
+      expect(screen.queryByTestId('service-areas-count')).not.toBeInTheDocument();
     });
 
     it('toggles preferred locations section open state via onToggle callback', async () => {
@@ -5632,6 +5686,7 @@ function makeSelectorResponse(
       });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
       expect(scrollBySpy).not.toHaveBeenCalled();
       window.requestAnimationFrame = origRaf;
@@ -5946,6 +6001,9 @@ function makeSelectorResponse(
       await waitFor(() => {
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
+
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
 
       // The mock selector calls formatNeighborhoodName('lower east')
       // which exercises toTitle, including the empty-check on charAt(0)
@@ -6269,10 +6327,12 @@ function makeSelectorResponse(
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+      expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
       await user.click(screen.getByRole('button', { name: /toggle borough/i }));
       await user.click(screen.getByRole('button', { name: /select cached manhattan/i }));
 
@@ -6558,7 +6618,8 @@ function makeSelectorResponse(
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('service-areas-count')).toBeInTheDocument();
+      expect(getServiceAreasAccordionButton()).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByTestId('service-areas-count')).not.toBeInTheDocument();
     });
 
     it('shows Class Locations when a service has instructor_location', async () => {
@@ -6819,6 +6880,13 @@ function makeSelectorResponse(
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
+
+      await waitFor(() => {
         expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
       });
     });
@@ -6958,6 +7026,7 @@ function makeSelectorResponse(
       });
 
       const user = userEvent.setup();
+      await openServiceAreasAccordion(user);
       await user.click(screen.getByRole('button', { name: /toggle neighborhood/i }));
 
       await act(async () => {

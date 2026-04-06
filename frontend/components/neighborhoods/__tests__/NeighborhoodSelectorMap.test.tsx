@@ -723,6 +723,33 @@ describe('NeighborhoodSelectorMap', () => {
     );
   });
 
+  it('renders the fit-map button in a fixed overlay above Leaflet panes', () => {
+    render(
+      <NeighborhoodSelectorMap
+        featureCollection={{
+          type: 'FeatureCollection',
+          features: [makeFeature('row-1', 'nyc-manhattan-upper-east-side', 'Upper East Side')],
+        }}
+        selectedKeys={new Set()}
+        onToggleKey={jest.fn()}
+        hoveredKey={null}
+      />,
+    );
+
+    const fitMapButton = screen.getByTestId('fit-map-button');
+    expect(fitMapButton).toHaveClass('pointer-events-auto');
+    expect(fitMapButton.parentElement).toHaveClass(
+      'pointer-events-none',
+      'absolute',
+      'inset-0',
+      'z-[1100]',
+      'flex',
+      'items-end',
+      'justify-end',
+      'p-4',
+    );
+  });
+
   it('renders without a GeoJSON layer when no feature collection is provided', async () => {
     const user = userEvent.setup();
 
