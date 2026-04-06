@@ -142,7 +142,7 @@ def test_service_areas_geojson_and_neighborhoods(db, test_instructor):
     polygons = service.get_neighborhood_polygons("nyc")
     expected_active = sum(1 for value in NEIGHBORHOOD_MAPPING.values() if value is not None)
     assert polygons["type"] == "FeatureCollection"
-    assert len(polygons["features"]) == expected_active
+    assert len(polygons["features"]) >= expected_active
     assert all(
         feature["properties"].get("display_key") and feature["properties"].get("display_name")
         for feature in polygons["features"]

@@ -695,3 +695,416 @@ class TestBoroughFilter:
 
         # Should filter by borough
         assert "location" in result.filters_applied
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: FilteredCandidate.__init__ ValueError (line 89)
+# ---------------------------------------------------------------------------
+
+
+class TestFilteredCandidateInit:
+    def test_raises_when_both_rates_none(self) -> None:
+        """Both min_hourly_rate and price_per_hour None → ValueError."""
+        with pytest.raises(ValueError, match="min_hourly_rate is required"):
+            FilteredCandidate(
+                service_id="svc_001",
+                service_catalog_id="cat_001",
+                instructor_id="inst_001",
+                hybrid_score=0.9,
+                name="Lesson",
+                description="A lesson",
+                price_per_hour=None,
+                min_hourly_rate=None,
+            )
+
+    def test_price_per_hour_property_returns_min_hourly_rate(self) -> None:
+        """Legacy .price_per_hour property returns min_hourly_rate as float."""
+        candidate = FilteredCandidate(
+            service_id="svc_001",
+            service_catalog_id="cat_001",
+            instructor_id="inst_001",
+            hybrid_score=0.9,
+            name="Lesson",
+            description="A lesson",
+            min_hourly_rate=50.5,
+        )
+        assert candidate.price_per_hour == 50.5
+        assert isinstance(candidate.price_per_hour, float)
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: Multi-region location filter (lines 381-383)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiRegionLocationFilter:
+    def test_resolved_with_multiple_region_ids(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Resolved location with >=2 region_ids triggers _filter_location_regions."""
+        candidates = [
+            _make_candidate("svc_001", "inst_001"),
+            _make_candidate("svc_002", "inst_002"),
+        ]
+        parsed_query = ParsedQuery(
+            original_query="yoga in upper east side",
+            service_query="yoga",
+            location_text="upper east side",
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation(
+            region_id=None,
+            region_name="Upper East Side",
+            resolved=True,
+            tier=ResolutionTier.ALIAS,
+            region_ids=["reg_1", "reg_2"],
+        )
+        mock_repository.filter_by_any_region_coverage.return_value = ["inst_001"]
+
+        result = filter_service._filter_candidates_core(
+            candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            default_duration=60,
+            location_resolution=location_resolution,
+        )
+
+        assert "location" in result.filters_applied
+        mock_repository.filter_by_any_region_coverage.assert_called()
+
+    def test_resolved_with_borough_only(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Resolved location with borough but no region_id → borough filter (line 388)."""
+        candidates = [_make_candidate("svc_001", "inst_001")]
+        parsed_query = ParsedQuery(
+            original_query="yoga in manhattan",
+            service_query="yoga",
+            location_text="manhattan",
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation(
+            region_id=None,
+            region_name=None,
+            borough="Manhattan",
+            resolved=True,
+            tier=ResolutionTier.EXACT,
+            region_ids=[],
+        )
+        mock_repository.filter_by_parent_region.return_value = ["inst_001"]
+
+        result = filter_service._filter_candidates_core(
+            candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            default_duration=60,
+            location_resolution=location_resolution,
+        )
+
+        assert "location" in result.filters_applied
+        mock_repository.filter_by_parent_region.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: _refine_buffered_availability_map (lines 769-792)
+# ---------------------------------------------------------------------------
+
+
+class TestRefineBufferedAvailability:
+    """Common keyword args for _refine_buffered_availability_map."""
+
+    _COMMON_KWARGS = dict(
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+    )
+
+    def test_empty_dates_returns_early(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Availability map with empty date lists → early return (line 769)."""
+        availability_map = {"inst_001": [], "inst_002": []}
+        parsed_query = ParsedQuery(original_query="yoga", service_query="yoga", parsing_mode="regex")
+
+        result = filter_service._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=["inst_001", "inst_002"],
+            parsed_query=parsed_query,
+            **self._COMMON_KWARGS,
+        )
+        assert result == availability_map
+
+    def test_context_getter_not_callable_returns_early(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """When get_buffered_availability_context is not callable → early return (line 773)."""
+        mock_repository.get_buffered_availability_context = "not_callable"
+        today = date.today()
+        availability_map = {"inst_001": [today]}
+        parsed_query = ParsedQuery(original_query="yoga", service_query="yoga", parsing_mode="regex")
+
+        result = filter_service._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=["inst_001"],
+            parsed_query=parsed_query,
+            **self._COMMON_KWARGS,
+        )
+        assert result == availability_map
+
+    def test_bits_by_key_not_dict_returns_early(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """When bits_by_key is not a dict → early return (line 785)."""
+        today = date.today()
+        availability_map = {"inst_001": [today]}
+        parsed_query = ParsedQuery(original_query="yoga", service_query="yoga", parsing_mode="regex")
+        mock_repository.get_buffered_availability_context.return_value = {
+            "bits_by_key": None,
+            "format_tags_by_key": {},
+            "bookings_by_key": {},
+            "profiles_by_instructor": {},
+            "timezones_by_instructor": {},
+        }
+
+        result = filter_service._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=["inst_001"],
+            parsed_query=parsed_query,
+            **self._COMMON_KWARGS,
+        )
+        assert result == availability_map
+
+    def test_non_dict_format_tags_and_bookings_default_to_empty(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """When format_tags_by_key / bookings_by_key are non-dict → default to {} (lines 789, 791-792)."""
+        today = date.today()
+        availability_map = {"inst_001": [today]}
+        parsed_query = ParsedQuery(original_query="yoga", service_query="yoga", parsing_mode="regex")
+        mock_repository.get_buffered_availability_context.return_value = {
+            "bits_by_key": {("inst_001", today): None},
+            "format_tags_by_key": "bad",
+            "bookings_by_key": 42,
+            "profiles_by_instructor": True,
+            "timezones_by_instructor": [],
+        }
+
+        # Should not crash — the non-dict values get replaced with {}
+        result = filter_service._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=["inst_001"],
+            parsed_query=parsed_query,
+            **self._COMMON_KWARGS,
+        )
+        # bits_by_key[key] is None so the date gets skipped (line 836)
+        # Instructor may have empty list or be omitted entirely
+        assert result.get("inst_001", []) == []
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: Soft filtering paths (lines 950, 970, 1012)
+# ---------------------------------------------------------------------------
+
+
+class TestRefineBufferedTimezoneFiltering:
+    """Cover timezone/date filtering in _refine_buffered_availability_map (lines 820, 833)."""
+
+    _COMMON_KWARGS = dict(
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+    )
+
+    def test_past_dates_filtered_by_instructor_timezone(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """When no date constraints and instructor has timezone, past dates are skipped (lines 820, 833)."""
+        from datetime import timedelta
+
+        yesterday = date.today() - timedelta(days=1)
+        tomorrow = date.today() + timedelta(days=1)
+        availability_map = {"inst_001": [yesterday, tomorrow]}
+        parsed_query = ParsedQuery(
+            original_query="yoga",
+            service_query="yoga",
+            date=None,
+            date_range_start=None,
+            date_range_end=None,
+            parsing_mode="regex",
+        )
+
+        # Full valid context — use None bits so processing skips at line 835-836
+        # (we only need to reach the instructor_today comparison at line 832)
+        mock_repository.get_buffered_availability_context.return_value = {
+            "bits_by_key": {
+                ("inst_001", yesterday): None,
+                ("inst_001", tomorrow): None,
+            },
+            "format_tags_by_key": {},
+            "bookings_by_key": {},
+            "profiles_by_instructor": {},
+            "timezones_by_instructor": {"inst_001": "America/New_York"},
+        }
+        mock_repository.db = Mock()
+
+        with patch("app.services.search.filter_service.ConfigService") as mock_config_cls:
+            mock_config = Mock()
+            mock_config.get_default_buffer_minutes.return_value = 15
+            mock_config_cls.return_value = mock_config
+
+            result = filter_service._refine_buffered_availability_map(
+                availability_map,
+                instructor_ids=["inst_001"],
+                parsed_query=parsed_query,
+                **self._COMMON_KWARGS,
+            )
+
+        # Yesterday should be filtered out due to instructor_today check
+        kept = result.get("inst_001", [])
+        assert yesterday not in kept
+
+
+class TestSoftFilteringEdgeCases:
+    def test_soft_location_multi_region_resolved(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Soft filter with resolved location having ≥2 region_ids (line 950)."""
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{i}",
+                service_catalog_id=f"cat_{i}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=0.8,
+                name=f"Lesson {i}",
+                description=None,
+                min_hourly_rate=50,
+                instructor_id=f"inst_{i}",
+            )
+            for i in range(5)
+        ]
+        parsed_query = ParsedQuery(
+            original_query="yoga in upper east side",
+            service_query="yoga",
+            location_text="upper east side",
+            location_type="neighborhood",
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation(
+            region_id=None,
+            region_name="Upper East Side",
+            resolved=True,
+            tier=ResolutionTier.ALIAS,
+            region_ids=["reg_1", "reg_2"],
+        )
+        # Hard filter returns nothing, triggering soft relaxation
+        mock_repository.filter_by_any_region_coverage.return_value = []
+        mock_repository.get_instructor_min_distance_to_regions.return_value = {
+            f"inst_{i}": 100.0 for i in range(5)
+        }
+
+        filtered, relaxed = filter_service._apply_soft_filtering(
+            original_candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            location_resolution=location_resolution,
+            duration_minutes=60,
+            strict_service_ids=set(),
+            filter_stats={"after_location": 0},
+        )
+
+        assert len(filtered) == 5
+        assert "location" in relaxed
+
+    def test_soft_location_near_me_skips_filter(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Soft filter with near_me → skips location filter entirely (line 970)."""
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{i}",
+                service_catalog_id=f"cat_{i}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=0.8,
+                name=f"Lesson {i}",
+                description=None,
+                min_hourly_rate=50,
+                instructor_id=f"inst_{i}",
+            )
+            for i in range(5)
+        ]
+        parsed_query = ParsedQuery(
+            original_query="yoga near me",
+            service_query="yoga",
+            location_text="near me",
+            location_type="near_me",
+            max_price=40,  # strict price to force soft filtering
+            parsing_mode="regex",
+        )
+        mock_repository.get_lesson_type_rates.return_value = {}
+
+        filtered, relaxed = filter_service._apply_soft_filtering(
+            original_candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            location_resolution=None,
+            duration_minutes=60,
+            strict_service_ids=set(),
+            filter_stats={},
+        )
+
+        assert len(filtered) == 5
+        assert "price" in relaxed
+
+    def test_soft_filtering_lesson_type_without_max_price(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        """Lesson type filter in soft context when max_price is None (line 1012)."""
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{i}",
+                service_catalog_id=f"cat_{i}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=0.8,
+                name=f"Lesson {i}",
+                description=None,
+                min_hourly_rate=50,
+                instructor_id=f"inst_{i}",
+            )
+            for i in range(5)
+        ]
+        parsed_query = ParsedQuery(
+            original_query="online yoga",
+            service_query="yoga",
+            location_text="brooklyn",
+            location_type="neighborhood",
+            lesson_type="online",
+            max_price=None,
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation(
+            region_id="reg_1",
+            region_name="Brooklyn",
+            resolved=True,
+            tier=ResolutionTier.EXACT,
+        )
+        # Hard filter returns nothing to trigger soft relaxation
+        mock_repository.filter_by_region_coverage.return_value = []
+        mock_repository.get_lesson_type_rates.return_value = {"svc_0": 50.0, "svc_1": 50.0}
+        mock_repository.get_instructor_min_distance_to_regions.return_value = {
+            f"inst_{i}": 100.0 for i in range(5)
+        }
+
+        filtered, relaxed = filter_service._apply_soft_filtering(
+            original_candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            location_resolution=location_resolution,
+            duration_minutes=60,
+            strict_service_ids=set(),
+            filter_stats={"after_location": 0},
+        )
+
+        assert "location" in relaxed

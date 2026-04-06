@@ -292,3 +292,72 @@ class TestDeleteByRegionCode:
         result = repo.delete_by_region_code("BK")
 
         assert result == 1
+
+
+# ------------------------------------------------------------------
+# get_all_active_polygons_geojson — lines 318-323
+# ------------------------------------------------------------------
+
+
+class TestGetAllActivePolygonsGeojson:
+    """Cover exception path with double rollback failure."""
+
+    def test_exception_with_rollback_failure(self) -> None:
+        """Lines 318-323: execute raises → rollback also raises → returns []."""
+        repo, mock_db = _make_repo()
+
+        mock_db.execute.side_effect = RuntimeError("query failed")
+        mock_db.rollback.side_effect = RuntimeError("rollback failed")
+
+        result = repo.get_all_active_polygons_geojson(region_type="nyc")
+
+        assert result == []
+        mock_db.rollback.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# find_region_ids_by_partial_names — rows with missing fields (line 346)
+# ------------------------------------------------------------------
+
+
+class TestFindRegionIdsByPartialNamesMissingFields:
+    def test_rows_with_missing_partial_name_or_id_filtered(self) -> None:
+        """Rows where partial_name or id is None/empty are excluded (line 366)."""
+        repo, mock_db = _make_repo()
+
+        execute_result = MagicMock()
+        execute_result.mappings.return_value.all.return_value = [
+            {"partial_name": "Brooklyn", "id": "region_id_1"},
+            {"partial_name": None, "id": "region_id_2"},
+            {"partial_name": "Queens", "id": None},
+            {"partial_name": "", "id": "region_id_3"},
+        ]
+        mock_db.execute.return_value = execute_result
+
+        result = repo.find_region_ids_by_partial_names(["Brooklyn", "Queens"])
+        assert result == {"Brooklyn": "region_id_1"}
+
+
+# ------------------------------------------------------------------
+# resolve_display_keys_to_ids — non-PostgreSQL dialect (lines 395-406)
+# ------------------------------------------------------------------
+
+
+class TestResolveDisplayKeysNonPostgres:
+    def test_non_postgresql_dialect_uses_expanding_bindparam(self) -> None:
+        """Non-PostgreSQL dialect → IN :keys with expanding bindparam (lines 395-406)."""
+        repo, mock_db = _make_repo()
+
+        # Set dialect to sqlite (non-PostgreSQL)
+        mock_db.bind.dialect.name = "sqlite"
+
+        execute_result = MagicMock()
+        execute_result.__iter__ = MagicMock(return_value=iter([
+            MagicMock(display_key="dk1", id="id1"),
+            MagicMock(display_key="dk1", id="id2"),
+        ]))
+        mock_db.execute.return_value = execute_result
+
+        result = repo.resolve_display_keys_to_ids(["dk1"])
+        assert "dk1" in result
+        assert len(result["dk1"]) == 2

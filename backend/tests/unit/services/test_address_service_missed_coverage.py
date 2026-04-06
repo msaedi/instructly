@@ -582,3 +582,223 @@ class TestNormalizeCountryCode:
         # Pass something that causes str() to fail
         result = svc._normalize_country_code("US")
         assert result == "US"
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: _geometry_for_boundary — non-string boundary_id (line 91)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGeometryNonStringId:
+    def test_non_string_boundary_id_skips_repo_lookup(self):
+        """When row['id'] is int, not str — repo lookup is skipped."""
+        svc = _make_address_service()
+        row = {"geometry": None, "id": 123}  # int, not str
+        result = svc._geometry_for_boundary(row)
+        svc.region_repo.get_boundary_geometry.assert_not_called()
+        # Returns fallback geometry (a small polygon)
+        assert result is None or isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: _append_search_term — empty after normalization (line 309)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAppendSearchTerm:
+    def test_empty_term_after_normalization(self):
+        """Whitespace-only term normalizes to empty → early return."""
+        from app.services.address_service import AddressService
+
+        terms: list[dict[str, str]] = []
+        seen: set[str] = set()
+        AddressService._append_search_term(terms, seen, "   ", "alias")
+        assert terms == []
+        assert seen == set()
+
+    def test_none_term_normalizes_to_empty(self):
+        from app.services.address_service import AddressService
+
+        terms: list[dict[str, str]] = []
+        seen: set[str] = set()
+        AddressService._append_search_term(terms, seen, None, "alias")
+        assert terms == []
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: get_neighborhood_selector cache paths (lines 339-340, 413, 431-432)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNeighborhoodSelectorCachePaths:
+    def test_cache_get_exception_falls_back_to_db(self):
+        """cache.get() raises → silently caught, continues to DB (lines 339-340)."""
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        svc.cache.get.side_effect = Exception("Redis down")
+        svc.region_repo.get_selector_items.return_value = []
+
+        result = svc.get_neighborhood_selector("nyc")
+        assert result["market"] == "nyc"
+        assert result["boroughs"] == []
+
+    def test_cache_set_exception_silently_caught(self):
+        """cache.set() raises → silently caught (lines 431-432)."""
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        svc.cache.get.return_value = None
+        svc.cache.set.side_effect = Exception("Redis full")
+        svc.region_repo.get_selector_items.return_value = []
+
+        result = svc.get_neighborhood_selector("nyc")
+        assert result["market"] == "nyc"
+
+    def test_empty_borough_items_skipped(self):
+        """Borough with no items after grouping is skipped (line 413)."""
+        svc = _make_address_service()
+        # Return rows where a borough exists but has items
+        svc.region_repo.get_selector_items.return_value = [
+            {
+                "id": "N1",
+                "parent_region": "Manhattan",
+                "display_name": "Chelsea",
+                "display_key": "nyc-manhattan-chelsea",
+                "display_order": 1,
+                "region_name": "Chelsea",
+            },
+        ]
+
+        result = svc.get_neighborhood_selector("nyc")
+        # Manhattan should be present with its items
+        assert len(result["boroughs"]) == 1
+        assert result["boroughs"][0]["borough"] == "Manhattan"
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: find_neighborhood_by_point — empty display fields (line 450)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestFindNeighborhoodByPointEmptyDisplay:
+    def test_empty_display_key_returns_none(self):
+        """Row found but display_key is empty → returns None."""
+        svc = _make_address_service()
+        svc.region_repo.find_region_by_point.return_value = {
+            "display_key": "",
+            "region_name": "Some Place",
+            "parent_region": "Manhattan",
+        }
+
+        result = svc.find_neighborhood_by_point(lat=40.75, lng=-73.99)
+        assert result is None
+
+    def test_empty_display_name_returns_none(self):
+        """Row found but region_name (display_name) is empty → returns None."""
+        svc = _make_address_service()
+        svc.region_repo.find_region_by_point.return_value = {
+            "display_key": "dk1",
+            "region_name": "",
+            "parent_region": "Manhattan",
+        }
+
+        result = svc.find_neighborhood_by_point(lat=40.75, lng=-73.99)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: cache=None paths (lines 519, 556, 570, 601, 617, 638)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCacheNonePaths:
+    def test_coverage_geojson_no_cache_skips_cache_ops(self):
+        """cache=None → skips cache read/write (lines 519, 556)."""
+        svc = _make_address_service()
+        assert svc.cache is None  # default
+        svc.service_area_repo.list_neighborhoods_for_instructors.return_value = []
+
+        result = svc.get_coverage_geojson_for_instructors(["USR_01"])
+        assert result["type"] == "FeatureCollection"
+
+    def test_neighborhood_polygons_no_cache(self):
+        """cache=None → skips cache paths entirely (lines 570, 601)."""
+        svc = _make_address_service()
+        assert svc.cache is None
+        svc.region_repo.get_all_active_polygons_geojson.return_value = []
+
+        result = svc.get_neighborhood_polygons("nyc")
+        assert result["type"] == "FeatureCollection"
+        assert result["features"] == []
+
+    def test_list_neighborhoods_no_cache(self):
+        """cache=None → skips cache paths (lines 617, 638)."""
+        svc = _make_address_service()
+        assert svc.cache is None
+        svc.region_repo.list_regions.return_value = []
+
+        result = svc.list_neighborhoods()
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Coverage recovery: get_neighborhood_polygons cache paths (lines 576-578, 585, 604-605)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNeighborhoodPolygonsCachePaths:
+    def test_cached_json_string_deserialized(self):
+        """Cached value is a JSON string → deserialized (lines 575-576)."""
+        import json
+
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        expected = {"type": "FeatureCollection", "features": []}
+        svc.cache.get.return_value = json.dumps(expected)
+
+        result = svc.get_neighborhood_polygons("nyc")
+        assert result == expected
+
+    def test_cache_get_exception_falls_back_to_db(self):
+        """cache.get() exception → falls back to DB (lines 577-578)."""
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        svc.cache.get.side_effect = Exception("Redis down")
+        svc.region_repo.get_all_active_polygons_geojson.return_value = []
+
+        result = svc.get_neighborhood_polygons("nyc")
+        assert result["type"] == "FeatureCollection"
+
+    def test_cache_set_exception_silently_caught(self):
+        """cache.set() exception → silently caught (lines 604-605)."""
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        svc.cache.get.return_value = None
+        svc.cache.set.side_effect = Exception("Redis full")
+        svc.region_repo.get_all_active_polygons_geojson.return_value = []
+
+        result = svc.get_neighborhood_polygons("nyc")
+        assert result["type"] == "FeatureCollection"
+
+    def test_non_dict_geometry_skipped(self):
+        """Row with non-dict geometry is skipped (line 584-585)."""
+        svc = _make_address_service()
+        svc.cache = MagicMock()
+        svc.cache.get.return_value = None
+        svc.region_repo.get_all_active_polygons_geojson.return_value = [
+            {"id": "N1", "display_key": "dk1", "display_name": "Area",
+             "parent_region": "Manhattan", "region_name": "Area", "geometry": "not_a_dict"},
+            {"id": "N2", "display_key": "dk2", "display_name": "Area2",
+             "parent_region": "Brooklyn", "region_name": "Area2",
+             "geometry": {"type": "Polygon", "coordinates": []}},
+        ]
+
+        result = svc.get_neighborhood_polygons("nyc")
+        # Only N2 should be included (N1 has string geometry)
+        assert len(result["features"]) == 1
+        assert result["features"][0]["properties"]["id"] == "N2"
