@@ -133,7 +133,7 @@ async def test_revoke_token_metric_error_is_non_fatal(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_is_revoked_true_for_revoked_token():
+async def test_is_revoked_true_for_revoked_token(real_token_blacklist):
     redis = _FakeRedis(exists_value=1)
     service = TokenBlacklistService(redis_client=redis)
 
@@ -142,7 +142,7 @@ async def test_is_revoked_true_for_revoked_token():
 
 
 @pytest.mark.asyncio
-async def test_is_revoked_false_for_non_revoked_token():
+async def test_is_revoked_false_for_non_revoked_token(real_token_blacklist):
     redis = _FakeRedis(exists_value=0)
     service = TokenBlacklistService(redis_client=redis)
 
@@ -150,13 +150,13 @@ async def test_is_revoked_false_for_non_revoked_token():
 
 
 @pytest.mark.asyncio
-async def test_is_revoked_empty_jti_is_fail_closed():
+async def test_is_revoked_empty_jti_is_fail_closed(real_token_blacklist):
     service = TokenBlacklistService(redis_client=_FakeRedis(exists_value=0))
     assert await service.is_revoked("") is True
 
 
 @pytest.mark.asyncio
-async def test_is_revoked_redis_none_is_fail_closed():
+async def test_is_revoked_redis_none_is_fail_closed(real_token_blacklist):
     class _NoRedisService(TokenBlacklistService):
         async def _get_redis_client(self):
             return None
@@ -166,7 +166,7 @@ async def test_is_revoked_redis_none_is_fail_closed():
 
 
 @pytest.mark.asyncio
-async def test_is_revoked_fail_closed_when_redis_unavailable():
+async def test_is_revoked_fail_closed_when_redis_unavailable(real_token_blacklist):
     class _BrokenService(TokenBlacklistService):
         async def _get_redis_client(self):
             raise ConnectionError("redis unavailable")
@@ -198,7 +198,7 @@ def test_revoke_token_sync_bridge(monkeypatch):
     assert redis.setex_calls == [("auth:blacklist:jti:sync-jti", 30, "1")]
 
 
-def test_is_revoked_sync_bridge():
+def test_is_revoked_sync_bridge(real_token_blacklist):
     redis = _FakeRedis(exists_value=1)
     service = TokenBlacklistService(redis_client=redis)
 
@@ -206,7 +206,7 @@ def test_is_revoked_sync_bridge():
 
 
 @pytest.mark.asyncio
-async def test_sync_bridges_work_with_running_loop(monkeypatch):
+async def test_sync_bridges_work_with_running_loop(monkeypatch, real_token_blacklist):
     redis = _FakeRedis(exists_value=0)
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 100)

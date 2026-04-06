@@ -113,6 +113,28 @@ def clear_base_service_metrics():
         BaseService._class_metrics.clear()
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _disable_token_blacklist():
+    """Prevent Redis-backed revoke checks from leaking into unrelated tests."""
+    with unittest.mock.patch.object(
+        TokenBlacklistService,
+        "is_revoked",
+        return_value=False,
+    ):
+        yield
+
+
+@pytest.fixture
+def real_token_blacklist():
+    """Restore the real async revoke check for tests that assert revocation."""
+    with unittest.mock.patch.object(
+        TokenBlacklistService,
+        "is_revoked",
+        _REAL_TOKEN_BLACKLIST_IS_REVOKED,
+    ):
+        yield
+
+
 @pytest.fixture
 def event_loop():
     """Create an event loop for async tests and close Redis clients before teardown."""
@@ -282,6 +304,7 @@ from app.repositories.availability_day_repository import AvailabilityDayReposito
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
+from app.services.token_blacklist_service import TokenBlacklistService
 from app.utils.bitset import bits_from_windows
 
 try:  # pragma: no cover - allow tests to run from repo root or backend/
@@ -298,6 +321,7 @@ BOROUGH_ABBR: dict[str, str] = {
 }
 
 _UNSET = object()
+_REAL_TOKEN_BLACKLIST_IS_REVOKED = TokenBlacklistService.is_revoked
 
 
 def _build_service_format_price_rows(

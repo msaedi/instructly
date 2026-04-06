@@ -63,7 +63,12 @@ def _extract_session_token_from_set_cookie(set_cookie_header: str, cookie_name: 
     return set_cookie_header.split(marker, 1)[1].split(";", 1)[0]
 
 
-def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) -> None:
+def test_preview_2fa_session_flow(
+    client: TestClient,
+    db: Session,
+    monkeypatch,
+    real_token_blacklist,
+) -> None:
     client.cookies.clear()
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)

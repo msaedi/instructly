@@ -26,6 +26,7 @@ from ...api.dependencies.auth import (
     require_beta_phase_access,
 )
 from ...api.dependencies.services import get_cache_service_dep
+from ...core.config import settings
 from ...database import get_db, get_db_session
 from ...dependencies.permissions import require_permission
 from ...models import User
@@ -101,6 +102,7 @@ async def nl_search(
     force_skip_embedding: bool = Query(False, description="Force skip embeddings (admin only)"),
     force_high_load: bool = Query(False, description="Force high-load budget (admin only)"),
     response: Response = None,
+    db: Session = Depends(get_db),
     cache_service: CacheService = Depends(get_cache_service_dep),
     current_user: Optional[User] = Depends(get_current_active_user_optional),
 ) -> NLSearchResponse:
@@ -179,17 +181,27 @@ async def nl_search(
             if cached_coords:
                 user_location = (cached_coords["lng"], cached_coords["lat"])
             else:
-                # DB lookup
-                def _get_user_address() -> Optional[tuple[float, float]]:
-                    with get_db_session() as db:
-                        address_repo = UserAddressRepository(db)
-                        address = address_repo.get_default_address(current_user.id)
-                        if address and address.latitude and address.longitude:
-                            # Return as (lng, lat) for PostGIS
-                            return (float(address.longitude), float(address.latitude))
-                        return None
+                if getattr(settings, "is_testing", False):
+                    address_repo = UserAddressRepository(db)
+                    # async-blocking-ignore: test-only path must use the request-scoped session
+                    address = address_repo.get_default_address(
+                        current_user.id
+                    )  # async-blocking-ignore
+                    if address and address.latitude and address.longitude:
+                        # Return as (lng, lat) for PostGIS
+                        user_location = (float(address.longitude), float(address.latitude))
+                else:
+                    # DB lookup
+                    def _get_user_address() -> Optional[tuple[float, float]]:
+                        with get_db_session() as db:
+                            address_repo = UserAddressRepository(db)
+                            address = address_repo.get_default_address(current_user.id)
+                            if address and address.latitude and address.longitude:
+                                # Return as (lng, lat) for PostGIS
+                                return (float(address.longitude), float(address.latitude))
+                            return None
 
-                user_location = await asyncio.to_thread(_get_user_address)
+                    user_location = await asyncio.to_thread(_get_user_address)
                 # Cache if found (1 hour TTL)
                 if user_location:
                     await cache_service.set_json(

@@ -324,7 +324,12 @@ class TestAuth:
         assert response.json()["id"] == test_student.id
 
     def test_change_password_invalidates_old_token_and_allows_new_login(
-        self, db: Session, client: TestClient, test_student: User, test_password: str
+        self,
+        db: Session,
+        client: TestClient,
+        test_student: User,
+        test_password: str,
+        real_token_blacklist,
     ):
         old_token = _create_backdated_token(test_student)
         change_response = client.post(
