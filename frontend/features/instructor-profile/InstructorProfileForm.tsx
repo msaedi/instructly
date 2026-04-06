@@ -901,7 +901,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                   context={context}
                   selectionMode="multi"
                   value={Array.from(selectedNeighborhoods)}
-                  onSelectionChange={(keys) => {
+                  onSelectionChange={(keys, _items) => {
                     setSelectedNeighborhoods(new Set(keys));
                   }}
                 />

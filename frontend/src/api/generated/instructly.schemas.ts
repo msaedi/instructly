@@ -9904,6 +9904,12 @@ export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
   ids: string;
 };
 
+export type GetNeighborhoodLookupApiV1AddressesNeighborhoodsLookupGetParams = {
+  lat: number;
+  lng: number;
+  market?: string;
+};
+
 export type GetNeighborhoodPolygonsApiV1AddressesNeighborhoodsPolygonsGetParams = {
   market?: string;
 };

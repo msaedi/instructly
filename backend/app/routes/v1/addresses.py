@@ -15,6 +15,7 @@ Endpoints:
     PUT /service-areas/me                → Replace instructor service areas
     GET /neighborhoods/selector          → Selector neighborhoods
     GET /neighborhoods/polygons          → Display-active neighborhood polygons
+    GET /neighborhoods/lookup            → Display neighborhood lookup by point
     GET /places/autocomplete             → Autocomplete address search
     GET /places/details                  → Get place details
     GET /coverage/bulk                   → Get bulk coverage GeoJSON
@@ -280,6 +281,35 @@ def get_neighborhood_polygons(
         type=cast(str, result.get("type", "FeatureCollection")),
         features=cast(list[dict[str, Any]], result.get("features", [])),
     )
+
+
+@router.get(
+    "/neighborhoods/lookup",
+    response_model=ServiceAreaDisplayItem | None,
+    summary="Resolve a display neighborhood from a point lookup",
+)
+def get_neighborhood_lookup(
+    lat: float,
+    lng: float,
+    market: str = "nyc",
+    service: AddressService = Depends(get_address_service),
+) -> ServiceAreaDisplayItem | None:
+    if market != "nyc":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported market",
+        )
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid coordinates: lat must be -90..90, lng must be -180..180",
+        )
+
+    item = service.find_neighborhood_by_point(lat=lat, lng=lng, market=market)
+    if not item:
+        return None
+
+    return ServiceAreaDisplayItem(**item)
 
 
 # NYC bias: Center on Midtown Manhattan with tighter radius to prioritize NY over NJ

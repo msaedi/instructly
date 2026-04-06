@@ -1,6 +1,7 @@
 
 import pytest
 
+from app.core.exceptions import BusinessRuleException
 from app.core.ulid_helper import generate_ulid
 from app.repositories.address_repository import InstructorServiceAreaRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
@@ -107,3 +108,30 @@ def test_get_coverage_geojson_for_instructors_builds_featurecollection(
         test_instructor.id in feature["properties"].get("instructors", [])
         for feature in geo["features"]
     )
+
+
+def test_find_neighborhood_by_point_returns_display_item_mapping(db, monkeypatch):
+    service = AddressService(db)
+
+    monkeypatch.setattr(
+        service.region_repo,
+        "find_region_by_point",
+        lambda lat, lng, region_type: {
+            "display_key": "nyc-manhattan-upper-east-side",
+            "region_name": "Upper East Side",
+            "parent_region": "Manhattan",
+        },
+    )
+
+    assert service.find_neighborhood_by_point(40.775, -73.955) == {
+        "display_key": "nyc-manhattan-upper-east-side",
+        "display_name": "Upper East Side",
+        "borough": "Manhattan",
+    }
+
+
+def test_find_neighborhood_by_point_rejects_unsupported_market(db):
+    service = AddressService(db)
+
+    with pytest.raises(BusinessRuleException, match="Unsupported market"):
+        service.find_neighborhood_by_point(40.775, -73.955, market="la")

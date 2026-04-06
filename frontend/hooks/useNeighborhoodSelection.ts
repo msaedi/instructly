@@ -32,6 +32,14 @@ function normalizeKeys(keys?: string[]): string[] {
   );
 }
 
+function shouldBlockEmptyMultiSelection(
+  selectionMode: SelectionMode,
+  current: Set<string>,
+  next: Set<string>,
+): boolean {
+  return selectionMode === 'multi' && current.size > 0 && next.size === 0;
+}
+
 export function useNeighborhoodSelection({
   value,
   defaultValue,
@@ -83,15 +91,18 @@ export function useNeighborhoodSelection({
       if (!normalizedKey) {
         return;
       }
-      const currentSelection = new Set(selectedKeysRef.current);
+      const currentSelection = selectedKeysRef.current;
       const next =
         selectionMode === 'single'
           ? currentSelection.has(normalizedKey)
             ? new Set<string>()
             : new Set<string>([normalizedKey])
-          : currentSelection;
+          : new Set(currentSelection);
       if (selectionMode === 'multi') {
         if (next.has(normalizedKey)) {
+          if (currentSelection.size === 1) {
+            return;
+          }
           next.delete(normalizedKey);
         } else {
           next.add(normalizedKey);
@@ -122,7 +133,8 @@ export function useNeighborhoodSelection({
   const clearAll = useCallback(
     (keys?: string[]) => {
       const normalizedKeys = normalizeKeys(keys);
-      const next = new Set(selectedKeysRef.current);
+      const currentSelection = new Set(selectedKeysRef.current);
+      const next = new Set(currentSelection);
       if (normalizedKeys.length === 0) {
         next.clear();
       } else {
@@ -130,9 +142,12 @@ export function useNeighborhoodSelection({
           next.delete(key);
         }
       }
+      if (shouldBlockEmptyMultiSelection(selectionMode, currentSelection, next)) {
+        return;
+      }
       commitSelection(next);
     },
-    [commitSelection],
+    [commitSelection, selectionMode],
   );
 
   const selectedArray = useMemo(() => Array.from(selectedKeys), [selectedKeys]);
@@ -143,13 +158,16 @@ export function useNeighborhoodSelection({
     [selectedKeys],
   );
 
-  return {
-    selectedKeys,
-    toggle,
-    selectAll,
-    clearAll,
-    isSelected,
-    selectedCount,
-    selectedArray,
-  };
+  return useMemo(
+    () => ({
+      selectedKeys,
+      toggle,
+      selectAll,
+      clearAll,
+      isSelected,
+      selectedCount,
+      selectedArray,
+    }),
+    [clearAll, isSelected, selectAll, selectedArray, selectedCount, selectedKeys, toggle],
+  );
 }

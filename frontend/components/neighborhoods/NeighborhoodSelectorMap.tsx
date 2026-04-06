@@ -12,6 +12,8 @@ import L from 'leaflet';
 import type { Feature as GeoJsonFeature, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 
+import { logger } from '@/lib/logger';
+
 import type {
   NeighborhoodPolygonFeature,
   NeighborhoodPolygonFeatureCollection,
@@ -87,6 +89,7 @@ export default function NeighborhoodSelectorMap({
   const layersByKey = useRef<Map<string, L.Path[]>>(new Map());
   const boundsByKey = useRef<Map<string, L.LatLngBounds>>(new Map());
   const hasInitialFit = useRef(false);
+  const hasWarnedMissingJawgToken = useRef(false);
   const [isDark, setIsDark] = useState<boolean>(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
       return false;
@@ -110,6 +113,20 @@ export default function NeighborhoodSelectorMap({
   }, []);
 
   const jawgToken = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+  useEffect(() => {
+    if (
+      jawgToken ||
+      process.env.NODE_ENV !== 'development' ||
+      hasWarnedMissingJawgToken.current
+    ) {
+      return;
+    }
+    hasWarnedMissingJawgToken.current = true;
+    logger.warn(
+      '[NeighborhoodSelectorMap] NEXT_PUBLIC_JAWG_TOKEN is not set — falling back to Carto tiles',
+    );
+  }, [jawgToken]);
+
   const primaryTileUrl = useMemo(
     () =>
       jawgToken
@@ -171,8 +188,7 @@ export default function NeighborhoodSelectorMap({
 
     layersByKey.current = nextLayers;
     boundsByKey.current = nextBounds;
-    applyStyles();
-  }, [applyStyles]);
+  }, []);
 
   useEffect(() => {
     indexLayers();
@@ -222,7 +238,52 @@ export default function NeighborhoodSelectorMap({
       const displayName = feature.properties?.display_name ?? '';
       const interactiveLayer = layer as L.Layer & {
         bindTooltip?: (content: string, options?: Record<string, unknown>) => void;
-        on?: (eventMap: Record<string, () => void>) => void;
+        on?: (eventMap: LeafletEventHandlerFnMap) => void;
+        getElement?: () => SVGElement | null;
+        _path?: SVGElement | null;
+      };
+      let boundElement: SVGElement | null = null;
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if ((event.key === 'Enter' || event.key === ' ') && displayKey) {
+          event.preventDefault();
+          onToggleKey(displayKey);
+        }
+      };
+      const handleFocus = () => onHoverKey?.(displayKey ?? null);
+      const handleBlur = () => onHoverKey?.(null);
+      const bindInteractiveElement = () => {
+        // Leaflet internal fallback: _path is not public API and may break on major version upgrade.
+        const element = interactiveLayer.getElement?.() ?? interactiveLayer._path ?? null;
+        if (!element) {
+          return;
+        }
+        element.setAttribute('tabindex', '0');
+        element.setAttribute('role', 'button');
+        element.setAttribute(
+          'aria-label',
+          displayName ? `Toggle ${displayName}` : 'Toggle neighborhood',
+        );
+        if (boundElement === element) {
+          return;
+        }
+        if (boundElement) {
+          boundElement.removeEventListener('keydown', handleKeyDown);
+          boundElement.removeEventListener('focus', handleFocus);
+          boundElement.removeEventListener('blur', handleBlur);
+        }
+        boundElement = element;
+        boundElement.addEventListener('keydown', handleKeyDown);
+        boundElement.addEventListener('focus', handleFocus);
+        boundElement.addEventListener('blur', handleBlur);
+      };
+      const unbindInteractiveElement = () => {
+        if (!boundElement) {
+          return;
+        }
+        boundElement.removeEventListener('keydown', handleKeyDown);
+        boundElement.removeEventListener('focus', handleFocus);
+        boundElement.removeEventListener('blur', handleBlur);
+        boundElement = null;
       };
 
       if (displayName && typeof interactiveLayer.bindTooltip === 'function') {
@@ -231,6 +292,8 @@ export default function NeighborhoodSelectorMap({
 
       if (typeof interactiveLayer.on === 'function') {
         interactiveLayer.on({
+          add: bindInteractiveElement,
+          remove: unbindInteractiveElement,
           click: () => {
             if (displayKey) {
               onToggleKey(displayKey);
@@ -240,6 +303,7 @@ export default function NeighborhoodSelectorMap({
           mouseout: () => onHoverKey?.(null),
         });
       }
+      bindInteractiveElement();
     },
     [onHoverKey, onToggleKey],
   );
@@ -248,6 +312,8 @@ export default function NeighborhoodSelectorMap({
     <div
       className={`relative h-full min-h-[400px] overflow-hidden rounded-[28px] border border-gray-200 bg-white/95 shadow-sm dark:border-gray-800 dark:bg-gray-900/80 ${className ?? ''}`}
       data-testid="neighborhood-selector-map"
+      role="application"
+      aria-label="Interactive neighborhood selection map"
     >
       <MapContainer
         center={DEFAULT_CENTER}

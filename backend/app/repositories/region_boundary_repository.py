@@ -11,12 +11,17 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from ..models.region_boundary import RegionBoundary
+
 logger = logging.getLogger(__name__)
 
 
 class RegionBoundaryRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def get_boundary_geometry(self, boundary_id: str) -> RegionBoundary | None:
+        return cast(Optional[RegionBoundary], self.db.get(RegionBoundary, boundary_id))
 
     def insert_wkt(
         self,

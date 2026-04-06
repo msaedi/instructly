@@ -57,11 +57,13 @@ import { RefineFiltersSection } from '@/components/taxonomy/RefineFiltersSection
 import { queryKeys } from '@/src/api/queryKeys';
 import { toast } from 'sonner';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
+import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
 import {
   hasNonEmptyTeachingLocation,
   TEACHING_ADDRESS_REQUIRED_MESSAGE,
 } from '@/lib/teachingLocations';
+import type { SelectorDisplayItem } from '@/features/shared/api/types';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -192,6 +194,9 @@ function Step3SkillsPricingInner() {
 
   // ── Service Areas state ──
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
+  const selectedNeighborhoodsRef = useRef<Set<string>>(new Set());
+  const userHasInteractedRef = useRef(false);
+  const neighborhoodLookupAbortRef = useRef<AbortController | null>(null);
 
   // ── Preferred Locations state (for PreferredLocationsCard) ──
   const [preferredAddress, setPreferredAddress] = useState<string>('');
@@ -205,6 +210,23 @@ function Step3SkillsPricingInner() {
     isFetched: serviceAreasFetched,
     isError: serviceAreasError,
   } = useInstructorServiceAreas(isAuthenticated);
+  const {
+    data: userAddressesData,
+    isFetched: userAddressesFetched,
+  } = useUserAddresses(isAuthenticated);
+
+  useEffect(() => {
+    selectedNeighborhoodsRef.current = selectedNeighborhoods;
+  }, [selectedNeighborhoods]);
+
+  const handleNeighborhoodSelectionChange = useCallback(
+    (keys: string[], _items: SelectorDisplayItem[]) => {
+      userHasInteractedRef.current = true;
+      neighborhoodLookupAbortRef.current?.abort();
+      setSelectedNeighborhoods(new Set(keys));
+    },
+    [],
+  );
 
   // Prefill service areas & preferred locations from profile
   const profileLocationsPrefilled = useRef(false);
@@ -258,18 +280,85 @@ function Step3SkillsPricingInner() {
     if (!isAuthenticated) return;
     if (!serviceAreasFetched && !serviceAreasError) return;
 
-    serviceAreasPrefilled.current = true;
-
     const serviceAreaItems = (serviceAreasDataFromHook?.items ?? []) as ServiceAreaItem[];
     const ids = serviceAreaItems
       .map((item) => item.display_key)
       .filter((value): value is string => typeof value === 'string' && value.length > 0);
-    setSelectedNeighborhoods(new Set(ids));
+    if (ids.length > 0) {
+      serviceAreasPrefilled.current = true;
+      setSelectedNeighborhoods(new Set(ids));
+      return;
+    }
+
+    if (!userAddressesFetched) return;
+
+    serviceAreasPrefilled.current = true;
+
+    const addressItems = userAddressesData?.items ?? [];
+    const defaultAddress =
+      addressItems.find((item) => item.is_default) ?? addressItems[0] ?? null;
+    const latitude =
+      typeof defaultAddress?.latitude === 'number' ? defaultAddress.latitude : null;
+    const longitude =
+      typeof defaultAddress?.longitude === 'number' ? defaultAddress.longitude : null;
+    if (latitude === null || longitude === null) {
+      return;
+    }
+
+    if (selectedNeighborhoodsRef.current.size > 0 || userHasInteractedRef.current) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    neighborhoodLookupAbortRef.current = abortController;
+    const params = new URLSearchParams({
+      lat: String(latitude),
+      lng: String(longitude),
+      market: 'nyc',
+    });
+
+    void fetchWithAuth(`/api/v1/addresses/neighborhoods/lookup?${params.toString()}`, {
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok || abortController.signal.aborted) {
+          return;
+        }
+        const lookup = (await response.json()) as ServiceAreaItem | null;
+        const displayKey = lookup?.display_key?.trim();
+        if (
+          !displayKey ||
+          abortController.signal.aborted ||
+          selectedNeighborhoodsRef.current.size > 0 ||
+          userHasInteractedRef.current
+        ) {
+          return;
+        }
+        setSelectedNeighborhoods(new Set([displayKey]));
+      })
+      .catch((error: unknown) => {
+        if (
+          abortController.signal.aborted ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) {
+          return;
+        }
+        // Silent fallback: onboarding can start with zero service areas when lookup fails.
+      });
+
+    return () => {
+      if (neighborhoodLookupAbortRef.current === abortController) {
+        neighborhoodLookupAbortRef.current = null;
+      }
+      abortController.abort();
+    };
   }, [
     isAuthenticated,
     serviceAreasDataFromHook,
     serviceAreasError,
     serviceAreasFetched,
+    userAddressesData,
+    userAddressesFetched,
   ]);
 
   // Derive hasServiceAreas / hasTeachingLocations from local state too
@@ -644,29 +733,6 @@ function Step3SkillsPricingInner() {
     serviceCatalogById,
     user,
   ]);
-
-  // When service areas are removed, disable travel-based formats that the backend requires.
-  // Keep instructor_location enabled so we can show the teaching-address validation state.
-  useEffect(() => {
-    if (effectiveHasServiceAreas) {
-      return;
-    }
-
-    setSelected((previous) => {
-      let changed = false;
-      const next = previous.map((service) => {
-        let updated = service;
-        if (!effectiveHasServiceAreas && 'student_location' in updated.format_prices) {
-          const { student_location: _removed, ...rest } = updated.format_prices;
-          updated = { ...updated, format_prices: rest };
-          changed = true;
-        }
-        return updated;
-      });
-
-      return changed ? next : previous;
-    });
-  }, [effectiveHasServiceAreas]);
 
   useEffect(() => {
     if (!selected.length || !serviceCatalogById.size) {
@@ -1682,9 +1748,7 @@ function Step3SkillsPricingInner() {
               context="onboarding"
               selectionMode="multi"
               value={Array.from(selectedNeighborhoods)}
-              onSelectionChange={(keys) => {
-                setSelectedNeighborhoods(new Set(keys));
-              }}
+              onSelectionChange={handleNeighborhoodSelectionChange}
             />
           </div>
         )}

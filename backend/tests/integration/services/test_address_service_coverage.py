@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.core.ulid_helper import generate_ulid
+from app.domain.neighborhood_config import NEIGHBORHOOD_MAPPING
 from app.models.region_boundary import RegionBoundary
 from app.services.address_service import AddressService
 from app.services.cache_service import CacheServiceSyncAdapter
@@ -139,8 +140,9 @@ def test_service_areas_geojson_and_neighborhoods(db, test_instructor):
     assert selector["boroughs"]
 
     polygons = service.get_neighborhood_polygons("nyc")
+    expected_active = sum(1 for value in NEIGHBORHOOD_MAPPING.values() if value is not None)
     assert polygons["type"] == "FeatureCollection"
-    assert len(polygons["features"]) == 199
+    assert len(polygons["features"]) == expected_active
     assert all(
         feature["properties"].get("display_key") and feature["properties"].get("display_name")
         for feature in polygons["features"]

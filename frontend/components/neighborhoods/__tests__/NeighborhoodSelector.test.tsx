@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { NeighborhoodSelector } from '../NeighborhoodSelector';
@@ -14,12 +14,14 @@ jest.mock('next/dynamic', () => {
   return (loader: () => Promise<unknown>) => {
     void loader();
     const MockComponent = require('../NeighborhoodSelectorMap').default as React.ComponentType<{
+      featureCollection?: unknown;
       selectedKeys: Set<string>;
       hoveredKey?: string | null;
       onHoverKey?: (key: string | null) => void;
       onToggleKey: (key: string) => void;
     }>;
     return function DynamicNeighborhoodSelectorMap(props: {
+      featureCollection?: unknown;
       selectedKeys: Set<string>;
       hoveredKey?: string | null;
       onHoverKey?: (key: string | null) => void;
@@ -33,17 +35,20 @@ jest.mock('next/dynamic', () => {
 jest.mock('../NeighborhoodSelectorMap', () => ({
   __esModule: true,
   default: ({
+    featureCollection,
     selectedKeys,
     hoveredKey,
     onHoverKey,
     onToggleKey,
   }: {
+    featureCollection?: unknown;
     selectedKeys: Set<string>;
     hoveredKey?: string | null;
     onHoverKey?: (key: string | null) => void;
     onToggleKey: (key: string) => void;
   }) => (
     <div data-testid="selector-map">
+      <div data-testid="map-feature-collection">{featureCollection ? 'present' : 'null'}</div>
       <div data-testid="map-selected">{Array.from(selectedKeys).join(',')}</div>
       <div data-testid="map-hovered">{hoveredKey ?? ''}</div>
       <button type="button" onClick={() => onHoverKey?.('ues')}>
@@ -215,27 +220,27 @@ describe('NeighborhoodSelector', () => {
   it('resyncs controlled selection when value changes after mount', () => {
     const { rerender } = renderSelector({ value: [] });
 
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'false');
 
     rerender(<NeighborhoodSelector showMap={false} value={['ues']} />);
 
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('replaces the previous selection in single-select mode', async () => {
     renderSelector({ selectionMode: 'single' });
     const user = userEvent.setup();
 
-    await user.click(screen.getByTestId('service-area-chip-ues'));
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByTestId('neighborhood-chip-ues'));
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByTestId('service-area-chip-chelsea'));
+    await user.click(screen.getByTestId('neighborhood-chip-chelsea'));
 
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('service-area-chip-chelsea')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('neighborhood-chip-chelsea')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('stays interactive in controlled mode for both chips and map toggles', async () => {
+  it('stays interactive in controlled mode for both chips and map toggles while preserving the last multi-select item', async () => {
     function ControlledHarness() {
       const [value, setValue] = React.useState<string[]>([]);
 
@@ -253,22 +258,24 @@ describe('NeighborhoodSelector', () => {
     render(<ControlledHarness />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByTestId('service-area-chip-ues'));
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByTestId('neighborhood-chip-ues'));
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('map-selected')).toHaveTextContent('ues');
 
     await user.click(screen.getByRole('button', { name: 'Toggle Map Marble' }));
-    await user.click(screen.getByTestId('service-area-borough-bronx'));
-    expect(screen.getByTestId('service-area-chip-marble')).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByTestId('neighborhood-borough-bronx'));
+    expect(screen.getByTestId('neighborhood-chip-marble')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('map-selected')).toHaveTextContent('ues,marble');
 
-    await user.click(screen.getByTestId('service-area-chip-ues'));
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByTestId('neighborhood-borough-manhattan'));
+    await user.click(screen.getByTestId('neighborhood-chip-ues'));
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('map-selected')).toHaveTextContent('marble');
 
     await user.click(screen.getByRole('button', { name: 'Toggle Map Marble' }));
-    expect(screen.getByTestId('service-area-chip-marble')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('map-selected')).toHaveTextContent('');
+    await user.click(screen.getByTestId('neighborhood-borough-bronx'));
+    expect(screen.getByTestId('neighborhood-chip-marble')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('map-selected')).toHaveTextContent('marble');
   });
 
   it('renders the apply-specific copy and placeholder', () => {
@@ -290,7 +297,7 @@ describe('NeighborhoodSelector', () => {
     await user.type(screen.getByTestId('neighborhood-search-input'), 'Baisley Park');
 
     expect(screen.getByText('South Jamaica')).toBeInTheDocument();
-    expect(screen.getByTestId('service-area-borough-queens')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('neighborhood-borough-queens')).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('renders Marble Hill in both Bronx and Manhattan during search', async () => {
@@ -300,8 +307,8 @@ describe('NeighborhoodSelector', () => {
     await user.type(screen.getByTestId('neighborhood-search-input'), 'Marble Hill');
 
     expect(screen.getAllByText('Kingsbridge / Marble Hill')).toHaveLength(2);
-    expect(screen.getByTestId('service-area-borough-manhattan')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByTestId('service-area-borough-bronx')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('neighborhood-borough-manhattan')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('neighborhood-borough-bronx')).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('renders Upper East Side and Upper East Side / Roosevelt Island as separate chips', async () => {
@@ -347,16 +354,34 @@ describe('NeighborhoodSelector', () => {
     renderSelector();
     const user = userEvent.setup();
 
-    await user.click(screen.getByTestId('service-area-chip-nyc-manhattan-upper-east-side'));
+    await user.click(screen.getByTestId('neighborhood-chip-nyc-manhattan-upper-east-side'));
 
     expect(
-      screen.getByTestId('service-area-chip-nyc-manhattan-upper-east-side'),
+      screen.getByTestId('neighborhood-chip-nyc-manhattan-upper-east-side'),
     ).toHaveAttribute('aria-pressed', 'true');
     expect(
-      screen.getByTestId('service-area-chip-nyc-manhattan-upper-east-side-roosevelt-island'),
+      screen.getByTestId('neighborhood-chip-nyc-manhattan-upper-east-side-roosevelt-island'),
     ).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('Upper East Side')).toBeInTheDocument();
     expect(screen.getByText('Upper East Side / Roosevelt Island')).toBeInTheDocument();
+  });
+
+  it('renders chips without plus or checkmark icons', async () => {
+    renderSelector({ defaultValue: ['ues'] });
+    const user = userEvent.setup();
+
+    const selectedChip = screen.getByTestId('neighborhood-chip-ues');
+    expect(selectedChip).toHaveTextContent('Upper East Side');
+    expect(within(selectedChip).queryByText('+')).not.toBeInTheDocument();
+    expect(within(selectedChip).queryByText('✓')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('neighborhood-borough-manhattan'));
+    await user.click(screen.getByTestId('neighborhood-borough-manhattan'));
+
+    const unselectedChip = screen.getByTestId('neighborhood-chip-chelsea');
+    expect(unselectedChip).toHaveTextContent('Chelsea');
+    expect(within(unselectedChip).queryByText('+')).not.toBeInTheDocument();
+    expect(within(unselectedChip).queryByText('✓')).not.toBeInTheDocument();
   });
 
   it('limits Select all to currently filtered items', async () => {
@@ -366,11 +391,11 @@ describe('NeighborhoodSelector', () => {
     await user.type(screen.getByTestId('neighborhood-search-input'), 'upper');
     await user.click(screen.getByRole('button', { name: 'Select all' }));
 
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'true');
 
     await user.clear(screen.getByTestId('neighborhood-search-input'));
 
-    expect(screen.getByTestId('service-area-chip-chelsea')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('neighborhood-chip-chelsea')).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('limits Clear all to currently filtered items', async () => {
@@ -381,34 +406,40 @@ describe('NeighborhoodSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Clear all' }));
     await user.clear(screen.getByTestId('neighborhood-search-input'));
 
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('service-area-chip-chelsea')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('neighborhood-chip-chelsea')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('supports borough expand and collapse', async () => {
+  it('supports a single expanded borough in browse mode', async () => {
     renderSelector();
     const user = userEvent.setup();
 
-    const manhattanHeader = screen.getByTestId('service-area-borough-manhattan');
+    const manhattanHeader = screen.getByTestId('neighborhood-borough-manhattan');
+    const bronxHeader = screen.getByTestId('neighborhood-borough-bronx');
     expect(manhattanHeader).toHaveAttribute('aria-expanded', 'true');
+    expect(bronxHeader).toHaveAttribute('aria-expanded', 'false');
 
-    await user.click(manhattanHeader);
+    await user.click(bronxHeader);
 
+    expect(bronxHeader).toHaveAttribute('aria-expanded', 'true');
     expect(manhattanHeader).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByTestId('service-area-chip-ues')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('neighborhood-chip-ues')).not.toBeInTheDocument();
+
+    await user.click(bronxHeader);
+
+    expect(bronxHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('neighborhood-chip-marble')).not.toBeInTheDocument();
   });
 
   it('restores the manual expansion state after search clears and ignores header clicks while searching', async () => {
     renderSelector();
     const user = userEvent.setup();
 
-    const manhattanHeader = screen.getByTestId('service-area-borough-manhattan');
-    const bronxHeader = screen.getByTestId('service-area-borough-bronx');
+    const manhattanHeader = screen.getByTestId('neighborhood-borough-manhattan');
+    const bronxHeader = screen.getByTestId('neighborhood-borough-bronx');
 
     await user.click(bronxHeader);
     expect(bronxHeader).toHaveAttribute('aria-expanded', 'true');
-
-    await user.click(manhattanHeader);
     expect(manhattanHeader).toHaveAttribute('aria-expanded', 'false');
 
     await user.type(screen.getByTestId('neighborhood-search-input'), 'upper');
@@ -428,24 +459,66 @@ describe('NeighborhoodSelector', () => {
 
     await user.type(screen.getByTestId('neighborhood-search-input'), 'Belle Harbor');
 
-    expect(screen.getByTestId('service-area-chip-rockaway')).toHaveClass('col-span-2');
+    expect(screen.getByTestId('neighborhood-chip-rockaway')).toHaveClass('col-span-2');
+  });
+
+  it('renders collapsed borough headers according to the A-Team count rules', async () => {
+    renderSelector({ defaultValue: ['marble'] });
+    const user = userEvent.setup();
+
+    const brooklynHeader = screen.getByTestId('neighborhood-borough-brooklyn');
+    const bronxHeader = screen.getByTestId('neighborhood-borough-bronx');
+
+    expect(brooklynHeader).toHaveTextContent('Brooklyn');
+    expect(within(brooklynHeader).queryByText('(0)')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('neighborhood-borough-manhattan'));
+
+    expect(bronxHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(bronxHeader).toHaveTextContent('Bronx');
+    expect(within(bronxHeader).getByText('(1)')).toBeInTheDocument();
+    expect(within(bronxHeader).queryByText(/selected/i)).not.toBeInTheDocument();
+
+    const bronxSection = bronxHeader.closest('section');
+    expect(bronxSection).not.toBeNull();
+    expect(
+      within(bronxSection as HTMLElement).queryByRole('button', { name: 'Select all' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(bronxSection as HTMLElement).queryByRole('button', { name: 'Clear all' }),
+    ).not.toBeInTheDocument();
   });
 
   it('syncs hover state between chips and the map', async () => {
     render(<NeighborhoodSelector showMap value={[]} />);
     const user = userEvent.setup();
 
-    await user.hover(screen.getByTestId('service-area-chip-ues'));
+    await user.hover(screen.getByTestId('neighborhood-chip-ues'));
     expect(screen.getByTestId('map-hovered')).toHaveTextContent('ues');
 
     await user.click(screen.getByRole('button', { name: 'Hover Map UES' }));
-    expect(screen.getByTestId('service-area-chip-ues')).toHaveClass('ring-2');
+    expect(screen.getByTestId('neighborhood-chip-ues')).toHaveClass('ring-2');
   });
 
-  it('does not fetch polygon data when the map is hidden', () => {
+  it('disables polygon data fetching when the map is hidden', () => {
     renderSelector({ showMap: false });
 
-    expect(useNeighborhoodPolygonsMock).not.toHaveBeenCalled();
+    expect(useNeighborhoodPolygonsMock).toHaveBeenCalledWith('nyc', false);
+    expect(screen.queryByTestId('selector-map')).not.toBeInTheDocument();
+  });
+
+  it('shows the map by default and passes a null feature collection when polygon data is unavailable', () => {
+    useNeighborhoodPolygonsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useNeighborhoodPolygons>);
+
+    render(<NeighborhoodSelector value={[]} />);
+
+    expect(useNeighborhoodPolygonsMock).toHaveBeenCalledWith('nyc', true);
+    expect(screen.getByTestId('selector-map')).toBeInTheDocument();
+    expect(screen.getByTestId('map-feature-collection')).toHaveTextContent('null');
   });
 
   it('renders selector loading and error states', () => {
@@ -544,13 +617,44 @@ describe('NeighborhoodSelector', () => {
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
   });
 
+  it('filters missing items out of emitted selection payloads during controlled updates', async () => {
+    const onSelectionChange = jest.fn();
+    const user = userEvent.setup();
+
+    function ControlledHarness() {
+      const [value, setValue] = React.useState<string[]>(['missing-key']);
+
+      return (
+        <NeighborhoodSelector
+          showMap={false}
+          value={value}
+          onSelectionChange={(keys, items) => {
+            onSelectionChange(keys, items);
+            setValue(keys);
+          }}
+        />
+      );
+    }
+
+    render(<ControlledHarness />);
+
+    await user.click(screen.getByTestId('neighborhood-chip-ues'));
+
+    await waitFor(() => {
+      expect(onSelectionChange).toHaveBeenLastCalledWith(
+        ['missing-key', 'ues'],
+        [itemByKey.get('ues')],
+      );
+    });
+  });
+
   it('normalizes apostrophes in search text', async () => {
     renderSelector();
     const user = userEvent.setup();
 
     await user.type(screen.getByTestId('neighborhood-search-input'), 'princes bay');
 
-    const statenIslandSection = screen.getByTestId('service-area-borough-staten-island').closest('section');
+    const statenIslandSection = screen.getByTestId('neighborhood-borough-staten-island').closest('section');
     expect(statenIslandSection).not.toBeNull();
     expect(
       within(statenIslandSection as HTMLElement).getByText("Prince's Bay"),
@@ -606,18 +710,58 @@ describe('NeighborhoodSelector', () => {
     await user.type(screen.getByTestId('neighborhood-search-input'), 'east');
 
     const manhattanSection = screen
-      .getByTestId('service-area-borough-manhattan')
+      .getByTestId('neighborhood-borough-manhattan')
       .closest('section');
     expect(manhattanSection).not.toBeNull();
 
     const chips = within(manhattanSection as HTMLElement)
       .getAllByRole('button')
-      .filter((button) => button.dataset['testid']?.startsWith('service-area-chip-'));
+      .filter((button) => button.dataset['testid']?.startsWith('neighborhood-chip-'));
 
     expect(chips.map((chip) => chip.dataset['testid'])).toEqual([
-      'service-area-chip-east-harlem',
-      'service-area-chip-east-village',
-      'service-area-chip-upper-east-side',
+      'neighborhood-chip-east-harlem',
+      'neighborhood-chip-east-village',
+      'neighborhood-chip-upper-east-side',
     ]);
+  });
+
+  it('searches safely when an item omits additional boroughs', async () => {
+    const astoria = {
+      ...makeItem({
+        borough: 'Queens',
+        display_key: 'astoria',
+        display_name: 'Astoria',
+        display_order: 1,
+        search_terms: [{ term: 'Astoria', type: 'display_part' }],
+      }),
+      additional_boroughs: undefined,
+    } as unknown as SelectorDisplayItem;
+    const customResponse: NeighborhoodSelectorResponse = {
+      market: 'nyc',
+      total_items: 1,
+      boroughs: [
+        {
+          borough: 'Queens',
+          item_count: 1,
+          items: [astoria],
+        },
+      ],
+    };
+
+    useNeighborhoodSelectorDataMock.mockReturnValue({
+      data: customResponse,
+      isLoading: false,
+      isError: false,
+      allItems: [astoria],
+      itemByKey: new Map([[astoria.display_key, astoria]]),
+      boroughs: ['Queens'],
+    } as ReturnType<typeof useNeighborhoodSelectorData>);
+
+    renderSelector();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId('neighborhood-search-input'), 'astoria');
+
+    expect(screen.getByTestId('neighborhood-chip-astoria')).toBeInTheDocument();
   });
 });

@@ -319,10 +319,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
 
-  const serviceAreasCard = page.getByTestId('service-areas-card').first();
-  await serviceAreasCard.waitFor();
-  await serviceAreasCard.scrollIntoViewIfNeeded();
-  await serviceAreasCard.click();
+  const neighborhoodSelector = page.getByTestId('neighborhood-selector').first();
+  await neighborhoodSelector.waitFor();
+  await neighborhoodSelector.scrollIntoViewIfNeeded();
   const preferredPlacesCard = page.getByTestId('preferred-places-card').first();
   await preferredPlacesCard.waitFor();
   await preferredPlacesCard.scrollIntoViewIfNeeded();
@@ -363,7 +362,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
 
-  await page.getByTestId('service-areas-card').click();
+  await page.getByTestId('neighborhood-selector').first().scrollIntoViewIfNeeded();
   const preferredPlacesCardReload = page.getByTestId('preferred-places-card').first();
   await preferredPlacesCardReload.scrollIntoViewIfNeeded();
   await preferredPlacesCardReload.click();

@@ -26,9 +26,14 @@ describe('neighborhood selector types utilities', () => {
     expect(normalizeSearchText("  Prince's...   Bay  ")).toBe('princes bay');
   });
 
-  it('marks long display names only when they exceed the threshold', () => {
+  it('marks long display names when they exceed the threshold', () => {
     expect(isLongDisplayName('x'.repeat(LONG_NAME_THRESHOLD))).toBe(false);
     expect(isLongDisplayName('x'.repeat(LONG_NAME_THRESHOLD + 1))).toBe(true);
+  });
+
+  it('marks multi-segment compound names as full-width even below the character threshold', () => {
+    expect(isLongDisplayName('Eastchester / Edenwald / Baychester')).toBe(true);
+    expect(isLongDisplayName('Chelsea / Hudson Yards')).toBe(true);
   });
 
   it('marks the current nine long-form neighborhood labels as full-width candidates', () => {
@@ -46,6 +51,10 @@ describe('neighborhood selector types utilities', () => {
 
     expect(longNeighborhoodNames).toHaveLength(9);
     expect(longNeighborhoodNames.every((name) => isLongDisplayName(name))).toBe(true);
+  });
+
+  it('marks long compound names over the threshold as full-width candidates', () => {
+    expect(isLongDisplayName('Financial District / Battery Park City')).toBe(true);
   });
 
   it('returns Infinity for null match priority and ranks other types deterministically', () => {

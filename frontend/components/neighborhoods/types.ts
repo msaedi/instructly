@@ -4,7 +4,7 @@ import type { SelectorDisplayItem } from '@/features/shared/api/types';
 
 export type SelectionMode = 'single' | 'multi';
 
-export const LONG_NAME_THRESHOLD = 40;
+export const LONG_NAME_THRESHOLD = 21;
 
 export type MatchRank =
   | 'display_name'
@@ -53,7 +53,8 @@ export function normalizeSearchText(text: string): string {
 }
 
 export function isLongDisplayName(displayName: string): boolean {
-  return displayName.length > LONG_NAME_THRESHOLD;
+  const segments = displayName.split(' / ').filter(Boolean).length;
+  return displayName.length > LONG_NAME_THRESHOLD || segments >= 2;
 }
 
 export function getMatchPriority(rank: MatchRank): number {
@@ -92,6 +93,7 @@ export function matchSelectorItem(
       normalizeSearchText(borough).includes(normalizedQuery),
     )
   ) {
+    // Intentionally ranked as display_name: borough context matches should surface prominently.
     return { rank: 'display_name', matchedTerm: null };
   }
 

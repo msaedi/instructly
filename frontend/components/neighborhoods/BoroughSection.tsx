@@ -23,7 +23,7 @@ type BoroughSectionProps = {
 };
 
 function boroughTestId(borough: string): string {
-  return `service-area-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`;
+  return `neighborhood-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`;
 }
 
 export function BoroughSection({
@@ -42,6 +42,8 @@ export function BoroughSection({
   matchInfo,
 }: BoroughSectionProps) {
   const selectedCount = items.filter((item) => selectedKeys.has(item.display_key)).length;
+  const showCollapsedCount = !isExpanded && selectedCount > 0;
+  const showExpandedCount = isExpanded;
 
   return (
     <section className="rounded-2xl border border-gray-200/90 bg-white/90 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
@@ -55,7 +57,14 @@ export function BoroughSection({
         >
           <div className="min-w-0">
             <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {borough} <span className="text-gray-500 dark:text-gray-400">({selectedCount} selected)</span>
+              {borough}{' '}
+              {showExpandedCount ? (
+                <span className="text-gray-500 dark:text-gray-400">
+                  ({selectedCount} selected)
+                </span>
+              ) : showCollapsedCount ? (
+                <span className="text-gray-500 dark:text-gray-400">({selectedCount})</span>
+              ) : null}
             </div>
             {searchActive && items.length === 0 ? (
               <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">No matches</div>
@@ -68,7 +77,7 @@ export function BoroughSection({
             )}
           />
         </button>
-        {selectionMode === 'multi' && items.length > 0 ? (
+        {isExpanded && selectionMode === 'multi' && items.length > 0 ? (
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
@@ -105,7 +114,7 @@ export function BoroughSection({
               {items.map((item) => {
                 const isSelected = selectedKeys.has(item.display_key);
                 const isHovered = hoveredKey === item.display_key;
-                const aliasHint = searchActive ? matchInfo?.get(item.display_key) ?? null : null;
+                const aliasHint = searchActive ? matchInfo?.get(item.display_key) : null;
                 const showInlineAliasHint = Boolean(aliasHint && isLongDisplayName(item.display_name));
 
                 return (
@@ -116,7 +125,7 @@ export function BoroughSection({
                     onMouseEnter={() => onHoverKey?.(item.display_key)}
                     onMouseLeave={() => onHoverKey?.(null)}
                     aria-pressed={isSelected}
-                    data-testid={`service-area-chip-${item.display_key}`}
+                    data-testid={`neighborhood-chip-${item.display_key}`}
                     className={clsx(
                       'cursor-pointer rounded-2xl border px-3 py-2 text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-purple-200',
                       isLongDisplayName(item.display_name) && 'col-span-2',
@@ -127,18 +136,15 @@ export function BoroughSection({
                     )}
                     title={aliasHint ? `Matches: ${aliasHint}` : item.display_name}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={clsx(
-                          'text-sm font-medium',
-                          isSelected && 'text-[var(--color-brand-dark)]',
-                        )}
-                      >
-                        {item.display_name}
-                      </span>
-                      <span className="text-xs font-semibold">{isSelected ? '✓' : '+'}</span>
-                    </div>
-                    {showInlineAliasHint ? (
+                    <span
+                      className={clsx(
+                        'block text-sm font-medium',
+                        isSelected && 'text-[var(--color-brand-dark)]',
+                      )}
+                    >
+                      {item.display_name}
+                    </span>
+                    {showInlineAliasHint && aliasHint ? (
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Matches: {aliasHint}
                       </div>

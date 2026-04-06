@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useNeighborhoodSelection } from '../useNeighborhoodSelection';
 
 describe('useNeighborhoodSelection', () => {
-  it('handles uncontrolled multi-select flows and ignores blank keys', () => {
+  it('handles uncontrolled multi-select flows, ignores blank keys, and preserves the last multi-select item', () => {
     const onSelectionChange = jest.fn();
 
     const { result } = renderHook(() =>
@@ -57,9 +57,37 @@ describe('useNeighborhoodSelection', () => {
       result.current.clearAll();
     });
 
-    expect(result.current.selectedArray).toEqual([]);
-    expect(result.current.selectedCount).toBe(0);
+    expect(result.current.selectedArray).toEqual(['chelsea']);
+    expect(result.current.selectedCount).toBe(1);
     expect(onSelectionChange).toHaveBeenCalled();
+  });
+
+  it('does not deselect the final selected item in multi-select mode', () => {
+    const { result } = renderHook(() =>
+      useNeighborhoodSelection({
+        defaultValue: ['ues'],
+      }),
+    );
+
+    act(() => {
+      result.current.toggle('ues');
+    });
+
+    expect(result.current.selectedArray).toEqual(['ues']);
+  });
+
+  it('does not clear a filtered subset when that would remove the last selected item in multi-select mode', () => {
+    const { result } = renderHook(() =>
+      useNeighborhoodSelection({
+        defaultValue: ['ues'],
+      }),
+    );
+
+    act(() => {
+      result.current.clearAll(['ues']);
+    });
+
+    expect(result.current.selectedArray).toEqual(['ues']);
   });
 
   it('supports controlled single-select replacement and deselection', () => {
@@ -103,5 +131,25 @@ describe('useNeighborhoodSelection', () => {
     });
 
     expect(onSelectionChange).toHaveBeenLastCalledWith(['harlem']);
+  });
+
+  it('memoizes the returned API when inputs stay the same', () => {
+    const value = ['ues'];
+
+    const { result, rerender } = renderHook(
+      ({ selected }: { selected: string[] }) =>
+        useNeighborhoodSelection({
+          value: selected,
+        }),
+      {
+        initialProps: { selected: value },
+      }
+    );
+
+    const initialResult = result.current;
+
+    rerender({ selected: value });
+
+    expect(result.current).toBe(initialResult);
   });
 });

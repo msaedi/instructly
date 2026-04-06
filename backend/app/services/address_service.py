@@ -87,7 +87,9 @@ class AddressService(BaseService):
 
         boundary: Optional[RegionBoundary] = None
         try:
-            boundary = self.db.get(RegionBoundary, row.get("id"))
+            boundary_id = row.get("id")
+            if isinstance(boundary_id, str):
+                boundary = self.region_repo.get_boundary_geometry(boundary_id)
         except Exception:
             boundary = None
 
@@ -116,7 +118,6 @@ class AddressService(BaseService):
         lon, lat = _BOROUGH_CENTROID.get(borough, _BOROUGH_CENTROID["Manhattan"])
         return _square_polygon(lon, lat)
 
-    # User addresses
     @BaseService.measure_operation("list_addresses")
     def list_addresses(self, user_id: str) -> list[dict[str, Any]]:
         entities = self.address_repo.list_for_user(user_id)
@@ -124,10 +125,8 @@ class AddressService(BaseService):
 
     @BaseService.measure_operation("create_address")
     def create_address(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        # If is_default, unset others first
         if data.get("is_default"):
             self.address_repo.unset_default(user_id)
-        # Enrich via place_id if present
         place_id = data.get("place_id")
         if place_id:
             provider_override, normalized_place_id = self._resolve_place_id(place_id)
@@ -152,7 +151,6 @@ class AddressService(BaseService):
                     or self._normalize_country_code(getattr(geocoded, "country", None)),
                 )
                 data["verification_status"] = "verified"
-                # Fallback: if lat/lon missing from place details, try geocode formatted address
                 if not data.get("latitude") or not data.get("longitude"):
                     addr_str = geocoded.formatted_address or data.get("street_line1") or ""
                     if addr_str:
@@ -161,7 +159,6 @@ class AddressService(BaseService):
                             data["latitude"] = data.get("latitude") or geo2.latitude
                             data["longitude"] = data.get("longitude") or geo2.longitude
             else:
-                # Robust fallback if place details are unavailable: geocode composed address
                 parts = [
                     data.get("street_line1"),
                     data.get("locality"),
@@ -189,15 +186,12 @@ class AddressService(BaseService):
                             or self._normalize_country_code(getattr(geo2, "country", None)),
                         )
                         data["verification_status"] = "verified"
-            # Final test-mode fallback: mark verified even if provider couldn't resolve
             if settings.is_testing and data.get("verification_status") != "verified":
                 data["verification_status"] = "verified"
-                # Ensure coords present for response expectations in tests
                 if data.get("latitude") is None:
                     data["latitude"] = 40.7580
                 if data.get("longitude") is None:
                     data["longitude"] = -73.9855
-        # Optional enrichment if we have coordinates
         if data.get("latitude") and data.get("longitude"):
             enricher = LocationEnrichmentService(self.db)
             enr = enricher.enrich(float(data["latitude"]), float(data["longitude"]))
@@ -206,7 +200,6 @@ class AddressService(BaseService):
             data.setdefault("subneighborhood", enr.get("subneighborhood"))
             if enr.get("location_metadata") is not None:
                 data.setdefault("location_metadata", enr.get("location_metadata"))
-        # Default recipient_name to user's full name if not provided
         if not data.get("recipient_name"):
             user = self.user_repo.find_one_by(id=user_id)
             if user:
@@ -230,7 +223,6 @@ class AddressService(BaseService):
             return None
         if data.get("is_default"):
             self.address_repo.unset_default(user_id)
-        # Re-enrich if a new place_id is provided and key fields are missing
         place_id = data.get("place_id")
         if place_id:
             provider_override, normalized_place_id = self._resolve_place_id(place_id)
@@ -259,12 +251,10 @@ class AddressService(BaseService):
                         if geo2:
                             data["latitude"] = data.get("latitude") or geo2.latitude
                             data["longitude"] = data.get("longitude") or geo2.longitude
-        # Final test-mode fallback on update as well
         if place_id and settings.is_testing and data.get("verification_status") != "verified":
             data["verification_status"] = "verified"
             data.setdefault("latitude", 0.0)
             data.setdefault("longitude", 0.0)
-        # Optional enrichment on update if coordinates present or just resolved
         if data.get("latitude") and data.get("longitude"):
             enricher = LocationEnrichmentService(self.db)
             enr = enricher.enrich(float(data["latitude"]), float(data["longitude"]))
@@ -273,10 +263,8 @@ class AddressService(BaseService):
             data.setdefault("subneighborhood", enr.get("subneighborhood"))
             if enr.get("location_metadata") is not None:
                 data.setdefault("location_metadata", enr.get("location_metadata"))
-        # Normalize country code if present
         if "country_code" in data:
             data["country_code"] = self._normalize_country_code(data.get("country_code"))
-        # Ensure recipient_name persists or is defaulted
         if not data.get("recipient_name"):
             user = self.user_repo.find_one_by(id=user_id)
             if user:
@@ -444,7 +432,29 @@ class AddressService(BaseService):
                 logger.debug("Non-fatal error ignored", exc_info=True)
         return result
 
-    # Instructor service areas
+    @BaseService.measure_operation("find_neighborhood_by_point")
+    def find_neighborhood_by_point(
+        self, lat: float, lng: float, market: str = "nyc"
+    ) -> dict[str, Any] | None:
+        if market not in SUPPORTED_MARKETS:
+            supported = ", ".join(sorted(SUPPORTED_MARKETS))
+            raise BusinessRuleException(f"Unsupported market: {market}. Supported: {supported}")
+
+        row = self.region_repo.find_region_by_point(lat=lat, lng=lng, region_type=market)
+        if not row:
+            return None
+
+        display_key = str(row.get("display_key") or "").strip()
+        display_name = str(row.get("region_name") or "").strip()
+        if not display_key or not display_name:
+            return None
+
+        return {
+            "display_key": display_key,
+            "display_name": display_name,
+            "borough": str(row.get("parent_region") or "").strip(),
+        }
+
     @BaseService.measure_operation("list_service_areas")
     def list_service_areas(self, instructor_id: str) -> list[dict[str, Any]]:
         areas = self.service_area_repo.list_for_instructor(instructor_id)
@@ -494,25 +504,17 @@ class AddressService(BaseService):
         with self.transaction():
             count = self.service_area_repo.replace_areas(instructor_id, resolved_nta_ids)
 
-            # Invalidate cached service area context for this instructor
             if self.cache:
                 cache_key = f"instructor:service_area_context:{instructor_id}"
                 self.cache.delete(cache_key)
 
             return count
 
-    # Map support utilities
     @BaseService.measure_operation("get_coverage_geojson_for_instructors")
     def get_coverage_geojson_for_instructors(self, instructor_ids: list[str]) -> dict[str, Any]:
-        """Return a GeoJSON FeatureCollection of active coverage polygons for instructors.
-
-        Uses simplified boundaries via ST_AsGeoJSON directly from DB through the RegionBoundaryRepository
-        helper methods to preserve repository pattern.
-        """
         if not instructor_ids:
             return {"type": "FeatureCollection", "features": []}
 
-        # Cache key
         cache_key = None
         if self.cache:
             try:
@@ -524,13 +526,11 @@ class AddressService(BaseService):
                     return cached
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
-        # List areas for instructors
         areas = self.service_area_repo.list_neighborhoods_for_instructors(instructor_ids)
         neighborhood_ids = list({a.neighborhood_id for a in areas if a.neighborhood_id})
         if not neighborhood_ids:
             return {"type": "FeatureCollection", "features": []}
 
-        # Fetch minimal boundary JSON via repository helper
         features: list[dict[str, Any]] = []
         chunk_size = 200
         for i in range(0, len(neighborhood_ids), chunk_size):
@@ -613,7 +613,6 @@ class AddressService(BaseService):
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        # Cache key for pagination
         cache_key = None
         if self.cache:
             try:
@@ -643,7 +642,6 @@ class AddressService(BaseService):
                 logger.debug("Non-fatal error ignored", exc_info=True)
         return items
 
-    # Helpers
     def _to_dict(self, a: Any) -> dict[str, Any]:
         return {
             "id": a.id,
@@ -662,11 +660,9 @@ class AddressService(BaseService):
             "verification_status": a.verification_status,
             "is_default": a.is_default,
             "is_active": a.is_active,
-            # Generic location hierarchy
             "district": a.district,
             "neighborhood": a.neighborhood,
             "subneighborhood": a.subneighborhood,
-            # Flexible metadata for region-specific details
             "location_metadata": a.location_metadata,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,

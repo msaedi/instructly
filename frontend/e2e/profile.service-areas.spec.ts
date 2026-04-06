@@ -216,17 +216,14 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
   await page.goto('/instructor/profile');
 
-  const serviceAreasCard = page.getByTestId('service-areas-card');
+  const serviceAreasCard = page.getByTestId('neighborhood-selector');
   await serviceAreasCard.waitFor();
   await serviceAreasCard.scrollIntoViewIfNeeded();
-  await serviceAreasCard.click();
 
-  await page.getByTestId('service-area-borough-manhattan').click();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
-  await page.getByTestId('service-area-chip-mn-central-village').waitFor();
-
-  await page.getByTestId('service-area-chip-mn-central-village').click();
-  await page.getByTestId('service-area-chip-mn-hudson-heights').click();
+  await page.getByTestId('neighborhood-chip-mn-central-village').click();
+  await page.getByTestId('neighborhood-chip-mn-hudson-heights').click();
 
   const putPromise = page.waitForResponse((response) =>
     response.url().includes('/api/v1/addresses/service-areas/me') &&
@@ -243,22 +240,18 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   await page.goto('/instructor/profile');
   await page.waitForURL('**/instructor/profile**');
 
-  const serviceAreasCardReload = page.getByTestId('service-areas-card');
+  const serviceAreasCardReload = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReload.scrollIntoViewIfNeeded();
-  await serviceAreasCardReload.click();
-  await page.getByTestId('service-area-borough-manhattan').click();
-  await page.getByTestId('service-area-chip-mn-central-village').waitFor();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
   expect(serviceAreaSelections).toEqual(['mn-central-village', 'mn-hudson-heights']);
 
   await page.reload();
 
-  const serviceAreasCardReloadSecond = page.getByTestId('service-areas-card');
+  const serviceAreasCardReloadSecond = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReloadSecond.scrollIntoViewIfNeeded();
-  await serviceAreasCardReloadSecond.click();
-  await page.getByTestId('service-area-borough-manhattan').click();
-  await page.getByTestId('service-area-chip-mn-central-village').waitFor();
+  await page.getByTestId('neighborhood-chip-mn-central-village').waitFor();
 
-  await expect(page.getByTestId('service-area-chip-mn-central-village')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('service-area-chip-mn-hudson-heights')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('neighborhood-chip-mn-central-village')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('neighborhood-chip-mn-hudson-heights')).toHaveAttribute('aria-pressed', 'true');
 });

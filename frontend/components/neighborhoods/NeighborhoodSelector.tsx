@@ -7,8 +7,8 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  useRef,
 } from 'react';
 
 import type { SelectorDisplayItem } from '@/features/shared/api/types';
@@ -65,7 +65,7 @@ function titleForContext(context: NeighborhoodSelectorProps['context']) {
 
   return {
     title: 'Select the neighborhoods where you teach',
-    subtitle: 'Select all neighborhoods you’re willing to travel to for lessons.',
+    subtitle: "Select all neighborhoods you're willing to travel to for lessons.",
     searchPlaceholder: 'Search neighborhoods...',
   };
 }
@@ -74,17 +74,24 @@ function sortMatchedItems(
   items: SelectorDisplayItem[],
   matchByKey: Map<string, SearchMatch>,
 ): SelectorDisplayItem[] {
-  return [...items].sort((left, right) => {
-    const leftRank = getMatchPriority(matchByKey.get(left.display_key)?.rank ?? null);
-    const rightRank = getMatchPriority(matchByKey.get(right.display_key)?.rank ?? null);
-    if (leftRank !== rightRank) {
-      return leftRank - rightRank;
-    }
-    if (left.display_order !== right.display_order) {
-      return left.display_order - right.display_order;
-    }
-    return left.display_name.localeCompare(right.display_name);
-  });
+  return [...items]
+    .map((item) => {
+      const match = matchByKey.get(item.display_key);
+      return {
+        item,
+        rank: match ? getMatchPriority(match.rank) : 999,
+      };
+    })
+    .sort((left, right) => {
+      if (left.rank !== right.rank) {
+        return left.rank - right.rank;
+      }
+      if (left.item.display_order !== right.item.display_order) {
+        return left.item.display_order - right.item.display_order;
+      }
+      return left.item.display_name.localeCompare(right.item.display_name);
+    })
+    .map(({ item }) => item);
 }
 
 function NeighborhoodSelectorMapPanel({
@@ -93,39 +100,51 @@ function NeighborhoodSelectorMapPanel({
   hoveredKey,
   onHoverKey,
   onToggleKey,
+  showMap,
 }: {
   market: string;
   selectedKeys: Set<string>;
   hoveredKey: string | null;
   onHoverKey: (key: string | null) => void;
   onToggleKey: (key: string) => void;
+  showMap: boolean;
 }) {
-  const { data, isLoading, isError } = useNeighborhoodPolygons(market, true);
+  const { data, isLoading, isError } = useNeighborhoodPolygons(market, showMap);
+
+  if (!showMap) {
+    return null;
+  }
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-[400px] items-center justify-center rounded-[28px] border border-gray-200 bg-white/95 text-sm text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-400">
-        Loading map…
+      <div className="w-full md:sticky md:top-0 md:h-full md:w-3/5">
+        <div className="flex h-full min-h-[400px] items-center justify-center rounded-[28px] border border-gray-200 bg-white/95 text-sm text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-400">
+          Loading map…
+        </div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex h-full min-h-[400px] items-center justify-center rounded-[28px] border border-gray-200 bg-white/95 px-6 text-center text-sm text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-400">
-        Unable to load neighborhood polygons right now.
+      <div className="w-full md:sticky md:top-0 md:h-full md:w-3/5">
+        <div className="flex h-full min-h-[400px] items-center justify-center rounded-[28px] border border-gray-200 bg-white/95 px-6 text-center text-sm text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-400">
+          Unable to load neighborhood polygons right now.
+        </div>
       </div>
     );
   }
 
   return (
-    <DynamicNeighborhoodSelectorMap
-      featureCollection={data ?? null}
-      selectedKeys={selectedKeys}
-      onToggleKey={onToggleKey}
-      hoveredKey={hoveredKey}
-      onHoverKey={onHoverKey}
-    />
+    <div className="w-full md:sticky md:top-0 md:h-full md:w-3/5">
+      <DynamicNeighborhoodSelectorMap
+        featureCollection={data ?? null}
+        selectedKeys={selectedKeys}
+        onToggleKey={onToggleKey}
+        hoveredKey={hoveredKey}
+        onHoverKey={onHoverKey}
+      />
+    </div>
   );
 }
 
@@ -183,8 +202,7 @@ export function NeighborhoodSelector({
   );
   const searchActive = normalizedQuery.length > 0;
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const manualExpandedRef = useRef<Set<string>>(new Set());
-  const [manualExpandedBoroughs, setManualExpandedBoroughs] = useState<Set<string>>(new Set());
+  const [manualExpandedBorough, setManualExpandedBorough] = useState<string | null>(null);
 
   const primaryGroups = useMemo(
     () =>
@@ -195,31 +213,24 @@ export function NeighborhoodSelector({
     [data],
   );
 
-  const defaultExpandedBoroughs = useMemo(() => {
+  const defaultExpandedBorough = useMemo(() => {
     const selected = primaryGroups
       .filter((group) =>
         group.items.some((item) => selectedKeys.has(item.display_key)),
       )
-      .map((group) => group.borough);
-    if (selected.length > 0) {
+      .map((group) => group.borough)[0];
+    if (selected) {
       return selected;
     }
-    const firstBorough = boroughs[0];
-    return firstBorough ? [firstBorough] : [];
+    return boroughs[0] ?? null;
   }, [boroughs, primaryGroups, selectedKeys]);
 
-  useEffect(() => {
-    setManualExpandedBoroughs((previous) => {
-      if (previous.size > 0) {
-        return new Set(
-          [...previous].filter((borough) => boroughs.includes(borough)),
-        );
-      }
-      const next = new Set(defaultExpandedBoroughs);
-      manualExpandedRef.current = next;
-      return next;
-    });
-  }, [boroughs, defaultExpandedBoroughs]);
+  const browseExpandedBorough = useMemo(() => {
+    if (manualExpandedBorough && boroughs.includes(manualExpandedBorough)) {
+      return manualExpandedBorough;
+    }
+    return defaultExpandedBorough;
+  }, [boroughs, defaultExpandedBorough, manualExpandedBorough]);
 
   const matchByKey = useMemo(() => {
     const next = new Map<string, SearchMatch>();
@@ -283,17 +294,8 @@ export function NeighborhoodSelector({
               .filter((group) => group.items.length > 0)
               .map((group) => group.borough),
           )
-        : manualExpandedBoroughs,
-    [manualExpandedBoroughs, searchActive, visibleGroups],
-  );
-
-  const selectedItems = useMemo(
-    () =>
-      selectedArray.flatMap((key) => {
-        const item = itemByKey.get(key);
-        return item ? [item] : [];
-      }),
-    [itemByKey, selectedArray],
+        : new Set(browseExpandedBorough ? [browseExpandedBorough] : []),
+    [browseExpandedBorough, searchActive, visibleGroups],
   );
 
   useEffect(() => {
@@ -308,8 +310,12 @@ export function NeighborhoodSelector({
       return;
     }
     emittedSignatureRef.current = signature;
-    onSelectionChange(selectedArray, selectedItems);
-  }, [allItems.length, onSelectionChange, selectedArray, selectedItems]);
+    const items = selectedArray.flatMap((key) => {
+      const item = itemByKey.get(key);
+      return item ? [item] : [];
+    });
+    onSelectionChange(selectedArray, items);
+  }, [allItems.length, itemByKey, onSelectionChange, selectedArray]);
 
   const copy = titleForContext(context);
 
@@ -330,7 +336,7 @@ export function NeighborhoodSelector({
   }
 
   return (
-    <section className={clsx('space-y-4', className)} data-testid="service-areas-card">
+    <section className={clsx('space-y-4', className)} data-testid="neighborhood-selector">
       <div className="space-y-1">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           {copy.title}
@@ -339,7 +345,7 @@ export function NeighborhoodSelector({
       </div>
 
       <div className="flex flex-col gap-4 md:h-[600px] md:flex-row">
-        <div className="w-full overflow-y-auto md:w-1/2">
+        <div className="scrollbar-hide w-full overflow-y-auto md:w-2/5">
           <div className="rounded-[28px] border border-gray-200 bg-white/95 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
             <NeighborhoodSearch
               query={query}
@@ -368,15 +374,8 @@ export function NeighborhoodSelector({
                     if (searchActive) {
                       return;
                     }
-                    setManualExpandedBoroughs((previous) => {
-                      const next = new Set(previous);
-                      if (next.has(group.borough)) {
-                        next.delete(group.borough);
-                      } else {
-                        next.add(group.borough);
-                      }
-                      manualExpandedRef.current = next;
-                      return next;
+                    setManualExpandedBorough((previous) => {
+                      return previous === group.borough ? null : group.borough;
                     });
                   }}
                   selectionMode={selectionMode}
@@ -388,17 +387,14 @@ export function NeighborhoodSelector({
           </div>
         </div>
 
-        {showMap ? (
-          <div className="w-full md:sticky md:top-0 md:h-full md:w-1/2">
-            <NeighborhoodSelectorMapPanel
-              market={market}
-              selectedKeys={selectedKeys}
-              hoveredKey={hoveredKey}
-              onHoverKey={setHoveredKey}
-              onToggleKey={toggle}
-            />
-          </div>
-        ) : null}
+        <NeighborhoodSelectorMapPanel
+          market={market}
+          selectedKeys={selectedKeys}
+          hoveredKey={hoveredKey}
+          onHoverKey={setHoveredKey}
+          onToggleKey={toggle}
+          showMap={showMap}
+        />
       </div>
     </section>
   );

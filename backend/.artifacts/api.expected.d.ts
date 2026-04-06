@@ -303,6 +303,22 @@ export type paths = {
  patch: operations["update_my_address_api_v1_addresses_me__address_id__patch"];
  trace?: never;
  };
+ "/api/v1/addresses/neighborhoods/lookup": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_neighborhood_lookup_api_v1_addresses_neighborhoods_lookup_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/addresses/neighborhoods/polygons": {
  parameters: {
  query?: never;
@@ -12310,6 +12326,37 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AddressResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_neighborhood_lookup_api_v1_addresses_neighborhoods_lookup_get: {
+ parameters: {
+ query: {
+ lat: number;
+ lng: number;
+ market?: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ServiceAreaDisplayItem"] | null;
  };
  };
  422: {

@@ -46,7 +46,7 @@ class TestGeometryForBoundary:
         geom = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {"geometry": geom}
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1"}
         result = svc._geometry_for_boundary(row)
@@ -57,7 +57,7 @@ class TestGeometryForBoundary:
         svc = _make_address_service()
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {"centroid": [-73.985, 40.758]}
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1"}
         result = svc._geometry_for_boundary(row)
@@ -71,7 +71,7 @@ class TestGeometryForBoundary:
         svc = _make_address_service()
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {"center": [-73.95, 40.65]}
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1"}
         result = svc._geometry_for_boundary(row)
@@ -83,7 +83,7 @@ class TestGeometryForBoundary:
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {"centroid": "invalid"}
         mock_boundary.parent_region = None
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1", "parent_region": "Brooklyn"}
         result = svc._geometry_for_boundary(row)
@@ -95,7 +95,7 @@ class TestGeometryForBoundary:
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {"borough": "Queens"}
         mock_boundary.parent_region = None
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1", "parent_region": None}
         result = svc._geometry_for_boundary(row)
@@ -107,7 +107,7 @@ class TestGeometryForBoundary:
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {}
         mock_boundary.parent_region = None
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1", "parent_region": "Bronx"}
         result = svc._geometry_for_boundary(row)
@@ -119,7 +119,7 @@ class TestGeometryForBoundary:
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {}
         mock_boundary.parent_region = "Staten Island"
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1", "parent_region": None}
         result = svc._geometry_for_boundary(row)
@@ -131,16 +131,16 @@ class TestGeometryForBoundary:
         mock_boundary = MagicMock()
         mock_boundary.region_metadata = {}
         mock_boundary.parent_region = None
-        svc.db.get.return_value = mock_boundary
+        svc.region_repo.get_boundary_geometry.return_value = mock_boundary
 
         row = {"geometry": None, "id": "R1", "parent_region": None}
         result = svc._geometry_for_boundary(row)
         assert result["type"] == "Polygon"
 
-    def test_geometry_db_get_exception(self):
-        """L81-82: db.get raises exception -> boundary=None."""
+    def test_geometry_repository_exception(self):
+        """Repository lookup errors should fall back to borough geometry."""
         svc = _make_address_service()
-        svc.db.get.side_effect = Exception("DB error")
+        svc.region_repo.get_boundary_geometry.side_effect = Exception("DB error")
 
         row = {"geometry": None, "id": "R1", "parent_region": "Manhattan"}
         result = svc._geometry_for_boundary(row)
@@ -149,7 +149,7 @@ class TestGeometryForBoundary:
     def test_geometry_boundary_none(self):
         """L84: boundary is None -> metadata is None."""
         svc = _make_address_service()
-        svc.db.get.return_value = None
+        svc.region_repo.get_boundary_geometry.return_value = None
 
         row = {"geometry": None, "id": "R1", "parent_region": None}
         result = svc._geometry_for_boundary(row)

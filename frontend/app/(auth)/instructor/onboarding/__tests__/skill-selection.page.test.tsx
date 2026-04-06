@@ -94,6 +94,7 @@ jest.mock('@/components/neighborhoods/NeighborhoodSelector', () => ({
   }) => (
     <div data-testid="service-areas-card">
       <div data-testid="service-areas-count">{value?.length ?? 0}</div>
+      <div data-testid="service-areas-value">{(value ?? []).join(',')}</div>
       <button
         type="button"
         onClick={() =>
@@ -256,6 +257,16 @@ const renderWithClient = (ui: ReactNode) => {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 };
 
+function createDeferredResponse() {
+  let resolve!: (response: Response) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<Response>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('Skill selection page refine header', () => {
   beforeEach(() => {
     useOnboardingStepStatusMock.mockReturnValue({
@@ -306,6 +317,7 @@ describe('Skill selection page refine header', () => {
     useUserAddressesMock.mockReturnValue({
       data: { items: [] },
       isLoading: false,
+      isFetched: true,
     });
 
     useInstructorServiceAreasMock.mockReturnValue({
@@ -511,5 +523,336 @@ describe('Skill selection page refine header', () => {
 
     expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/me');
     expect(fetchWithAuthMock).not.toHaveBeenCalledWith('/api/v1/addresses/service-areas/me');
+  });
+
+  it('prefers saved service areas over onboarding address lookup', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'student_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    useInstructorServiceAreasMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            display_key: 'nyc-manhattan-upper-east-side',
+            display_name: 'Upper East Side',
+            borough: 'Manhattan',
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+      isError: false,
+    });
+    useUserAddressesMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'addr-1',
+            street_line1: '123 Main St',
+            locality: 'New York',
+            administrative_area: 'NY',
+            postal_code: '10021',
+            country_code: 'US',
+            latitude: 40.775,
+            longitude: -73.955,
+            is_default: true,
+            is_active: true,
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
+    });
+
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/addresses/neighborhoods/lookup'),
+    );
+  });
+
+  it('prefills one neighborhood from the default address lookup when saved service areas are empty', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'student_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    useUserAddressesMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'addr-1',
+            street_line1: '123 Main St',
+            locality: 'New York',
+            administrative_area: 'NY',
+            postal_code: '10021',
+            country_code: 'US',
+            latitude: 40.775,
+            longitude: -73.955,
+            is_default: true,
+            is_active: true,
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/neighborhoods/lookup?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            display_key: 'nyc-manhattan-upper-east-side',
+            display_name: 'Upper East Side',
+            borough: 'Manhattan',
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
+    });
+    expect(fetchWithAuthMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/addresses/neighborhoods/lookup?'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('leaves onboarding service areas empty when the default address lookup returns null', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'student_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    useUserAddressesMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'addr-1',
+            street_line1: '123 Main St',
+            locality: 'New York',
+            administrative_area: 'NY',
+            postal_code: '10021',
+            country_code: 'US',
+            latitude: 40.775,
+            longitude: -73.955,
+            is_default: true,
+            is_active: true,
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/neighborhoods/lookup?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => null,
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/addresses/neighborhoods/lookup?'),
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    });
+    expect(screen.getByTestId('service-areas-count')).toHaveTextContent('0');
+  });
+
+  it('does not let the lookup overwrite a manual service-area selection and aborts the request', async () => {
+    const deferredLookup = createDeferredResponse();
+
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'student_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    useUserAddressesMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 'addr-1',
+            street_line1: '123 Main St',
+            locality: 'New York',
+            administrative_area: 'NY',
+            postal_code: '10021',
+            country_code: 'US',
+            latitude: 40.775,
+            longitude: -73.955,
+            is_default: true,
+            is_active: true,
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/neighborhoods/lookup?')) {
+        return deferredLookup.promise;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    await waitFor(() => {
+      expect(fetchWithAuthMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/addresses/neighborhoods/lookup?'),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select Neighborhood' }));
+
+    const [, lookupOptions] = fetchWithAuthMock.mock.calls.find(([url]) =>
+      url.startsWith('/api/v1/addresses/neighborhoods/lookup?')
+    ) as [string, RequestInit];
+    expect(lookupOptions.signal).toBeInstanceOf(AbortSignal);
+    expect(lookupOptions.signal?.aborted).toBe(true);
+    expect(screen.getByTestId('service-areas-value')).toHaveTextContent('n1');
+
+    deferredLookup.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        display_key: 'nyc-manhattan-upper-east-side',
+        display_name: 'Upper East Side',
+        borough: 'Manhattan',
+      }),
+    } as Response);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('service-areas-value')).toHaveTextContent('n1');
+    });
   });
 });
