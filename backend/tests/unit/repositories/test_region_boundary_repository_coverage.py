@@ -126,12 +126,12 @@ class TestGetSimplifiedGeojsonByIds:
 
 
 # ------------------------------------------------------------------
-# find_region_ids_by_partial_names — lines 265->251, 270-271
+# find_region_ids_by_partial_names — batched lookup and rollback path
 # ------------------------------------------------------------------
 
 
 class TestFindRegionIdsByPartialNames:
-    """Cover the iteration and double-exception path."""
+    """Cover the batched lookup behavior and double-exception path."""
 
     def test_empty_names_returns_empty_dict(self) -> None:
         """Line 248-249: names is empty → return {} immediately."""
@@ -141,21 +141,38 @@ class TestFindRegionIdsByPartialNames:
 
         assert result == {}
 
-    def test_successful_lookup(self) -> None:
-        """Normal path: finds regions by name."""
+    def test_successful_lookup_batches_names_in_one_query(self) -> None:
+        """Normal path: finds multiple regions with a single execute call."""
         repo, mock_db = _make_repo()
 
-        row = MagicMock()
-        row.__getitem__ = MagicMock(return_value="region_id_1")
-        row.__bool__ = MagicMock(return_value=True)
-        mock_db.execute.return_value.first.return_value = row
+        execute_result = MagicMock()
+        execute_result.mappings.return_value.all.return_value = [
+            {"partial_name": "Brooklyn", "id": "region_id_1"},
+            {"partial_name": "Queens", "id": "region_id_2"},
+        ]
+        mock_db.execute.return_value = execute_result
 
-        result = repo.find_region_ids_by_partial_names(["Brooklyn"])
+        result = repo.find_region_ids_by_partial_names(["Brooklyn", "Queens"])
 
-        assert "Brooklyn" in result
+        assert result == {"Brooklyn": "region_id_1", "Queens": "region_id_2"}
+        mock_db.execute.assert_called_once()
 
-    def test_exception_per_name_with_rollback_failure(self) -> None:
-        """Lines 270-271: per-name exception → rollback also raises → continues loop."""
+    def test_unmatched_names_are_omitted(self) -> None:
+        """Only matched partial names are returned in the mapping."""
+        repo, mock_db = _make_repo()
+
+        execute_result = MagicMock()
+        execute_result.mappings.return_value.all.return_value = [
+            {"partial_name": "Brooklyn", "id": "region_id_1"},
+        ]
+        mock_db.execute.return_value = execute_result
+
+        result = repo.find_region_ids_by_partial_names(["Brooklyn", "Queens"])
+
+        assert result == {"Brooklyn": "region_id_1"}
+
+    def test_exception_with_rollback_failure(self) -> None:
+        """Execute raises → rollback also raises → returns empty dict."""
         repo, mock_db = _make_repo()
 
         mock_db.execute.side_effect = RuntimeError("query failed")
@@ -163,28 +180,8 @@ class TestFindRegionIdsByPartialNames:
 
         result = repo.find_region_ids_by_partial_names(["Brooklyn", "Queens"])
 
-        # Should return empty dict (all names failed) but not raise
         assert result == {}
-        assert mock_db.rollback.call_count == 2
-
-    def test_partial_failure_some_names_found(self) -> None:
-        """Line 265->251: mixed results — some found, some fail."""
-        repo, mock_db = _make_repo()
-
-        good_row = MagicMock()
-        good_row.__getitem__ = MagicMock(return_value="region_id_1")
-        good_row.__bool__ = MagicMock(return_value=True)
-
-        # First name succeeds, second name fails
-        mock_db.execute.side_effect = [
-            MagicMock(first=MagicMock(return_value=good_row)),
-            RuntimeError("query failed"),
-        ]
-
-        result = repo.find_region_ids_by_partial_names(["Brooklyn", "Queens"])
-
-        assert "Brooklyn" in result
-        assert "Queens" not in result
+        mock_db.rollback.assert_called_once()
 
 
 # ------------------------------------------------------------------

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import type { SelectionMode } from '@/components/neighborhoods/types';
+
+const MINIMUM_SELECTION_TOAST_ID = 'neighborhood-selection-minimum';
+const MINIMUM_SELECTION_TOAST_MESSAGE = 'At least one neighborhood must be selected.';
 
 type UseNeighborhoodSelectionOptions = {
   value?: string[];
@@ -101,6 +105,9 @@ export function useNeighborhoodSelection({
       if (selectionMode === 'multi') {
         if (next.has(normalizedKey)) {
           if (currentSelection.size === 1) {
+            toast.info(MINIMUM_SELECTION_TOAST_MESSAGE, {
+              id: MINIMUM_SELECTION_TOAST_ID,
+            });
             return;
           }
           next.delete(normalizedKey);
@@ -143,6 +150,9 @@ export function useNeighborhoodSelection({
         }
       }
       if (shouldBlockEmptyMultiSelection(selectionMode, currentSelection, next)) {
+        toast.info(MINIMUM_SELECTION_TOAST_MESSAGE, {
+          id: MINIMUM_SELECTION_TOAST_ID,
+        });
         return;
       }
       commitSelection(next);

@@ -328,29 +328,49 @@ class RegionBoundaryRepository:
         """Return a mapping from partial name to region id by simple ILIKE match (first result)."""
         if not names:
             return {}
-        result: dict[str, str] = {}
-        for n in names:
-            try:
-                row = self.db.execute(
+        try:
+            rows = (
+                self.db.execute(
                     text(
                         """
-                        SELECT id
-                        FROM region_boundaries
-                        WHERE region_type = :rtype AND region_name ILIKE :n
-                        ORDER BY region_name
-                        LIMIT 1
+                        WITH input_names AS (
+                            SELECT unnest(CAST(:names AS text[])) AS partial_name
+                        ),
+                        ranked_matches AS (
+                            SELECT
+                                input_names.partial_name,
+                                region_boundaries.id,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY input_names.partial_name
+                                    ORDER BY region_boundaries.region_name ASC, region_boundaries.id ASC
+                                ) AS row_number
+                            FROM input_names
+                            JOIN region_boundaries
+                              ON region_boundaries.region_type = :region_type
+                             AND LOWER(region_boundaries.region_name) LIKE
+                                 '%' || LOWER(input_names.partial_name) || '%'
+                        )
+                        SELECT partial_name, id
+                        FROM ranked_matches
+                        WHERE row_number = 1
                         """
                     ),
-                    {"rtype": region_type, "n": f"%{n}%"},
-                ).first()
-                if row and row[0]:
-                    result[n] = row[0]
+                    {"region_type": region_type, "names": names},
+                )
+                .mappings()
+                .all()
+            )
+            return {
+                str(row["partial_name"]): str(row["id"])
+                for row in rows
+                if row.get("partial_name") and row.get("id")
+            }
+        except Exception:
+            try:
+                self.db.rollback()
             except Exception:
-                try:
-                    self.db.rollback()
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
-        return result
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            return {}
 
     def resolve_display_keys_to_ids(
         self, display_keys: list[str], region_type: str = "nyc"

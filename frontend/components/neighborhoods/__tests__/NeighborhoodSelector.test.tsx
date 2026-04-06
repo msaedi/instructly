@@ -301,14 +301,19 @@ describe('NeighborhoodSelector', () => {
   });
 
   it('renders Marble Hill in both Bronx and Manhattan during search', async () => {
-    renderSelector();
+    const { container } = renderSelector();
     const user = userEvent.setup();
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+
+    expect(liveRegion).not.toBeNull();
+    expect(liveRegion).toHaveTextContent('');
 
     await user.type(screen.getByTestId('neighborhood-search-input'), 'Marble Hill');
 
     expect(screen.getAllByText('Kingsbridge / Marble Hill')).toHaveLength(2);
     expect(screen.getByTestId('neighborhood-borough-manhattan')).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('neighborhood-borough-bronx')).toHaveAttribute('aria-expanded', 'true');
+    expect(liveRegion).toHaveTextContent('1 neighborhoods found');
   });
 
   it('renders Upper East Side and Upper East Side / Roosevelt Island as separate chips', async () => {

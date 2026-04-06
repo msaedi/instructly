@@ -26,6 +26,10 @@ function boroughTestId(borough: string): string {
   return `neighborhood-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`;
 }
 
+function boroughPanelId(borough: string): string {
+  return `neighborhood-borough-panel-${borough.toLowerCase().replace(/\s+/g, '-')}`;
+}
+
 export function BoroughSection({
   borough,
   items,
@@ -44,6 +48,7 @@ export function BoroughSection({
   const selectedCount = items.filter((item) => selectedKeys.has(item.display_key)).length;
   const showCollapsedCount = !isExpanded && selectedCount > 0;
   const showExpandedCount = isExpanded;
+  const panelId = boroughPanelId(borough);
 
   return (
     <section className="rounded-2xl border border-gray-200/90 bg-white/90 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
@@ -53,6 +58,7 @@ export function BoroughSection({
           onClick={onToggleExpand}
           className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
           aria-expanded={isExpanded}
+          aria-controls={panelId}
           data-testid={boroughTestId(borough)}
         >
           <div className="min-w-0">
@@ -104,7 +110,12 @@ export function BoroughSection({
       </div>
 
       {isExpanded ? (
-        <div className="border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+        <div
+          id={panelId}
+          role="region"
+          aria-label={`${borough} neighborhoods`}
+          className="border-t border-gray-100 px-4 py-4 dark:border-gray-800"
+        >
           {items.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
               {searchActive ? 'No neighborhoods match this search.' : 'No neighborhoods available.'}

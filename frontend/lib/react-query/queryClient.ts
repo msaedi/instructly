@@ -126,6 +126,12 @@ export const queryKeys = {
     suggestions: (query: string) => ['search', 'suggestions', query] as const,
   },
 
+  // Neighborhood queries
+  neighborhoods: {
+    selector: (market: string) => ['neighborhoods', 'selector', market] as const,
+    polygons: (market: string) => ['neighborhoods', 'polygons', market] as const,
+  },
+
   // Services queries
   services: {
     all: ['services'] as const,

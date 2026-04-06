@@ -35,10 +35,12 @@ describe('BoroughSection', () => {
       />,
     );
 
-    expect(screen.getByTestId('neighborhood-borough-queens')).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    const toggle = screen.getByTestId('neighborhood-borough-queens');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', 'neighborhood-borough-panel-queens');
+    expect(
+      screen.getByRole('region', { name: 'Queens neighborhoods' }),
+    ).toHaveAttribute('id', 'neighborhood-borough-panel-queens');
     expect(screen.getByText('No neighborhoods available.')).toBeInTheDocument();
     expect(screen.queryByText('No matches')).not.toBeInTheDocument();
   });

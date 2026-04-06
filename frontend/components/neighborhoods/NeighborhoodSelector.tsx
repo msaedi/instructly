@@ -352,6 +352,9 @@ export function NeighborhoodSelector({
               onQueryChange={setQuery}
               placeholder={copy.searchPlaceholder}
             />
+            <div aria-live="polite" className="sr-only">
+              {searchActive ? `${matchByKey.size} neighborhoods found` : ''}
+            </div>
 
             <div className="mt-4 space-y-3">
               {visibleGroups.map((group) => (
