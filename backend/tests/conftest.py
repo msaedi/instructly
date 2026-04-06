@@ -384,6 +384,10 @@ def _ensure_boundary_columns(
     display_key_override: str | None | object = _UNSET,
     display_order_override: int | None | object = _UNSET,
 ) -> None:
+    current_display_name = getattr(boundary, "display_name", None)
+    current_display_key = getattr(boundary, "display_key", None)
+    current_display_order = getattr(boundary, "display_order", None)
+
     display_name = getattr(boundary, "display_name", None) or getattr(boundary, "region_name", None)
     if display_name_override is not _UNSET:
         display_name = display_name_override
@@ -416,24 +420,30 @@ def _ensure_boundary_columns(
         return
 
     has_boundary = bool(row[0]) if row else False
-    db.execute(
-        text(
-            """
-            UPDATE region_boundaries
-            SET display_name = :display_name,
-                display_key = :display_key,
-                display_order = :display_order
-            WHERE id = :id
-            """
-        ),
-        {
-            "id": boundary.id,
-            "display_name": getattr(boundary, "display_name", None),
-            "display_key": getattr(boundary, "display_key", None),
-            "display_order": getattr(boundary, "display_order", None),
-        },
+    display_dirty = (
+        current_display_name != getattr(boundary, "display_name", None)
+        or current_display_key != getattr(boundary, "display_key", None)
+        or current_display_order != getattr(boundary, "display_order", None)
     )
-    db.flush()
+    if display_dirty:
+        db.execute(
+            text(
+                """
+                UPDATE region_boundaries
+                SET display_name = :display_name,
+                    display_key = :display_key,
+                    display_order = :display_order
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": boundary.id,
+                "display_name": getattr(boundary, "display_name", None),
+                "display_key": getattr(boundary, "display_key", None),
+                "display_order": getattr(boundary, "display_order", None),
+            },
+        )
+        db.flush()
 
     if has_boundary:
         return
@@ -1662,7 +1672,6 @@ def cleanup_test_database() -> None:
 
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
-        _normalize_region_boundaries_to_canonical_nyc(cleanup_db)
         cleanup_db.commit()
     except Exception as e:  # pragma: no cover - cleanup best effort
         print(f"\n⚠️  Error during test cleanup: {e}")

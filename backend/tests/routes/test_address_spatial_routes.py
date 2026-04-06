@@ -1,4 +1,18 @@
 
+import pytest
+from sqlalchemy import text
+
+from app.core.ulid_helper import generate_ulid
+from app.models.region_boundary import RegionBoundary
+
+
+def _square_wkt(lng_min: float, lat_min: float, lng_max: float, lat_max: float) -> str:
+    return (
+        f"POLYGON(({lng_min} {lat_min},{lng_max} {lat_min},{lng_max} {lat_max},"
+        f"{lng_min} {lat_max},{lng_min} {lat_min}))"
+    )
+
+
 def test_neighborhood_selector_route(db, client):
     r = client.get("/api/v1/addresses/neighborhoods/selector", params={"market": "nyc"})
     assert r.status_code == 200
@@ -27,13 +41,62 @@ def test_neighborhood_polygons_route_rejects_unsupported_market(db, client):
 
 
 def test_neighborhood_lookup_route(db, client):
-    r = client.get(
-        "/api/v1/addresses/neighborhoods/lookup",
-        params={"market": "nyc", "lat": 40.7750, "lng": -73.9550},
+    try:
+        db.execute(text("SELECT postgis_full_version();"))
+    except Exception:
+        pytest.skip("PostGIS not available in test database")
+
+    boundary_id = generate_ulid()
+    boundary = RegionBoundary(
+        id=boundary_id,
+        region_type="nyc",
+        region_code=f"TST-{boundary_id[-6:]}",
+        region_name="Lookup Test Raw",
+        display_name="Lookup Test",
+        display_key="nyc-manhattan-lookup-test",
+        display_order=0,
+        parent_region="Manhattan",
     )
-    assert r.status_code == 200
-    data = r.json()
-    assert {"display_key", "display_name", "borough"}.issubset(data.keys())
+    db.add(boundary)
+    db.flush()
+
+    lat_min = 40.7745
+    lat_max = 40.7755
+    lng_min = -73.9555
+    lng_max = -73.9545
+    lat = (lat_min + lat_max) / 2
+    lng = (lng_min + lng_max) / 2
+    wkt = _square_wkt(lng_min, lat_min, lng_max, lat_max)
+
+    try:
+        db.execute(
+            text(
+                """
+                UPDATE region_boundaries
+                SET boundary = ST_Multi(ST_GeomFromText(:wkt, 4326)),
+                    centroid = ST_Centroid(ST_Multi(ST_GeomFromText(:wkt, 4326)))
+                WHERE id = :id
+                """
+            ),
+            {"id": boundary_id, "wkt": wkt},
+        )
+        db.commit()
+
+        r = client.get(
+            "/api/v1/addresses/neighborhoods/lookup",
+            params={"market": "nyc", "lat": lat, "lng": lng},
+        )
+        assert r.status_code == 200
+        assert r.json() == {
+            "display_key": "nyc-manhattan-lookup-test",
+            "display_name": "Lookup Test",
+            "borough": "Manhattan",
+        }
+    finally:
+        db.query(RegionBoundary).filter(RegionBoundary.id == boundary_id).delete(
+            synchronize_session=False
+        )
+        db.commit()
 
 
 def test_neighborhood_lookup_route_returns_null_for_no_match(db, client):
