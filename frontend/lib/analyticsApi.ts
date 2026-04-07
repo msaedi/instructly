@@ -7,10 +7,7 @@ import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type {
   CodebaseCategoryStats,
-  CodebaseSection,
-  CodebaseMetricsResponse,
   CodebaseHistoryEntry,
-  CodebaseHistoryResponse,
   DailySearchTrend,
   PopularSearch,
   SearchReferrer,
@@ -38,8 +35,6 @@ function apiBaseUrl(): string {
 // Re-export types for consumers
 export type {
   CodebaseCategoryStats,
-  CodebaseSection,
-  CodebaseMetricsResponse,
   CodebaseHistoryEntry,
   PopularSearch,
   SearchReferrer,
@@ -239,10 +234,7 @@ export const analyticsApi = {
   },
 
   // Codebase metrics
-  async getCodebaseMetrics(token: string): Promise<CodebaseMetricsResponse> {
-    return fetchWithAuth<CodebaseMetricsResponse>('/api/v1/analytics/codebase/metrics', token);
-  },
-  async getCodebaseHistory(token: string): Promise<CodebaseHistoryResponse> {
-    return fetchWithAuth<CodebaseHistoryResponse>('/api/v1/analytics/codebase/history', token);
+  async getCodebaseMetrics(token: string): Promise<CodebaseHistoryEntry[]> {
+    return fetchWithAuth<CodebaseHistoryEntry[]>('/api/v1/analytics/codebase/metrics', token);
   },
 };

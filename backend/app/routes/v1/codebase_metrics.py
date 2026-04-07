@@ -1,54 +1,17 @@
-"""
-backend/app/routes/v1/codebase_metrics.py
-
-API endpoints to expose codebase metrics gathered by the existing
-script at backend/scripts/codebase_metrics.py. This runs the script
-with the --json flag and returns the parsed result. Access is gated
-behind the VIEW_SYSTEM_ANALYTICS permission, consistent with other
-admin analytics endpoints.
-"""
+"""Read-only codebase metrics routes backed by the committed history file."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-import re
-from typing import Any, Dict, List
+from typing import Any, List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-
-
-def _normalize_timestamp(ts: str | None) -> str | None:
-    """Ensure timestamp has timezone info (RFC 3339 compliant).
-
-    Timestamps in metrics_history.json may be missing timezone designator.
-    This function adds 'Z' (UTC) suffix to naive timestamps to make them valid
-    RFC 3339 / JSON Schema date-time format.
-    """
-    if ts is None:
-        return None
-    # If already has timezone info (Z, +HH:MM, or -HH:MM), return as-is
-    if re.search(r"(Z|[+-]\d{2}:\d{2})$", ts):
-        return ts
-    # Add UTC timezone designator
-    return ts + "Z"
-
 
 from ...core.enums import PermissionName
 from ...dependencies.permissions import require_permission
 from ...models.user import User
-from ...schemas.codebase_metrics_responses import (
-    AppendHistoryResponse,
-    CodebaseCategoryStats,
-    CodebaseFileInfo,
-    CodebaseHistoryEntry,
-    CodebaseHistoryResponse,
-    CodebaseMetricsResponse,
-    CodebaseMetricsSummary,
-    CodebaseSection,
-    GitStats,
-)
-from ...utils.codebase_metrics import collect_codebase_metrics
+from ...schemas.codebase_metrics_models import CodebaseHistoryEntry
 
 router = APIRouter(
     tags=["analytics"],
@@ -59,11 +22,8 @@ router = APIRouter(
 def _get_project_root() -> Path:
     """Resolve repository root (directory containing backend and frontend)."""
     here = Path(__file__).resolve()
-    # __file__ = backend/app/routes/v1/codebase_metrics.py
-    # repo_root = here.parents[4]
     repo_root = here.parents[4]
     if not (repo_root / "backend").exists() or not (repo_root / "frontend").exists():
-        # Fallback: search upwards
         current = here
         while current != current.parent:
             if (current / "backend").exists() and (current / "frontend").exists():
@@ -72,162 +32,47 @@ def _get_project_root() -> Path:
     return repo_root
 
 
-def _run_codebase_metrics_script(repo_root: Path) -> Dict[str, Any]:
-    """Execute the metrics script with --json and return parsed output."""
-    try:
-        return collect_codebase_metrics(repo_root)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to run metrics script: {str(e)}",
-        )
-
-
-@router.get("/metrics", response_model=CodebaseMetricsResponse)
-async def get_codebase_metrics(
-    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> CodebaseMetricsResponse:
-    """Return the current codebase metrics as JSON."""
-    repo_root = _get_project_root()
-    data = _run_codebase_metrics_script(repo_root)
-    return CodebaseMetricsResponse(**data)
-
-
-@router.get("/history", response_model=CodebaseHistoryResponse)
-async def get_codebase_metrics_history(
-    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> CodebaseHistoryResponse:
-    """Return historical metrics from metrics_history.json if present."""
-    repo_root = _get_project_root()
+def _read_metrics_history(repo_root: Path) -> List[dict[str, Any]]:
+    """Read the committed metrics history file from the repository root."""
     history_file = repo_root / "metrics_history.json"
     if not history_file.exists():
-        # If missing, trigger a fresh run to seed current state
-        current = _run_codebase_metrics_script(repo_root)
-        return CodebaseHistoryResponse(items=[], current=current)
-
-    try:
-        with open(history_file, "r") as f:
-            history: List[Dict[str, Any]] = json.load(f)
-    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to read history: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "metrics_history.json was not found in the repository root. "
+                "Generate it locally with `python backend/scripts/codebase_metrics.py > "
+                "metrics_history.json` or install the pre-push hook with "
+                "`pre-commit install --hook-type pre-push`."
+            ),
         )
 
-    # Normalize timestamps to RFC 3339 format (legacy data may be missing timezone)
-    for entry in history:
-        if "timestamp" in entry:
-            entry["timestamp"] = _normalize_timestamp(entry["timestamp"])
+    try:
+        with history_file.open("r", encoding="utf-8") as handle:
+            history = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse metrics_history.json: {exc}",
+        )
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read metrics_history.json: {exc}",
+        )
 
-    # Let Pydantic coerce the list entries
-    return CodebaseHistoryResponse(items=history[-200:])
+    if not isinstance(history, list):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="metrics_history.json must contain a JSON array.",
+        )
+
+    return history
 
 
-@router.post("/history/append", response_model=AppendHistoryResponse)
-async def append_codebase_metrics_history(
+@router.get("/metrics", response_model=List[CodebaseHistoryEntry])
+async def get_codebase_metrics(
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> AppendHistoryResponse:
-    """Append current snapshot to metrics_history.json to persist trends."""
+) -> List[CodebaseHistoryEntry]:
+    """Return the committed codebase metrics history as raw JSON."""
     repo_root = _get_project_root()
-    history_file = repo_root / "metrics_history.json"
-
-    # Compute current snapshot
-    current = _run_codebase_metrics_script(repo_root)
-
-    entry = {
-        "timestamp": current.get("timestamp"),
-        "total_lines": current.get("summary", {}).get("total_lines", 0),
-        "total_files": current.get("summary", {}).get("total_files", 0),
-        "backend_lines": current.get("backend", {}).get("total_lines", 0),
-        "frontend_lines": current.get("frontend", {}).get("total_lines", 0),
-        "git_commits": current.get("git", {}).get("total_commits", 0),
-        "categories": {
-            "backend": current.get("backend", {}).get("categories", {}),
-            "frontend": current.get("frontend", {}).get("categories", {}),
-        },
-    }
-
-    # Load existing history
-    history: List[Dict[str, Any]] = []
-    if history_file.exists():
-        try:
-            with open(history_file, "r") as f:
-                history = json.load(f)
-        except Exception:
-            history = []
-
-    history.append(entry)
-    history = history[-1000:]
-
-    try:
-        with open(history_file, "w") as f:
-            json.dump(history, f, indent=2)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to write history: {str(e)}",
-        )
-
-    return AppendHistoryResponse(status="ok", count=len(history))
-
-
-# ---------------------------------------------------------------------------
-# Schema reference endpoints (hidden) to satisfy response model coverage tests
-# These endpoints are excluded from the public schema and return empty arrays.
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/_schemas/codebase/history-entry",
-    response_model=List[CodebaseHistoryEntry],
-    include_in_schema=False,
-)
-async def _schema_ref_history_entry() -> List[CodebaseHistoryEntry]:
-    return []
-
-
-@router.get(
-    "/_schemas/codebase/category-stats",
-    response_model=List[CodebaseCategoryStats],
-    include_in_schema=False,
-)
-async def _schema_ref_category_stats() -> List[CodebaseCategoryStats]:
-    return []
-
-
-@router.get(
-    "/_schemas/codebase/section",
-    response_model=List[CodebaseSection],
-    include_in_schema=False,
-)
-async def _schema_ref_section() -> List[CodebaseSection]:
-    return []
-
-
-@router.get(
-    "/_schemas/codebase/file-info",
-    response_model=List[CodebaseFileInfo],
-    include_in_schema=False,
-)
-async def _schema_ref_file_info() -> List[CodebaseFileInfo]:
-    return []
-
-
-@router.get(
-    "/_schemas/codebase/git-stats",
-    response_model=List[GitStats],
-    include_in_schema=False,
-)
-async def _schema_ref_git_stats() -> List[GitStats]:
-    return []
-
-
-@router.get(
-    "/_schemas/codebase/summary",
-    response_model=List[CodebaseMetricsSummary],
-    include_in_schema=False,
-)
-async def _schema_ref_summary() -> List[CodebaseMetricsSummary]:
-    return []
+    return cast(List[CodebaseHistoryEntry], _read_metrics_history(repo_root))

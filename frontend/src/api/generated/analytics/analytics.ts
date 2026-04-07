@@ -22,7 +22,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AppendHistoryResponse,
   CandidateCategoryTrendsResponse,
   CandidateScoreDistributionResponse,
   CandidateServiceQueriesApiV1AnalyticsSearchCandidatesQueriesGetParams,
@@ -33,8 +32,7 @@ import type {
   CandidatesScoreDistributionApiV1AnalyticsSearchCandidatesScoreDistributionGetParams,
   CandidatesSummaryApiV1AnalyticsSearchCandidatesSummaryGetParams,
   CandidatesTopServicesApiV1AnalyticsSearchCandidatesTopServicesGetParams,
-  CodebaseHistoryResponse,
-  CodebaseMetricsResponse,
+  CodebaseHistoryEntry,
   ConversionMetricsResponse,
   ExportAnalyticsApiV1AnalyticsExportPostParams,
   ExportAnalyticsResponse,
@@ -58,255 +56,7 @@ import type { ErrorType } from '../../orval-mutator';
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Return historical metrics from metrics_history.json if present.
- * @summary Get Codebase Metrics History
- */
-export const getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetUrl = () => {
-  return `/api/v1/analytics/codebase/history`;
-};
-
-export const getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet = async (
-  options?: RequestInit
-): Promise<CodebaseHistoryResponse> => {
-  return customFetch<CodebaseHistoryResponse>(
-    getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetUrl(),
-    {
-      ...options,
-      method: 'GET',
-    }
-  );
-};
-
-export const getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryKey = () => {
-  return [`/api/v1/analytics/codebase/history`] as const;
-};
-
-export const getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-  TError = ErrorType<void>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>
-  > = ({ signal }) =>
-    getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet({ signal, ...requestOptions });
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>
->;
-export type GetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryError = ErrorType<void>;
-
-export function useGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet<
-  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-  TError = ErrorType<void>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-          TError,
-          Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>
-        >,
-        'initialData'
-      >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet<
-  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-  TError = ErrorType<void>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-          TError,
-          Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>
-        >,
-        'initialData'
-      >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet<
-  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-  TError = ErrorType<void>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Codebase Metrics History
- */
-
-export function useGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet<
-  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-  TError = ErrorType<void>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * Append current snapshot to metrics_history.json to persist trends.
- * @summary Append Codebase Metrics History
- */
-export const getAppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostUrl = () => {
-  return `/api/v1/analytics/codebase/history/append`;
-};
-
-export const appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost = async (
-  options?: RequestInit
-): Promise<AppendHistoryResponse> => {
-  return customFetch<AppendHistoryResponse>(
-    getAppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostUrl(),
-    {
-      ...options,
-      method: 'POST',
-    }
-  );
-};
-
-export const getAppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostMutationOptions =
-  <TError = ErrorType<void>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>
-      >,
-      TError,
-      void,
-      TContext
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>>,
-    TError,
-    void,
-    TContext
-  > => {
-    const mutationKey = ['appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost'];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>
-      >,
-      void
-    > = () => {
-      return appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost(requestOptions);
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type AppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>>
-  >;
-
-export type AppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostMutationError =
-  ErrorType<void>;
-
-/**
- * @summary Append Codebase Metrics History
- */
-export const useAppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost = <
-  TError = ErrorType<void>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>
-      >,
-      TError,
-      void,
-      TContext
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPost>>,
-  TError,
-  void,
-  TContext
-> => {
-  return useMutation(
-    getAppendCodebaseMetricsHistoryApiV1AnalyticsCodebaseHistoryAppendPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Return the current codebase metrics as JSON.
+ * Return the committed codebase metrics history as raw JSON.
  * @summary Get Codebase Metrics
  */
 export const getGetCodebaseMetricsApiV1AnalyticsCodebaseMetricsGetUrl = () => {
@@ -315,8 +65,8 @@ export const getGetCodebaseMetricsApiV1AnalyticsCodebaseMetricsGetUrl = () => {
 
 export const getCodebaseMetricsApiV1AnalyticsCodebaseMetricsGet = async (
   options?: RequestInit
-): Promise<CodebaseMetricsResponse> => {
-  return customFetch<CodebaseMetricsResponse>(
+): Promise<CodebaseHistoryEntry[]> => {
+  return customFetch<CodebaseHistoryEntry[]>(
     getGetCodebaseMetricsApiV1AnalyticsCodebaseMetricsGetUrl(),
     {
       ...options,

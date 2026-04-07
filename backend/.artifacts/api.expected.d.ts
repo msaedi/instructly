@@ -2351,38 +2351,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/analytics/codebase/history": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_codebase_metrics_history_api_v1_analytics_codebase_history_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/v1/analytics/codebase/history/append": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/v1/analytics/codebase/metrics": {
  parameters: {
  query?: never;
@@ -6798,10 +6766,6 @@ export type components = {
  rendered_content: components["schemas"]["RenderedContent"];
  warnings?: string[];
  };
- AppendHistoryResponse: {
- count: number;
- status: string;
- };
  ApplyToDateRangeRequest: {
  end_date: string;
  from_week_start: string;
@@ -7825,48 +7789,24 @@ export type components = {
  files: number;
  lines: number;
  };
- CodebaseFileInfo: {
- lines: number;
- lines_with_blanks: number;
- path: string;
- size_kb: number;
- };
  CodebaseHistoryEntry: {
+ backend_files?: number | null;
  backend_lines: number;
+ branch?: string | null;
  categories?: {
  [key: string]: {
  [key: string]: components["schemas"]["CodebaseCategoryStats"];
  };
  } | null;
+ first_commit_date?: string | null;
+ frontend_files?: number | null;
  frontend_lines: number;
  git_commits: number;
+ last_commit_date?: string | null;
  timestamp: string;
  total_files: number;
  total_lines: number;
- };
- CodebaseHistoryResponse: {
- current?: components["schemas"]["CodebaseMetricsResponse"] | null;
- items?: components["schemas"]["CodebaseHistoryEntry"][];
- };
- CodebaseMetricsResponse: {
- backend: components["schemas"]["CodebaseSection"];
- frontend: components["schemas"]["CodebaseSection"];
- git: components["schemas"]["GitStats"];
- summary: components["schemas"]["CodebaseMetricsSummary"];
- timestamp: string;
- };
- CodebaseMetricsSummary: {
- total_files: number;
- total_lines: number;
- };
- CodebaseSection: {
- categories?: {
- [key: string]: components["schemas"]["CodebaseCategoryStats"];
- };
- largest_files?: components["schemas"]["CodebaseFileInfo"][];
- total_files: number;
- total_lines: number;
- total_lines_with_blanks: number;
+ unique_contributors?: number | null;
  };
  CohortData: {
  cohort_label: string;
@@ -8404,13 +8344,6 @@ export type components = {
  };
  GenerateBioResponse: {
  bio: string;
- };
- GitStats: {
- current_branch: string;
- first_commit: string;
- last_commit: string;
- total_commits: number;
- unique_contributors: number;
  };
  GuestConversionMetrics: {
  conversion_rate: number;
@@ -16246,56 +16179,6 @@ export interface operations {
  };
  };
  };
- get_codebase_metrics_history_api_v1_analytics_codebase_history_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CodebaseHistoryResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AppendHistoryResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
  get_codebase_metrics_api_v1_analytics_codebase_metrics_get: {
  parameters: {
  query?: never;
@@ -16310,7 +16193,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["CodebaseMetricsResponse"];
+ "application/json": components["schemas"]["CodebaseHistoryEntry"][];
  };
  };
  404: {

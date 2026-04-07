@@ -1144,12 +1144,6 @@ export interface AnnouncementPreviewResponse {
   warnings?: string[];
 }
 
-export interface AppendHistoryResponse {
-  /** @minimum 0 */
-  count: number;
-  status: string;
-}
-
 /**
  * Schema for applying a week pattern to a date range.
  */
@@ -2981,76 +2975,29 @@ export interface CodebaseCategoryStats {
   lines: number;
 }
 
-export interface CodebaseFileInfo {
-  /** @minimum 0 */
-  lines: number;
-  /** @minimum 0 */
-  lines_with_blanks: number;
-  path: string;
-  /** @minimum 0 */
-  size_kb: number;
-}
-
 export type CodebaseHistoryEntryCategories = {
   [key: string]: { [key: string]: CodebaseCategoryStats };
 } | null;
 
 export interface CodebaseHistoryEntry {
+  backend_files?: number | null;
   /** @minimum 0 */
   backend_lines: number;
+  branch?: string | null;
   categories?: CodebaseHistoryEntryCategories;
+  first_commit_date?: string | null;
+  frontend_files?: number | null;
   /** @minimum 0 */
   frontend_lines: number;
   /** @minimum 0 */
   git_commits: number;
+  last_commit_date?: string | null;
   timestamp: string;
   /** @minimum 0 */
   total_files: number;
   /** @minimum 0 */
   total_lines: number;
-}
-
-export type CodebaseSectionCategories = { [key: string]: CodebaseCategoryStats };
-
-export interface CodebaseSection {
-  categories?: CodebaseSectionCategories;
-  largest_files?: CodebaseFileInfo[];
-  /** @minimum 0 */
-  total_files: number;
-  /** @minimum 0 */
-  total_lines: number;
-  /** @minimum 0 */
-  total_lines_with_blanks: number;
-}
-
-export interface GitStats {
-  current_branch: string;
-  first_commit: string;
-  last_commit: string;
-  /** @minimum 0 */
-  total_commits: number;
-  /** @minimum 0 */
-  unique_contributors: number;
-}
-
-export interface CodebaseMetricsSummary {
-  /** @minimum 0 */
-  total_files: number;
-  /** @minimum 0 */
-  total_lines: number;
-}
-
-export interface CodebaseMetricsResponse {
-  backend: CodebaseSection;
-  frontend: CodebaseSection;
-  git: GitStats;
-  summary: CodebaseMetricsSummary;
-  timestamp: string;
-}
-
-export interface CodebaseHistoryResponse {
-  current?: CodebaseMetricsResponse | null;
-  items?: CodebaseHistoryEntry[];
+  unique_contributors?: number | null;
 }
 
 export interface CohortData {

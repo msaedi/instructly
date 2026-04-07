@@ -608,7 +608,7 @@ Distributed task queue for background job processing using Redis as the message 
 |----------|-------|----------|
 | **Payments** | Authorization, capture, retry, health check, payout audit | Every 5-60 min |
 | **Notifications** | Dispatch pending, booking reminders | Every 15-30 sec |
-| **Analytics** | Calculate metrics, daily reports, codebase metrics | 2:30 AM/PM |
+| **Analytics** | Calculate metrics, daily reports | 2:30 AM/PM |
 | **Search** | Metrics calculation, insights, location alias learning | Hourly/Daily |
 | **Privacy** | Data retention, search cleanup, privacy reports | Daily/Weekly |
 | **Referrals** | Unlock rewards, instructor payouts | Every 15-60 min |

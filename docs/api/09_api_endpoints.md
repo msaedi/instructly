@@ -554,19 +554,11 @@ Platform analytics (admin only).
 
 ## Codebase Metrics (`/api/v1/analytics/codebase`)
 
-Development metrics tracking.
+Committed codebase history used by the admin dashboard.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/metrics` | Get codebase metrics |
-| GET | `/history` | Get metrics history |
-| POST | `/history/append` | Append to history |
-| GET | `/test-counts` | Test counts |
-| GET | `/doc-coverage` | Documentation coverage |
-| GET | `/type-safety` | Type safety metrics |
-| GET | `/architecture` | Architecture metrics |
-| GET | `/performance` | Performance metrics |
-| GET | `/compliance` | Compliance metrics |
+| GET | `/metrics` | Read the committed `metrics_history.json` history array |
 
 ---
 

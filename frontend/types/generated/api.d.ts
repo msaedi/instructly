@@ -2819,46 +2819,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/analytics/codebase/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Codebase Metrics History
-         * @description Return historical metrics from metrics_history.json if present.
-         */
-        get: operations["get_codebase_metrics_history_api_v1_analytics_codebase_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/codebase/history/append": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Append Codebase Metrics History
-         * @description Append current snapshot to metrics_history.json to persist trends.
-         */
-        post: operations["append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/analytics/codebase/metrics": {
         parameters: {
             query?: never;
@@ -2868,7 +2828,7 @@ export type paths = {
         };
         /**
          * Get Codebase Metrics
-         * @description Return the current codebase metrics as JSON.
+         * @description Return the committed codebase metrics history as raw JSON.
          */
         get: operations["get_codebase_metrics_api_v1_analytics_codebase_metrics_get"];
         put?: never;
@@ -9755,13 +9715,6 @@ export type components = {
             /** Warnings */
             warnings?: string[];
         };
-        /** AppendHistoryResponse */
-        AppendHistoryResponse: {
-            /** Count */
-            count: number;
-            /** Status */
-            status: string;
-        };
         /**
          * ApplyToDateRangeRequest
          * @description Schema for applying a week pattern to a date range.
@@ -12425,31 +12378,30 @@ export type components = {
             /** Lines */
             lines: number;
         };
-        /** CodebaseFileInfo */
-        CodebaseFileInfo: {
-            /** Lines */
-            lines: number;
-            /** Lines With Blanks */
-            lines_with_blanks: number;
-            /** Path */
-            path: string;
-            /** Size Kb */
-            size_kb: number;
-        };
         /** CodebaseHistoryEntry */
         CodebaseHistoryEntry: {
+            /** Backend Files */
+            backend_files?: number | null;
             /** Backend Lines */
             backend_lines: number;
+            /** Branch */
+            branch?: string | null;
             /** Categories */
             categories?: {
                 [key: string]: {
                     [key: string]: components["schemas"]["CodebaseCategoryStats"];
                 };
             } | null;
+            /** First Commit Date */
+            first_commit_date?: string | null;
+            /** Frontend Files */
+            frontend_files?: number | null;
             /** Frontend Lines */
             frontend_lines: number;
             /** Git Commits */
             git_commits: number;
+            /** Last Commit Date */
+            last_commit_date?: string | null;
             /**
              * Timestamp
              * Format: date-time
@@ -12459,46 +12411,8 @@ export type components = {
             total_files: number;
             /** Total Lines */
             total_lines: number;
-        };
-        /** CodebaseHistoryResponse */
-        CodebaseHistoryResponse: {
-            current?: components["schemas"]["CodebaseMetricsResponse"] | null;
-            /** Items */
-            items?: components["schemas"]["CodebaseHistoryEntry"][];
-        };
-        /** CodebaseMetricsResponse */
-        CodebaseMetricsResponse: {
-            backend: components["schemas"]["CodebaseSection"];
-            frontend: components["schemas"]["CodebaseSection"];
-            git: components["schemas"]["GitStats"];
-            summary: components["schemas"]["CodebaseMetricsSummary"];
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-        };
-        /** CodebaseMetricsSummary */
-        CodebaseMetricsSummary: {
-            /** Total Files */
-            total_files: number;
-            /** Total Lines */
-            total_lines: number;
-        };
-        /** CodebaseSection */
-        CodebaseSection: {
-            /** Categories */
-            categories?: {
-                [key: string]: components["schemas"]["CodebaseCategoryStats"];
-            };
-            /** Largest Files */
-            largest_files?: components["schemas"]["CodebaseFileInfo"][];
-            /** Total Files */
-            total_files: number;
-            /** Total Lines */
-            total_lines: number;
-            /** Total Lines With Blanks */
-            total_lines_with_blanks: number;
+            /** Unique Contributors */
+            unique_contributors?: number | null;
         };
         /** CohortData */
         CohortData: {
@@ -14063,19 +13977,6 @@ export type components = {
         GenerateBioResponse: {
             /** Bio */
             bio: string;
-        };
-        /** GitStats */
-        GitStats: {
-            /** Current Branch */
-            current_branch: string;
-            /** First Commit */
-            first_commit: string;
-            /** Last Commit */
-            last_commit: string;
-            /** Total Commits */
-            total_commits: number;
-            /** Unique Contributors */
-            unique_contributors: number;
         };
         /**
          * GuestConversionMetrics
@@ -28225,60 +28126,6 @@ export interface operations {
             };
         };
     };
-    get_codebase_metrics_history_api_v1_analytics_codebase_history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CodebaseHistoryResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AppendHistoryResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     get_codebase_metrics_api_v1_analytics_codebase_metrics_get: {
         parameters: {
             query?: never;
@@ -28294,7 +28141,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CodebaseMetricsResponse"];
+                    "application/json": components["schemas"]["CodebaseHistoryEntry"][];
                 };
             };
             /** @description Not found */

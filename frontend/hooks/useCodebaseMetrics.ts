@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { analyticsApi, CodebaseMetricsResponse, CodebaseHistoryEntry } from '@/lib/analyticsApi';
+import { analyticsApi } from '@/lib/analyticsApi';
+import type { CodebaseHistoryEntry } from '@/lib/analyticsApi';
 
 interface UseCodebaseMetricsReturn {
-  data: CodebaseMetricsResponse | null;
+  data: CodebaseHistoryEntry | null;
   history: CodebaseHistoryEntry[] | null;
   loading: boolean;
   error: string | null;
@@ -12,7 +13,7 @@ interface UseCodebaseMetricsReturn {
 }
 
 export function useCodebaseMetrics(token?: string | null): UseCodebaseMetricsReturn {
-  const [data, setData] = useState<CodebaseMetricsResponse | null>(null);
+  const [data, setData] = useState<CodebaseHistoryEntry | null>(null);
   const [history, setHistory] = useState<CodebaseHistoryEntry[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,12 +22,10 @@ export function useCodebaseMetrics(token?: string | null): UseCodebaseMetricsRet
     setLoading(true);
     setError(null);
     try {
-      const [snapshot, hist] = await Promise.all([
-        analyticsApi.getCodebaseMetrics(token ?? ''),
-        analyticsApi.getCodebaseHistory(token ?? ''),
-      ]);
-      setData(snapshot);
-      setHistory(hist.items || []);
+      const entries = await analyticsApi.getCodebaseMetrics(token ?? '');
+      const nextHistory = Array.isArray(entries) ? entries : [];
+      setHistory(nextHistory);
+      setData(nextHistory.at(-1) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch codebase metrics');
     } finally {
