@@ -11,12 +11,50 @@ import { RefreshCw, GitBranch, FileCode2, Layers } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+function normalizeHistoryTimestamp(value: string): string {
+  return /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`;
+}
+
+function formatHistoryDate(value: string): string {
+  return new Date(normalizeHistoryTimestamp(value)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatMetricDate(value?: string | null): string {
+  return value ?? '—';
+}
+
 export default function CodebaseMetricsPage() {
   const router = useRouter();
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
-  const token = null;
   const { logout } = useAuth();
-  const { data, history, loading, error, refetch } = useCodebaseMetrics(token);
+  const { data, isLoading, isFetching, error, refetch } = useCodebaseMetrics();
+  const historyEntries = data ?? [];
+  const currentMetrics = historyEntries.at(-1) ?? null;
+  const backendCategoryMap = currentMetrics?.categories?.['backend'];
+  const frontendCategoryMap = currentMetrics?.categories?.['frontend'];
+  const backendCategories = backendCategoryMap
+    ? (Object.entries(backendCategoryMap) as [string, CodebaseCategoryStats][])
+    : [];
+  const frontendCategories = frontendCategoryMap
+    ? (Object.entries(frontendCategoryMap) as [string, CodebaseCategoryStats][])
+    : [];
+  const filesHistory = historyEntries.map((entry) => ({
+    date: formatHistoryDate(entry.timestamp),
+    total_files: entry.total_files,
+  }));
+  const linesHistory = historyEntries.map((entry) => ({
+    date: formatHistoryDate(entry.timestamp),
+    total_lines: entry.total_lines,
+    backend_lines: entry.backend_lines,
+    frontend_lines: entry.frontend_lines,
+  }));
+  const commitsHistory = historyEntries.map((entry) => ({
+    date: formatHistoryDate(entry.timestamp),
+    commits: entry.git_commits,
+  }));
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -24,7 +62,7 @@ export default function CodebaseMetricsPage() {
     }
   }, [authLoading, isAdmin, router]);
 
-  if (authLoading || (!isAdmin && !authLoading)) {
+  if (authLoading || isLoading || (!isAdmin && !authLoading)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -42,8 +80,8 @@ export default function CodebaseMetricsPage() {
               <h1 className="text-xl font-semibold">Codebase Analytics</h1>
             </div>
             <div className="flex items-center space-x-3">
-              <button onClick={refetch} disabled={loading} className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50" title="Refresh data">
-                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              <button onClick={() => void refetch()} disabled={isFetching} className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50" title="Refresh data">
+                <RefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
               </button>
               <button onClick={() => void logout()} className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 cursor-pointer">Log out</button>
             </div>
@@ -59,7 +97,7 @@ export default function CodebaseMetricsPage() {
           <div className="col-span-12 md:col-span-9 lg:col-span-9">
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-red-700 dark:text-red-300">{error}</p>
+                <p className="text-red-700 dark:text-red-300">{error.message}</p>
               </div>
             )}
 
@@ -69,58 +107,99 @@ export default function CodebaseMetricsPage() {
                   <FileCode2 className="h-5 w-5 text-indigo-600" />
                   <span className="text-sm">Total Files</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.summary.total_files?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.total_files?.toLocaleString() ?? '—'}</div>
               </div>
               <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6">
                 <div className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                   <Layers className="h-5 w-5 text-green-600" />
                   <span className="text-sm">Total Lines</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.summary.total_lines?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.total_lines?.toLocaleString() ?? '—'}</div>
               </div>
               <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6">
                 <div className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                   <GitBranch className="h-5 w-5 text-rose-600" />
                   <span className="text-sm">Total Commits</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.total_commits?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.git_commits?.toLocaleString() ?? '—'}</div>
               </div>
             </div>
 
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Overview</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Backend Files: {data?.backend.total_files?.toLocaleString() ?? '—'} • Frontend Files: {data?.frontend.total_files?.toLocaleString() ?? '—'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Backend Files: {currentMetrics?.backend_files?.toLocaleString() ?? '—'} • Frontend Files:{' '}
+                {currentMetrics?.frontend_files?.toLocaleString() ?? '—'}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 mt-8">
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Backend (Python)</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Files: {data?.backend.total_files?.toLocaleString() ?? '—'} • Lines: {data?.backend.total_lines?.toLocaleString() ?? '—'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  Files: {currentMetrics?.backend_files?.toLocaleString() ?? '—'} • Lines:{' '}
+                  {currentMetrics?.backend_lines?.toLocaleString() ?? '—'}
+                </p>
                 <div className="space-y-3">
-                  {data && (Object.entries(data.backend.categories || {}) as [string, CodebaseCategoryStats][])?.map(([name, stats]) => (
-                    <div key={name} className="flex items-center gap-3">
-                      <div className="w-40 shrink-0 text-sm text-gray-700 dark:text-gray-300">{name}</div>
-                      <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                        <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, (stats.lines / Math.max(1, data.backend.total_lines)) * 100).toFixed(2)}%` }} />
+                  {backendCategories.length > 0 ? (
+                    backendCategories.map(([name, stats]) => (
+                      <div key={name} className="flex items-center gap-3">
+                        <div className="w-40 shrink-0 text-sm text-gray-700 dark:text-gray-300">{name}</div>
+                        <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (stats.lines / Math.max(1, currentMetrics?.backend_lines ?? 0)) * 100
+                              ).toFixed(2)}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="w-36 text-right text-xs text-gray-600 dark:text-gray-400">
+                          {stats.files.toLocaleString()} files • {stats.lines.toLocaleString()} lines
+                        </div>
                       </div>
-                      <div className="w-36 text-right text-xs text-gray-600 dark:text-gray-400">{stats.files.toLocaleString()} files • {stats.lines.toLocaleString()} lines</div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      No categorized backend breakdown recorded yet.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Frontend (TS/JS)</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Files: {data?.frontend.total_files?.toLocaleString() ?? '—'} • Lines: {data?.frontend.total_lines?.toLocaleString() ?? '—'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  Files: {currentMetrics?.frontend_files?.toLocaleString() ?? '—'} • Lines:{' '}
+                  {currentMetrics?.frontend_lines?.toLocaleString() ?? '—'}
+                </p>
                 <div className="space-y-3">
-                  {data && (Object.entries(data.frontend.categories || {}) as [string, CodebaseCategoryStats][])?.map(([name, stats]) => (
-                    <div key={name} className="flex items-center gap-3">
-                      <div className="w-40 shrink-0 text-sm text-gray-700 dark:text-gray-300">{name}</div>
-                      <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                        <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (stats.lines / Math.max(1, data.frontend.total_lines)) * 100).toFixed(2)}%` }} />
+                  {frontendCategories.length > 0 ? (
+                    frontendCategories.map(([name, stats]) => (
+                      <div key={name} className="flex items-center gap-3">
+                        <div className="w-40 shrink-0 text-sm text-gray-700 dark:text-gray-300">{name}</div>
+                        <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (stats.lines / Math.max(1, currentMetrics?.frontend_lines ?? 0)) * 100
+                              ).toFixed(2)}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="w-36 text-right text-xs text-gray-600 dark:text-gray-400">
+                          {stats.files.toLocaleString()} files • {stats.lines.toLocaleString()} lines
+                        </div>
                       </div>
-                      <div className="w-36 text-right text-xs text-gray-600 dark:text-gray-400">{stats.files.toLocaleString()} files • {stats.lines.toLocaleString()} lines</div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      No categorized frontend breakdown recorded yet.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -128,10 +207,10 @@ export default function CodebaseMetricsPage() {
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Git Statistics</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Contributors</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.unique_contributors ?? '—'}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">First commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.first_commit ?? '—'}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Last commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.last_commit ?? '—'}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Branch</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.current_branch ?? '—'}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Contributors</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.unique_contributors ?? '—'}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">First commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.first_commit_date)}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Last commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.last_commit_date)}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Branch</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.branch)}</div></div>
               </div>
             </div>
 
@@ -139,9 +218,9 @@ export default function CodebaseMetricsPage() {
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Files Over Time</h2>
                 <div className="h-64">
-                  {history && history.length > 0 ? (
+                  {filesHistory.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: { timestamp: string; total_files: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_files: h.total_files }))}>
+                      <LineChart data={filesHistory}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
@@ -157,9 +236,9 @@ export default function CodebaseMetricsPage() {
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Lines Over Time</h2>
                 <div className="h-64">
-                  {history && history.length > 0 ? (
+                  {linesHistory.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: { timestamp: string; total_lines: number; backend_lines: number; frontend_lines: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_lines: h.total_lines, backend_lines: h.backend_lines, frontend_lines: h.frontend_lines }))}>
+                      <LineChart data={linesHistory}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
@@ -177,9 +256,9 @@ export default function CodebaseMetricsPage() {
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Commits Over Time</h2>
                 <div className="h-64">
-                  {history && history.length > 0 ? (
+                  {commitsHistory.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: { timestamp: string; git_commits: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), commits: h.git_commits }))}>
+                      <LineChart data={commitsHistory}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />

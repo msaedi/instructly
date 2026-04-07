@@ -12,3 +12,9 @@ def test_metrics_history_git_commits_monotonic():
             f"metrics_history.json regress: git_commits {commits} < previous {prev}"
         )
         prev = commits
+        assert "backend_files" in entry
+        assert "frontend_files" in entry
+        assert "unique_contributors" in entry
+        assert "first_commit_date" in entry
+        assert "last_commit_date" in entry
+        assert "branch" in entry

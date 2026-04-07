@@ -35,14 +35,6 @@
 | GET | /api/admin/referrals/config | `app.routes.referrals.get_referral_config` | app.api.dependencies.auth.get_current_active_user<br/>app.api.dependencies.services.get_referral_service | public |
 | GET | /api/admin/referrals/health | `app.routes.referrals.get_referral_health` | app.api.dependencies.auth.get_current_active_user<br/>app.api.dependencies.services.get_referral_service | public |
 | GET | /api/admin/referrals/summary | `app.routes.referrals.get_referral_summary` | app.api.dependencies.auth.get_current_active_user<br/>app.api.dependencies.services.get_referral_service | public |
-| GET | /api/analytics/codebase/_schemas/codebase/category-stats | `app.routes.codebase_metrics._schema_ref_category_stats` | — | public |
-| GET | /api/analytics/codebase/_schemas/codebase/file-info | `app.routes.codebase_metrics._schema_ref_file_info` | — | public |
-| GET | /api/analytics/codebase/_schemas/codebase/git-stats | `app.routes.codebase_metrics._schema_ref_git_stats` | — | public |
-| GET | /api/analytics/codebase/_schemas/codebase/history-entry | `app.routes.codebase_metrics._schema_ref_history_entry` | — | public |
-| GET | /api/analytics/codebase/_schemas/codebase/section | `app.routes.codebase_metrics._schema_ref_section` | — | public |
-| GET | /api/analytics/codebase/_schemas/codebase/summary | `app.routes.codebase_metrics._schema_ref_summary` | — | public |
-| GET | /api/analytics/codebase/history | `app.routes.codebase_metrics.get_codebase_metrics_history` | app.dependencies.permissions.permission_checker | public |
-| POST | /api/analytics/codebase/history/append | `app.routes.codebase_metrics.append_codebase_metrics_history` | app.dependencies.permissions.permission_checker | public |
 | GET | /api/analytics/codebase/metrics | `app.routes.codebase_metrics.get_codebase_metrics` | app.dependencies.permissions.permission_checker | public |
 | POST | /api/analytics/export | `app.routes.analytics.export_analytics` | app.dependencies.permissions.permission_checker<br/>app.database.get_db | public |
 | GET | /api/analytics/search/candidates/category-trends | `app.routes.analytics.candidates_category_trends` | app.dependencies.permissions.permission_checker<br/>app.database.get_db | public |

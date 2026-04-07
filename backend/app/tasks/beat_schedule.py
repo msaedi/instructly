@@ -56,16 +56,6 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
     },
-    # Codebase metrics snapshot - runs at 2:30 AM and 2:30 PM (consistent across envs)
-    "append-codebase-metrics-history": {
-        "task": "app.tasks.codebase_metrics.append_history",
-        "schedule": crontab(hour="3,15", minute=30),
-        "options": {
-            "queue": "celery" if settings.environment != "production" else "analytics",
-            "priority": 2,
-        },
-        # Note: Persists daily codebase snapshot for trend charts
-    },
     "resolve-undisputed-no-shows": {
         "task": "app.tasks.payment_tasks.resolve_undisputed_no_shows",
         "schedule": crontab(minute=0),  # Every hour

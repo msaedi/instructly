@@ -12,7 +12,6 @@ from typing import List
 # These imports trigger the @celery_app.task decorators to register tasks
 from app.tasks import (
     analytics,  # noqa: F401
-    codebase_metrics,  # noqa: F401
     db_maintenance,  # noqa: F401
     monitoring_tasks,  # noqa: F401
     notification_tasks,  # noqa: F401
@@ -39,8 +38,6 @@ ALL_TASKS = [
     "app.tasks.monitoring_tasks.cleanup_old_alerts",
     # Privacy audit task
     "privacy_audit_production",
-    # Codebase metrics
-    "app.tasks.codebase_metrics.append_history",
     # Referrals
     "app.tasks.referrals.run_unlocker",
     "app.tasks.referral_tasks.process_instructor_referral_payout",

@@ -84,6 +84,17 @@ cd frontend && npm test
 cd frontend && CI_LOCAL_E2E=1 npx playwright test --project=instructor
 ```
 
+## Codebase Metrics
+
+`metrics_history.json` is committed because the admin codebase dashboard reads that file directly.
+
+```bash
+# Regenerate manually when needed
+python backend/scripts/codebase_metrics.py > metrics_history.json
+```
+
+The existing pre-commit hook auto-generates, formats, and stages `metrics_history.json` before each commit.
+
 ## API Documentation
 
 - **Swagger UI**: http://localhost:8000/docs

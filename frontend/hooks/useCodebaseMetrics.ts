@@ -1,48 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { analyticsApi, CodebaseMetricsResponse, CodebaseHistoryEntry } from '@/lib/analyticsApi';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { analyticsApi } from '@/lib/analyticsApi';
+import type { CodebaseHistoryEntry } from '@/lib/analyticsApi';
+import { queryKeys } from '@/lib/react-query/queryClient';
 
-interface UseCodebaseMetricsReturn {
-  data: CodebaseMetricsResponse | null;
-  history: CodebaseHistoryEntry[] | null;
-  loading: boolean;
-  error: string | null;
-  refetch: () => void;
+async function fetchCodebaseMetrics(): Promise<CodebaseHistoryEntry[]> {
+  return analyticsApi.getCodebaseMetrics();
 }
 
-export function useCodebaseMetrics(token?: string | null): UseCodebaseMetricsReturn {
-  const [data, setData] = useState<CodebaseMetricsResponse | null>(null);
-  const [history, setHistory] = useState<CodebaseHistoryEntry[] | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [snapshot, hist] = await Promise.all([
-        analyticsApi.getCodebaseMetrics(token ?? ''),
-        analyticsApi.getCodebaseHistory(token ?? ''),
-      ]);
-      setData(snapshot);
-      setHistory(hist.items || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch codebase metrics');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
-
-  // Auto-refresh every 10 minutes
-  useEffect(() => {
-    const id = setInterval(() => { void fetchData(); }, 10 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [fetchData]);
-
-  return { data, history, loading, error, refetch: fetchData };
+export function useCodebaseMetrics(): UseQueryResult<CodebaseHistoryEntry[], Error> {
+  return useQuery({
+    queryKey: queryKeys.analytics.codebaseMetrics,
+    queryFn: fetchCodebaseMetrics,
+    refetchInterval: 10 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+  });
 }

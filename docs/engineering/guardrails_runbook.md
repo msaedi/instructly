@@ -105,10 +105,10 @@ Notes:
   - Use `getPublicEnv('FOO')` from `@/lib/publicEnv` or a helper (e.g., `withApiBase`) in client code.
 
 ## Codebase metrics snapshots (admin dashboard)
-- Run `python backend/scripts/codebase_metrics.py --save` (or the Celery task) only from a full clone. A shallow checkout reports too few commits and the guardrail now refuses to append history if totals drop.
-- If the collector raises `git commit total would decrease`, fetch the full history (`git fetch --unshallow`) or restore the latest `metrics_history.json` backup before retrying.
-- CI runs `backend/tests/scripts/test_metrics_history.py` to ensure commit totals in `metrics_history.json` stay monotonic.
-- Keep nightly backups of `metrics_history.json` (e.g. artifact/S3) so we can restore a clean baseline if a bad snapshot ever lands.
+- `metrics_history.json` is generated locally and committed because the admin dashboard reads the file directly.
+- The existing pre-commit hook runs `python backend/scripts/codebase_metrics.py > metrics_history.json`, formats only that file, and stages it into the commit being created.
+- You can regenerate manually with `python backend/scripts/codebase_metrics.py > metrics_history.json`.
+- CI runs `backend/tests/scripts/test_metrics_history.py` to ensure commit totals in `metrics_history.json` stay monotonic and the enriched fields remain present.
 
 ## Nightly env-contract proof
 - When: every day at 09:00 UTC (GitHub Actions schedule).
