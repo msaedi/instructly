@@ -21,6 +21,12 @@ if TYPE_CHECKING:
     from app.services.search.request_budget import RequestBudget
 
 
+def _candidate_label(candidate: object) -> str:
+    if not isinstance(candidate, dict):
+        return ""
+    return str(candidate.get("display_name") or candidate.get("region_name") or "").strip()
+
+
 def format_location_resolved(location_resolution: Optional[ResolvedLocation]) -> Optional[str]:
     """Format a human-friendly resolved location string for UI/debug."""
     if not location_resolution:
@@ -30,11 +36,7 @@ def format_location_resolved(location_resolution: Optional[ResolvedLocation]) ->
         return str(resolved_name) if resolved_name is not None else None
     if not (location_resolution.requires_clarification and location_resolution.candidates):
         return None
-    candidate_names = [
-        str(candidate.get("region_name")).strip()
-        for candidate in location_resolution.candidates
-        if isinstance(candidate, dict) and candidate.get("region_name")
-    ]
+    candidate_names = [_candidate_label(candidate) for candidate in location_resolution.candidates]
     candidate_names = [name for name in candidate_names if name]
     if not candidate_names:
         return None
@@ -61,6 +63,8 @@ def format_location_resolved(location_resolution: Optional[ResolvedLocation]) ->
     if prefixes and len(prefixes) == 1 and all(suffix for _, suffix in split_parts):
         prefix = next(iter(prefixes))
         suffixes = sorted({suffix for _, suffix in split_parts}, key=lambda value: value.lower())
+        if not suffixes or [suffix.lower() for suffix in suffixes] == [prefix.lower()]:
+            return prefix
         return f"{prefix} ({', '.join(suffixes)})"
     return ", ".join(ordered_unique_names[:5])
 
@@ -179,11 +183,8 @@ def build_location_diagnostics(
             except Exception:
                 successful_tier = None
         if location_resolution.candidates:
-            names = [
-                str(candidate.get("region_name"))
-                for candidate in location_resolution.candidates
-                if isinstance(candidate, dict) and candidate.get("region_name")
-            ]
+            names = [_candidate_label(candidate) for candidate in location_resolution.candidates]
+            names = [name for name in names if name]
             if names:
                 resolved_regions = list(dict.fromkeys(names))
     return LocationResolutionInfo(

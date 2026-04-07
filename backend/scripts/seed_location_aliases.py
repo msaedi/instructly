@@ -87,7 +87,7 @@ def seed_location_aliases(
         rows = session.execute(
             text(
                 """
-                SELECT id, region_name
+                SELECT id, region_name, display_name, display_key
                 FROM region_boundaries
                 WHERE region_type = :rtype
                   AND region_name IS NOT NULL
@@ -95,24 +95,113 @@ def seed_location_aliases(
             ),
             {"rtype": region_code},
         ).fetchall()
-        name_to_id = {str(r[1]).strip().lower(): str(r[0]) for r in rows if r[1]}
+        name_to_rows: dict[str, list[dict[str, str | None]]] = {}
+        for row in rows:
+            if not row[1]:
+                continue
+            region_name = str(row[1]).strip()
+            normalized_name = _normalize(region_name)
+            name_to_rows.setdefault(normalized_name, []).append(
+                {
+                    "id": str(row[0]),
+                    "region_name": region_name,
+                    "display_name": str(row[2]).strip() if row[2] else None,
+                    "display_key": str(row[3]).strip() if row[3] else None,
+                }
+            )
 
-        def _find_region_ids(region_name: str) -> list[str]:
+        def _region_sort_key(region_row: dict[str, str | None]) -> tuple[str, str]:
+            return (
+                _normalize(str(region_row.get("region_name") or "")),
+                str(region_row.get("id") or ""),
+            )
+
+        def _dedupe_region_rows(
+            region_rows: list[dict[str, str | None]],
+        ) -> list[dict[str, str | None]]:
+            deduped: list[dict[str, str | None]] = []
+            seen_region_ids: set[str] = set()
+            for region_row in sorted(region_rows, key=_region_sort_key):
+                region_id = str(region_row.get("id") or "")
+                if not region_id or region_id in seen_region_ids:
+                    continue
+                seen_region_ids.add(region_id)
+                deduped.append(region_row)
+            return deduped
+
+        def _find_region_rows(region_name: str) -> list[dict[str, str | None]]:
             key = _normalize(region_name)
-            if key in name_to_id:
-                return [name_to_id[key]]
+            exact_rows = name_to_rows.get(key)
+            if exact_rows:
+                return _dedupe_region_rows(list(exact_rows))
             # Best-effort normalization (e.g., "Astoria (Central)" -> "Astoria").
-            candidates = [
-                rid for existing_name, rid in name_to_id.items() if key in existing_name or existing_name in key
-            ]
-            return list(dict.fromkeys(candidates))
+            candidates: list[dict[str, str | None]] = []
+            for existing_name, matched_rows in name_to_rows.items():
+                if key in existing_name or existing_name in key:
+                    candidates.extend(matched_rows)
+            return _dedupe_region_rows(candidates)
+
+        def _logical_group_key(region_row: dict[str, str | None]) -> str:
+            display_key = str(region_row.get("display_key") or "").strip()
+            if display_key:
+                return f"display:{display_key}"
+            return f"region:{str(region_row.get('id') or '').strip()}"
+
+        def _logical_group_label(region_row: dict[str, str | None]) -> str:
+            return _normalize(
+                str(region_row.get("display_name") or region_row.get("region_name") or "")
+            )
+
+        def _group_region_rows(
+            region_rows: list[dict[str, str | None]],
+        ) -> list[list[dict[str, str | None]]]:
+            grouped: dict[str, list[dict[str, str | None]]] = {}
+            for region_row in _dedupe_region_rows(region_rows):
+                grouped.setdefault(_logical_group_key(region_row), []).append(region_row)
+            return [grouped[key] for key in sorted(grouped)]
+
+        def _pick_resolved_group(
+            region_name: str,
+            region_rows: list[dict[str, str | None]],
+        ) -> list[dict[str, str | None]] | None:
+            grouped_rows = _group_region_rows(region_rows)
+            if not grouped_rows:
+                return None
+            if len(grouped_rows) == 1:
+                return grouped_rows[0]
+
+            target_label = _normalize(region_name)
+            exact_matches: list[list[dict[str, str | None]]] = []
+            for group_rows in grouped_rows:
+                labels = {
+                    _logical_group_label(region_row)
+                    for region_row in group_rows
+                    if _logical_group_label(region_row)
+                }
+                if target_label and target_label in labels:
+                    exact_matches.append(group_rows)
+            if len(exact_matches) == 1:
+                return exact_matches[0]
+            return None
 
         seen_aliases: set[str] = set()
 
-        def _insert_resolved_alias(*, alias_normalized: str, region_boundary_id: str, alias_type: str, confidence: float) -> None:
+        def _insert_resolved_alias(
+            *,
+            alias_normalized: str,
+            region_boundary_id: str,
+            candidate_region_ids: list[str] | None,
+            alias_type: str,
+            confidence: float,
+        ) -> None:
             nonlocal inserted, inserted_new, updated_existing, skipped_existing, insert_errors
             try:
                 existed = alias_normalized in existing_aliases
+                candidate_value: Any = None
+                if candidate_region_ids:
+                    candidate_value = (
+                        candidate_region_ids if is_postgres else json.dumps(candidate_region_ids)
+                    )
                 result = session.execute(
                     text(
                         """
@@ -135,7 +224,7 @@ def seed_location_aliases(
                             :alias_normalized,
                             :region_boundary_id,
                             FALSE,
-                            NULL,
+                            :candidate_region_ids,
                             'active',
                             :confidence,
                             'manual',
@@ -145,7 +234,7 @@ def seed_location_aliases(
                         ON CONFLICT (city_id, alias_normalized) DO UPDATE SET
                             region_boundary_id = EXCLUDED.region_boundary_id,
                             requires_clarification = FALSE,
-                            candidate_region_ids = NULL,
+                            candidate_region_ids = EXCLUDED.candidate_region_ids,
                             status = 'active',
                             confidence = EXCLUDED.confidence,
                             source = 'manual',
@@ -159,6 +248,7 @@ def seed_location_aliases(
                         "city_id": city_id,
                         "alias_normalized": alias_normalized,
                         "region_boundary_id": region_boundary_id,
+                        "candidate_region_ids": candidate_value,
                         "confidence": float(confidence),
                         "alias_type": alias_type,
                     },
@@ -273,25 +363,34 @@ def seed_location_aliases(
                 continue
             seen_aliases.add(alias)
 
-            region_ids = _find_region_ids(region_name)
-            if not region_ids:
+            matched_rows = _find_region_rows(region_name)
+            if not matched_rows:
                 missing_region += 1
                 if verbose:
                     print(f"  ⚠ Region not found for alias '{alias}': '{region_name}'")
                 continue
 
-            if len(region_ids) == 1:
+            resolved_group = _pick_resolved_group(region_name, matched_rows)
+            if resolved_group is not None:
+                sorted_group = sorted(_dedupe_region_rows(resolved_group), key=_region_sort_key)
+                primary_region_id = str(sorted_group[0].get("id") or "")
+                supporting_region_ids = [
+                    str(region_row.get("id") or "") for region_row in sorted_group[1:]
+                ]
                 _insert_resolved_alias(
                     alias_normalized=alias,
-                    region_boundary_id=region_ids[0],
+                    region_boundary_id=primary_region_id,
+                    candidate_region_ids=supporting_region_ids or None,
                     alias_type=alias_type,
                     confidence=confidence,
                 )
             else:
-                # Coarse labels can map to multiple region_boundaries rows (sub-neighborhoods).
+                # Coarse labels that span multiple logical display groups stay ambiguous.
                 _insert_ambiguous_alias(
                     alias_normalized=alias,
-                    candidate_region_ids=region_ids,
+                    candidate_region_ids=[
+                        str(region_row.get("id") or "") for region_row in matched_rows
+                    ],
                     alias_type=alias_type,
                     confidence=confidence,
                 )
@@ -317,9 +416,11 @@ def seed_location_aliases(
             for name in candidate_names:
                 if not name:
                     continue
-                region_ids = _find_region_ids(str(name))
-                if region_ids:
-                    candidate_ids.extend(region_ids)
+                matched_rows = _find_region_rows(str(name))
+                if matched_rows:
+                    candidate_ids.extend(
+                        str(region_row.get("id") or "") for region_row in matched_rows
+                    )
                 elif verbose:
                     print(f"  ⚠ Candidate not found for ambiguous alias '{alias}': '{name}'")
 

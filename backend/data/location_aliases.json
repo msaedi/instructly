@@ -11,6 +11,7 @@
     { "alias": "the bronx", "region_name": "Bronx", "type": "colloquial", "confidence": 1.0 },
     { "alias": "qns", "region_name": "Queens", "type": "abbreviation", "confidence": 1.0 },
 
+    { "alias": "ues", "region_name": "Upper East Side", "type": "abbreviation", "confidence": 1.0 },
     { "alias": "les", "region_name": "Lower East Side", "type": "abbreviation", "confidence": 1.0 },
     { "alias": "uws", "region_name": "Upper West Side", "type": "abbreviation", "confidence": 1.0 },
     { "alias": "fidi", "region_name": "Financial District", "type": "abbreviation", "confidence": 1.0 },
@@ -56,16 +57,6 @@
     { "alias": "forest hills", "region_name": "Forest Hills", "type": "colloquial", "confidence": 1.0 }
   ],
   "ambiguous_aliases": [
-    {
-      "alias": "ues",
-      "candidates": [
-        "Upper East Side-Yorkville",
-        "Upper East Side-Carnegie Hill",
-        "Upper East Side-Lenox Hill-Roosevelt Island"
-      ],
-      "type": "abbreviation",
-      "confidence": 1.0
-    },
     {
       "alias": "central park",
       "candidates": ["Upper West Side", "Upper East Side"],

@@ -399,6 +399,43 @@ def test_tier2_alias_resolved_fallback_to_single_region(mock_repo: Mock) -> None
     assert result.resolved is True
 
 
+def test_tier2_alias_resolved_with_supporting_regions_uses_display_label(mock_repo: Mock) -> None:
+    resolver = LocationResolver(db=Mock(), repository=mock_repo, region_code="nyc")
+
+    alias = SimpleNamespace(
+        is_ambiguous=False,
+        is_resolved=True,
+        region_boundary_id="r1",
+        candidate_region_ids=["r2"],
+        confidence=0.9,
+        user_count=5,
+    )
+    mock_repo.find_trusted_alias.return_value = alias
+    mock_repo.get_regions_by_ids.return_value = [
+        SimpleNamespace(
+            id="r1",
+            region_name="Upper East Side-Carnegie Hill",
+            parent_region="Manhattan",
+            display_name="Upper East Side",
+            display_key="nyc-manhattan-upper-east-side",
+        ),
+        SimpleNamespace(
+            id="r2",
+            region_name="Upper East Side-Yorkville",
+            parent_region="Manhattan",
+            display_name="Upper East Side",
+            display_key="nyc-manhattan-upper-east-side",
+        ),
+    ]
+
+    result = resolver._tier2_alias_lookup("ues")
+
+    assert result.resolved is True
+    assert result.requires_clarification is False
+    assert result.region_name == "Upper East Side"
+    assert result.region_ids == ["r1", "r2"]
+
+
 def test_tier2_alias_ambiguous_resolved_or_clarification(mock_repo: Mock) -> None:
     """Ambiguous alias with regions that produce a clarification result."""
     resolver = LocationResolver(db=Mock(), repository=mock_repo, region_code="nyc")
