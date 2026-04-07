@@ -601,7 +601,7 @@ class QueryParser:
             query = NEAR_ME.sub("", query)
             return query, result
 
-        # Check for "in/near/around <location>" pattern (supports multi-word locations)
+        # Check for "in/near/around/on <location>" pattern (supports multi-word locations)
         match = LOCATION_PREPOSITION.search(query)
         if match:
             location_text = " ".join(match.group(1).strip().lower().split())

@@ -138,9 +138,9 @@ LESSON_TYPE_IN_PERSON: Pattern[str] = re.compile(
 # Location extraction:
 # - Supports multi-word locations ("lower east side")
 # - Avoids swallowing trailing constraints ("for kids", "under 80", "monday", etc.)
-# - Allows optional "the" ("in the upper west side")
+# - Allows optional "the" ("in the upper west side", "on the upper east side")
 LOCATION_PREPOSITION: Pattern[str] = re.compile(
-    r"\b(?:in|near|around)\b\s+(?:the\s+)?"
+    r"\b(?:in|near|around|on)\b\s+(?:the\s+)?"
     r"([A-Za-z][A-Za-z\s\-''.]{2,30}?)"
     r"(?:\s+(?:area|neighborhood|district))?"
     r"(?=\s+(?:for|under|after|before|today|tomorrow|this|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\s*$)",

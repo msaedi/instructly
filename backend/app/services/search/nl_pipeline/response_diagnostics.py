@@ -32,7 +32,11 @@ def format_location_resolved(location_resolution: Optional[ResolvedLocation]) ->
     if not location_resolution:
         return None
     if location_resolution.resolved:
-        resolved_name = location_resolution.region_name or location_resolution.borough
+        # Safe: callers set region_name via _candidate_logical_name in location_resolver.py,
+        # which prefers display_name. If a future caller bypasses that, raw NTA names would leak here.
+        resolved_name = location_resolution.region_name
+        if resolved_name is None:
+            resolved_name = location_resolution.borough
         return str(resolved_name) if resolved_name is not None else None
     if not (location_resolution.requires_clarification and location_resolution.candidates):
         return None

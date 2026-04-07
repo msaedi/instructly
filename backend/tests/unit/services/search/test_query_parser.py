@@ -385,6 +385,38 @@ class TestLocationExtraction:
         assert "lower" not in result.service_query.lower()
         assert "guitar" in result.service_query.lower()
 
+    @pytest.mark.parametrize(
+        ("query", "expected_location", "expected_type"),
+        [
+            (
+                "piano lessons on roosevelt island",
+                "roosevelt island",
+                "neighborhood",
+            ),
+            (
+                "piano lessons on the upper east side",
+                "upper east side",
+                "neighborhood",
+            ),
+            (
+                "guitar lessons on staten island",
+                "staten island",
+                "borough",
+            ),
+        ],
+    )
+    def test_location_preposition_on(
+        self,
+        parser: QueryParser,
+        query: str,
+        expected_location: str,
+        expected_type: str,
+    ) -> None:
+        result = parser.parse(query)
+        assert result.location_text == expected_location
+        assert result.location_type == expected_type
+        assert result.service_query.lower() in {"piano lessons", "guitar lessons"}
+
 
 class TestSkillLevel:
     """Tests for skill level extraction."""

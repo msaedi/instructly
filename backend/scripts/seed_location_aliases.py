@@ -260,11 +260,6 @@ def seed_location_aliases(
                     else:
                         inserted_new += 1
                         existing_aliases.add(alias_normalized)
-                    if verbose and alias_normalized == "ues":
-                        action = "Updated" if existed else "Inserted"
-                        print(
-                            f"  ✓ {action} '{alias_normalized}' -> resolved ({region_boundary_id})"
-                        )
                 else:
                     skipped_existing += 1
             except Exception as e:
@@ -334,11 +329,6 @@ def seed_location_aliases(
                     else:
                         inserted_new += 1
                         existing_aliases.add(alias_normalized)
-                    if verbose and alias_normalized == "ues":
-                        action = "Updated" if existed else "Inserted"
-                        print(
-                            f"  ✓ {action} '{alias_normalized}' -> ambiguous ({len(candidate_region_ids)} candidates)"
-                        )
                 else:
                     skipped_existing += 1
             except Exception as e:
