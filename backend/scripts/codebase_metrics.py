@@ -272,11 +272,39 @@ def _load_existing_history(root_path: Path) -> List[Dict[str, Any]]:
     return []
 
 
+def _coerce_git_commits(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _ensure_monotonic_git_commits(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized_history: List[Dict[str, Any]] = []
+    previous_commits = 0
+
+    for entry in history:
+        normalized_entry = _backfill_entry(entry)
+        commits = _coerce_git_commits(normalized_entry.get("git_commits"))
+        if commits < previous_commits:
+            commits = previous_commits
+        normalized_entry["git_commits"] = commits
+        previous_commits = commits
+        normalized_history.append(normalized_entry)
+
+    return normalized_history
+
+
 def build_history(root_path: Path) -> List[Dict[str, Any]]:
-    history = _load_existing_history(root_path)
+    history = _ensure_monotonic_git_commits(_load_existing_history(root_path))
 
     analyzer = CodebaseAnalyzer(str(root_path))
     current_entry = analyzer.build_entry()
+    if history:
+        current_entry["git_commits"] = max(
+            _coerce_git_commits(current_entry.get("git_commits")),
+            _coerce_git_commits(history[-1].get("git_commits")),
+        )
 
     if history and _entries_match(history[-1], current_entry):
         return history[-1000:]

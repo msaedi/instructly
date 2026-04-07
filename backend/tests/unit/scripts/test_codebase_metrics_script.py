@@ -99,3 +99,43 @@ def test_build_history_reads_committed_history_when_worktree_file_is_empty(
     assert len(history) == 2
     assert history[0]["git_commits"] == 40
     assert history[-1]["git_commits"] == 44
+
+
+def test_build_history_normalizes_git_commit_regressions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    history_with_regression = [
+        {
+            "timestamp": "2026-04-05T15:00:00",
+            "total_lines": 100,
+            "total_files": 10,
+            "backend_lines": 60,
+            "frontend_lines": 40,
+            "git_commits": 40,
+        },
+        {
+            "timestamp": "2026-04-06T15:00:00",
+            "total_lines": 110,
+            "total_files": 11,
+            "backend_lines": 65,
+            "frontend_lines": 45,
+            "git_commits": 44,
+        },
+        {
+            "timestamp": "2026-04-07T15:00:00",
+            "total_lines": 115,
+            "total_files": 12,
+            "backend_lines": 68,
+            "frontend_lines": 47,
+            "git_commits": 42,
+        },
+    ]
+    (tmp_path / "metrics_history.json").write_text(
+        json.dumps(history_with_regression),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(codebase_metrics_script.CodebaseAnalyzer, "build_entry", lambda self: _current_entry())
+
+    history = codebase_metrics_script.build_history(tmp_path)
+
+    assert [entry["git_commits"] for entry in history] == [40, 44, 44, 44]
