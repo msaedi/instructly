@@ -67,9 +67,6 @@ run_python() {
   fi
 }
 
-echo "[pre-push] Codebase metrics"
-(cd "$REPO_ROOT" && bash scripts/prepush_codebase_metrics.sh)
-
 if [[ "${SKIP_RUFF:-0}" == "1" ]]; then
   echo "[pre-push] SKIP_RUFF=1 -> skipping ruff"
 else

@@ -93,7 +93,7 @@ cd frontend && CI_LOCAL_E2E=1 npx playwright test --project=instructor
 python backend/scripts/codebase_metrics.py > metrics_history.json
 ```
 
-The existing Husky pre-push hook auto-generates and formats `metrics_history.json` before push.
+The existing pre-commit hook auto-generates, formats, and stages `metrics_history.json` before each commit.
 
 ## API Documentation
 

@@ -48,7 +48,7 @@ def test_read_metrics_history_missing(tmp_path: Path) -> None:
         codebase_routes._read_metrics_history(tmp_path)
 
     assert exc.value.status_code == 404
-    assert "Husky pre-push hook" in exc.value.detail
+    assert "pre-commit hook" in exc.value.detail
 
 
 def test_read_metrics_history_invalid_json(tmp_path: Path) -> None:

@@ -41,8 +41,8 @@ def _read_metrics_history(repo_root: Path) -> List[dict[str, Any]]:
             detail=(
                 "metrics_history.json was not found in the repository root. "
                 "Generate it locally with `python backend/scripts/codebase_metrics.py > "
-                "metrics_history.json`, or push from this checkout so the Husky "
-                "pre-push hook can regenerate it automatically."
+                "metrics_history.json`, or commit from this checkout so the "
+                "pre-commit hook can regenerate it automatically."
             ),
         )
 

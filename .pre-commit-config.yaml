@@ -60,6 +60,14 @@ repos:
         files: ^mcp-server/.*\.py$
   - repo: local
     hooks:
+      - id: codebase-metrics
+        name: Generate codebase metrics
+        entry: bash scripts/precommit_codebase_metrics.sh
+        language: system
+        stages: [pre-commit]
+        always_run: true
+        pass_filenames: false
+
       - id: frontend-eslint
         name: Frontend ESLint (staged files)
         entry: scripts/precommit_frontend_eslint.sh
