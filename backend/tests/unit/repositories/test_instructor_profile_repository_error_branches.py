@@ -167,11 +167,11 @@ def test_resolve_profile_id_by_report_query_error_raises_repository_exception():
 
 def test_encrypt_report_id_passthrough_does_not_increment_metric():
     with patch(
-        "app.repositories.instructor_profile_repository.encrypt_report_token",
+        "app.repositories.instructor_profile.bgc_report_binding_mixin.encrypt_report_token",
         return_value="rpt_123",
     ):
         with patch(
-            "app.repositories.instructor_profile_repository.BGC_REPORT_ID_ENCRYPT_TOTAL"
+            "app.repositories.instructor_profile.bgc_report_binding_mixin.BGC_REPORT_ID_ENCRYPT_TOTAL"
         ) as metric:
             encrypted = InstructorProfileRepository._encrypt_report_id("rpt_123")
 
