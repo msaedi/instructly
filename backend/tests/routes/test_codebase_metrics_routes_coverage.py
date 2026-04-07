@@ -30,8 +30,9 @@ def _sample_history() -> list[dict]:
     ]
 
 
-def test_get_project_root_fallback(monkeypatch, tmp_path: Path) -> None:
+def test_get_project_root_finds_git_root(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True)
     (repo_root / "backend").mkdir(parents=True)
     (repo_root / "frontend").mkdir(parents=True)
 

@@ -20,16 +20,12 @@ router = APIRouter(
 
 
 def _get_project_root() -> Path:
-    """Resolve repository root (directory containing backend and frontend)."""
-    here = Path(__file__).resolve()
-    repo_root = here.parents[4]
-    if not (repo_root / "backend").exists() or not (repo_root / "frontend").exists():
-        current = here
-        while current != current.parent:
-            if (current / "backend").exists() and (current / "frontend").exists():
-                return current
-            current = current.parent
-    return repo_root
+    """Find repo root by walking up looking for .git directory."""
+    current = Path(__file__).resolve().parent
+    for parent in [current, *current.parents]:
+        if (parent / ".git").exists():
+            return parent
+    raise RuntimeError("Could not find repo root (.git not found)")
 
 
 def _read_metrics_history(repo_root: Path) -> List[dict[str, Any]]:
@@ -71,7 +67,7 @@ def _read_metrics_history(repo_root: Path) -> List[dict[str, Any]]:
 
 @router.get("/metrics", response_model=List[CodebaseHistoryEntry])
 async def get_codebase_metrics(
-    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    _current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
 ) -> List[CodebaseHistoryEntry]:
     """Return the committed codebase metrics history as raw JSON."""
     repo_root = _get_project_root()
