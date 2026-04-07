@@ -106,8 +106,7 @@ Notes:
 
 ## Codebase metrics snapshots (admin dashboard)
 - `metrics_history.json` is generated locally and committed because the admin dashboard reads the file directly.
-- Install the hook once with `pre-commit install --hook-type pre-push`.
-- The pre-push hook runs `python backend/scripts/codebase_metrics.py > metrics_history.json`, formats the file with pre-commit, and amends the latest commit when the metrics changed.
+- The existing Husky pre-push hook runs `python backend/scripts/codebase_metrics.py > metrics_history.json`, formats the file with pre-commit, and amends the latest commit when the metrics changed.
 - You can regenerate manually with `python backend/scripts/codebase_metrics.py > metrics_history.json`.
 - CI runs `backend/tests/scripts/test_metrics_history.py` to ensure commit totals in `metrics_history.json` stay monotonic and the enriched fields remain present.
 

@@ -234,7 +234,7 @@ export const analyticsApi = {
   },
 
   // Codebase metrics
-  async getCodebaseMetrics(token: string): Promise<CodebaseHistoryEntry[]> {
-    return fetchWithAuth<CodebaseHistoryEntry[]>('/api/v1/analytics/codebase/metrics', token);
+  async getCodebaseMetrics(): Promise<CodebaseHistoryEntry[]> {
+    return fetchWithAuth<CodebaseHistoryEntry[]>('/api/v1/analytics/codebase/metrics', null);
   },
 };

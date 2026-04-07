@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 import pytest
 
 import app.routes.v1.codebase_metrics as codebase_routes
@@ -47,7 +48,7 @@ def test_read_metrics_history_missing(tmp_path: Path) -> None:
         codebase_routes._read_metrics_history(tmp_path)
 
     assert exc.value.status_code == 404
-    assert "pre-push hook" in exc.value.detail
+    assert "Husky pre-push hook" in exc.value.detail
 
 
 def test_read_metrics_history_invalid_json(tmp_path: Path) -> None:
@@ -87,3 +88,18 @@ def test_get_codebase_metrics_endpoint_missing_file(
 
     response = client.get("/api/v1/analytics/codebase/metrics", headers=auth_headers_admin)
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_codebase_metrics_validates_history_entries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    history = _sample_history()
+    history[0]["unexpected"] = True
+    (tmp_path / "metrics_history.json").write_text(json.dumps(history), encoding="utf-8")
+    monkeypatch.setattr(codebase_routes, "_get_project_root", lambda: tmp_path)
+
+    with pytest.raises(ValidationError) as exc:
+        await codebase_routes.get_codebase_metrics()
+
+    assert "unexpected" in str(exc.value)

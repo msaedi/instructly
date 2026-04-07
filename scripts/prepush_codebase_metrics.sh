@@ -10,7 +10,7 @@ echo "Generating codebase metrics..."
 python backend/scripts/codebase_metrics.py > "$METRICS_FILE"
 
 # Apply formatting hooks to the generated file
-pre-commit run --files "$METRICS_FILE" || true
+pre-commit run --files "$METRICS_FILE"
 
 # If the file changed since last commit, amend it
 if ! git diff --quiet "$METRICS_FILE" 2>/dev/null || \

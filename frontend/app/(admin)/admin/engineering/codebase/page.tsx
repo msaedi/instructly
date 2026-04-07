@@ -29,12 +29,12 @@ function formatMetricDate(value?: string | null): string {
 export default function CodebaseMetricsPage() {
   const router = useRouter();
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
-  const token = null;
   const { logout } = useAuth();
-  const { data, history, loading, error, refetch } = useCodebaseMetrics(token);
-  const historyEntries = history ?? [];
-  const backendCategoryMap = data?.categories?.['backend'];
-  const frontendCategoryMap = data?.categories?.['frontend'];
+  const { data, isLoading, isFetching, error, refetch } = useCodebaseMetrics();
+  const historyEntries = data ?? [];
+  const currentMetrics = historyEntries.at(-1) ?? null;
+  const backendCategoryMap = currentMetrics?.categories?.['backend'];
+  const frontendCategoryMap = currentMetrics?.categories?.['frontend'];
   const backendCategories = backendCategoryMap
     ? (Object.entries(backendCategoryMap) as [string, CodebaseCategoryStats][])
     : [];
@@ -62,7 +62,7 @@ export default function CodebaseMetricsPage() {
     }
   }, [authLoading, isAdmin, router]);
 
-  if (authLoading || (!isAdmin && !authLoading)) {
+  if (authLoading || isLoading || (!isAdmin && !authLoading)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -80,8 +80,8 @@ export default function CodebaseMetricsPage() {
               <h1 className="text-xl font-semibold">Codebase Analytics</h1>
             </div>
             <div className="flex items-center space-x-3">
-              <button onClick={refetch} disabled={loading} className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50" title="Refresh data">
-                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              <button onClick={() => void refetch()} disabled={isFetching} className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50" title="Refresh data">
+                <RefreshCw className={`h-5 w-5 ${isFetching ? 'animate-spin' : ''}`} />
               </button>
               <button onClick={() => void logout()} className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 cursor-pointer">Log out</button>
             </div>
@@ -97,7 +97,7 @@ export default function CodebaseMetricsPage() {
           <div className="col-span-12 md:col-span-9 lg:col-span-9">
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-red-700 dark:text-red-300">{error}</p>
+                <p className="text-red-700 dark:text-red-300">{error.message}</p>
               </div>
             )}
 
@@ -107,29 +107,29 @@ export default function CodebaseMetricsPage() {
                   <FileCode2 className="h-5 w-5 text-indigo-600" />
                   <span className="text-sm">Total Files</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.total_files?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.total_files?.toLocaleString() ?? '—'}</div>
               </div>
               <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6">
                 <div className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                   <Layers className="h-5 w-5 text-green-600" />
                   <span className="text-sm">Total Lines</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.total_lines?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.total_lines?.toLocaleString() ?? '—'}</div>
               </div>
               <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6">
                 <div className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                   <GitBranch className="h-5 w-5 text-rose-600" />
                   <span className="text-sm">Total Commits</span>
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{data?.git_commits?.toLocaleString() ?? '—'}</div>
+                <div className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.git_commits?.toLocaleString() ?? '—'}</div>
               </div>
             </div>
 
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Overview</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Backend Files: {data?.backend_files?.toLocaleString() ?? '—'} • Frontend Files:{' '}
-                {data?.frontend_files?.toLocaleString() ?? '—'}
+                Backend Files: {currentMetrics?.backend_files?.toLocaleString() ?? '—'} • Frontend Files:{' '}
+                {currentMetrics?.frontend_files?.toLocaleString() ?? '—'}
               </p>
             </div>
 
@@ -137,8 +137,8 @@ export default function CodebaseMetricsPage() {
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Backend (Python)</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  Files: {data?.backend_files?.toLocaleString() ?? '—'} • Lines:{' '}
-                  {data?.backend_lines?.toLocaleString() ?? '—'}
+                  Files: {currentMetrics?.backend_files?.toLocaleString() ?? '—'} • Lines:{' '}
+                  {currentMetrics?.backend_lines?.toLocaleString() ?? '—'}
                 </p>
                 <div className="space-y-3">
                   {backendCategories.length > 0 ? (
@@ -151,7 +151,7 @@ export default function CodebaseMetricsPage() {
                             style={{
                               width: `${Math.min(
                                 100,
-                                (stats.lines / Math.max(1, data?.backend_lines ?? 0)) * 100
+                                (stats.lines / Math.max(1, currentMetrics?.backend_lines ?? 0)) * 100
                               ).toFixed(2)}%`,
                             }}
                           />
@@ -171,8 +171,8 @@ export default function CodebaseMetricsPage() {
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Frontend (TS/JS)</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  Files: {data?.frontend_files?.toLocaleString() ?? '—'} • Lines:{' '}
-                  {data?.frontend_lines?.toLocaleString() ?? '—'}
+                  Files: {currentMetrics?.frontend_files?.toLocaleString() ?? '—'} • Lines:{' '}
+                  {currentMetrics?.frontend_lines?.toLocaleString() ?? '—'}
                 </p>
                 <div className="space-y-3">
                   {frontendCategories.length > 0 ? (
@@ -185,7 +185,7 @@ export default function CodebaseMetricsPage() {
                             style={{
                               width: `${Math.min(
                                 100,
-                                (stats.lines / Math.max(1, data?.frontend_lines ?? 0)) * 100
+                                (stats.lines / Math.max(1, currentMetrics?.frontend_lines ?? 0)) * 100
                               ).toFixed(2)}%`,
                             }}
                           />
@@ -207,10 +207,10 @@ export default function CodebaseMetricsPage() {
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Git Statistics</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Contributors</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.unique_contributors ?? '—'}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">First commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(data?.first_commit_date)}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Last commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(data?.last_commit_date)}</div></div>
-                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Branch</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(data?.branch)}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Contributors</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{currentMetrics?.unique_contributors ?? '—'}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">First commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.first_commit_date)}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Last commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.last_commit_date)}</div></div>
+                <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Branch</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMetricDate(currentMetrics?.branch)}</div></div>
               </div>
             </div>
 

@@ -5,15 +5,19 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CodebaseCategoryStats(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
     files: int = Field(..., ge=0)
     lines: int = Field(..., ge=0)
 
 
 class CodebaseHistoryEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
     timestamp: datetime
     total_lines: int = Field(..., ge=0)
     total_files: int = Field(..., ge=0)
