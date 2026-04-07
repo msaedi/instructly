@@ -1,7 +1,6 @@
 backend/app/models/service_catalog.py
 backend/app/repositories/admin_ops_repository.py
 backend/app/repositories/filter_repository.py
-backend/app/repositories/instructor_profile_repository.py
 backend/app/repositories/referral_repository.py
 backend/app/repositories/retriever_repository.py
 backend/app/repositories/search_analytics_repository.py
