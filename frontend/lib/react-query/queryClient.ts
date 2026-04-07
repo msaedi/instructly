@@ -126,6 +126,11 @@ export const queryKeys = {
     suggestions: (query: string) => ['search', 'suggestions', query] as const,
   },
 
+  // Analytics queries
+  analytics: {
+    codebaseMetrics: ['analytics', 'codebase-metrics'] as const,
+  },
+
   // Neighborhood queries
   neighborhoods: {
     selector: (market: string) => ['neighborhoods', 'selector', market] as const,

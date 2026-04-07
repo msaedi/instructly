@@ -34,7 +34,6 @@ class CodebaseAnalyzer:
         ".idea",
         ".vscode",
         "migrations/versions",
-        ".DS_Store",
         "logs",
         "*.egg-info",
     }

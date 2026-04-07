@@ -45114,5 +45114,109 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-06",
     "branch": "fix/codebase-metrics-prepush"
+  },
+  {
+    "timestamp": "2026-04-07T03:54:32.950110+00:00",
+    "total_lines": 803338,
+    "total_files": 3156,
+    "backend_lines": 456206,
+    "frontend_lines": 347132,
+    "git_commits": 1750,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 218,
+          "lines": 33858
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10103
+        },
+        "Repositories": {
+          "files": 204,
+          "lines": 45452
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 113,
+          "lines": 13341
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59758
+        },
+        "Services": {
+          "files": 526,
+          "lines": 179423
+        },
+        "Unit Tests": {
+          "files": 132,
+          "lines": 21682
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28183
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 146,
+          "lines": 41501
+        },
+        "Components": {
+          "files": 423,
+          "lines": 142522
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35592
+        },
+        "Features": {
+          "files": 88,
+          "lines": 27972
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5048
+        },
+        "API/Lib": {
+          "files": 100,
+          "lines": 10733
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2484
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8890
+        }
+      }
+    },
+    "backend_files": 2009,
+    "frontend_files": 1147,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-06",
+    "branch": "fix/codebase-metrics-prepush"
   }
 ]
