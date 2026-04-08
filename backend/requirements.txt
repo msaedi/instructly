@@ -30,14 +30,14 @@ celery==5.6.3
 kombu==5.6.2
 redis==6.4.0
 broadcaster[redis]==0.3.1
-anyio==4.12.1
+anyio==4.13.0
 
 # HTTP Client
 httpx==0.28.1
 requests==2.33.1
 
 # Email
-resend==2.26.0
+resend==2.27.0
 Jinja2==3.1.6
 pywebpush>=2.0.0
 twilio>=8.0.0
@@ -55,7 +55,7 @@ stripe==14.4.1
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
-sentry-sdk[fastapi]==2.54.0
+sentry-sdk[fastapi]==2.57.0
 # OpenTelemetry Core - PIN TO SAME MINOR VERSION
 opentelemetry-api==1.40.0
 opentelemetry-sdk==1.40.0
