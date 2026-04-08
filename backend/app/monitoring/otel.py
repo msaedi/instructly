@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 import logging
 import os
+import sys
 from typing import TYPE_CHECKING, Any, ClassVar, Optional
 from urllib.parse import unquote
 
@@ -455,15 +456,37 @@ def create_span(name: str, attributes: Optional[dict[str, Any]] = None) -> Itera
         from opentelemetry import trace
 
         tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(name) as span:
-            if attributes:
-                for key, value in attributes.items():
-                    span.set_attribute(key, value)
-            yield span
-
+        span_cm = tracer.start_as_current_span(name)
     except Exception as exc:
         logger.warning("Failed to create span '%s': %s", name, exc)
         yield None
+        return
+
+    try:
+        span = span_cm.__enter__()
+    except Exception as exc:
+        logger.warning("Failed to enter span '%s': %s", name, exc)
+        yield None
+        return
+
+    try:
+        if attributes:
+            for key, value in attributes.items():
+                span.set_attribute(key, value)
+    except Exception as exc:
+        logger.warning("Failed to set span attributes for '%s': %s", name, exc)
+        span_cm.__exit__(type(exc), exc, exc.__traceback__)
+        yield None
+        return
+
+    exc_info: tuple[type[BaseException] | None, BaseException | None, Any] = (None, None, None)
+    try:
+        yield span
+    except BaseException:
+        exc_info = sys.exc_info()
+        raise
+    finally:
+        span_cm.__exit__(*exc_info)
 
 
 def add_business_context(

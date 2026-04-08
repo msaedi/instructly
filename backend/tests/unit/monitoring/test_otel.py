@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
+import pytest
 
 
 class TestOtelConfiguration:
@@ -251,6 +252,59 @@ def test_get_current_ids_and_create_span():
         with otel.create_span("work", {"attr": 1}) as span:
             assert span is not None
             assert span.attrs["attr"] == 1
+
+
+def test_create_span_propagates_caller_exceptions():
+    from app.monitoring import otel
+
+    reload(otel)
+
+    class DummySpanRecorder:
+        def set_attribute(self, _key: str, _value: object) -> None:
+            return None
+
+    @contextmanager
+    def _dummy_span():
+        yield DummySpanRecorder()
+
+    class DummyTracer:
+        def start_as_current_span(self, _name: str):
+            return _dummy_span()
+
+    with patch.object(otel, "is_otel_enabled", return_value=True), patch(
+        "opentelemetry.trace.get_tracer", return_value=DummyTracer()
+    ):
+        with pytest.raises(RuntimeError, match="caller boom"):
+            with otel.create_span("work"):
+                raise RuntimeError("caller boom")
+
+
+def test_create_span_exits_when_attribute_setup_fails():
+    from app.monitoring import otel
+
+    reload(otel)
+
+    attr_exc = RuntimeError("attr boom")
+    span = MagicMock()
+    span.set_attribute.side_effect = attr_exc
+    span_cm = MagicMock()
+    span_cm.__enter__.return_value = span
+
+    class DummyTracer:
+        def start_as_current_span(self, _name: str):
+            return span_cm
+
+    with patch.object(otel, "is_otel_enabled", return_value=True), patch(
+        "opentelemetry.trace.get_tracer", return_value=DummyTracer()
+    ):
+        with otel.create_span("work", {"attr": 1}) as created_span:
+            assert created_span is None
+
+    span_cm.__exit__.assert_called_once()
+    exc_type, exc_value, exc_tb = span_cm.__exit__.call_args.args
+    assert exc_type is RuntimeError
+    assert exc_value is attr_exc
+    assert exc_tb is attr_exc.__traceback__
 
 
 def test_instrument_additional_libraries_and_shutdown():
