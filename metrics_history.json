@@ -1,6 +1,6 @@
 [
   {
-    "timestamp": "2025-08-13T03:32:36.775600",
+    "timestamp": "2025-08-13T03:32:36.775600+00:00",
     "total_lines": 137288,
     "total_files": 720,
     "backend_lines": 95031,
@@ -104,7 +104,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-17T14:35:24.547238",
+    "timestamp": "2025-08-17T14:35:24.547238+00:00",
     "total_lines": 143738,
     "total_files": 745,
     "backend_lines": 98586,
@@ -208,7 +208,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-17T15:50:44.137389",
+    "timestamp": "2025-08-17T15:50:44.137389+00:00",
     "total_lines": 143740,
     "total_files": 745,
     "backend_lines": 98588,
@@ -312,7 +312,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-18T03:30:03.061587",
+    "timestamp": "2025-08-18T03:30:03.061587+00:00",
     "total_lines": 145085,
     "total_files": 752,
     "backend_lines": 99372,
@@ -416,7 +416,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-18T15:30:01.357423",
+    "timestamp": "2025-08-18T15:30:01.357423+00:00",
     "total_lines": 145178,
     "total_files": 752,
     "backend_lines": 99375,
@@ -520,7 +520,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-19T05:17:50.567999",
+    "timestamp": "2025-08-19T05:17:50.567999+00:00",
     "total_lines": 145201,
     "total_files": 752,
     "backend_lines": 99375,
@@ -624,7 +624,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-19T15:30:01.210673",
+    "timestamp": "2025-08-19T15:30:01.210673+00:00",
     "total_lines": 145191,
     "total_files": 752,
     "backend_lines": 99365,
@@ -728,7 +728,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-20T04:10:18.334430",
+    "timestamp": "2025-08-20T04:10:18.334430+00:00",
     "total_lines": 151933,
     "total_files": 770,
     "backend_lines": 103640,
@@ -832,7 +832,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-20T15:35:24.819921",
+    "timestamp": "2025-08-20T15:35:24.819921+00:00",
     "total_lines": 151933,
     "total_files": 770,
     "backend_lines": 103640,
@@ -936,7 +936,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-20T19:57:15.795831",
+    "timestamp": "2025-08-20T19:57:15.795831+00:00",
     "total_lines": 152406,
     "total_files": 771,
     "backend_lines": 103791,
@@ -1040,7 +1040,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-21T04:06:51.367460",
+    "timestamp": "2025-08-21T04:06:51.367460+00:00",
     "total_lines": 152745,
     "total_files": 771,
     "backend_lines": 103817,
@@ -1144,7 +1144,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-21T12:59:33.801700",
+    "timestamp": "2025-08-21T12:59:33.801700+00:00",
     "total_lines": 152745,
     "total_files": 771,
     "backend_lines": 103817,
@@ -1248,7 +1248,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-21T15:30:01.245542",
+    "timestamp": "2025-08-21T15:30:01.245542+00:00",
     "total_lines": 153784,
     "total_files": 777,
     "backend_lines": 104682,
@@ -1352,7 +1352,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-22T02:07:30.118913",
+    "timestamp": "2025-08-22T02:07:30.118913+00:00",
     "total_lines": 157235,
     "total_files": 783,
     "backend_lines": 108034,
@@ -1456,7 +1456,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-22T02:10:51.560605",
+    "timestamp": "2025-08-22T02:10:51.560605+00:00",
     "total_lines": 157235,
     "total_files": 783,
     "backend_lines": 108034,
@@ -1560,7 +1560,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-22T03:30:01.428078",
+    "timestamp": "2025-08-22T03:30:01.428078+00:00",
     "total_lines": 157420,
     "total_files": 783,
     "backend_lines": 108219,
@@ -1664,7 +1664,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-22T15:30:01.250595",
+    "timestamp": "2025-08-22T15:30:01.250595+00:00",
     "total_lines": 158551,
     "total_files": 789,
     "backend_lines": 109350,
@@ -1768,7 +1768,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-23T05:01:53.204419",
+    "timestamp": "2025-08-23T05:01:53.204419+00:00",
     "total_lines": 159867,
     "total_files": 799,
     "backend_lines": 110426,
@@ -1872,7 +1872,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-23T15:30:01.425286",
+    "timestamp": "2025-08-23T15:30:01.425286+00:00",
     "total_lines": 161918,
     "total_files": 800,
     "backend_lines": 110547,
@@ -1976,7 +1976,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-23T15:30:02.259538",
+    "timestamp": "2025-08-23T15:30:02.259538+00:00",
     "total_lines": 161918,
     "total_files": 800,
     "backend_lines": 110547,
@@ -2080,7 +2080,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-24T03:52:46.861098",
+    "timestamp": "2025-08-24T03:52:46.861098+00:00",
     "total_lines": 161786,
     "total_files": 800,
     "backend_lines": 110654,
@@ -2184,7 +2184,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-24T15:30:01.385357",
+    "timestamp": "2025-08-24T15:30:01.385357+00:00",
     "total_lines": 163167,
     "total_files": 804,
     "backend_lines": 111094,
@@ -2288,7 +2288,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-25T03:30:31.490811",
+    "timestamp": "2025-08-25T03:30:31.490811+00:00",
     "total_lines": 165908,
     "total_files": 814,
     "backend_lines": 111932,
@@ -2392,7 +2392,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-25T15:30:01.413449",
+    "timestamp": "2025-08-25T15:30:01.413449+00:00",
     "total_lines": 165908,
     "total_files": 814,
     "backend_lines": 111932,
@@ -2496,7 +2496,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-26T03:30:01.706476",
+    "timestamp": "2025-08-26T03:30:01.706476+00:00",
     "total_lines": 168204,
     "total_files": 829,
     "backend_lines": 113631,
@@ -2600,7 +2600,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-26T15:55:53.649793",
+    "timestamp": "2025-08-26T15:55:53.649793+00:00",
     "total_lines": 168204,
     "total_files": 829,
     "backend_lines": 113631,
@@ -2704,7 +2704,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-27T03:49:37.545685",
+    "timestamp": "2025-08-27T03:49:37.545685+00:00",
     "total_lines": 169114,
     "total_files": 829,
     "backend_lines": 114070,
@@ -2808,7 +2808,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-27T15:20:52.195923",
+    "timestamp": "2025-08-27T15:20:52.195923+00:00",
     "total_lines": 169114,
     "total_files": 829,
     "backend_lines": 114070,
@@ -2912,7 +2912,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-27T15:30:01.231402",
+    "timestamp": "2025-08-27T15:30:01.231402+00:00",
     "total_lines": 169276,
     "total_files": 831,
     "backend_lines": 114070,
@@ -3016,7 +3016,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-28T03:30:02.838268",
+    "timestamp": "2025-08-28T03:30:02.838268+00:00",
     "total_lines": 170226,
     "total_files": 844,
     "backend_lines": 114547,
@@ -3120,7 +3120,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-28T15:30:01.453086",
+    "timestamp": "2025-08-28T15:30:01.453086+00:00",
     "total_lines": 170226,
     "total_files": 844,
     "backend_lines": 114547,
@@ -3224,7 +3224,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-29T03:30:04.982004",
+    "timestamp": "2025-08-29T03:30:04.982004+00:00",
     "total_lines": 170523,
     "total_files": 848,
     "backend_lines": 114708,
@@ -3328,7 +3328,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-29T15:30:01.316264",
+    "timestamp": "2025-08-29T15:30:01.316264+00:00",
     "total_lines": 170629,
     "total_files": 849,
     "backend_lines": 114766,
@@ -3432,7 +3432,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-30T06:42:06.206104",
+    "timestamp": "2025-08-30T06:42:06.206104+00:00",
     "total_lines": 173267,
     "total_files": 870,
     "backend_lines": 115528,
@@ -3536,7 +3536,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-30T15:30:01.582659",
+    "timestamp": "2025-08-30T15:30:01.582659+00:00",
     "total_lines": 173304,
     "total_files": 872,
     "backend_lines": 115528,
@@ -3640,7 +3640,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-31T03:30:01.512925",
+    "timestamp": "2025-08-31T03:30:01.512925+00:00",
     "total_lines": 173546,
     "total_files": 874,
     "backend_lines": 115770,
@@ -3744,7 +3744,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-31T15:30:01.587898",
+    "timestamp": "2025-08-31T15:30:01.587898+00:00",
     "total_lines": 174003,
     "total_files": 883,
     "backend_lines": 116151,
@@ -3848,7 +3848,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-08-31T16:09:20.434165",
+    "timestamp": "2025-08-31T16:09:20.434165+00:00",
     "total_lines": 174008,
     "total_files": 883,
     "backend_lines": 116156,
@@ -3952,7 +3952,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-01T03:30:02.617306",
+    "timestamp": "2025-09-01T03:30:02.617306+00:00",
     "total_lines": 174117,
     "total_files": 871,
     "backend_lines": 116238,
@@ -4056,7 +4056,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-01T15:42:40.633428",
+    "timestamp": "2025-09-01T15:42:40.633428+00:00",
     "total_lines": 174392,
     "total_files": 871,
     "backend_lines": 116238,
@@ -4160,7 +4160,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-02T03:30:01.389359",
+    "timestamp": "2025-09-02T03:30:01.389359+00:00",
     "total_lines": 176266,
     "total_files": 874,
     "backend_lines": 116357,
@@ -4264,7 +4264,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-02T15:30:01.569781",
+    "timestamp": "2025-09-02T15:30:01.569781+00:00",
     "total_lines": 176828,
     "total_files": 875,
     "backend_lines": 116369,
@@ -4368,7 +4368,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-02T20:13:30.536754",
+    "timestamp": "2025-09-02T20:13:30.536754+00:00",
     "total_lines": 176742,
     "total_files": 882,
     "backend_lines": 116472,
@@ -4472,7 +4472,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-03T03:30:03.767348",
+    "timestamp": "2025-09-03T03:30:03.767348+00:00",
     "total_lines": 178040,
     "total_files": 892,
     "backend_lines": 116635,
@@ -4576,7 +4576,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-03T15:30:01.212037",
+    "timestamp": "2025-09-03T15:30:01.212037+00:00",
     "total_lines": 178619,
     "total_files": 891,
     "backend_lines": 116639,
@@ -4680,7 +4680,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-04T03:33:26.217429",
+    "timestamp": "2025-09-04T03:33:26.217429+00:00",
     "total_lines": 178572,
     "total_files": 892,
     "backend_lines": 116734,
@@ -4784,7 +4784,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-04T15:30:01.597049",
+    "timestamp": "2025-09-04T15:30:01.597049+00:00",
     "total_lines": 179309,
     "total_files": 916,
     "backend_lines": 117270,
@@ -4888,7 +4888,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-05T08:18:25.042645",
+    "timestamp": "2025-09-05T08:18:25.042645+00:00",
     "total_lines": 179695,
     "total_files": 922,
     "backend_lines": 117544,
@@ -4992,7 +4992,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-05T16:47:57.330812",
+    "timestamp": "2025-09-05T16:47:57.330812+00:00",
     "total_lines": 179695,
     "total_files": 922,
     "backend_lines": 117544,
@@ -5096,7 +5096,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-06T11:30:01.550289",
+    "timestamp": "2025-09-06T11:30:01.550289+00:00",
     "total_lines": 179812,
     "total_files": 924,
     "backend_lines": 117544,
@@ -5200,7 +5200,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-06T23:30:01.795367",
+    "timestamp": "2025-09-06T23:30:01.795367+00:00",
     "total_lines": 179866,
     "total_files": 925,
     "backend_lines": 117592,
@@ -5304,7 +5304,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-07T11:30:11.007374",
+    "timestamp": "2025-09-07T11:30:11.007374+00:00",
     "total_lines": 179866,
     "total_files": 925,
     "backend_lines": 117592,
@@ -5408,7 +5408,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-07T23:52:03.975448",
+    "timestamp": "2025-09-07T23:52:03.975448+00:00",
     "total_lines": 182550,
     "total_files": 928,
     "backend_lines": 120175,
@@ -5512,7 +5512,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-08T11:30:02.504677",
+    "timestamp": "2025-09-08T11:30:02.504677+00:00",
     "total_lines": 182664,
     "total_files": 930,
     "backend_lines": 120216,
@@ -5616,7 +5616,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-08T23:30:01.870175",
+    "timestamp": "2025-09-08T23:30:01.870175+00:00",
     "total_lines": 182718,
     "total_files": 930,
     "backend_lines": 120242,
@@ -5720,7 +5720,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-10T23:30:04.405905",
+    "timestamp": "2025-09-10T23:30:04.405905+00:00",
     "total_lines": 182800,
     "total_files": 932,
     "backend_lines": 120242,
@@ -5824,7 +5824,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-11T11:43:24.249317",
+    "timestamp": "2025-09-11T11:43:24.249317+00:00",
     "total_lines": 182800,
     "total_files": 932,
     "backend_lines": 120242,
@@ -5928,7 +5928,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-11T23:34:56.464431",
+    "timestamp": "2025-09-11T23:34:56.464431+00:00",
     "total_lines": 182800,
     "total_files": 932,
     "backend_lines": 120242,
@@ -6032,7 +6032,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-12T11:30:01.794525",
+    "timestamp": "2025-09-12T11:30:01.794525+00:00",
     "total_lines": 182820,
     "total_files": 935,
     "backend_lines": 120242,
@@ -6136,7 +6136,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-12T23:30:03.388428",
+    "timestamp": "2025-09-12T23:30:03.388428+00:00",
     "total_lines": 183020,
     "total_files": 941,
     "backend_lines": 120242,
@@ -6244,7 +6244,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-13T11:30:01.994154",
+    "timestamp": "2025-09-13T11:30:01.994154+00:00",
     "total_lines": 183020,
     "total_files": 941,
     "backend_lines": 120242,
@@ -6352,7 +6352,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-15T15:30:01.635285",
+    "timestamp": "2025-09-15T15:30:01.635285+00:00",
     "total_lines": 183290,
     "total_files": 944,
     "backend_lines": 120512,
@@ -6460,7 +6460,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-16T05:42:25.255230",
+    "timestamp": "2025-09-16T05:42:25.255230+00:00",
     "total_lines": 183495,
     "total_files": 947,
     "backend_lines": 120717,
@@ -6568,7 +6568,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-16T15:34:42.681045",
+    "timestamp": "2025-09-16T15:34:42.681045+00:00",
     "total_lines": 183486,
     "total_files": 947,
     "backend_lines": 120708,
@@ -6676,7 +6676,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-19T15:30:01.940969",
+    "timestamp": "2025-09-19T15:30:01.940969+00:00",
     "total_lines": 184471,
     "total_files": 963,
     "backend_lines": 121449,
@@ -6784,7 +6784,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-19T17:37:21.145448",
+    "timestamp": "2025-09-19T17:37:21.145448+00:00",
     "total_lines": 184497,
     "total_files": 964,
     "backend_lines": 121457,
@@ -6892,7 +6892,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-19T19:37:13.622583",
+    "timestamp": "2025-09-19T19:37:13.622583+00:00",
     "total_lines": 184625,
     "total_files": 966,
     "backend_lines": 121585,
@@ -7000,7 +7000,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-19T19:57:25.918264",
+    "timestamp": "2025-09-19T19:57:25.918264+00:00",
     "total_lines": 184655,
     "total_files": 967,
     "backend_lines": 121615,
@@ -7108,7 +7108,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-20T03:30:02.281427",
+    "timestamp": "2025-09-20T03:30:02.281427+00:00",
     "total_lines": 184746,
     "total_files": 967,
     "backend_lines": 121634,
@@ -7216,7 +7216,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-21T03:30:02.422651",
+    "timestamp": "2025-09-21T03:30:02.422651+00:00",
     "total_lines": 185148,
     "total_files": 970,
     "backend_lines": 121859,
@@ -7324,7 +7324,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-22T03:30:02.441824",
+    "timestamp": "2025-09-22T03:30:02.441824+00:00",
     "total_lines": 188915,
     "total_files": 986,
     "backend_lines": 125626,
@@ -7432,7 +7432,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-22T15:30:02.437627",
+    "timestamp": "2025-09-22T15:30:02.437627+00:00",
     "total_lines": 188915,
     "total_files": 986,
     "backend_lines": 125626,
@@ -7540,7 +7540,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-23T03:30:02.527338",
+    "timestamp": "2025-09-23T03:30:02.527338+00:00",
     "total_lines": 189135,
     "total_files": 986,
     "backend_lines": 125840,
@@ -7648,7 +7648,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-23T15:30:02.525001",
+    "timestamp": "2025-09-23T15:30:02.525001+00:00",
     "total_lines": 189135,
     "total_files": 986,
     "backend_lines": 125840,
@@ -7756,7 +7756,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-24T15:30:02.614246",
+    "timestamp": "2025-09-24T15:30:02.614246+00:00",
     "total_lines": 191000,
     "total_files": 1007,
     "backend_lines": 126073,
@@ -7864,7 +7864,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-25T15:40:25.780168",
+    "timestamp": "2025-09-25T15:40:25.780168+00:00",
     "total_lines": 191592,
     "total_files": 1007,
     "backend_lines": 126280,
@@ -7972,7 +7972,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-27T03:30:02.220280",
+    "timestamp": "2025-09-27T03:30:02.220280+00:00",
     "total_lines": 193044,
     "total_files": 1014,
     "backend_lines": 127083,
@@ -8080,7 +8080,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-28T03:30:02.379046",
+    "timestamp": "2025-09-28T03:30:02.379046+00:00",
     "total_lines": 193750,
     "total_files": 1017,
     "backend_lines": 127279,
@@ -8188,7 +8188,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-28T15:30:02.379512",
+    "timestamp": "2025-09-28T15:30:02.379512+00:00",
     "total_lines": 194792,
     "total_files": 1023,
     "backend_lines": 127891,
@@ -8296,7 +8296,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-29T03:30:02.376294",
+    "timestamp": "2025-09-29T03:30:02.376294+00:00",
     "total_lines": 195738,
     "total_files": 1026,
     "backend_lines": 127978,
@@ -8404,7 +8404,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-29T08:38:20.742686",
+    "timestamp": "2025-09-29T08:38:20.742686+00:00",
     "total_lines": 195738,
     "total_files": 1026,
     "backend_lines": 127978,
@@ -8512,7 +8512,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-09-30T03:30:02.288249",
+    "timestamp": "2025-09-30T03:30:02.288249+00:00",
     "total_lines": 196923,
     "total_files": 1031,
     "backend_lines": 128942,
@@ -8620,7 +8620,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-01T03:50:41.430020",
+    "timestamp": "2025-10-01T03:50:41.430020+00:00",
     "total_lines": 198258,
     "total_files": 1050,
     "backend_lines": 129747,
@@ -8728,7 +8728,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-01T15:30:02.444852",
+    "timestamp": "2025-10-01T15:30:02.444852+00:00",
     "total_lines": 198735,
     "total_files": 1055,
     "backend_lines": 129747,
@@ -8836,7 +8836,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-02T15:30:01.841080",
+    "timestamp": "2025-10-02T15:30:01.841080+00:00",
     "total_lines": 199583,
     "total_files": 1060,
     "backend_lines": 130302,
@@ -8944,7 +8944,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-03T15:30:02.202485",
+    "timestamp": "2025-10-03T15:30:02.202485+00:00",
     "total_lines": 202462,
     "total_files": 1071,
     "backend_lines": 132289,
@@ -9052,7 +9052,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-04T15:04:47.789145",
+    "timestamp": "2025-10-04T15:04:47.789145+00:00",
     "total_lines": 205475,
     "total_files": 1089,
     "backend_lines": 134624,
@@ -9160,7 +9160,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-04T15:30:01.723283",
+    "timestamp": "2025-10-04T15:30:01.723283+00:00",
     "total_lines": 205475,
     "total_files": 1089,
     "backend_lines": 134624,
@@ -9268,7 +9268,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-05T03:30:02.384374",
+    "timestamp": "2025-10-05T03:30:02.384374+00:00",
     "total_lines": 205658,
     "total_files": 1090,
     "backend_lines": 134805,
@@ -9376,7 +9376,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-05T15:30:02.405437",
+    "timestamp": "2025-10-05T15:30:02.405437+00:00",
     "total_lines": 206080,
     "total_files": 1098,
     "backend_lines": 135227,
@@ -9484,7 +9484,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-06T16:02:58.959753",
+    "timestamp": "2025-10-06T16:02:58.959753+00:00",
     "total_lines": 207315,
     "total_files": 1100,
     "backend_lines": 135636,
@@ -9592,7 +9592,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-07T03:30:02.422351",
+    "timestamp": "2025-10-07T03:30:02.422351+00:00",
     "total_lines": 208774,
     "total_files": 1109,
     "backend_lines": 137011,
@@ -9700,7 +9700,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-07T15:32:16.731219",
+    "timestamp": "2025-10-07T15:32:16.731219+00:00",
     "total_lines": 208778,
     "total_files": 1109,
     "backend_lines": 137015,
@@ -9808,7 +9808,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-08T03:30:02.474272",
+    "timestamp": "2025-10-08T03:30:02.474272+00:00",
     "total_lines": 209030,
     "total_files": 1110,
     "backend_lines": 137267,
@@ -9916,7 +9916,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-08T15:30:02.696506",
+    "timestamp": "2025-10-08T15:30:02.696506+00:00",
     "total_lines": 209660,
     "total_files": 1111,
     "backend_lines": 137505,
@@ -10024,7 +10024,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-09T15:30:02.458285",
+    "timestamp": "2025-10-09T15:30:02.458285+00:00",
     "total_lines": 210372,
     "total_files": 1113,
     "backend_lines": 137824,
@@ -10132,7 +10132,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-10T03:30:02.242207",
+    "timestamp": "2025-10-10T03:30:02.242207+00:00",
     "total_lines": 210943,
     "total_files": 1120,
     "backend_lines": 138395,
@@ -10240,7 +10240,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-13T03:30:02.323458",
+    "timestamp": "2025-10-13T03:30:02.323458+00:00",
     "total_lines": 211955,
     "total_files": 1126,
     "backend_lines": 138953,
@@ -10348,7 +10348,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-13T15:30:02.513904",
+    "timestamp": "2025-10-13T15:30:02.513904+00:00",
     "total_lines": 215499,
     "total_files": 1142,
     "backend_lines": 141681,
@@ -10456,7 +10456,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-14T06:11:34.201351",
+    "timestamp": "2025-10-14T06:11:34.201351+00:00",
     "total_lines": 218480,
     "total_files": 1156,
     "backend_lines": 142382,
@@ -10564,7 +10564,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-14T15:30:02.517561",
+    "timestamp": "2025-10-14T15:30:02.517561+00:00",
     "total_lines": 219494,
     "total_files": 1158,
     "backend_lines": 142541,
@@ -10672,7 +10672,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-16T03:30:02.510916",
+    "timestamp": "2025-10-16T03:30:02.510916+00:00",
     "total_lines": 223238,
     "total_files": 1170,
     "backend_lines": 143364,
@@ -10780,7 +10780,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-16T15:30:02.343787",
+    "timestamp": "2025-10-16T15:30:02.343787+00:00",
     "total_lines": 223287,
     "total_files": 1170,
     "backend_lines": 143364,
@@ -10888,7 +10888,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-20T16:00:03.312299",
+    "timestamp": "2025-10-20T16:00:03.312299+00:00",
     "total_lines": 224235,
     "total_files": 1176,
     "backend_lines": 144009,
@@ -10996,7 +10996,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-21T03:30:02.321711",
+    "timestamp": "2025-10-21T03:30:02.321711+00:00",
     "total_lines": 224524,
     "total_files": 1182,
     "backend_lines": 143958,
@@ -11104,7 +11104,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-21T15:57:05.485390",
+    "timestamp": "2025-10-21T15:57:05.485390+00:00",
     "total_lines": 224585,
     "total_files": 1182,
     "backend_lines": 143958,
@@ -11212,7 +11212,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-24T17:36:04.641248",
+    "timestamp": "2025-10-24T17:36:04.641248+00:00",
     "total_lines": 226466,
     "total_files": 1191,
     "backend_lines": 145810,
@@ -11320,7 +11320,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-25T03:30:02.031939",
+    "timestamp": "2025-10-25T03:30:02.031939+00:00",
     "total_lines": 228294,
     "total_files": 1202,
     "backend_lines": 147638,
@@ -11428,7 +11428,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-25T15:30:01.942638",
+    "timestamp": "2025-10-25T15:30:01.942638+00:00",
     "total_lines": 228294,
     "total_files": 1202,
     "backend_lines": 147638,
@@ -11536,7 +11536,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-26T03:30:01.914107",
+    "timestamp": "2025-10-26T03:30:01.914107+00:00",
     "total_lines": 229251,
     "total_files": 1213,
     "backend_lines": 147809,
@@ -11644,7 +11644,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-26T15:30:01.799862",
+    "timestamp": "2025-10-26T15:30:01.799862+00:00",
     "total_lines": 229825,
     "total_files": 1215,
     "backend_lines": 148302,
@@ -11752,7 +11752,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-27T03:30:02.121258",
+    "timestamp": "2025-10-27T03:30:02.121258+00:00",
     "total_lines": 232146,
     "total_files": 1235,
     "backend_lines": 149497,
@@ -11860,7 +11860,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-27T16:30:51.296417",
+    "timestamp": "2025-10-27T16:30:51.296417+00:00",
     "total_lines": 232148,
     "total_files": 1236,
     "backend_lines": 149499,
@@ -11968,7 +11968,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-28T03:30:02.168921",
+    "timestamp": "2025-10-28T03:30:02.168921+00:00",
     "total_lines": 232538,
     "total_files": 1242,
     "backend_lines": 149889,
@@ -12076,7 +12076,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-28T15:44:16.710666",
+    "timestamp": "2025-10-28T15:44:16.710666+00:00",
     "total_lines": 232538,
     "total_files": 1242,
     "backend_lines": 149889,
@@ -12184,7 +12184,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-29T03:30:02.113292",
+    "timestamp": "2025-10-29T03:30:02.113292+00:00",
     "total_lines": 233880,
     "total_files": 1245,
     "backend_lines": 151231,
@@ -12292,7 +12292,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-29T15:36:51.424777",
+    "timestamp": "2025-10-29T15:36:51.424777+00:00",
     "total_lines": 233901,
     "total_files": 1245,
     "backend_lines": 151252,
@@ -12400,7 +12400,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-29T18:58:42.926979",
+    "timestamp": "2025-10-29T18:58:42.926979+00:00",
     "total_lines": 233901,
     "total_files": 1245,
     "backend_lines": 151252,
@@ -12508,7 +12508,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-30T03:30:01.965751",
+    "timestamp": "2025-10-30T03:30:01.965751+00:00",
     "total_lines": 236030,
     "total_files": 1262,
     "backend_lines": 153381,
@@ -12616,7 +12616,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-30T15:30:01.938421",
+    "timestamp": "2025-10-30T15:30:01.938421+00:00",
     "total_lines": 236182,
     "total_files": 1262,
     "backend_lines": 153533,
@@ -12724,7 +12724,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-10-31T04:03:02.422575",
+    "timestamp": "2025-10-31T04:03:02.422575+00:00",
     "total_lines": 239726,
     "total_files": 1291,
     "backend_lines": 156200,
@@ -12832,7 +12832,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-01T03:30:02.262956",
+    "timestamp": "2025-11-01T03:30:02.262956+00:00",
     "total_lines": 243260,
     "total_files": 1309,
     "backend_lines": 159190,
@@ -12940,7 +12940,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-01T15:30:02.486643",
+    "timestamp": "2025-11-01T15:30:02.486643+00:00",
     "total_lines": 244225,
     "total_files": 1314,
     "backend_lines": 159657,
@@ -13048,7 +13048,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-02T03:30:02.342628",
+    "timestamp": "2025-11-02T03:30:02.342628+00:00",
     "total_lines": 246395,
     "total_files": 1325,
     "backend_lines": 161540,
@@ -13156,7 +13156,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-02T15:30:02.237729",
+    "timestamp": "2025-11-02T15:30:02.237729+00:00",
     "total_lines": 246688,
     "total_files": 1327,
     "backend_lines": 161833,
@@ -13264,7 +13264,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-04T15:30:02.024817",
+    "timestamp": "2025-11-04T15:30:02.024817+00:00",
     "total_lines": 247478,
     "total_files": 1330,
     "backend_lines": 162607,
@@ -13372,7 +13372,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-06T14:18:25.659458",
+    "timestamp": "2025-11-06T14:18:25.659458+00:00",
     "total_lines": 245984,
     "total_files": 1343,
     "backend_lines": 161113,
@@ -13480,7 +13480,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-06T14:18:26.538568",
+    "timestamp": "2025-11-06T14:18:26.538568+00:00",
     "total_lines": 245984,
     "total_files": 1343,
     "backend_lines": 161113,
@@ -13588,7 +13588,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-06T14:18:30.001152",
+    "timestamp": "2025-11-06T14:18:30.001152+00:00",
     "total_lines": 245984,
     "total_files": 1343,
     "backend_lines": 161113,
@@ -13696,7 +13696,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-06T14:18:30.674026",
+    "timestamp": "2025-11-06T14:18:30.674026+00:00",
     "total_lines": 245984,
     "total_files": 1343,
     "backend_lines": 161113,
@@ -13804,7 +13804,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-06T15:30:02.379449",
+    "timestamp": "2025-11-06T15:30:02.379449+00:00",
     "total_lines": 246115,
     "total_files": 1343,
     "backend_lines": 161244,
@@ -13912,7 +13912,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-07T03:30:02.376259",
+    "timestamp": "2025-11-07T03:30:02.376259+00:00",
     "total_lines": 244538,
     "total_files": 1346,
     "backend_lines": 159667,
@@ -14020,7 +14020,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-07T15:30:02.153371",
+    "timestamp": "2025-11-07T15:30:02.153371+00:00",
     "total_lines": 250515,
     "total_files": 1352,
     "backend_lines": 159912,
@@ -14128,7 +14128,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-08T03:36:58.598144",
+    "timestamp": "2025-11-08T03:36:58.598144+00:00",
     "total_lines": 251562,
     "total_files": 1360,
     "backend_lines": 159918,
@@ -14236,7 +14236,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-08T15:30:02.093575",
+    "timestamp": "2025-11-08T15:30:02.093575+00:00",
     "total_lines": 251341,
     "total_files": 1355,
     "backend_lines": 159905,
@@ -14344,7 +14344,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-09T15:30:02.238000",
+    "timestamp": "2025-11-09T15:30:02.238000+00:00",
     "total_lines": 251493,
     "total_files": 1355,
     "backend_lines": 159905,
@@ -14452,7 +14452,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-10T03:30:02.543833",
+    "timestamp": "2025-11-10T03:30:02.543833+00:00",
     "total_lines": 253336,
     "total_files": 1377,
     "backend_lines": 160699,
@@ -14560,7 +14560,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-10T15:30:02.612803",
+    "timestamp": "2025-11-10T15:30:02.612803+00:00",
     "total_lines": 253211,
     "total_files": 1372,
     "backend_lines": 160746,
@@ -14668,7 +14668,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-11T03:37:24.003188",
+    "timestamp": "2025-11-11T03:37:24.003188+00:00",
     "total_lines": 253935,
     "total_files": 1384,
     "backend_lines": 161145,
@@ -14776,7 +14776,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-11T15:30:02.466437",
+    "timestamp": "2025-11-11T15:30:02.466437+00:00",
     "total_lines": 254553,
     "total_files": 1392,
     "backend_lines": 161763,
@@ -14884,7 +14884,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-12T04:00:00.928258",
+    "timestamp": "2025-11-12T04:00:00.928258+00:00",
     "total_lines": 255399,
     "total_files": 1399,
     "backend_lines": 162027,
@@ -14992,7 +14992,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-12T15:32:08.693439",
+    "timestamp": "2025-11-12T15:32:08.693439+00:00",
     "total_lines": 255420,
     "total_files": 1399,
     "backend_lines": 162027,
@@ -15100,7 +15100,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-13T04:11:55.011374",
+    "timestamp": "2025-11-13T04:11:55.011374+00:00",
     "total_lines": 255420,
     "total_files": 1399,
     "backend_lines": 162027,
@@ -15208,7 +15208,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-13T15:34:15.281746",
+    "timestamp": "2025-11-13T15:34:15.281746+00:00",
     "total_lines": 255420,
     "total_files": 1399,
     "backend_lines": 162027,
@@ -15316,7 +15316,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-14T03:30:24.460922",
+    "timestamp": "2025-11-14T03:30:24.460922+00:00",
     "total_lines": 257003,
     "total_files": 1403,
     "backend_lines": 162972,
@@ -15424,7 +15424,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-14T15:30:02.405939",
+    "timestamp": "2025-11-14T15:30:02.405939+00:00",
     "total_lines": 257003,
     "total_files": 1403,
     "backend_lines": 162972,
@@ -15532,7 +15532,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-15T03:30:02.356512",
+    "timestamp": "2025-11-15T03:30:02.356512+00:00",
     "total_lines": 258220,
     "total_files": 1403,
     "backend_lines": 163944,
@@ -15640,7 +15640,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-15T15:30:02.354931",
+    "timestamp": "2025-11-15T15:30:02.354931+00:00",
     "total_lines": 258525,
     "total_files": 1403,
     "backend_lines": 164209,
@@ -15748,7 +15748,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-16T15:30:02.193030",
+    "timestamp": "2025-11-16T15:30:02.193030+00:00",
     "total_lines": 259312,
     "total_files": 1405,
     "backend_lines": 164696,
@@ -15856,7 +15856,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-17T04:18:19.546112",
+    "timestamp": "2025-11-17T04:18:19.546112+00:00",
     "total_lines": 259635,
     "total_files": 1408,
     "backend_lines": 164845,
@@ -15964,7 +15964,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-17T15:58:38.469432",
+    "timestamp": "2025-11-17T15:58:38.469432+00:00",
     "total_lines": 259632,
     "total_files": 1408,
     "backend_lines": 164842,
@@ -16072,7 +16072,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-18T03:40:13.123999",
+    "timestamp": "2025-11-18T03:40:13.123999+00:00",
     "total_lines": 260125,
     "total_files": 1410,
     "backend_lines": 165041,
@@ -16180,7 +16180,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-18T15:33:50.582158",
+    "timestamp": "2025-11-18T15:33:50.582158+00:00",
     "total_lines": 260125,
     "total_files": 1410,
     "backend_lines": 165041,
@@ -16288,7 +16288,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-20T03:30:02.279231",
+    "timestamp": "2025-11-20T03:30:02.279231+00:00",
     "total_lines": 260492,
     "total_files": 1411,
     "backend_lines": 165327,
@@ -16396,7 +16396,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-20T15:30:52.820748",
+    "timestamp": "2025-11-20T15:30:52.820748+00:00",
     "total_lines": 260492,
     "total_files": 1411,
     "backend_lines": 165327,
@@ -16504,7 +16504,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-21T03:30:02.241210",
+    "timestamp": "2025-11-21T03:30:02.241210+00:00",
     "total_lines": 261314,
     "total_files": 1412,
     "backend_lines": 165788,
@@ -16612,7 +16612,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-21T15:30:01.734170",
+    "timestamp": "2025-11-21T15:30:01.734170+00:00",
     "total_lines": 261642,
     "total_files": 1412,
     "backend_lines": 166016,
@@ -16720,7 +16720,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-22T03:43:54.692696",
+    "timestamp": "2025-11-22T03:43:54.692696+00:00",
     "total_lines": 262225,
     "total_files": 1414,
     "backend_lines": 166255,
@@ -16828,7 +16828,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-22T15:30:02.299086",
+    "timestamp": "2025-11-22T15:30:02.299086+00:00",
     "total_lines": 262600,
     "total_files": 1415,
     "backend_lines": 166456,
@@ -16936,7 +16936,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-23T03:41:11.879682",
+    "timestamp": "2025-11-23T03:41:11.879682+00:00",
     "total_lines": 262762,
     "total_files": 1417,
     "backend_lines": 166580,
@@ -17044,7 +17044,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-23T15:30:02.297964",
+    "timestamp": "2025-11-23T15:30:02.297964+00:00",
     "total_lines": 264168,
     "total_files": 1425,
     "backend_lines": 167454,
@@ -17152,7 +17152,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-24T03:30:02.389634",
+    "timestamp": "2025-11-24T03:30:02.389634+00:00",
     "total_lines": 282888,
     "total_files": 1463,
     "backend_lines": 168306,
@@ -17260,7 +17260,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-24T15:30:02.420131",
+    "timestamp": "2025-11-24T15:30:02.420131+00:00",
     "total_lines": 285848,
     "total_files": 1469,
     "backend_lines": 169575,
@@ -17368,7 +17368,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-25T03:31:40.417879",
+    "timestamp": "2025-11-25T03:31:40.417879+00:00",
     "total_lines": 285569,
     "total_files": 1468,
     "backend_lines": 170423,
@@ -17476,7 +17476,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-25T12:03:51.356733",
+    "timestamp": "2025-11-25T12:03:51.356733+00:00",
     "total_lines": 286580,
     "total_files": 1470,
     "backend_lines": 171036,
@@ -17584,7 +17584,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-25T15:30:02.369218",
+    "timestamp": "2025-11-25T15:30:02.369218+00:00",
     "total_lines": 288303,
     "total_files": 1480,
     "backend_lines": 172453,
@@ -17692,7 +17692,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-26T03:30:02.408865",
+    "timestamp": "2025-11-26T03:30:02.408865+00:00",
     "total_lines": 296119,
     "total_files": 1500,
     "backend_lines": 180009,
@@ -17800,7 +17800,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-26T15:30:29.664774",
+    "timestamp": "2025-11-26T15:30:29.664774+00:00",
     "total_lines": 296115,
     "total_files": 1500,
     "backend_lines": 180005,
@@ -17908,7 +17908,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-27T16:51:58.649572",
+    "timestamp": "2025-11-27T16:51:58.649572+00:00",
     "total_lines": 298356,
     "total_files": 1507,
     "backend_lines": 182143,
@@ -18016,7 +18016,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-27T23:00:12.592019",
+    "timestamp": "2025-11-27T23:00:12.592019+00:00",
     "total_lines": 298338,
     "total_files": 1513,
     "backend_lines": 182142,
@@ -18124,7 +18124,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-28T03:46:58.669690",
+    "timestamp": "2025-11-28T03:46:58.669690+00:00",
     "total_lines": 296775,
     "total_files": 1510,
     "backend_lines": 182142,
@@ -18232,7 +18232,7 @@
     "branch": null
   },
   {
-    "timestamp": "2025-11-28T15:30:02.506914",
+    "timestamp": "2025-11-28T15:30:02.506914+00:00",
     "total_lines": 296531,
     "total_files": 1507,
     "backend_lines": 182164,
