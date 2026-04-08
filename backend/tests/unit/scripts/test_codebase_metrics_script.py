@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 import scripts.codebase_metrics as codebase_metrics_script
 
+from app.schemas.codebase_metrics_models import CodebaseHistoryEntry
+
 
 def _current_entry(timestamp: str = "2026-04-06T15:00:00+00:00") -> dict:
     return {
@@ -25,12 +27,12 @@ def _current_entry(timestamp: str = "2026-04-06T15:00:00+00:00") -> dict:
     }
 
 
-def test_build_history_backfills_legacy_entries_and_appends_current(
+def test_build_history_backfills_optional_fields_and_appends_current(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     legacy_history = [
         {
-            "timestamp": "2026-04-05T15:00:00",
+            "timestamp": "2026-04-05T15:00:00+00:00",
             "total_lines": 100,
             "total_files": 10,
             "backend_lines": 60,
@@ -73,7 +75,7 @@ def test_build_history_reads_committed_history_when_worktree_file_is_empty(
 ) -> None:
     legacy_history = [
         {
-            "timestamp": "2026-04-05T15:00:00",
+            "timestamp": "2026-04-05T15:00:00+00:00",
             "total_lines": 100,
             "total_files": 10,
             "backend_lines": 60,
@@ -106,7 +108,7 @@ def test_build_history_normalizes_git_commit_regressions(
 ) -> None:
     history_with_regression = [
         {
-            "timestamp": "2026-04-05T15:00:00",
+            "timestamp": "2026-04-05T15:00:00+00:00",
             "total_lines": 100,
             "total_files": 10,
             "backend_lines": 60,
@@ -114,7 +116,7 @@ def test_build_history_normalizes_git_commit_regressions(
             "git_commits": 40,
         },
         {
-            "timestamp": "2026-04-06T15:00:00",
+            "timestamp": "2026-04-06T15:00:00+00:00",
             "total_lines": 110,
             "total_files": 11,
             "backend_lines": 65,
@@ -122,7 +124,7 @@ def test_build_history_normalizes_git_commit_regressions(
             "git_commits": 44,
         },
         {
-            "timestamp": "2026-04-07T15:00:00",
+            "timestamp": "2026-04-07T15:00:00+00:00",
             "total_lines": 115,
             "total_files": 12,
             "backend_lines": 68,
@@ -139,3 +141,58 @@ def test_build_history_normalizes_git_commit_regressions(
     history = codebase_metrics_script.build_history(tmp_path)
 
     assert [entry["git_commits"] for entry in history] == [40, 44, 44, 44]
+
+
+def test_build_history_rejects_naive_existing_timestamps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    invalid_history = [
+        {
+            "timestamp": "2026-04-05T15:00:00",
+            "total_lines": 100,
+            "total_files": 10,
+            "backend_lines": 60,
+            "frontend_lines": 40,
+            "git_commits": 40,
+        }
+    ]
+    (tmp_path / "metrics_history.json").write_text(json.dumps(invalid_history), encoding="utf-8")
+    monkeypatch.setattr(codebase_metrics_script.CodebaseAnalyzer, "build_entry", lambda self: _current_entry())
+
+    with pytest.raises(RuntimeError, match="timezone info"):
+        codebase_metrics_script.build_history(tmp_path)
+
+
+def test_build_entry_output_validates_against_strict_schema(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        codebase_metrics_script.CodebaseAnalyzer,
+        "analyze_backend",
+        lambda self: {"total_files": 7, "total_lines": 70, "categories": {"Models": {"files": 2, "lines": 10}}},
+    )
+    monkeypatch.setattr(
+        codebase_metrics_script.CodebaseAnalyzer,
+        "analyze_frontend",
+        lambda self: {
+            "total_files": 5,
+            "total_lines": 50,
+            "categories": {"Components": {"files": 1, "lines": 8}},
+        },
+    )
+    monkeypatch.setattr(
+        codebase_metrics_script.CodebaseAnalyzer,
+        "get_git_stats",
+        lambda self: {
+            "git_commits": 44,
+            "unique_contributors": 3,
+            "first_commit_date": "2024-01-01",
+            "last_commit_date": "2026-04-06",
+            "branch": "main",
+        },
+    )
+
+    entry = codebase_metrics_script.CodebaseAnalyzer(str(tmp_path)).build_entry()
+    parsed = CodebaseHistoryEntry.model_validate(entry)
+
+    assert parsed.timestamp.utcoffset() is not None

@@ -13,7 +13,7 @@ import app.routes.v1.codebase_metrics as codebase_routes
 def _sample_history() -> list[dict]:
     return [
         {
-            "timestamp": "2025-01-01T00:00:00",
+            "timestamp": "2025-01-01T00:00:00Z",
             "total_lines": 18,
             "total_files": 2,
             "backend_lines": 10,
@@ -80,6 +80,7 @@ def test_get_codebase_metrics_endpoint(client, auth_headers_admin, monkeypatch, 
     assert response.status_code == 200
     assert response.json()[0]["total_lines"] == 18
     assert response.json()[0]["branch"] == "main"
+    assert response.json()[0]["timestamp"] == "2025-01-01T00:00:00Z"
 
 
 def test_get_codebase_metrics_endpoint_missing_file(
@@ -104,3 +105,16 @@ async def test_get_codebase_metrics_validates_history_entries(
         await codebase_routes.get_codebase_metrics()
 
     assert "unexpected" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_get_codebase_metrics_rejects_naive_timestamps(
+    monkeypatch, tmp_path: Path
+) -> None:
+    history = _sample_history()
+    history[0]["timestamp"] = "2025-01-01T00:00:00"
+    (tmp_path / "metrics_history.json").write_text(json.dumps(history), encoding="utf-8")
+    monkeypatch.setattr(codebase_routes, "_get_project_root", lambda: tmp_path)
+
+    with pytest.raises(ValidationError, match="timezone info"):
+        await codebase_routes.get_codebase_metrics()

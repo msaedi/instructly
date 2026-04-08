@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import subprocess
@@ -224,6 +224,19 @@ def _history_file(root_path: Path) -> Path:
     return root_path / "metrics_history.json"
 
 
+def _validate_timestamp(value: Any, source: str) -> None:
+    if not isinstance(value, str):
+        raise RuntimeError(f"{source} timestamp must be a string.")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RuntimeError(f"{source} timestamp must be a valid ISO-8601 datetime.") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise RuntimeError(f"{source} timestamp must include timezone info.")
+    if parsed.utcoffset() != timedelta(0):
+        raise RuntimeError(f"{source} timestamp must be UTC.")
+
+
 def _backfill_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(entry)
     normalized.setdefault("categories", None)
@@ -248,7 +261,14 @@ def _parse_history(raw: str, source: str) -> List[Dict[str, Any]]:
     loaded = json.loads(raw)
     if not isinstance(loaded, list):
         raise RuntimeError(f"{source} must contain a JSON array.")
-    return [_backfill_entry(entry) for entry in loaded]
+    history: List[Dict[str, Any]] = []
+    for index, entry in enumerate(loaded):
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"{source} entry {index} must be an object.")
+        normalized = _backfill_entry(entry)
+        _validate_timestamp(normalized.get("timestamp"), f"{source} entry {index}")
+        history.append(normalized)
+    return history
 
 
 def _load_existing_history(root_path: Path) -> List[Dict[str, Any]]:
@@ -300,6 +320,7 @@ def build_history(root_path: Path) -> List[Dict[str, Any]]:
 
     analyzer = CodebaseAnalyzer(str(root_path))
     current_entry = analyzer.build_entry()
+    _validate_timestamp(current_entry.get("timestamp"), "generated entry")
     if history:
         current_entry["git_commits"] = max(
             _coerce_git_commits(current_entry.get("git_commits")),

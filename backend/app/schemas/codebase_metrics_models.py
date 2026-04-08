@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field, field_validator
 
 from ._strict_base import StrictModel
 
@@ -16,7 +16,7 @@ class CodebaseCategoryStats(StrictModel):
 
 
 class CodebaseHistoryEntry(StrictModel):
-    timestamp: datetime
+    timestamp: AwareDatetime
     total_lines: int = Field(..., ge=0)
     total_files: int = Field(..., ge=0)
     backend_lines: int = Field(..., ge=0)
@@ -29,3 +29,11 @@ class CodebaseHistoryEntry(StrictModel):
     first_commit_date: Optional[str] = None
     last_commit_date: Optional[str] = None
     branch: Optional[str] = None
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def _require_utc_timestamp(cls, value: datetime) -> datetime:
+        """Codebase metrics timestamps must be timezone-aware UTC."""
+        if value.utcoffset() != timedelta(0):
+            raise ValueError("Timestamp must be UTC")
+        return value

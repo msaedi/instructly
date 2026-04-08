@@ -18,10 +18,14 @@ if [[ -z "$(git diff --cached --name-only -- 'backend/' 'frontend/')" ]]; then
 fi
 
 METRICS_FILE="metrics_history.json"
+TMP_METRICS_FILE="$(mktemp "${TMPDIR:-/tmp}/metrics_history.XXXXXX.json")"
 SKIP_HOOKS="codebase-metrics,mypy-strict-gate,backend-no-focused-tests,frontend-no-focused-tests"
+trap 'rm -f "$TMP_METRICS_FILE"' EXIT
 
 echo "Generating codebase metrics..."
-python backend/scripts/codebase_metrics.py > "$METRICS_FILE"
+python backend/scripts/codebase_metrics.py > "$TMP_METRICS_FILE"
+mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+trap - EXIT
 
 # Format only the generated metrics file without re-entering expensive
 # filename-agnostic hooks or recursively re-entering this same hook.
