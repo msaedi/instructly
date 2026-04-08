@@ -307,6 +307,13 @@ async def get_current_user(
     except Exception:
         # Non-fatal: continue with actual user
         logger.debug("Non-fatal error ignored", exc_info=True)
+
+    # Tag the active OTel span with the resolved user ID so Axiom queries
+    # can filter by user (lands in attributes.custom['app.user_id']).
+    from app.monitoring.otel import add_business_context
+
+    add_business_context(user_id=getattr(user, "id", None))
+
     return user
 
 

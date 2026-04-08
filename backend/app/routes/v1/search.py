@@ -272,6 +272,14 @@ async def nl_search(
                 if result.meta.parsed:
                     result.meta.parsed.location = "near me"
 
+        # Tag OTel span with user and category context for Axiom queries
+        from app.monitoring.otel import add_business_context
+
+        add_business_context(
+            user_id=current_user.id if current_user else None,
+            category=result.meta.parsed.service_query if result.meta.parsed else None,
+        )
+
         # Set Cache-Control header
         if response:
             cache_ttl = 60 if not result.meta.cache_hit else 300

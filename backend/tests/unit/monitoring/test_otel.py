@@ -281,3 +281,156 @@ def test_instrument_additional_libraries_and_shutdown():
     assert otel._tracer_provider is None
     assert otel._otel_initialized is False
     assert otel._sqlalchemy_instrumented is False
+
+
+class TestFilteringSpanProcessor:
+    """Tests for the FilteringSpanProcessor that drops noisy spans."""
+
+    def _make_span(self, name: str, scope_name: str) -> MagicMock:
+        span = MagicMock()
+        span.name = name
+        scope = MagicMock()
+        scope.name = scope_name
+        span.instrumentation_scope = scope
+        return span
+
+    def test_suppresses_sqlalchemy_connect_span(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = self._make_span("connect", "opentelemetry.instrumentation.sqlalchemy")
+
+        processor.on_end(span)
+
+        inner.on_end.assert_not_called()
+
+    def test_passes_non_connect_span(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = self._make_span("SELECT postgres", "opentelemetry.instrumentation.sqlalchemy")
+
+        processor.on_end(span)
+
+        inner.on_end.assert_called_once_with(span)
+
+    def test_passes_connect_from_other_scope(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = self._make_span("connect", "opentelemetry.instrumentation.redis")
+
+        processor.on_end(span)
+
+        inner.on_end.assert_called_once_with(span)
+
+    def test_delegates_on_start(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = MagicMock()
+        context = MagicMock()
+
+        processor.on_start(span, context)
+
+        inner.on_start.assert_called_once_with(span, context)
+
+    def test_delegates_on_ending(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = MagicMock()
+
+        processor._on_ending(span)
+
+        inner._on_ending.assert_called_once_with(span)
+
+    def test_delegates_shutdown_and_flush(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        inner.force_flush.return_value = True
+        processor = FilteringSpanProcessor(inner)
+
+        processor.shutdown()
+        inner.shutdown.assert_called_once()
+
+        result = processor.force_flush(5000)
+        inner.force_flush.assert_called_once_with(5000)
+        assert result is True
+
+    def test_handles_span_with_no_scope(self):
+        from app.monitoring.otel import FilteringSpanProcessor
+
+        inner = MagicMock()
+        processor = FilteringSpanProcessor(inner)
+        span = MagicMock()
+        span.name = "connect"
+        span.instrumentation_scope = None
+
+        processor.on_end(span)
+
+        inner.on_end.assert_called_once_with(span)
+
+
+class TestAddBusinessContext:
+    """Tests for the add_business_context helper."""
+
+    def test_sets_user_id_attribute(self):
+        from app.monitoring import otel
+
+        mock_span = MagicMock()
+        with patch.object(otel, "is_otel_enabled", return_value=True), patch(
+            "opentelemetry.trace.get_current_span", return_value=mock_span
+        ):
+            otel.add_business_context(user_id="01ABC123DEF456GH789JK0LM01")
+
+        mock_span.set_attribute.assert_called_once_with(
+            "app.user_id", "01ABC123DEF456GH789JK0LM01"
+        )
+
+    def test_sets_multiple_attributes(self):
+        from app.monitoring import otel
+
+        mock_span = MagicMock()
+        with patch.object(otel, "is_otel_enabled", return_value=True), patch(
+            "opentelemetry.trace.get_current_span", return_value=mock_span
+        ):
+            otel.add_business_context(
+                user_id="01USER",
+                booking_id="01BOOK",
+                instructor_id="01INST",
+            )
+
+        calls = mock_span.set_attribute.call_args_list
+        assert len(calls) == 3
+        call_dict = {c.args[0]: c.args[1] for c in calls}
+        assert call_dict["app.user_id"] == "01USER"
+        assert call_dict["app.booking_id"] == "01BOOK"
+        assert call_dict["app.instructor_id"] == "01INST"
+
+    def test_skips_none_values(self):
+        from app.monitoring import otel
+
+        mock_span = MagicMock()
+        with patch.object(otel, "is_otel_enabled", return_value=True), patch(
+            "opentelemetry.trace.get_current_span", return_value=mock_span
+        ):
+            otel.add_business_context(user_id="01USER")
+
+        mock_span.set_attribute.assert_called_once_with("app.user_id", "01USER")
+
+    def test_noop_when_disabled(self):
+        from app.monitoring import otel
+
+        with patch.object(otel, "is_otel_enabled", return_value=False), patch(
+            "opentelemetry.trace.get_current_span"
+        ) as mock_get_span:
+            otel.add_business_context(user_id="01ABC")
+
+        mock_get_span.assert_not_called()

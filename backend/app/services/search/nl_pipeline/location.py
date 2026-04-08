@@ -6,6 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+from app.monitoring.otel import create_span
 from app.schemas.nl_search import StageStatus
 from app.services.search import config as config_module
 from app.services.search.config import SearchConfig
@@ -106,26 +107,40 @@ async def resolve_location_openai(
     location_llm_top_k: int,
     llm_embedding_threshold: float,
 ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
-    normalized, early_result, early_unresolved = setup_location_resolution(
-        location_text=location_text,
-        region_lookup=region_lookup,
-        original_query=original_query,
-        tier5_task=tier5_task,
-        diagnostics=diagnostics,
-        logger=logger,
-    )
-    if early_result is not None or normalized is None or region_lookup is None:
-        return early_result or ResolvedLocation.from_not_found(), None, early_unresolved
-    tier4_result, embedding_candidate_names = await run_tier4_embedding_search(
-        allow_tier4=allow_tier4,
-        normalized=normalized,
-        region_lookup=region_lookup,
-        fuzzy_score=fuzzy_score,
-        location_embedding_service=location_embedding_service,
-        location_llm_top_k=location_llm_top_k,
-        llm_embedding_threshold=llm_embedding_threshold,
-        diagnostics=diagnostics,
-    )
+    with create_span("search.location.setup") as setup_span:
+        normalized, early_result, early_unresolved = setup_location_resolution(
+            location_text=location_text,
+            region_lookup=region_lookup,
+            original_query=original_query,
+            tier5_task=tier5_task,
+            diagnostics=diagnostics,
+            logger=logger,
+        )
+        if early_result is not None or normalized is None or region_lookup is None:
+            if setup_span and early_result:
+                setup_span.set_attribute("location.resolved_tier", "tier1_3_early")
+            return early_result or ResolvedLocation.from_not_found(), None, early_unresolved
+    with create_span("search.location.tier4") as t4_span:
+        tier4_result, embedding_candidate_names = await run_tier4_embedding_search(
+            allow_tier4=allow_tier4,
+            normalized=normalized,
+            region_lookup=region_lookup,
+            fuzzy_score=fuzzy_score,
+            location_embedding_service=location_embedding_service,
+            location_llm_top_k=location_llm_top_k,
+            llm_embedding_threshold=llm_embedding_threshold,
+            diagnostics=diagnostics,
+        )
+        if t4_span:
+            t4_span.set_attribute(
+                "location.tier4.resolved", bool(tier4_result and tier4_result.resolved)
+            )
+            if tier4_result and tier4_result.confidence is not None:
+                t4_span.set_attribute("location.tier4.confidence", tier4_result.confidence)
+            if embedding_candidate_names:
+                t4_span.set_attribute(
+                    "location.tier4.candidate_count", len(embedding_candidate_names)
+                )
     if tier4_result and tier4_result.resolved and tier4_result.confidence >= tier4_high_confidence:
         if tier5_task:
             consume_task_result(tier5_task, label="location_llm", logger=logger)
@@ -148,21 +163,26 @@ async def resolve_location_openai(
         logger=logger,
         get_config=get_config,
     )
-    llm_result, llm_cache, llm_unresolved = await await_tier5_result(
-        allow_tier5=allow_tier5,
-        tier5_task=tier5_task,
-        tier5_started_at=tier5_started_at,
-        tier5_timeout_s=tier5_timeout_s,
-        diagnostics=diagnostics,
-        llm_candidates=llm_candidates,
-        embedding_candidate_names=embedding_candidate_names,
-        region_lookup=region_lookup,
-        location_text=location_text,
-        original_query=original_query,
-        normalized=normalized,
-        resolve_location_llm_fn=resolve_location_llm_fn,
-        logger=logger,
-    )
+    with create_span("search.location.tier5") as t5_span:
+        llm_result, llm_cache, llm_unresolved = await await_tier5_result(
+            allow_tier5=allow_tier5,
+            tier5_task=tier5_task,
+            tier5_started_at=tier5_started_at,
+            tier5_timeout_s=tier5_timeout_s,
+            diagnostics=diagnostics,
+            llm_candidates=llm_candidates,
+            embedding_candidate_names=embedding_candidate_names,
+            region_lookup=region_lookup,
+            location_text=location_text,
+            original_query=original_query,
+            normalized=normalized,
+            resolve_location_llm_fn=resolve_location_llm_fn,
+            logger=logger,
+        )
+        if t5_span:
+            t5_span.set_attribute(
+                "location.tier5.resolved", bool(llm_result and llm_result.resolved)
+            )
     return arbitrate_location_result(
         normalized=normalized,
         original_query=original_query,
@@ -317,6 +337,23 @@ async def resolve_location_stage_for_service(
             )
     elif timer:
         timer.skip_stage("location_resolution", "no_location")
+
+    # Tag the current span with the resolved tier for APL slicing
+    if location_resolution and location_resolution.tier is not None:
+        from app.monitoring.otel import is_otel_enabled
+
+        if is_otel_enabled():
+            try:
+                from opentelemetry import trace
+
+                span = trace.get_current_span()
+                if span:
+                    span.set_attribute(
+                        "location.resolved_tier", str(location_resolution.tier.value)
+                    )
+            except Exception:
+                logger.debug("Failed to set location.resolved_tier span attribute", exc_info=True)
+
     return (
         location_resolution or ResolvedLocation.from_not_found(),
         location_llm_cache,

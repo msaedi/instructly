@@ -11,11 +11,17 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 from urllib.parse import unquote
 
 if TYPE_CHECKING:
-    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.context import Context
+    from opentelemetry.sdk.trace import (
+        ReadableSpan,
+        Span,
+        SpanProcessor as SpanProcessorType,
+        TracerProvider,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +86,45 @@ def _safe_int(env_var: str, default: int) -> int:
             default,
         )
         return default
+
+
+class FilteringSpanProcessor:
+    """Wraps a SpanProcessor, dropping spans that match filter criteria.
+
+    Used to suppress high-volume, low-value spans (e.g., SQLAlchemy pool
+    checkout 'connect' spans — 11K/hr, 51% of ingest, zero signal).
+    See docs/observability/axiom-queries.md query #5 for investigation details.
+    """
+
+    _SUPPRESSED_SPANS: ClassVar[frozenset[tuple[str, str]]] = frozenset(
+        {
+            ("connect", "opentelemetry.instrumentation.sqlalchemy"),
+        }
+    )
+
+    def __init__(self, inner: "SpanProcessorType") -> None:
+        self._inner = inner
+
+    def _is_suppressed(self, span: "ReadableSpan") -> bool:
+        scope_name = span.instrumentation_scope.name if span.instrumentation_scope else ""
+        return (span.name, scope_name) in self._SUPPRESSED_SPANS
+
+    def on_start(self, span: "Span", parent_context: Optional["Context"] = None) -> None:
+        self._inner.on_start(span, parent_context)
+
+    def _on_ending(self, span: "Span") -> None:
+        self._inner._on_ending(span)
+
+    def on_end(self, span: "ReadableSpan") -> None:
+        if not self._is_suppressed(span):
+            self._inner.on_end(span)
+
+    def shutdown(self) -> None:
+        self._inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        result = self._inner.force_flush(timeout_millis)
+        return bool(result)
 
 
 def init_otel(service_name: Optional[str] = None) -> bool:
@@ -159,12 +204,13 @@ def init_otel(service_name: Optional[str] = None) -> bool:
 
         # BatchSpanProcessor settings can be tuned via env vars:
         # OTEL_BSP_MAX_QUEUE_SIZE, OTEL_BSP_MAX_EXPORT_BATCH_SIZE, OTEL_BSP_SCHEDULE_DELAY_MILLIS
-        span_processor = BatchSpanProcessor(
+        batch_processor = BatchSpanProcessor(
             exporter,
             max_queue_size=_safe_int("OTEL_BSP_MAX_QUEUE_SIZE", 2048),
             max_export_batch_size=_safe_int("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", 512),
             schedule_delay_millis=_safe_int("OTEL_BSP_SCHEDULE_DELAY_MILLIS", 5000),
         )
+        span_processor = FilteringSpanProcessor(batch_processor)
         _tracer_provider.add_span_processor(span_processor)
 
         # Enable log correlation (inject trace_id into log records)
@@ -418,3 +464,38 @@ def create_span(name: str, attributes: Optional[dict[str, Any]] = None) -> Itera
     except Exception as exc:
         logger.warning("Failed to create span '%s': %s", name, exc)
         yield None
+
+
+def add_business_context(
+    *,
+    user_id: Optional[str] = None,
+    instructor_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
+    category: Optional[str] = None,
+) -> None:
+    """Set business-context attributes on the current span.
+
+    These land in Axiom's ``attributes.custom`` map (not top-level columns).
+    Query pattern: ``['attributes.custom']['app.user_id'] == "..."``
+
+    Only sets non-None values.  All values must be ULID strings or
+    category slugs -- never PII (emails, phones, addresses).
+    """
+    if not is_otel_enabled():
+        return
+    try:
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        if span is None:
+            return
+        if user_id is not None:
+            span.set_attribute("app.user_id", user_id)
+        if instructor_id is not None:
+            span.set_attribute("app.instructor_id", instructor_id)
+        if booking_id is not None:
+            span.set_attribute("app.booking_id", booking_id)
+        if category is not None:
+            span.set_attribute("app.category", category)
+    except Exception as exc:
+        logger.debug("Failed to set business context on span: %s", exc)

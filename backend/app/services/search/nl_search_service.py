@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from app.core.exceptions import raise_503_if_pool_exhaustion
+from app.monitoring.otel import create_span
 from app.schemas.nl_search import NLSearchResponse, NLSearchResultItem, StageStatus
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.filter_service import FilterService
@@ -161,28 +162,29 @@ class NLSearchService:
             force_skip_vector_search=request.force_skip_vector or request.force_skip_embedding,
         )
         context.inflight_incremented = True
-        (
-            pre_data,
-            parsed_query,
-            embedding_task,
-            tier5_task,
-            tier5_started_at,
-        ) = await preflight.run_preflight_and_parse_for_service(
-            self,
-            query=request.query,
-            user_id=request.user_id,
-            user_location=request.user_location,
-            parsed_query_cached=parsed_query_cached,
-            parsed_query_future=parsed_query_future,
-            notify_parsed=notify_parsed,
-            embedding_task=embedding_task,
-            budget=budget,
-            effective_skill_levels=context.effective_skill_levels,
-            metrics=context.metrics,
-            timer=context.timer,
-            candidates_flow=context.candidates_flow,
-            force_skip_tier5=request.force_skip_tier5,
-        )
+        with create_span("search.preflight", {"search.query_length": len(request.query)}):
+            (
+                pre_data,
+                parsed_query,
+                embedding_task,
+                tier5_task,
+                tier5_started_at,
+            ) = await preflight.run_preflight_and_parse_for_service(
+                self,
+                query=request.query,
+                user_id=request.user_id,
+                user_location=request.user_location,
+                parsed_query_cached=parsed_query_cached,
+                parsed_query_future=parsed_query_future,
+                notify_parsed=notify_parsed,
+                embedding_task=embedding_task,
+                budget=budget,
+                effective_skill_levels=context.effective_skill_levels,
+                metrics=context.metrics,
+                timer=context.timer,
+                candidates_flow=context.candidates_flow,
+                force_skip_tier5=request.force_skip_tier5,
+            )
         return _PreflightStageResult(
             budget=budget,
             parsed_query=parsed_query,
@@ -198,34 +200,35 @@ class NLSearchService:
         context: _SearchContext,
         preflight_result: _PreflightStageResult,
     ) -> _AIStageResult:
-        query_embedding, embedding_reason = await preflight.resolve_query_embedding_for_service(
-            self,
-            parsed_query=preflight_result.parsed_query,
-            pre_data=preflight_result.pre_data,
-            embedding_task=preflight_result.embedding_task,
-            budget=preflight_result.budget,
-            metrics=context.metrics,
-            timer=context.timer,
-            force_skip_vector=request.force_skip_vector,
-            force_skip_embedding=request.force_skip_embedding,
-        )
-        (
-            location_resolution,
-            location_llm_cache,
-            unresolved_info,
-        ) = await location.resolve_location_stage_for_service(
-            self,
-            parsed_query=preflight_result.parsed_query,
-            pre_data=preflight_result.pre_data,
-            user_location=request.user_location,
-            budget=preflight_result.budget,
-            timer=context.timer,
-            force_skip_tier5=request.force_skip_tier5,
-            force_skip_tier4=request.force_skip_tier4,
-            force_skip_embedding=request.force_skip_embedding,
-            tier5_task=preflight_result.tier5_task,
-            tier5_started_at=preflight_result.tier5_started_at,
-        )
+        with create_span("search.ai_stage"):
+            query_embedding, embedding_reason = await preflight.resolve_query_embedding_for_service(
+                self,
+                parsed_query=preflight_result.parsed_query,
+                pre_data=preflight_result.pre_data,
+                embedding_task=preflight_result.embedding_task,
+                budget=preflight_result.budget,
+                metrics=context.metrics,
+                timer=context.timer,
+                force_skip_vector=request.force_skip_vector,
+                force_skip_embedding=request.force_skip_embedding,
+            )
+            (
+                location_resolution,
+                location_llm_cache,
+                unresolved_info,
+            ) = await location.resolve_location_stage_for_service(
+                self,
+                parsed_query=preflight_result.parsed_query,
+                pre_data=preflight_result.pre_data,
+                user_location=request.user_location,
+                budget=preflight_result.budget,
+                timer=context.timer,
+                force_skip_tier5=request.force_skip_tier5,
+                force_skip_tier4=request.force_skip_tier4,
+                force_skip_embedding=request.force_skip_embedding,
+                tier5_task=preflight_result.tier5_task,
+                tier5_started_at=preflight_result.tier5_started_at,
+            )
         return _AIStageResult(
             query_embedding=query_embedding,
             embedding_reason=embedding_reason,
@@ -241,32 +244,36 @@ class NLSearchService:
         preflight_result: _PreflightStageResult,
         ai_result: _AIStageResult,
     ) -> NLSearchResponse:
-        post_data, retrieval_result = await postflight.run_postflight_stage_for_service(
-            self,
-            pre_data=preflight_result.pre_data,
-            parsed_query=preflight_result.parsed_query,
-            query_embedding=ai_result.query_embedding,
-            location_resolution=ai_result.location_resolution,
-            location_llm_cache=ai_result.location_llm_cache,
-            unresolved_info=ai_result.unresolved_info,
-            user_location=request.user_location,
-            limit=request.limit,
-            requester_timezone=request.requester_timezone,
-            taxonomy_filter_selections=context.effective_filters,
-            subcategory_id=request.subcategory_id,
-            embedding_reason=ai_result.embedding_reason,
-            budget=preflight_result.budget,
-            metrics=context.metrics,
-            timer=context.timer,
-            candidates_flow=context.candidates_flow,
-        )
-        results, hydrate_ms = await hydration.hydrate_results_for_service(
-            post_data=post_data,
-            limit=request.limit,
-            metrics=context.metrics,
-            timer=context.timer,
-            candidates_flow=context.candidates_flow,
-        )
+        with create_span("search.postflight"):
+            post_data, retrieval_result = await postflight.run_postflight_stage_for_service(
+                self,
+                pre_data=preflight_result.pre_data,
+                parsed_query=preflight_result.parsed_query,
+                query_embedding=ai_result.query_embedding,
+                location_resolution=ai_result.location_resolution,
+                location_llm_cache=ai_result.location_llm_cache,
+                unresolved_info=ai_result.unresolved_info,
+                user_location=request.user_location,
+                limit=request.limit,
+                requester_timezone=request.requester_timezone,
+                taxonomy_filter_selections=context.effective_filters,
+                subcategory_id=request.subcategory_id,
+                embedding_reason=ai_result.embedding_reason,
+                budget=preflight_result.budget,
+                metrics=context.metrics,
+                timer=context.timer,
+                candidates_flow=context.candidates_flow,
+            )
+        with create_span("search.hydration") as span:
+            results, hydrate_ms = await hydration.hydrate_results_for_service(
+                post_data=post_data,
+                limit=request.limit,
+                metrics=context.metrics,
+                timer=context.timer,
+                candidates_flow=context.candidates_flow,
+            )
+            if span:
+                span.set_attribute("hydration.result_count", len(results))
         return await self._build_and_cache_response(
             request=request,
             context=context,

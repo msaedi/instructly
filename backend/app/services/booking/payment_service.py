@@ -109,6 +109,15 @@ class BookingPaymentMixin:
         trigger_immediate_auth = schedule_ctx["trigger_immediate_auth"]
         immediate_auth_hours_until = schedule_ctx["immediate_auth_hours_until"]
 
+        # Tag OTel span with booking context for Axiom queries
+        from app.monitoring.otel import add_business_context
+
+        add_business_context(
+            booking_id=booking.id,
+            instructor_id=booking.instructor_id,
+            user_id=student.id,
+        )
+
         self.log_operation(
             "confirm_booking_payment_completed",
             booking_id=booking.id,
