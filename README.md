@@ -150,7 +150,7 @@ See `docs/PROJECT_DOCS_INDEX.md` for complete documentation map including:
 
 ## Deployment
 
-- **Backend**: Deploy to Render using `render.yaml`
+- **Backend**: Deploy to Render via manual dashboard-managed services
 - **Frontend**: Deploy to Vercel via GitHub integration
 - **Environments**: Preview (preview.instainstru.com) + Beta (beta.instainstru.com)
 

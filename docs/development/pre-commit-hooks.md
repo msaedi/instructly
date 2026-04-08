@@ -213,7 +213,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.12'
     - uses: pre-commit/action@v3.0.0
 ```
 

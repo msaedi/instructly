@@ -5,7 +5,7 @@ o# Redis Migration Deployment Checklist
 - [ ] Ensure all changes are committed and pushed
 - [ ] Review Celery configuration changes in `app/core/celery_config.py`
 - [ ] Verify Redis Docker configuration in `redis/` directory
-- [ ] Check `render.yaml` has all services updated with new Redis URL
+- [ ] Check the Render dashboard has all services updated with the new Redis URL
 
 ## Deployment Steps
 
@@ -97,7 +97,7 @@ After deployment, monitor for the first 24 hours:
 
 If issues occur:
 
-1. **Revert render.yaml** to use Upstash URLs
+1. **Restore the prior Render dashboard environment values** to use Upstash URLs
 2. **Redeploy all services** with old configuration
 3. **Investigate logs** for root cause
 

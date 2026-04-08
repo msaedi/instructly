@@ -4,7 +4,7 @@ This guide walks you through setting up the InstaInstru development environment 
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.12
 - Node.js 18 or higher
 - Docker and Docker Compose
 - PostgreSQL 14 or higher (or use Docker)

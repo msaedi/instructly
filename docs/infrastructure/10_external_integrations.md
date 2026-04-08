@@ -738,7 +738,7 @@ Backend hosting platform for API server, Celery workers, Redis, and MCP server.
 | `instainstru-mcp` | Web Service | Starter ($7) | MCP Admin Copilot |
 
 ### Configuration
-Infrastructure defined in `render.yaml` at repository root:
+Infrastructure is configured in the Render dashboard for the production services:
 - **Region**: Ohio (us-east)
 - **Auto-deploy**: Disabled for all services (manual deploys for safety)
 - **Health checks**: `/api/v1/health/lite` (API), `/healthcheck` (Flower), `/api/v1/health` (MCP)
@@ -754,7 +754,6 @@ PORT=...                            # Port to bind to
 ```
 
 ### Key Files
-- [render.yaml](render.yaml) - Infrastructure-as-code definition
 - [redis/Dockerfile](redis/Dockerfile) - Custom Redis image
 
 ---

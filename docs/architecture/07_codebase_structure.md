@@ -17,7 +17,6 @@ instructly/
 ├── scripts/              # Root-level utility scripts
 ├── .github/              # GitHub Actions workflows
 ├── CLAUDE.md             # AI assistant instructions
-├── render.yaml           # Render.com deployment config
 └── pytest.ini            # Pytest configuration
 ```
 
@@ -278,7 +277,6 @@ monitoring/
 |------|---------|
 | `CLAUDE.md` | AI assistant project context |
 | `pytest.ini` | Pytest configuration |
-| `render.yaml` | Render.com service definitions |
 | `.pre-commit-config.yaml` | Pre-commit hooks (repo pattern, timezone) |
 | `codecov.yml` | Code coverage configuration |
 | `package.json` | Root workspace (Husky, lint-staged) |

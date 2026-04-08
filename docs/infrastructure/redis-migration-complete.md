@@ -19,7 +19,7 @@ The Redis migration from Upstash to Render Redis has been successfully completed
    - Cleaned up Upstash-specific optimizations
 
 3. **Updated Service Configurations**
-   - `render.yaml`: All services point to `redis://instructly-redis:6379`
+   - Render dashboard-managed services now point to `redis://instructly-redis:6379`
    - `docker-compose.celery.yml`: Simplified environment variables
    - Production config: Optimized for Render Redis instead of Upstash
 
@@ -34,17 +34,7 @@ REDIS_URL=redis://instructly-redis:6379
 
 ### Service Configuration
 
-```yaml
-# Redis Service (render.yaml)
-- type: pserv
-  name: instructly-redis
-  runtime: docker
-  plan: starter  # $7/month
-  region: ohio
-  dockerfilePath: ./redis/Dockerfile
-  dockerContext: .
-  autoDeploy: false
-```
+The Redis service is configured in the Render dashboard as a private service named `instructly-redis`.
 
 ### Redis Configuration (redis.conf)
 

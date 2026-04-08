@@ -1,7 +1,7 @@
 # backend/pyproject.toml
 [tool.black]
 line-length = 120
-target-version = ['py39', 'py310', 'py311']
+target-version = ['py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -89,7 +89,7 @@ output = "coverage.json"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 extend-exclude = [
   "backend/tests/**",
   "backend/**/tests/**",
@@ -115,7 +115,7 @@ force-single-line = false
 "backend/app/__init__.py" = ["F401"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_ignores = true
 no_implicit_optional = true
