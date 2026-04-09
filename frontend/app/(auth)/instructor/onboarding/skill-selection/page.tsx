@@ -1744,12 +1744,14 @@ function Step3SkillsPricingInner() {
         {anyServiceUsesStudentLocation && (
           <div className="mt-6">
             <div className="insta-onboarding-divider" />
-            <NeighborhoodSelector
-              context="onboarding"
-              selectionMode="multi"
-              value={Array.from(selectedNeighborhoods)}
-              onSelectionChange={handleNeighborhoodSelectionChange}
-            />
+            <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
+              <NeighborhoodSelector
+                context="onboarding"
+                selectionMode="multi"
+                value={Array.from(selectedNeighborhoods)}
+                onSelectionChange={handleNeighborhoodSelectionChange}
+              />
+            </div>
           </div>
         )}
 

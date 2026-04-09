@@ -1,7 +1,9 @@
 import {
   LONG_NAME_THRESHOLD,
+  VERY_LONG_NAME_THRESHOLD,
   getMatchPriority,
   isLongDisplayName,
+  isVeryLongDisplayName,
   matchSelectorItem,
   normalizeSearchText,
 } from '../types';
@@ -31,9 +33,19 @@ describe('neighborhood selector types utilities', () => {
     expect(isLongDisplayName('x'.repeat(LONG_NAME_THRESHOLD + 1))).toBe(true);
   });
 
+  it('marks very long display names when they exceed the wrap threshold', () => {
+    expect(isVeryLongDisplayName('x'.repeat(VERY_LONG_NAME_THRESHOLD))).toBe(false);
+    expect(isVeryLongDisplayName('x'.repeat(VERY_LONG_NAME_THRESHOLD + 1))).toBe(true);
+  });
+
   it('marks multi-segment compound names as full-width even below the character threshold', () => {
     expect(isLongDisplayName('Eastchester / Edenwald / Baychester')).toBe(true);
     expect(isLongDisplayName('Chelsea / Hudson Yards')).toBe(true);
+  });
+
+  it('marks three-segment compounds as multiline candidates', () => {
+    expect(isVeryLongDisplayName('Chelsea / Hudson Yards')).toBe(false);
+    expect(isVeryLongDisplayName('Eastchester / Edenwald / Baychester')).toBe(true);
   });
 
   it('marks the current nine long-form neighborhood labels as full-width candidates', () => {
@@ -55,6 +67,23 @@ describe('neighborhood selector types utilities', () => {
 
   it('marks long compound names over the threshold as full-width candidates', () => {
     expect(isLongDisplayName('Financial District / Battery Park City')).toBe(true);
+  });
+
+  it('keeps short names single-column and promotes longer labels into the expected tiers', () => {
+    expect(isLongDisplayName('Belmont')).toBe(false);
+    expect(isVeryLongDisplayName('Belmont')).toBe(false);
+    expect(isLongDisplayName('Claremont Village')).toBe(true);
+    expect(isVeryLongDisplayName('Claremont Village')).toBe(false);
+    expect(isLongDisplayName('Fordham Heights')).toBe(true);
+    expect(isVeryLongDisplayName('Fordham Heights')).toBe(false);
+    expect(isLongDisplayName('Eastchester / Edenwald / Baychester')).toBe(true);
+    expect(isVeryLongDisplayName('Eastchester / Edenwald / Baychester')).toBe(true);
+    expect(
+      isLongDisplayName('Carroll Gardens / Cobble Hill / Gowanus / Red Hook'),
+    ).toBe(true);
+    expect(
+      isVeryLongDisplayName('Carroll Gardens / Cobble Hill / Gowanus / Red Hook'),
+    ).toBe(true);
   });
 
   it('returns Infinity for null match priority and ranks other types deterministically', () => {

@@ -436,6 +436,26 @@ describe('NeighborhoodSelector', () => {
     expect(screen.queryByTestId('neighborhood-chip-marble')).not.toBeInTheDocument();
   });
 
+  it('allows all browse-mode boroughs to stay collapsed after a user closes the selected borough', async () => {
+    renderSelector({ defaultValue: ['marble'] });
+    const user = userEvent.setup();
+
+    const manhattanHeader = screen.getByTestId('neighborhood-borough-manhattan');
+    const bronxHeader = screen.getByTestId('neighborhood-borough-bronx');
+    const queensHeader = screen.getByTestId('neighborhood-borough-queens');
+
+    await waitFor(() => {
+      expect(bronxHeader).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    await user.click(bronxHeader);
+
+    expect(bronxHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(manhattanHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(queensHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('neighborhood-chip-marble')).not.toBeInTheDocument();
+  });
+
   it('restores the manual expansion state after search clears and ignores header clicks while searching', async () => {
     renderSelector();
     const user = userEvent.setup();
@@ -458,13 +478,70 @@ describe('NeighborhoodSelector', () => {
     expect(bronxHeader).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('gives long neighborhood names a full-width chip', async () => {
+  it('applies the three-tier pill sizing classes', () => {
+    const belmont = makeItem({
+      borough: 'Bronx',
+      display_key: 'belmont',
+      display_name: 'Belmont',
+      display_order: 1,
+      search_terms: [{ term: 'Belmont', type: 'display_part' }],
+    });
+    const greenwichVillage = makeItem({
+      borough: 'Bronx',
+      display_key: 'greenwich-village',
+      display_name: 'Greenwich Village',
+      display_order: 2,
+      search_terms: [{ term: 'Greenwich Village', type: 'display_part' }],
+    });
+    const eastchester = makeItem({
+      borough: 'Bronx',
+      display_key: 'eastchester',
+      display_name: 'Eastchester / Edenwald / Baychester',
+      display_order: 3,
+      search_terms: [
+        { term: 'Eastchester / Edenwald / Baychester', type: 'display_part' },
+      ],
+    });
+    const customResponse: NeighborhoodSelectorResponse = {
+      market: 'nyc',
+      total_items: 3,
+      boroughs: [
+        {
+          borough: 'Bronx',
+          item_count: 3,
+          items: [belmont, greenwichVillage, eastchester],
+        },
+      ],
+    };
+    const customItems = customResponse.boroughs.flatMap((borough) => borough.items);
+
+    useNeighborhoodSelectorDataMock.mockReturnValue({
+      data: customResponse,
+      isLoading: false,
+      isError: false,
+      allItems: customItems,
+      itemByKey: new Map(customItems.map((item) => [item.display_key, item])),
+      boroughs: ['Bronx'],
+    } as ReturnType<typeof useNeighborhoodSelectorData>);
+
     renderSelector();
-    const user = userEvent.setup();
 
-    await user.type(screen.getByTestId('neighborhood-search-input'), 'Belle Harbor');
+    const shortChip = screen.getByTestId('neighborhood-chip-belmont');
+    expect(shortChip).not.toHaveClass('col-span-2');
+    expect(shortChip).toHaveClass('h-11');
+    expect(shortChip).toHaveClass('whitespace-nowrap');
 
-    expect(screen.getByTestId('neighborhood-chip-rockaway')).toHaveClass('col-span-2');
+    const longChip = screen.getByTestId('neighborhood-chip-greenwich-village');
+    expect(longChip).toHaveClass('col-span-2');
+    expect(longChip).toHaveClass('h-11');
+    expect(longChip).toHaveClass('whitespace-nowrap');
+    expect(longChip).not.toHaveClass('whitespace-normal');
+
+    const veryLongChip = screen.getByTestId('neighborhood-chip-eastchester');
+    expect(veryLongChip).toHaveClass('col-span-2');
+    expect(veryLongChip).toHaveClass('whitespace-normal');
+    expect(veryLongChip).toHaveClass('break-words');
+    expect(veryLongChip).not.toHaveClass('h-11');
   });
 
   it('renders collapsed borough headers according to the A-Team count rules', async () => {

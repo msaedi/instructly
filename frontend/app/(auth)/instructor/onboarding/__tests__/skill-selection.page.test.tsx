@@ -596,6 +596,15 @@ describe('Skill selection page refine header', () => {
       expect(screen.getByTestId('service-areas-count')).toHaveTextContent('1');
     });
 
+    const serviceAreasCard = screen.getByTestId('service-areas-card');
+    expect(serviceAreasCard.parentElement).toHaveClass(
+      'insta-surface-card',
+      'mt-0',
+      'sm:mt-8',
+      'p-4',
+      'sm:p-6'
+    );
+
     expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
       expect.stringContaining('/api/v1/addresses/neighborhoods/lookup'),
     );

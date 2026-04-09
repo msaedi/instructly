@@ -43,6 +43,7 @@ describe('BoroughSection', () => {
     ).toHaveAttribute('id', 'neighborhood-borough-panel-queens');
     expect(screen.getByText('No neighborhoods available.')).toBeInTheDocument();
     expect(screen.queryByText('No matches')).not.toBeInTheDocument();
+    expect(screen.queryByText('(0)')).not.toBeInTheDocument();
   });
 
   it('renders the search-specific empty state when no items match', () => {
@@ -102,8 +103,15 @@ describe('BoroughSection', () => {
     );
 
     const chip = screen.getByTestId('neighborhood-chip-rockaway');
+    const toggle = screen.getByTestId('neighborhood-borough-queens');
+    expect(toggle).toHaveTextContent('Queens');
+    expect(toggle).toHaveTextContent('(1)');
+    expect(within(toggle).queryByText(/selected/i)).not.toBeInTheDocument();
     expect(chip).toHaveAttribute('title', 'Matches: Belle Harbor');
     expect(within(chip).getByText('Matches: Belle Harbor')).toBeInTheDocument();
+    expect(chip).toHaveClass('col-span-2');
+    expect(chip).toHaveClass('whitespace-normal');
+    expect(within(toggle).queryByText('Select all')).not.toBeInTheDocument();
 
     await user.hover(chip);
     await user.unhover(chip);
@@ -116,5 +124,43 @@ describe('BoroughSection', () => {
     expect(onToggle).toHaveBeenCalledWith('rockaway');
     expect(onSelectAll).toHaveBeenCalledTimes(1);
     expect(onClearAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps long-but-not-very-long aliases on a single line and out of the inline hint slot', () => {
+    const item = makeItem({
+      borough: 'Queens',
+      display_key: 'greenwich-village',
+      display_name: 'Greenwich Village',
+      display_order: 1,
+      search_terms: [
+        {
+          term: 'West Village',
+          type: 'hidden_subarea',
+        },
+      ],
+    });
+
+    render(
+      <BoroughSection
+        borough="Queens"
+        items={[item]}
+        selectedKeys={new Set()}
+        onToggle={jest.fn()}
+        onSelectAll={jest.fn()}
+        onClearAll={jest.fn()}
+        isExpanded
+        onToggleExpand={jest.fn()}
+        selectionMode="multi"
+        searchActive
+        matchInfo={new Map([[item.display_key, 'West Village']])}
+      />,
+    );
+
+    const chip = screen.getByTestId('neighborhood-chip-greenwich-village');
+    expect(chip).toHaveClass('col-span-2');
+    expect(chip).toHaveClass('whitespace-nowrap');
+    expect(chip).toHaveClass('h-11');
+    expect(chip).toHaveAttribute('title', 'Matches: West Village');
+    expect(within(chip).queryByText('Matches: West Village')).not.toBeInTheDocument();
   });
 });

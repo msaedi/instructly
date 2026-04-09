@@ -4,7 +4,8 @@ import type { SelectorDisplayItem } from '@/features/shared/api/types';
 
 export type SelectionMode = 'single' | 'multi';
 
-export const LONG_NAME_THRESHOLD = 21;
+export const LONG_NAME_THRESHOLD = 14;
+export const VERY_LONG_NAME_THRESHOLD = 37;
 
 export type MatchRank =
   | 'display_name'
@@ -55,6 +56,11 @@ export function normalizeSearchText(text: string): string {
 export function isLongDisplayName(displayName: string): boolean {
   const segments = displayName.split(' / ').filter(Boolean).length;
   return displayName.length > LONG_NAME_THRESHOLD || segments >= 2;
+}
+
+export function isVeryLongDisplayName(displayName: string): boolean {
+  const segments = displayName.split(' / ').filter(Boolean).length;
+  return displayName.length > VERY_LONG_NAME_THRESHOLD || segments >= 3;
 }
 
 export function getMatchPriority(rank: MatchRank): number {

@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import type { SelectorDisplayItem } from '@/features/shared/api/types';
 
 import type { SelectionMode } from './types';
-import { isLongDisplayName } from './types';
+import { isLongDisplayName, isVeryLongDisplayName } from './types';
 
 type BoroughSectionProps = {
   borough: string;
@@ -46,45 +46,42 @@ export function BoroughSection({
   matchInfo,
 }: BoroughSectionProps) {
   const selectedCount = items.filter((item) => selectedKeys.has(item.display_key)).length;
-  const showCollapsedCount = !isExpanded && selectedCount > 0;
-  const showExpandedCount = isExpanded;
+  const showCount = selectedCount > 0;
   const panelId = boroughPanelId(borough);
 
   return (
     <section className="rounded-2xl border border-gray-200/90 bg-white/90 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="flex items-start justify-between gap-3 px-4 py-3">
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
-          aria-expanded={isExpanded}
-          aria-controls={panelId}
-          data-testid={boroughTestId(borough)}
-        >
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {borough}{' '}
-              {showExpandedCount ? (
-                <span className="text-gray-500 dark:text-gray-400">
-                  ({selectedCount} selected)
-                </span>
-              ) : showCollapsedCount ? (
-                <span className="text-gray-500 dark:text-gray-400">({selectedCount})</span>
+      <div className="flex flex-col">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+            aria-expanded={isExpanded}
+            aria-controls={panelId}
+            data-testid={boroughTestId(borough)}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {borough}{' '}
+                {showCount ? (
+                  <span className="text-gray-500 dark:text-gray-400">({selectedCount})</span>
+                ) : null}
+              </div>
+              {searchActive && items.length === 0 ? (
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">No matches</div>
               ) : null}
             </div>
-            {searchActive && items.length === 0 ? (
-              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">No matches</div>
-            ) : null}
-          </div>
-          <ChevronDown
-            className={clsx(
-              'h-4 w-4 shrink-0 text-gray-500 transition-transform duration-150 dark:text-gray-400',
-              isExpanded && 'rotate-180',
-            )}
-          />
-        </button>
+            <ChevronDown
+              className={clsx(
+                'h-4 w-4 shrink-0 text-gray-500 transition-transform duration-150 dark:text-gray-400',
+                isExpanded && 'rotate-180',
+              )}
+            />
+          </button>
+        </div>
         {isExpanded && selectionMode === 'multi' && items.length > 0 ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center justify-end gap-3 px-4 pb-2">
             <button
               type="button"
               onClick={(event) => {
@@ -126,7 +123,9 @@ export function BoroughSection({
                 const isSelected = selectedKeys.has(item.display_key);
                 const isHovered = hoveredKey === item.display_key;
                 const aliasHint = searchActive ? matchInfo?.get(item.display_key) : null;
-                const showInlineAliasHint = Boolean(aliasHint && isLongDisplayName(item.display_name));
+                const isLongName = isLongDisplayName(item.display_name);
+                const isVeryLongName = isVeryLongDisplayName(item.display_name);
+                const showInlineAliasHint = Boolean(aliasHint && isVeryLongName);
 
                 return (
                   <button
@@ -138,8 +137,12 @@ export function BoroughSection({
                     aria-pressed={isSelected}
                     data-testid={`neighborhood-chip-${item.display_key}`}
                     className={clsx(
-                      'cursor-pointer rounded-2xl border px-3 py-2 text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-purple-200',
-                      isLongDisplayName(item.display_name) && 'col-span-2',
+                      'cursor-pointer rounded-2xl border px-3 text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-purple-200',
+                      'flex flex-col justify-center',
+                      isLongName && 'col-span-2',
+                      isVeryLongName
+                        ? 'py-2 whitespace-normal break-words'
+                        : 'h-11 whitespace-nowrap',
                       isSelected
                         ? 'border-purple-200 bg-[var(--color-brand-lavender)] text-[var(--color-brand-dark)]'
                         : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-purple-200 hover:bg-purple-50 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:border-purple-500/40 dark:hover:bg-gray-800',
@@ -150,6 +153,8 @@ export function BoroughSection({
                     <span
                       className={clsx(
                         'block text-sm font-medium',
+                        !isVeryLongName && 'whitespace-nowrap',
+                        isVeryLongName && 'whitespace-normal break-words',
                         isSelected && 'text-[var(--color-brand-dark)]',
                       )}
                     >

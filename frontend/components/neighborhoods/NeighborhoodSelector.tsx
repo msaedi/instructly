@@ -202,7 +202,9 @@ export function NeighborhoodSelector({
   );
   const searchActive = normalizedQuery.length > 0;
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const [manualExpandedBorough, setManualExpandedBorough] = useState<string | null>(null);
+  const [browseExpandedBoroughState, setBrowseExpandedBorough] = useState<
+    string | null | undefined
+  >(undefined);
 
   const primaryGroups = useMemo(
     () =>
@@ -226,11 +228,16 @@ export function NeighborhoodSelector({
   }, [boroughs, primaryGroups, selectedKeys]);
 
   const browseExpandedBorough = useMemo(() => {
-    if (manualExpandedBorough && boroughs.includes(manualExpandedBorough)) {
-      return manualExpandedBorough;
+    if (browseExpandedBoroughState === undefined) {
+      return defaultExpandedBorough;
     }
-    return defaultExpandedBorough;
-  }, [boroughs, defaultExpandedBorough, manualExpandedBorough]);
+    if (browseExpandedBoroughState === null) {
+      return null;
+    }
+    return boroughs.includes(browseExpandedBoroughState)
+      ? browseExpandedBoroughState
+      : defaultExpandedBorough;
+  }, [boroughs, browseExpandedBoroughState, defaultExpandedBorough]);
 
   const matchByKey = useMemo(() => {
     const next = new Map<string, SearchMatch>();
@@ -377,8 +384,10 @@ export function NeighborhoodSelector({
                     if (searchActive) {
                       return;
                     }
-                    setManualExpandedBorough((previous) => {
-                      return previous === group.borough ? null : group.borough;
+                    setBrowseExpandedBorough((previous) => {
+                      const currentExpandedBorough =
+                        previous === undefined ? defaultExpandedBorough : previous;
+                      return currentExpandedBorough === group.borough ? null : group.borough;
                     });
                   }}
                   selectionMode={selectionMode}
