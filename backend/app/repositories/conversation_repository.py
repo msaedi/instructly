@@ -147,7 +147,8 @@ class ConversationRepository(BaseRepository[Conversation]):
             or_(
                 Conversation.student_id == user_id,
                 Conversation.instructor_id == user_id,
-            )
+            ),
+            Conversation.last_message_at.isnot(None),
         )
 
         if include_messages:
@@ -182,6 +183,32 @@ class ConversationRepository(BaseRepository[Conversation]):
             query = query.offset(offset)
 
         return cast(Sequence[Conversation], query.limit(limit).all())
+
+    def find_all_ids_for_user(self, user_id: str) -> List[str]:
+        """
+        Return every conversation ID where the user is a participant.
+
+        This method is intentionally not tied to sidebar/list visibility rules.
+        Use it for admin or internal workflows that need the complete set of
+        conversations regardless of whether any messages have been sent.
+
+        Args:
+            user_id: The user ID to find conversations for
+
+        Returns:
+            List of conversation IDs
+        """
+        rows = (
+            self.db.query(Conversation.id)
+            .filter(
+                or_(
+                    Conversation.student_id == user_id,
+                    Conversation.instructor_id == user_id,
+                )
+            )
+            .all()
+        )
+        return [cast(str, row[0]) for row in rows if row[0]]
 
     def find_for_user_excluding_states(
         self,
@@ -220,6 +247,7 @@ class ConversationRepository(BaseRepository[Conversation]):
                     Conversation.student_id == user_id,
                     Conversation.instructor_id == user_id,
                 ),
+                Conversation.last_message_at.isnot(None),
                 ConversationUserState.id == None,  # No matching excluded state  # noqa: E711
             )
         )
@@ -279,6 +307,7 @@ class ConversationRepository(BaseRepository[Conversation]):
                     Conversation.student_id == user_id,
                     Conversation.instructor_id == user_id,
                 ),
+                Conversation.last_message_at.isnot(None),
             )
         )
 

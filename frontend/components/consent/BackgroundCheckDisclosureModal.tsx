@@ -133,18 +133,29 @@ export function BackgroundCheckDisclosureModal({
       closeOnBackdrop={!submitting}
       closeOnEscape={!submitting}
       footer={
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
-          <Button variant="outline" onClick={onDecline} disabled={submitting}>
-            Decline
-          </Button>
-          <Button onClick={handleAccept} disabled={!hasScrolledToEnd || submitting}>
-            {submitting ? 'Recording…' : 'I acknowledge and authorize'}
-          </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {!hasScrolledToEnd && !submitting && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 sm:basis-full sm:text-right">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Scroll to the end to enable authorization.
             </p>
           )}
+          <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={onDecline}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              Decline
+            </Button>
+            <Button
+              onClick={handleAccept}
+              disabled={!hasScrolledToEnd || submitting}
+              className="w-full bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 sm:w-auto"
+            >
+              {submitting ? 'Recording…' : 'I acknowledge and authorize'}
+            </Button>
+          </div>
         </div>
       }
     >

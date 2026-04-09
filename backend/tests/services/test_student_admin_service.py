@@ -140,34 +140,17 @@ def test_load_student_by_email_and_validation(db, test_student, test_instructor)
         service._load_student("missing-student")
 
 
-def test_conversation_pagination_branches(db, test_student, monkeypatch):
+def test_conversation_ids_for_user_uses_full_repository_view(db, test_student, monkeypatch):
     service = _service(db)
-    now = datetime.now(timezone.utc)
-    conversations = [
-        SimpleNamespace(id=f"conv-{idx}", last_message_at=now, created_at=now) for idx in range(200)
-    ]
-    calls = {"count": 0}
-
-    def fake_find_for_user(*args, **kwargs):
-        calls["count"] += 1
-        if calls["count"] == 1:
-            return conversations
-        return []
-
-    monkeypatch.setattr(service.conversation_repo, "find_for_user", fake_find_for_user)
-    ids = service._conversation_ids_for_user(test_student.id)
-    assert len(ids) == 200
-
+    expected_ids = [f"conv-{idx}" for idx in range(3)]
     monkeypatch.setattr(
         service.conversation_repo,
-        "find_for_user",
-        lambda *args, **kwargs: [
-            SimpleNamespace(id=f"conv-{idx}", last_message_at=None, created_at=None)
-            for idx in range(200)
-        ],
+        "find_all_ids_for_user",
+        lambda user_id: expected_ids if user_id == test_student.id else [],
     )
+
     ids = service._conversation_ids_for_user(test_student.id)
-    assert len(ids) == 200
+    assert ids == expected_ids
 
 
 def test_preview_suspend_deactivated(db, test_student):
@@ -413,6 +396,47 @@ async def test_execute_suspend_success_and_forfeit(db, test_student, test_instru
     assert revoked_credit.revoked_reason == _SUSPEND_CREDIT_REVOKE_REASON
     assert notification_service.student_calls == [booking.id]
     assert notification_service.instructor_calls == [booking.id]
+
+
+@pytest.mark.asyncio
+async def test_execute_suspend_archives_empty_conversations(db, test_student, test_instructor, monkeypatch):
+    service = _service(
+        db,
+        booking_admin_service=StubBookingAdminService(db, refund_cents=0),
+        idempotency=FakeIdempotency(),
+        notification_service=StubNotificationService(),
+    )
+    monkeypatch.setattr(service.user_repo, "invalidate_all_tokens", lambda *_args, **_kwargs: True)
+
+    conversation = Conversation(student_id=test_student.id, instructor_id=test_instructor.id)
+    db.add(conversation)
+    db.flush()
+
+    preview = service.preview_suspend(
+        student_id=test_student.id,
+        reason_code="FRAUD",
+        note="note",
+        notify_student=True,
+        cancel_pending_bookings=False,
+        forfeit_credits=False,
+        actor_id="admin",
+    )
+
+    response = await service.execute_suspend(
+        student_id=test_student.id,
+        confirm_token=preview.confirm_token or "",
+        idempotency_key=preview.idempotency_key or "",
+        actor_id="admin",
+    )
+
+    assert response.success is True
+    assert "conversations_archived" in response.notifications_sent
+    state = service.conversation_state_repo.get_state(
+        test_student.id,
+        conversation_id=conversation.id,
+    )
+    assert state is not None
+    assert state.state == "archived"
 
 
 def test_execute_suspend_cancel_error_sets_error(db, test_student, test_instructor):

@@ -758,20 +758,20 @@ function AvailabilityPageImpl() {
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-700 dark:text-gray-300">
-                Repeat:
+                Repeat for:
               </span>
               <div className="relative inline-flex items-center">
                 <Select
                   value={String(repeatWeeks)}
                   onValueChange={(value) => setRepeatWeeks(Number.parseInt(value, 10))}
                 >
-                  <SelectTrigger className="h-8 w-24 sm:w-28">
+                  <SelectTrigger className="h-8 w-24 sm:w-28" aria-label="Repeat for">
                     <SelectValue placeholder="Repeat" />
                   </SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 6, 8, 12].map((weeks) => (
                       <SelectItem key={weeks} value={String(weeks)}>
-                        {weeks} weeks
+                        {weeks} {weeks === 1 ? 'week' : 'weeks'}
                       </SelectItem>
                     ))}
                   </SelectContent>

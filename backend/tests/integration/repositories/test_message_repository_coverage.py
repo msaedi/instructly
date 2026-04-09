@@ -230,6 +230,28 @@ def test_apply_edit_and_soft_delete(
     assert message_repo.soft_delete_message("missing", test_student.id) is None
 
 
+def test_create_conversation_message_updates_conversation_last_message_at(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+):
+    previous_last_message_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    conversation.last_message_at = previous_last_message_at
+    db.commit()
+
+    message = message_repo.create_conversation_message(
+        conversation_id=conversation.id,
+        sender_id=test_student.id,
+        content="Hello",
+    )
+    db.commit()
+    db.refresh(conversation)
+
+    assert conversation.last_message_at == message.created_at
+    assert conversation.last_message_at != previous_last_message_at
+
+
 def test_messages_after_id_and_find_by_conversation(
     db,
     message_repo,

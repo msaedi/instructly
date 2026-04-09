@@ -45,6 +45,9 @@ describe('BackgroundCheckDisclosureModal', () => {
 
       render(<BackgroundCheckDisclosureModal {...defaultProps} onAccept={handleAccept} />);
 
+      expect(screen.getByRole('button', { name: /Decline/i })).toBeInTheDocument();
+      expect(screen.getByText(/Scroll to the end to enable authorization/i)).toBeInTheDocument();
+
       const acceptButton = screen.getByRole('button', { name: /I acknowledge and authorize/i });
       expect(acceptButton).toBeDisabled();
 
@@ -56,6 +59,7 @@ describe('BackgroundCheckDisclosureModal', () => {
         currentTarget: Object.assign(scrollRegion, { scrollTop: 110 }),
       });
 
+      expect(screen.queryByText(/Scroll to the end to enable authorization/i)).not.toBeInTheDocument();
       expect(acceptButton).not.toBeDisabled();
       fireEvent.click(acceptButton);
       expect(handleAccept).toHaveBeenCalledTimes(1);

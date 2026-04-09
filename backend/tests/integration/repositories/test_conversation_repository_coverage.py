@@ -45,6 +45,30 @@ def test_find_for_user_excluding_states(db, test_student, test_instructor_with_a
     assert results == []
 
 
+def test_find_for_user_excluding_states_excludes_empty_conversations(
+    db, test_student, test_instructor_with_availability, test_instructor_2
+):
+    repo = ConversationRepository(db)
+
+    empty_conv = Conversation(
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+    )
+    real_conv = Conversation(
+        student_id=test_student.id,
+        instructor_id=test_instructor_2.id,
+        last_message_at=datetime.now(timezone.utc),
+    )
+    db.add_all([empty_conv, real_conv])
+    db.commit()
+
+    results = repo.find_for_user_excluding_states(
+        test_student.id, ["archived"], limit=10
+    )
+
+    assert [conversation.id for conversation in results] == [real_conv.id]
+
+
 def test_find_for_user_with_state(db, test_student, test_instructor_with_availability):
     repo = ConversationRepository(db)
 
@@ -80,6 +104,45 @@ def test_find_for_user_with_state(db, test_student, test_instructor_with_availab
         test_student.id, "trashed", cursor="bad-cursor"
     )
     assert [c.id for c in invalid_cursor] == [conv.id]
+
+
+def test_find_for_user_with_state_excludes_empty_conversations(
+    db, test_student, test_instructor_with_availability, test_instructor_2
+):
+    repo = ConversationRepository(db)
+
+    empty_conv = Conversation(
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+    )
+    real_conv = Conversation(
+        student_id=test_student.id,
+        instructor_id=test_instructor_2.id,
+        last_message_at=datetime.now(timezone.utc),
+    )
+    db.add_all([empty_conv, real_conv])
+    db.commit()
+
+    trashed_empty = ConversationUserState(
+        id=generate_ulid(),
+        user_id=test_student.id,
+        conversation_id=empty_conv.id,
+        state="trashed",
+        state_changed_at=datetime.now(timezone.utc),
+    )
+    trashed_real = ConversationUserState(
+        id=generate_ulid(),
+        user_id=test_student.id,
+        conversation_id=real_conv.id,
+        state="trashed",
+        state_changed_at=datetime.now(timezone.utc),
+    )
+    db.add_all([trashed_empty, trashed_real])
+    db.commit()
+
+    results = repo.find_for_user_with_state(test_student.id, "trashed")
+
+    assert [conversation.id for conversation in results] == [real_conv.id]
 
 
 def test_find_for_user_invalid_cursor_and_offset(

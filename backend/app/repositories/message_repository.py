@@ -590,12 +590,16 @@ class MessageRepository(BaseRepository[Message]):
             )
             self.db.add(message)
             self.db.flush()
+            conversation = cast(
+                Optional[Conversation],
+                self.db.query(Conversation).filter(Conversation.id == conversation_id).first(),
+            )
+            if conversation:
+                conversation.last_message_at = message.created_at
+                conversation.updated_at = datetime.now(timezone.utc)
 
             # Create notification for the recipient to power read receipts
             if sender_id:
-                conversation = (
-                    self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-                )
                 if conversation:
                     recipient_id = (
                         conversation.instructor_id

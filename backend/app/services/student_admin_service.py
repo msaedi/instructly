@@ -131,23 +131,7 @@ class StudentAdminService(BaseService):
         return user
 
     def _conversation_ids_for_user(self, user_id: str) -> list[str]:
-        ids: list[str] = []
-        cursor: str | None = None
-        while True:
-            conversations = self.conversation_repo.find_for_user(
-                user_id=user_id, limit=200, cursor=cursor
-            )
-            if not conversations:
-                break
-            ids.extend([conv.id for conv in conversations if getattr(conv, "id", None)])
-            if len(conversations) < 200:
-                break
-            last = conversations[-1]
-            last_ts = getattr(last, "last_message_at", None) or getattr(last, "created_at", None)
-            if not last_ts:
-                break
-            cursor = _ensure_utc(last_ts).isoformat()
-        return ids
+        return self.conversation_repo.find_all_ids_for_user(user_id)
 
     def _archive_conversations(self, user_id: str) -> int:
         conversation_ids = self._conversation_ids_for_user(user_id)

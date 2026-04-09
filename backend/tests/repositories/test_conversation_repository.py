@@ -169,6 +169,7 @@ class TestConversationRepositoryFindForUser:
         conversation = Conversation(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
+            last_message_at=datetime.now(timezone.utc),
         )
         db.add(conversation)
         db.commit()
@@ -192,6 +193,39 @@ class TestConversationRepositoryFindForUser:
         conversations = repo.find_for_user(test_student.id)
 
         assert conversations == []
+
+    def test_find_for_user_excludes_conversations_without_messages(
+        self, db, test_student, test_instructor_with_availability
+    ):
+        """Should exclude pre-message conversations from user lists."""
+        repo = ConversationRepository(db)
+
+        conversation, created = repo.get_or_create(
+            test_student.id, test_instructor_with_availability.id
+        )
+        db.commit()
+
+        conversations = repo.find_for_user(test_student.id)
+
+        assert created is True
+        assert conversation.last_message_at is None
+        assert conversations == []
+
+    def test_find_for_user_includes_conversations_with_messages(
+        self, db, test_student, test_instructor_with_availability
+    ):
+        """Should include conversations once they have a last_message_at."""
+        repo = ConversationRepository(db)
+
+        conversation, _created = repo.get_or_create(
+            test_student.id, test_instructor_with_availability.id
+        )
+        conversation.last_message_at = datetime.now(timezone.utc)
+        db.commit()
+
+        conversations = repo.find_for_user(test_student.id)
+
+        assert [conv.id for conv in conversations] == [conversation.id]
 
     def test_find_for_user_respects_limit(
         self, db, test_student, test_instructor_with_availability, test_instructor_2
@@ -246,6 +280,23 @@ class TestConversationRepositoryFindForUser:
         assert len(conversations) == 2
         assert conversations[0].id == newer_conv.id
         assert conversations[1].id == older_conv.id
+
+    def test_find_all_ids_for_user_includes_empty_conversations(
+        self, db, test_student, test_instructor_with_availability
+    ):
+        """Should return all participant conversation IDs regardless of messages."""
+        repo = ConversationRepository(db)
+
+        conversation = Conversation(
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+        )
+        db.add(conversation)
+        db.commit()
+
+        conversation_ids = repo.find_all_ids_for_user(test_student.id)
+
+        assert conversation_ids == [conversation.id]
 
 
 class TestConversationRepositoryCountForUser:

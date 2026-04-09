@@ -30,14 +30,16 @@ jest.mock('@/components/ui/button', () => ({
     children,
     onClick,
     disabled,
+    className,
     variant: _variant,
   }: {
     children: React.ReactNode;
     onClick?: () => void;
     disabled?: boolean;
+    className?: string;
     variant?: string;
   }) => (
-    <button onClick={onClick} disabled={disabled}>
+    <button onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
   ),
@@ -78,6 +80,10 @@ describe('BackgroundCheckDisclosureModal', () => {
     expect(
       screen.getByText('Scroll to the end to enable authorization.'),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /decline/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /i acknowledge and authorize/i }),
+    ).toBeDisabled();
   });
 
   it('does not call onAccept when handleAccept is invoked before scrolling (line 122)', () => {

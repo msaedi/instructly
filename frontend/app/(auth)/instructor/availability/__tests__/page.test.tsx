@@ -347,6 +347,17 @@ describe('InstructorAvailabilityPage', () => {
     ).toBeTruthy();
   });
 
+  it('renders the repeat control label and singular/plural week options', async () => {
+    const { user } = renderPage();
+
+    expect(screen.getByText('Repeat for:')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('combobox', { name: 'Repeat for' }));
+
+    expect(screen.getByRole('option', { name: '1 week' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '2 weeks' })).toBeInTheDocument();
+  });
+
   it('hides the paint toolbar for single-format instructors', () => {
     renderPage({
       formatPrices: [
