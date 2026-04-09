@@ -46362,5 +46362,109 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-08",
     "branch": "main"
+  },
+  {
+    "timestamp": "2026-04-09T02:46:27.960369+00:00",
+    "total_lines": 804781,
+    "total_files": 3174,
+    "backend_lines": 457184,
+    "frontend_lines": 347597,
+    "git_commits": 1760,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10103
+        },
+        "Repositories": {
+          "files": 213,
+          "lines": 45580
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13377
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59772
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179613
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21926
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28183
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2484
+        },
+        "Pages": {
+          "files": 146,
+          "lines": 41511
+        },
+        "Components": {
+          "files": 423,
+          "lines": 142679
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5048
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35592
+        },
+        "API/Lib": {
+          "files": 100,
+          "lines": 10733
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8888
+        },
+        "Features": {
+          "files": 88,
+          "lines": 27972
+        }
+      }
+    },
+    "backend_files": 2022,
+    "frontend_files": 1152,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-08",
+    "branch": "main"
   }
 ]

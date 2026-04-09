@@ -215,6 +215,8 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   );
 
   await page.goto('/instructor/profile');
+  const serviceAreasToggle = page.getByRole('button', { name: /service areas/i });
+  await serviceAreasToggle.click();
 
   const serviceAreasCard = page.getByTestId('neighborhood-selector');
   await serviceAreasCard.waitFor();
@@ -239,6 +241,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
 
   await page.goto('/instructor/profile');
   await page.waitForURL('**/instructor/profile**');
+  await serviceAreasToggle.click();
 
   const serviceAreasCardReload = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReload.scrollIntoViewIfNeeded();
@@ -247,6 +250,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   expect(serviceAreaSelections).toEqual(['mn-central-village', 'mn-hudson-heights']);
 
   await page.reload();
+  await serviceAreasToggle.click();
 
   const serviceAreasCardReloadSecond = page.getByTestId('neighborhood-selector');
   await serviceAreasCardReloadSecond.scrollIntoViewIfNeeded();

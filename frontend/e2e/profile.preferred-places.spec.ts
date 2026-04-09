@@ -318,14 +318,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.goto(`${APP_ORIGIN}/instructor/profile`);
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
-
-  const neighborhoodSelector = page.getByTestId('neighborhood-selector').first();
-  await neighborhoodSelector.waitFor();
-  await neighborhoodSelector.scrollIntoViewIfNeeded();
-  const preferredPlacesCard = page.getByTestId('preferred-places-card').first();
-  await preferredPlacesCard.waitFor();
-  await preferredPlacesCard.scrollIntoViewIfNeeded();
-  await preferredPlacesCard.click();
+  const classLocationsToggle = page.getByRole('button', { name: /class locations/i });
+  await classLocationsToggle.click();
+  await classLocationsToggle.scrollIntoViewIfNeeded();
 
   const teachingInput = page.getByTestId('ptl-input');
   await teachingInput.waitFor();
@@ -361,11 +356,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   await page.goto(`${APP_ORIGIN}/instructor/profile`);
   await page.waitForURL('**/instructor/profile**');
   await page.waitForLoadState('domcontentloaded');
-
-  await page.getByTestId('neighborhood-selector').first().scrollIntoViewIfNeeded();
-  const preferredPlacesCardReload = page.getByTestId('preferred-places-card').first();
-  await preferredPlacesCardReload.scrollIntoViewIfNeeded();
-  await preferredPlacesCardReload.click();
+  await classLocationsToggle.click();
+  await classLocationsToggle.scrollIntoViewIfNeeded();
 
   await expect(page.getByTestId('ptl-chip-0')).toContainText(teachingAddress1);
   await expect(page.getByTestId('ptl-chip-label-0')).toHaveValue(teachingLabel1);
