@@ -13,11 +13,19 @@ import { format } from 'date-fns';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import { ChatModal } from '@/components/chat/ChatModal';
+import { DashboardTabStrip, type DashboardTabOption } from '@/components/dashboard/DashboardTabStrip';
 import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useRatingsBatch, useExistingReviews } from '@/hooks/queries/useReviewsBatch';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
+
+type LessonTab = 'upcoming' | 'history';
+
+const LESSON_TABS: readonly DashboardTabOption<LessonTab>[] = [
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'history', label: 'History' },
+];
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -36,7 +44,7 @@ function MyLessonsContent() {
   // Initialize tab from URL or default to 'upcoming'
   const tabFromUrl = searchParams.get('tab');
   // Fix hydration by reading URL params directly in initial state
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>(() => {
+  const [activeTab, setActiveTab] = useState<LessonTab>(() => {
     // This function only runs on the client, avoiding hydration mismatch
     if (typeof window !== 'undefined') {
       return tabFromUrl === 'history' ? 'history' : 'upcoming';
@@ -177,7 +185,7 @@ function MyLessonsContent() {
   const reviewedMap = existingReviewsData?.reviewedMap ?? {};
 
   // Update URL when tab changes
-  const handleTabChange = (tab: 'upcoming' | 'history') => {
+  const handleTabChange = (tab: LessonTab) => {
     setActiveTab(tab);
     // Store the tab in sessionStorage for navigation back from details
     if (typeof window !== 'undefined') {
@@ -258,27 +266,13 @@ function MyLessonsContent() {
       </div>
 
       {/* Tabs */}
-      <div className="insta-surface-card flex gap-4 mb-8 border-b p-4 rounded-lg">
-        <button
-          onClick={() => handleTabChange('upcoming')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${
-            activeTab === 'upcoming'
-              ? 'border-b-2 border-gray-600'
-              : ''
-          }`}
-        >
-          Upcoming
-        </button>
-        <button
-          onClick={() => handleTabChange('history')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${
-            activeTab === 'history'
-              ? 'border-b-2 border-gray-600'
-              : ''
-          }`}
-        >
-          History
-        </button>
+      <div className="insta-surface-card mb-8 overflow-hidden rounded-lg">
+        <DashboardTabStrip
+          ariaLabel="Lessons tabs"
+          tabs={LESSON_TABS}
+          value={activeTab}
+          onChange={handleTabChange}
+        />
       </div>
 
       {/* Lessons List */}

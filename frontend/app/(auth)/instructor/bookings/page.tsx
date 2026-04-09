@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Calendar } from 'lucide-react';
 
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { DashboardTabStrip, type DashboardTabOption } from '@/components/dashboard/DashboardTabStrip';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
@@ -28,6 +29,10 @@ type PaginatedInstructorBookings = {
 };
 
 const parseTab = (value: string | null): TabValue => (value === 'past' ? 'past' : 'upcoming');
+const BOOKING_TABS: readonly DashboardTabOption<TabValue>[] = [
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'past', label: 'Past' },
+];
 
 function BookingsPageImpl() {
   const embedded = useEmbedded();
@@ -112,24 +117,12 @@ function BookingsPageImpl() {
         />
 
         <div className="mt-6 insta-surface-card">
-          <div role="tablist" aria-label="Bookings tabs" className="flex border-b border-gray-200 dark:border-gray-700">
-            {(['upcoming', 'past'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab}
-                className={`-mb-px flex-1 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'border-[#7E22CE] text-[#7E22CE]'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-                onClick={() => handleTabChange(tab)}
-              >
-                <span>{tab === 'upcoming' ? 'Upcoming' : 'Past'}</span>
-              </button>
-            ))}
-          </div>
+          <DashboardTabStrip
+            ariaLabel="Bookings tabs"
+            tabs={BOOKING_TABS}
+            value={activeTab}
+            onChange={handleTabChange}
+          />
           <div className="p-4 sm:p-6">
             {activeTab === 'upcoming' ? (
               <BookingList

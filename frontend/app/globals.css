@@ -739,6 +739,22 @@ html {
   line-height: 1.35;
 }
 
+.inst-toast-brand {
+  background: var(--color-brand-dark) !important;
+  box-shadow:
+    0 10px 15px -3px color-mix(in srgb, var(--color-brand-dark) 12%, transparent),
+    0 4px 6px -2px color-mix(in srgb, var(--color-brand-dark) 8%, transparent) !important;
+}
+
+.inst-toast-error {
+  background: #dc2626 !important;
+}
+
+.inst-toast-warning {
+  background: #f59e0b !important;
+  color: #111827 !important;
+}
+
 .inst-toast-title {
   font-weight: 600;
   color: #f8fafc !important;
@@ -763,6 +779,16 @@ html {
   white-space: normal;
   word-break: break-word;
   line-height: 1.4;
+}
+
+.inst-toast-warning .sonner-title,
+.inst-toast-warning .inst-toast-title {
+  color: #111827 !important;
+}
+
+.inst-toast-warning .sonner-description,
+.inst-toast-warning .inst-toast-description {
+  color: rgba(17, 24, 39, 0.85) !important;
 }
 
 @layer components {

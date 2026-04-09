@@ -287,7 +287,7 @@ export default function BookingDetailsPage() {
               <button
                 type="button"
                 aria-label="Close report no-show modal"
-                className="rounded-full p-1 text-[#7C3AED] transition-colors hover:bg-[#F5F3FF] focus-visible:outline-none   disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#2D174D]/40"
+                className="rounded-full p-1 text-(--color-brand-dark) transition-colors hover:bg-[#F5F3FF] focus-visible:outline-none   disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#2D174D]/40"
                 onClick={() => setShowNoShowModal(false)}
                 disabled={markNoShow.isPending}
               >

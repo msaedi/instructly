@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { DashboardTabStrip, type DashboardTabOption } from '@/components/dashboard/DashboardTabStrip';
 import Modal from '@/components/Modal';
 import CommissionTierCard from '@/components/earnings/CommissionTierCard';
 import { Download, DollarSign, Info, ArrowLeft, Wallet, BookOpen } from 'lucide-react';
@@ -16,9 +17,12 @@ import { formatPrice } from '@/lib/price';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
-import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
 
 const PLATFORM_LAUNCH_YEAR = 2026;
+const EARNINGS_TABS: readonly DashboardTabOption<'invoices' | 'payouts'>[] = [
+  { value: 'invoices', label: 'Invoices' },
+  { value: 'payouts', label: 'Payouts' },
+];
 
 type SimpleDropdownOption = {
   value: string;
@@ -379,30 +383,14 @@ function EarningsPageImpl() {
         {/* Tabs */}
         <div className="insta-surface-card">
           <div className="border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 pt-4">
-              <div className="flex items-center justify-between">
-              <div role="tablist" aria-label="Earnings tabs" className="flex items-center gap-4">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'invoices'}
-                onClick={() => setActiveTab('invoices')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${getTextWidthTabButtonClasses(activeTab === 'invoices')}`}
-              >
-                <span className={getTextWidthTabLabelClasses(activeTab === 'invoices')}>
-                  Invoices
-                </span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'payouts'}
-                onClick={() => setActiveTab('payouts')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${getTextWidthTabButtonClasses(activeTab === 'payouts')}`}
-              >
-                <span className={getTextWidthTabLabelClasses(activeTab === 'payouts')}>
-                  Payouts
-                </span>
-              </button>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <DashboardTabStrip
+                  ariaLabel="Earnings tabs"
+                  tabs={EARNINGS_TABS}
+                  value={activeTab}
+                  onChange={setActiveTab}
+                />
               </div>
               <div className="flex items-center gap-1.5">
                 <button

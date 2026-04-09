@@ -8,9 +8,9 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getBetaSettings, updateBetaSettings, type BetaSettings } from '@/lib/betaApi';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
-import * as Switch from '@radix-ui/react-switch';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 
 export default function BetaSettingsPage() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -90,16 +90,12 @@ export default function BetaSettingsPage() {
             ) : (
               <form onSubmit={onSubmit} className="max-w-xl space-y-4 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                 <div className="flex items-center justify-between">
-                  <label className="font-medium" htmlFor="beta-disabled">Disable Beta</label>
-                  <Switch.Root
-                    id="beta-disabled"
+                  <span className="font-medium">Disable Beta</span>
+                  <ToggleSwitch
                     checked={form.beta_disabled}
-                    onCheckedChange={(v) => onChange('beta_disabled', v)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none  "
+                    onChange={() => onChange('beta_disabled', !form.beta_disabled)}
                     aria-label="Disable Beta"
-                  >
-                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
-                  </Switch.Root>
+                  />
                 </div>
 
                 <div>
@@ -133,16 +129,12 @@ export default function BetaSettingsPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="font-medium" htmlFor="allow-signup">Allow signup without invite</label>
-                  <Switch.Root
-                    id="allow-signup"
+                  <span className="font-medium">Allow signup without invite</span>
+                  <ToggleSwitch
                     checked={form.allow_signup_without_invite}
-                    onCheckedChange={(v) => onChange('allow_signup_without_invite', v)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none  "
+                    onChange={() => onChange('allow_signup_without_invite', !form.allow_signup_without_invite)}
                     aria-label="Allow signup without invite"
-                  >
-                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
-                  </Switch.Root>
+                  />
                 </div>
 
                 <div className="flex items-center gap-3">

@@ -81,14 +81,7 @@ const BillingTab: React.FC = () => {
       setIsApplyingPromo(true);
       const result = await paymentService.applyPromoCode(promoCode);
 
-      toast.success(`Promo code applied! $${result.credit_added} added to your balance.`, {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
+      toast.success(`Promo code applied! $${result.credit_added} added to your balance.`);
       setPromoCode('');
 
       // Refresh credit balance via React Query
@@ -113,14 +106,7 @@ const BillingTab: React.FC = () => {
     try {
       // Check if there are transactions to download
       if (transactions.length === 0) {
-        toast.info('No transactions to download', {
-          style: {
-            background: '#6b21a8',
-            color: 'white',
-            border: 'none',
-            boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-          },
-        });
+        toast.info('No transactions to download');
         return;
       }
 
@@ -149,24 +135,10 @@ const BillingTab: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
 
-      toast.success('Transaction history downloaded', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
+      toast.success('Transaction history downloaded');
     } catch (err) {
       logger.error('Error downloading history:', err);
-      toast.info('Download feature coming soon!', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
+      toast.info('Download feature coming soon!');
     }
   };
 
@@ -283,14 +255,7 @@ const BillingTab: React.FC = () => {
         <div className="mt-4">
           <Button
             variant="outline"
-            onClick={() => toast.info('Credit packages coming soon!', {
-              style: {
-                background: '#6b21a8',
-                color: 'white',
-                border: 'none',
-                boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-              },
-            })}
+            onClick={() => toast.info('Credit packages coming soon!')}
             className="w-full sm:w-auto border-(--color-brand-dark) text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             Purchase Credit Package

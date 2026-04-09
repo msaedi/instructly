@@ -274,6 +274,22 @@ describe('Instructor earnings page', () => {
     ).toBeInTheDocument();
   });
 
+  it('renders the shared full-width tab underline style', () => {
+    renderPage();
+
+    const invoicesTab = screen.getByRole('tab', { name: 'Invoices' });
+    const payoutsTab = screen.getByRole('tab', { name: 'Payouts' });
+
+    expect(invoicesTab).toHaveClass(
+      '-mb-px',
+      'flex-1',
+      'border-b-2',
+      'border-(--color-brand-dark)',
+      'text-(--color-brand-dark)'
+    );
+    expect(payoutsTab).toHaveClass('flex-1', 'border-transparent');
+  });
+
   it('shows a success toast after exporting a report', async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();

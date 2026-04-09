@@ -26,6 +26,7 @@ import { isRecord, isUnknownArray } from '@/lib/typesafe';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
@@ -502,14 +503,7 @@ function StudentDashboardContent() {
                                 if (!ok) return;
                                 const res = await fetchWithAuth(`/api/v1/addresses/me/${a.id}`, { method: 'DELETE' });
                                 if (res.ok) {
-                                  toast.success('Address removed', {
-                                    style: {
-                                      background: '#6b21a8',
-                                      color: 'white',
-                                      border: 'none',
-                                      boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-                                    },
-                                  });
+                                  toast.success('Address removed');
                                   void invalidateAddresses();
                                 } else {
                                   toast.error('Failed to remove address', {
@@ -680,14 +674,7 @@ function StudentDashboardContent() {
                                 e.stopPropagation();
                                 try {
                                   await favoritesApi.remove(fav.id);
-                                  toast.success('Removed from favorites', {
-                                    style: {
-                                      background: '#6b21a8',
-                                      color: 'white',
-                                      border: 'none',
-                                      boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-                                    },
-                                  });
+                                  toast.success('Removed from favorites');
                                   await refetchFavorites();
                                 } catch {
                                   toast.error('Failed to update favorite', {
@@ -848,12 +835,7 @@ function NotificationsTab() {
     setQuietHoursStart('22:00');
     setQuietHoursEnd('08:00');
     setUsingRecommended(true);
-    toast.success('Recommended settings applied', {
-      style: {
-        background: '#6b21a8',
-        color: 'white',
-      },
-    });
+    toast.success('Recommended settings applied');
   };
 
   useEffect(() => {
@@ -939,49 +921,9 @@ function NotificationsTab() {
     // Tracking: FE-3321 (owner: @frontend-platform, target: 2026-03-31)
     // Keep simulated save until notification preferences API integration is finalized.
     await new Promise(resolve => setTimeout(resolve, 1000));
-    toast.success('Notification preferences saved', {
-      style: {
-        background: '#6b21a8',
-        color: 'white',
-      },
-    });
+    toast.success('Notification preferences saved');
     setSaving(false);
   };
-
-  // Toggle Switch Component
-  const ToggleSwitch = ({
-    checked,
-    onChange,
-    disabled = false,
-    title,
-    ariaLabel,
-  }: {
-    checked: boolean;
-    onChange: () => void;
-    disabled?: boolean;
-    title?: string;
-    ariaLabel?: string;
-  }) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onChange}
-      disabled={disabled}
-      title={title}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
 
   // Custom Time Picker Component
   const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
@@ -1587,14 +1529,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
         setLoading(false);
         return;
       }
-      toast.success('Address saved', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
+      toast.success('Address saved');
       onSaved();
     } catch (error) {
       toast.error('Network error', {
@@ -1902,14 +1837,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
       void ((await res.json()) as components['schemas']['AuthUserWithPermissionsResponse']);
       logger.info('Profile update successful');
 
-      toast.success('Profile updated successfully', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
+      toast.success('Profile updated successfully');
 
       setLoading(false);
       onSaved();

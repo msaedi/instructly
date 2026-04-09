@@ -76,7 +76,7 @@ describe('RewardsPanel', () => {
     render(<RewardsPanel />);
 
     expect(screen.getByText(/no unlocked rewards/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /pending/i }));
+    await user.click(screen.getByRole('tab', { name: /pending/i }));
     expect(screen.getByText(/no pending rewards/i)).toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe('RewardsPanel', () => {
     expect(toast.success).toHaveBeenCalledWith('Share sheet opened');
     expect(screen.getByText(/expires in 2 days/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /redeemed/i }));
+    await user.click(screen.getByRole('tab', { name: /redeemed/i }));
     expect(screen.getAllByText(/applied/i).length).toBeGreaterThan(0);
     jest.useRealTimers();
   });
@@ -355,7 +355,7 @@ describe('RewardsPanel', () => {
 
     render(<RewardsPanel />);
 
-    await user.click(screen.getByRole('button', { name: /pending/i }));
+    await user.click(screen.getByRole('tab', { name: /pending/i }));
 
     expect(screen.getByText('$20.00')).toBeInTheDocument();
     expect(screen.getByText(/pending.*credits unlock/i)).toBeInTheDocument();
@@ -418,19 +418,18 @@ describe('RewardsPanel', () => {
 
     render(<RewardsPanel />);
 
-    await user.click(screen.getByRole('button', { name: /redeemed/i }));
+    await user.click(screen.getByRole('tab', { name: /redeemed/i }));
 
     expect(screen.getByText(/redeemed rewards will show here/i)).toBeInTheDocument();
   });
 
-  // Test button aria-pressed state
-  it('marks active tab button as pressed', () => {
+  it('marks the active tab as selected', () => {
     mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
 
     render(<RewardsPanel />);
 
-    expect(screen.getByRole('button', { name: /unlocked/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /pending/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('tab', { name: /unlocked/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /pending/i })).toHaveAttribute('aria-selected', 'false');
   });
 
   // Lines 71-78: Test the fetcher callback directly (AbortController cleanup)
@@ -504,7 +503,7 @@ describe('RewardsPanel', () => {
     expect(screen.getByText('Failed to load rewards')).toBeInTheDocument();
   });
 
-  // Line 67: compactShare, minimalTabs, compactInvite, compactTabs props
+  // compactShare and compactInvite remain supported.
   describe('compact layout props', () => {
     it('renders with compactShare removing border/padding from share section', () => {
       mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
@@ -517,21 +516,6 @@ describe('RewardsPanel', () => {
       expect(sections.length).toBeGreaterThan(0);
     });
 
-    it('renders with minimalTabs for minimal tab styling', async () => {
-      const user = userEvent.setup();
-      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
-
-      render(<RewardsPanel minimalTabs />);
-
-      // minimalTabs uses text-based styling instead of pill buttons
-      const unlockedTab = screen.getByRole('button', { name: /unlocked/i });
-      expect(unlockedTab).toBeInTheDocument();
-
-      // Click a tab to verify interaction works with minimal tabs
-      await user.click(screen.getByRole('button', { name: /pending/i }));
-      expect(screen.getByText(/no pending rewards/i)).toBeInTheDocument();
-    });
-
     it('renders with compactInvite removing border/padding from invite section', () => {
       mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
 
@@ -539,15 +523,6 @@ describe('RewardsPanel', () => {
 
       // compactInvite removes 'rounded-2xl border...' classes from invite section
       expect(screen.getByTestId('invite-by-email')).toBeInTheDocument();
-    });
-
-    it('renders with compactTabs removing border/padding from tabs section', () => {
-      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
-
-      render(<RewardsPanel compactTabs />);
-
-      // compactTabs removes 'rounded-2xl border...' classes from tabs section
-      expect(screen.getByRole('button', { name: /unlocked/i })).toBeInTheDocument();
     });
 
     it('renders with hideShareIcon prop', () => {
@@ -567,15 +542,13 @@ describe('RewardsPanel', () => {
         <RewardsPanel
           compactShare
           compactInvite
-          compactTabs
-          minimalTabs
           hideShareIcon
           hideHeader
         />
       );
 
       // Should render without errors
-      expect(screen.getByRole('button', { name: /unlocked/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /unlocked/i })).toBeInTheDocument();
       expect(screen.queryByText('Your rewards')).not.toBeInTheDocument();
     });
   });
@@ -656,7 +629,7 @@ describe('RewardsPanel', () => {
 
       render(<RewardsPanel />);
 
-      await user.click(screen.getByRole('button', { name: /pending/i }));
+      await user.click(screen.getByRole('tab', { name: /pending/i }));
 
       // Should show unlock date info
       expect(screen.getByText(/unlocks/i)).toBeInTheDocument();

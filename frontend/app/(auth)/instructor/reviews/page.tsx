@@ -411,7 +411,7 @@ function ReviewsPageImpl() {
                             <button
                               type="submit"
                               disabled={isSubmittingReply}
-                              className="rounded-full bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b21a8] disabled:cursor-not-allowed disabled:opacity-60"
+                              className="rounded-full bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-(--color-brand-dark) disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {isSubmittingReply
                                 ? hasResponse

@@ -12,10 +12,16 @@ import {
   type ReferralSummary,
   type RewardOut,
 } from '@/features/shared/referrals/api';
+import { DashboardTabStrip, type DashboardTabOption } from '@/components/dashboard/DashboardTabStrip';
 import InviteByEmail from '@/features/referrals/InviteByEmail';
 import { copyReferralLink, shareReferralLink } from './RewardsPanel.helpers';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
+const REWARD_TABS: readonly DashboardTabOption<TabKey>[] = [
+  { value: 'unlocked', label: 'Unlocked' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'redeemed', label: 'Redeemed' },
+];
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 function formatCents(amount: number) {
@@ -55,12 +61,16 @@ type RewardsPanelProps = {
   hideHeader?: boolean;
   compactShare?: boolean;
   hideShareIcon?: boolean;
-  minimalTabs?: boolean;
   compactInvite?: boolean;
-  compactTabs?: boolean;
 };
 
-export default function RewardsPanel({ inviterName, hideHeader = false, compactShare = false, hideShareIcon = false, minimalTabs = false, compactInvite = false, compactTabs = false }: RewardsPanelProps = {}) {
+export default function RewardsPanel({
+  inviterName,
+  hideHeader = false,
+  compactShare = false,
+  hideShareIcon = false,
+  compactInvite = false,
+}: RewardsPanelProps = {}) {
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
 
@@ -186,26 +196,13 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
         </section>
       )}
 
-      <section className={`${compactTabs ? '' : 'rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm'}`}>
-        <div className={`flex flex-wrap items-center ${minimalTabs ? 'gap-4' : 'gap-2'} border-b border-gray-200 dark:border-gray-700 ${minimalTabs ? 'pb-2' : 'pb-4'}`}>
-          {(['unlocked', 'pending', 'redeemed'] as TabKey[]).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={
-                minimalTabs
-                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-(--color-brand-dark)' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`
-                  : `rounded-full px-4 py-2 text-sm font-medium transition ${
-                      activeTab === tab ? 'bg-(--color-brand-dark) text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`
-              }
-              aria-pressed={activeTab === tab}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <DashboardTabStrip
+          ariaLabel="Reward tabs"
+          tabs={REWARD_TABS}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
 
         <div className="mt-5 space-y-4">
           {isLoading && (

@@ -657,8 +657,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
       toast.success('Profile saved', {
         style: {
-          background: '#6b21a8',
-          color: '#ffffff',
           padding: '6px 10px',
           borderRadius: '8px',
           width: '230px',

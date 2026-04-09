@@ -41,8 +41,6 @@ export function Providers({ children }: { children: ReactNode }) {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#7C3AED',
-              color: '#ffffff',
               padding: '12px 16px',
               borderRadius: '12px',
               width: 'auto',
@@ -52,6 +50,12 @@ export function Providers({ children }: { children: ReactNode }) {
               boxShadow: '0 12px 24px rgba(15, 23, 42, 0.45)',
             },
             classNames: {
+              default: 'inst-toast-brand',
+              success: 'inst-toast-brand',
+              info: 'inst-toast-brand',
+              loading: 'inst-toast-brand',
+              error: 'inst-toast-error',
+              warning: 'inst-toast-warning',
               title: 'inst-toast-title',
               description: 'inst-toast-description',
             },

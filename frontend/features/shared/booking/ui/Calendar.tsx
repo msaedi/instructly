@@ -375,7 +375,7 @@ export default function Calendar({
                   style={{
                     textDecoration: cell.isToday ? 'underline' : 'none',
                     textDecorationThickness: cell.isToday ? '2px' : undefined,
-                    textDecorationColor: cell.isToday ? '#6b21a8' : undefined,
+                    textDecorationColor: cell.isToday ? 'var(--color-brand-dark)' : undefined,
                     textUnderlineOffset: cell.isToday ? '4px' : undefined,
                   }}
                 >

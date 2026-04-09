@@ -14,6 +14,7 @@ import {
 import { Cardholder } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
+import { DashboardTabStrip, type DashboardTabOption } from '@/components/dashboard/DashboardTabStrip';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { Badge } from '@/components/ui/badge';
@@ -32,17 +33,14 @@ import {
   useInstructorReferralDashboard,
 } from '@/hooks/queries/useInstructorReferrals';
 import { copyToClipboard } from '@/lib/copy';
-import { getTextWidthTabButtonClasses, getTextWidthTabLabelClasses } from '@/lib/textWidthTabs';
-import { cn } from '@/lib/utils';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
-const REWARD_TABS: ReferralRewardTab[] = ['pending', 'unlocked', 'redeemed'];
-const REWARD_TAB_LABELS: Record<ReferralRewardTab, string> = {
-  pending: 'In Progress',
-  unlocked: 'Earned',
-  redeemed: 'Redeemed',
-};
+const REWARD_TAB_OPTIONS: readonly DashboardTabOption<ReferralRewardTab>[] = [
+  { value: 'pending', label: 'In Progress' },
+  { value: 'unlocked', label: 'Earned' },
+  { value: 'redeemed', label: 'Redeemed' },
+];
 const REWARD_EMPTY_MESSAGES: Record<ReferralRewardTab, string> = {
   pending: 'No in-progress referrals yet. Referrals appear here once someone signs up.',
   unlocked: 'No earned rewards yet. Earned rewards appear here when a referral completes a first lesson.',
@@ -170,26 +168,12 @@ function RewardsSection({
       <div className="px-6 py-6 sm:px-8">
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your Referrals</h2>
-          <div
-            role="tablist"
-            aria-label="Referral reward tabs"
-            className="flex flex-wrap gap-5 border-b border-gray-200 pb-2 dark:border-gray-700"
-          >
-            {REWARD_TABS.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab}
-                className={cn('text-sm font-medium transition-colors', getTextWidthTabButtonClasses(activeTab === tab))}
-                onClick={() => onTabChange(tab)}
-              >
-                <span className={getTextWidthTabLabelClasses(activeTab === tab)}>
-                  {REWARD_TAB_LABELS[tab]}
-                </span>
-              </button>
-            ))}
-          </div>
+          <DashboardTabStrip
+            ariaLabel="Referral reward tabs"
+            tabs={REWARD_TAB_OPTIONS}
+            value={activeTab}
+            onChange={onTabChange}
+          />
         </div>
       </div>
       <div className="px-6 py-5 sm:px-8">

@@ -645,38 +645,37 @@ test.describe('My Lessons Page', () => {
     await page.goto('/student/lessons');
     await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
-    // Wait for tabs to be visible (use exact role names to avoid Chat history)
-    await expect(page.getByRole('button', { name: /^Upcoming$/ })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: /^History$/ })).toBeVisible({ timeout: 10000 });
+    const lessonsTablist = page.getByRole('tablist', { name: 'Lessons tabs' });
+    await expect(lessonsTablist).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tab', { name: 'Upcoming' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tab', { name: 'History' })).toBeVisible({ timeout: 10000 });
 
-    // Verify Upcoming tab is active by default
-    const upcomingTab = page.getByRole('button', { name: /^Upcoming$/ });
-    await expect(upcomingTab).toHaveClass(/border-b-2/);
+    const upcomingTab = page.getByRole('tab', { name: 'Upcoming' });
+    const historyTab = page.getByRole('tab', { name: 'History' });
+    await expect(upcomingTab).toHaveAttribute('aria-selected', 'true');
+    await expect(historyTab).toHaveAttribute('aria-selected', 'false');
   });
 
   test('should switch between Upcoming and History tabs', async ({ page }) => {
     await page.goto('/student/lessons');
     await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
-    // Wait for tabs
-    await page.waitForSelector('button:has-text("History")', { timeout: 10000 });
+    const upcomingTab = page.getByRole('tab', { name: 'Upcoming' });
+    const historyTab = page.getByRole('tab', { name: 'History' });
+    await expect(page.getByRole('tablist', { name: 'Lessons tabs' })).toBeVisible({ timeout: 10000 });
 
     // Click History tab
-    await page.getByRole('button', { name: /^History$/ }).click();
+    await historyTab.click();
     await page.waitForURL(/\/student\/lessons\?tab=history/, { timeout: 5000 });
 
-    // Verify History tab is now active
-    const historyTab = page.getByRole('button', { name: /^History$/ });
-    await expect(historyTab).toHaveClass(/border-b-2/);
-
-    // Verify Upcoming tab is not active
-    const upcomingTab = page.getByRole('button', { name: /^Upcoming$/ });
-    await expect(upcomingTab).not.toHaveClass(/border-b-2/);
+    await expect(historyTab).toHaveAttribute('aria-selected', 'true');
+    await expect(upcomingTab).toHaveAttribute('aria-selected', 'false');
 
     // Switch back to Upcoming
-    await page.getByRole('button', { name: /^Upcoming$/ }).click();
+    await upcomingTab.click();
     await page.waitForURL(/\/student\/lessons(\?tab=upcoming)?$/, { timeout: 5000 });
-    await expect(upcomingTab).toHaveClass(/border-b-2/);
+    await expect(upcomingTab).toHaveAttribute('aria-selected', 'true');
+    await expect(historyTab).toHaveAttribute('aria-selected', 'false');
   });
 
   test('should display lesson cards with correct information', async ({ page }) => {
@@ -1035,14 +1034,17 @@ test.describe('Mobile Responsiveness', () => {
     // Verify page loads correctly
     await expect(page.locator('h1:has-text("My Lessons")')).toBeVisible({ timeout: 10000 });
 
-    // Verify tabs are visible and functional
-    await expect(page.getByRole('button', { name: /^Upcoming$/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^History$/ })).toBeVisible();
+    await expect(page.getByRole('tablist', { name: 'Lessons tabs' })).toBeVisible();
+    const upcomingTab = page.getByRole('tab', { name: 'Upcoming' });
+    const historyTab = page.getByRole('tab', { name: 'History' });
+    await expect(upcomingTab).toBeVisible();
+    await expect(historyTab).toBeVisible();
+    await expect(upcomingTab).toHaveAttribute('aria-selected', 'true');
 
     // Click History tab
-    await page.getByRole('button', { name: /^History$/ }).click();
-    const historyTab = page.getByRole('button', { name: /^History$/ });
-    await expect(historyTab).toHaveClass(/border-b-2/);
+    await historyTab.click();
+    await expect(historyTab).toHaveAttribute('aria-selected', 'true');
+    await expect(upcomingTab).toHaveAttribute('aria-selected', 'false');
 
     // Verify lesson cards stack vertically
     const lessonCards = page.locator('[class*="border"][class*="rounded"]');

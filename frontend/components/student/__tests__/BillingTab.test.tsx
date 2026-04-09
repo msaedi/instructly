@@ -249,8 +249,7 @@ describe('BillingTab', () => {
 
       await waitFor(() => {
         expect(mockToast.success).toHaveBeenCalledWith(
-          'Promo code applied! $25 added to your balance.',
-          expect.any(Object)
+          'Promo code applied! $25 added to your balance.'
         );
       });
 
@@ -362,10 +361,7 @@ describe('BillingTab', () => {
         fireEvent.click(screen.getByRole('button', { name: /Download History/i }));
       });
 
-      expect(mockToast.info).toHaveBeenCalledWith(
-        'No transactions to download',
-        expect.any(Object)
-      );
+      expect(mockToast.info).toHaveBeenCalledWith('No transactions to download');
     });
 
     it('downloads CSV when transactions exist', async () => {
@@ -392,10 +388,7 @@ describe('BillingTab', () => {
       expect(mockCreateObjectURL).toHaveBeenCalled();
       expect(clickSpy).toHaveBeenCalled();
       expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:test-url');
-      expect(mockToast.success).toHaveBeenCalledWith(
-        'Transaction history downloaded',
-        expect.any(Object)
-      );
+      expect(mockToast.success).toHaveBeenCalledWith('Transaction history downloaded');
 
       clickSpy.mockRestore();
       URL.createObjectURL = originalCreateObjectURL;
@@ -416,10 +409,7 @@ describe('BillingTab', () => {
         fireEvent.click(screen.getByRole('button', { name: /Download History/i }));
       });
 
-      expect(mockToast.info).toHaveBeenCalledWith(
-        'Download feature coming soon!',
-        expect.any(Object)
-      );
+      expect(mockToast.info).toHaveBeenCalledWith('Download feature coming soon!');
 
       URL.createObjectURL = originalCreateObjectURL;
     });
@@ -479,10 +469,7 @@ describe('BillingTab', () => {
         fireEvent.click(screen.getByRole('button', { name: /Purchase Credit Package/i }));
       });
 
-      expect(mockToast.info).toHaveBeenCalledWith(
-        'Credit packages coming soon!',
-        expect.any(Object)
-      );
+      expect(mockToast.info).toHaveBeenCalledWith('Credit packages coming soon!');
     });
   });
 

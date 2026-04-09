@@ -220,8 +220,9 @@ describe('MyLessonsPage', () => {
     // "My Lessons" appears in both breadcrumb and title
     const myLessonsElements = screen.getAllByText('My Lessons');
     expect(myLessonsElements.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Upcoming')).toBeInTheDocument();
-    expect(screen.getByText('History')).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Lessons tabs' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Upcoming' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('shows upcoming lessons by default', () => {
@@ -262,12 +263,13 @@ describe('MyLessonsPage', () => {
 
     renderWithProviders(<MyLessonsPage />);
 
-    const historyTab = screen.getByText('History');
+    const historyTab = screen.getByRole('tab', { name: 'History' });
     fireEvent.click(historyTab);
 
     await waitFor(() => {
       expect(screen.getByText('Chemistry')).toBeInTheDocument();
     });
+    expect(historyTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('navigates to lesson details when card is clicked', () => {
@@ -477,20 +479,20 @@ describe('MyLessonsPage', () => {
 
     renderWithProviders(<MyLessonsPage />);
 
-    // Check upcoming tab is active (new styles use gray emphasis)
-    const upcomingTab = screen.getByText('Upcoming');
-    expect(upcomingTab).toHaveClass('text-gray-600');
-    expect(upcomingTab).toHaveClass('border-gray-600');
+    const upcomingTab = screen.getByRole('tab', { name: 'Upcoming' });
+    expect(upcomingTab).toHaveAttribute('aria-selected', 'true');
+    expect(upcomingTab).toHaveClass('text-(--color-brand-dark)');
+    expect(upcomingTab).toHaveClass('border-(--color-brand-dark)');
 
     // Switch to history
-    const historyTab = screen.getByText('History');
+    const historyTab = screen.getByRole('tab', { name: 'History' });
     fireEvent.click(historyTab);
 
     await waitFor(() => {
-      expect(historyTab).toHaveClass('text-gray-600');
-      expect(historyTab).toHaveClass('border-gray-600');
-      expect(upcomingTab).not.toHaveClass('text-primary');
-      expect(upcomingTab).not.toHaveClass('border-primary');
+      expect(historyTab).toHaveAttribute('aria-selected', 'true');
+      expect(historyTab).toHaveClass('text-(--color-brand-dark)');
+      expect(historyTab).toHaveClass('border-(--color-brand-dark)');
+      expect(upcomingTab).toHaveAttribute('aria-selected', 'false');
     });
   });
 });

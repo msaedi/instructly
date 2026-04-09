@@ -164,7 +164,7 @@ export function NotificationBell({
                 type="button"
                 onClick={() => markAllAsRead.mutate()}
                 disabled={markAllAsRead.isPending}
-                className="text-xs text-(--color-brand-dark) hover:text-[#6B21A8] disabled:opacity-60"
+                className="text-xs text-(--color-brand-dark) hover:text-(--color-brand-dark) disabled:opacity-60"
               >
                 Mark all read
               </button>

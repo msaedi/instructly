@@ -62,8 +62,6 @@ describe('Providers', () => {
 
     expect(toasterProps.position).toBe('top-right');
     expect(toasterProps.toastOptions.style).toMatchObject({
-      background: '#7C3AED',
-      color: '#ffffff',
       padding: '12px 16px',
       borderRadius: '12px',
       minWidth: '260px',
@@ -72,6 +70,12 @@ describe('Providers', () => {
       boxShadow: '0 12px 24px rgba(15, 23, 42, 0.45)',
     });
     expect(toasterProps.toastOptions.classNames).toMatchObject({
+      default: 'inst-toast-brand',
+      success: 'inst-toast-brand',
+      info: 'inst-toast-brand',
+      loading: 'inst-toast-brand',
+      error: 'inst-toast-error',
+      warning: 'inst-toast-warning',
       title: 'inst-toast-title',
       description: 'inst-toast-description',
     });
