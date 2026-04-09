@@ -276,4 +276,4 @@ def test_create_span_disabled_and_error_path(caplog):
     ):
         with otel.create_span("err") as span:
             assert span is None
-    assert "Failed to create span" in caplog.text
+    assert "Failed to enter span" in caplog.text
