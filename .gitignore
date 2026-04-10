@@ -129,3 +129,6 @@ docs/temp-logs/
 backend/tests/load/results/
 !backend/tests/load/results/.gitkeep
 mcp-server/src/*.egg-info/
+
+# Graphify
+graphify-out/
