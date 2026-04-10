@@ -148,3 +148,14 @@ class PlaceDetails(BaseModel):
     postal_code: Optional[str] = None
     country: Optional[str] = None
     provider_id: str
+
+
+class ServiceAreaValidationRequest(StrictRequestModel):
+    latitude: float
+    longitude: float
+
+
+class ServiceAreaValidationResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    in_service_area: bool
+    neighborhood_display_name: Optional[str] = None

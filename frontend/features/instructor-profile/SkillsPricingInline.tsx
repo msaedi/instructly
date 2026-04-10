@@ -15,10 +15,12 @@ import { evaluateFormatPriceFloorViolations, formatCents, type FormatFloorViolat
 import {
   defaultFormatPrices,
   formatPricesToPayload,
+  getEmptyRateOffenders,
   getFirstFormatPriceValidationError,
   hasAnyFormatEnabled,
   getFormatPriceValidationErrors,
   payloadToFormatPriceState,
+  type FormatPriceState,
   type ServiceFormat,
 } from '@/lib/pricing/formatPricing';
 import { FormatPricingCards } from '@/components/pricing/FormatPricingCards';
@@ -69,6 +71,9 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
   const [priceErrors, setPriceErrors] = useState<Record<string, Partial<Record<ServiceFormat, string>>>>({});
+  const [emptyRateErrors, setEmptyRateErrors] = useState<
+    Record<string, Partial<Record<ServiceFormat, boolean>>>
+  >({});
   // Default to true (assume live) until we confirm otherwise - safer default
   const [isInstructorLive, setIsInstructorLive] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -177,7 +182,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
       }
       const violations = evaluateFormatPriceFloorViolations({
         formatPrices: service.format_prices,
-        durationOptions: service.duration_options ?? [60],
+        durationOptions: service.duration_options,
         floors: pricingFloors,
       });
       logger.debug('SkillsPricingInline: serviceFloorViolations memo - evaluated', {
@@ -234,6 +239,42 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
     setSelectedServices(updater);
   }, []);
 
+  const clearEmptyRateErrorsForState = useCallback(
+    (serviceId: string, formatPrices: FormatPriceState) => {
+      setEmptyRateErrors((previous) => {
+        const serviceErrors = previous[serviceId];
+        if (!serviceErrors) {
+          return previous;
+        }
+
+        let changed = false;
+        const nextServiceErrors: Partial<Record<ServiceFormat, boolean>> = { ...serviceErrors };
+
+        for (const format of Object.keys(serviceErrors) as ServiceFormat[]) {
+          const rate = formatPrices[format];
+          if (rate === undefined || rate.trim().length > 0) {
+            delete nextServiceErrors[format];
+            changed = true;
+          }
+        }
+
+        if (!changed) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        if (Object.keys(nextServiceErrors).length === 0) {
+          delete next[serviceId];
+        } else {
+          next[serviceId] = nextServiceErrors;
+        }
+
+        return next;
+      });
+    },
+    [],
+  );
+
   const setServiceFilterValues = useCallback(
     (serviceId: string, filterKey: string, values: string[]) => {
       setSelectedServicesWithDirty((prev) =>
@@ -268,15 +309,13 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
       setSelectedServices((prev) =>
         prev.map((s) => {
           if (s.catalog_service_id !== serviceId) return s;
-          const merged = { ...s.filter_selections };
-          let changed = false;
-          for (const [key, values] of Object.entries(defaults)) {
-            if (!merged[key]) {
-              merged[key] = values;
-              changed = true;
-            }
-          }
-          return changed ? { ...s, filter_selections: merged } : s;
+          return {
+            ...s,
+            filter_selections: {
+              ...defaults,
+              ...s.filter_selections,
+            },
+          };
         })
       );
     },
@@ -502,13 +541,29 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
       }
       return;
     }
+    setEmptyRateErrors((prev) => {
+      if (!prev[catalogServiceId]) return prev;
+      const next = { ...prev };
+      delete next[catalogServiceId];
+      return next;
+    });
     setSelectedServicesWithDirty((prev) => prev.filter((s) => s.catalog_service_id !== catalogServiceId));
   }, [canRemoveSkill, profileLoaded, isInstructorLive, selectedServices.length, setSelectedServicesWithDirty]);
 
   const toggleServiceSelection = (svc: CategoryServiceDetail) => {
+    const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
+    if (exists) {
+      setEmptyRateErrors((currentErrors) => {
+        if (!currentErrors[svc.id]) return currentErrors;
+        const nextErrors = { ...currentErrors };
+        delete nextErrors[svc.id];
+        return nextErrors;
+      });
+    }
+
     setSelectedServicesWithDirty((prev) => {
-      const exists = prev.some((s) => s.catalog_service_id === svc.id);
-      if (exists) {
+      const serviceExists = prev.some((s) => s.catalog_service_id === svc.id);
+      if (serviceExists) {
         // Block deletion until profile is loaded
         if (!profileLoaded) {
           setError('Please wait for profile to load before removing skills.');
@@ -523,7 +578,10 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
       }
       const label = displayServiceName({ service_catalog_id: svc.id, service_catalog_name: svc.name }, hydrateCatalogNameById);
       const catalogEntry = serviceCatalogById.get(svc.id);
-      const eligibleAgeGroups = catalogEntry?.eligible_age_groups ?? ['kids', 'teens', 'adults'] as AudienceGroup[];
+      const eligibleAgeGroups = normalizeAudienceGroups(
+        svc.eligible_age_groups ?? catalogEntry?.eligible_age_groups,
+        ['kids', 'teens', 'adults']
+      );
       return [
         ...prev,
         {
@@ -586,6 +644,22 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
         return;
       }
 
+      const emptyRateOffenders = getEmptyRateOffenders(selectedServices);
+      if (emptyRateOffenders.length > 0) {
+        const nextEmptyRateErrors: Record<string, Partial<Record<ServiceFormat, boolean>>> = {};
+        emptyRateOffenders.forEach(({ serviceId, format }) => {
+          if (!nextEmptyRateErrors[serviceId]) {
+            nextEmptyRateErrors[serviceId] = {};
+          }
+          nextEmptyRateErrors[serviceId][format] = true;
+        });
+        setEmptyRateErrors(nextEmptyRateErrors);
+        setSvcSaving(false);
+        return;
+      }
+
+      setEmptyRateErrors({});
+
       // Safeguard: Live instructors must have at least one skill with a valid rate
       const servicesWithRates = selectedServices.filter((s) => hasAnyFormatEnabled(s.format_prices));
       if (isInstructorLive && servicesWithRates.length === 0) {
@@ -605,11 +679,9 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
       if (Object.keys(maxRateErrors).length > 0) {
         const firstError = selectedServices
           .map((service) => getFirstFormatPriceValidationError(service.format_prices))
-          .find((message): message is string => Boolean(message));
+          .find((message): message is string => Boolean(message))!;
         setPriceErrors(maxRateErrors);
-        if (firstError) {
-          toast.error(firstError, { id: 'max-rate-error' });
-        }
+        toast.error(firstError, { id: 'max-rate-error' });
         setSvcSaving(false);
         return;
       }
@@ -657,18 +729,18 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
         services: selectedServices
           .filter((service) => hasAnyFormatEnabled(service.format_prices))
           .map((service) => {
-            // Build filter_selections for backend (without age_groups — sent separately)
-            const { age_groups: _ageGroups, ...restFilters } = service.filter_selections;
-            return {
-              service_catalog_id: service.catalog_service_id || undefined,
-              format_prices: formatPricesToPayload(service.format_prices),
-              age_groups: service.filter_selections['age_groups'] ?? [...service.eligible_age_groups],
-              filter_selections: restFilters,
-              ...(service.description?.trim() ? { description: service.description.trim() } : {}),
-              duration_options: (service.duration_options?.length ? service.duration_options : [60]).sort((a, b) => a - b),
-              ...(service.equipment
-                ?.split(',')
-                .map((v) => v.trim())
+                // Build filter_selections for backend (without age_groups — sent separately)
+                const { age_groups: _ageGroups, ...restFilters } = service.filter_selections;
+                return {
+                  service_catalog_id: service.catalog_service_id,
+                  format_prices: formatPricesToPayload(service.format_prices),
+                  age_groups: service.filter_selections['age_groups'] ?? [...service.eligible_age_groups],
+                  filter_selections: restFilters,
+                  ...(service.description?.trim() ? { description: service.description.trim() } : {}),
+                  duration_options: [...service.duration_options].sort((a, b) => a - b),
+                  ...(service.equipment
+                    ?.split(',')
+                    .map((v) => v.trim())
                 .filter(Boolean)?.length
                 ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
                 : {}),
@@ -746,10 +818,8 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
     }, 1200);
 
     return () => {
-      if (autoSaveTimeout.current) {
-        clearTimeout(autoSaveTimeout.current);
-        autoSaveTimeout.current = null;
-      }
+      clearTimeout(autoSaveTimeout.current ?? undefined);
+      autoSaveTimeout.current = null;
     };
   }, [selectedServices]); // FIX 4: handleSave removed from dependencies
 
@@ -824,7 +894,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                   {!collapsed[cat.id] && (
                     <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                       {(servicesByCategory[cat.id] || [])
-                        .filter((svc) => (skillsFilter ? (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase()) : true))
+                        .filter((svc) => (skillsFilter ? svc.name.toLowerCase().includes(skillsFilter.toLowerCase()) : true))
                         .map((svc) => {
                           const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
                           return (
@@ -855,7 +925,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
 
               return (
                 <div
-                  key={`${s.catalog_service_id || s.name}-${index}`}
+                  key={`${s.catalog_service_id}-${index}`}
                   className="p-4 rounded-lg insta-surface-card"
                 >
                 <div className="flex items-start justify-between mb-2">
@@ -881,6 +951,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                   <FormatPricingCards
                     formatPrices={s.format_prices}
                     onChange={(next) => {
+                      clearEmptyRateErrorsForState(s.catalog_service_id, next);
                       setSelectedServicesWithDirty((prev) =>
                         prev.map((x, i) => (i === index ? { ...x, format_prices: next } : x))
                       );
@@ -898,6 +969,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     takeHomePct={instructorTakeHomePct}
                     platformFeeLabel={platformFeeLabel}
                     formatErrors={formatErrors}
+                    emptyRateErrors={emptyRateErrors[s.catalog_service_id]}
                     studentLocationDisabled={!hasServiceAreas}
                     studentLocationDisabledReason={
                       !hasServiceAreas
@@ -908,13 +980,13 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                 </div>
 
                 <div className="rounded-lg p-3 insta-surface-card mb-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Age groups</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-                    {ALL_AUDIENCE_GROUPS.map((group) => {
-                      const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
-                      const isSelected = selectedAgeGroups.includes(group);
-                      const isEligible = s.eligible_age_groups.includes(group);
-                      return (
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Age groups</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                      {ALL_AUDIENCE_GROUPS.map((group) => {
+                        const selectedAgeGroups = s.filter_selections['age_groups']!;
+                        const isSelected = selectedAgeGroups.includes(group);
+                        const isEligible = s.eligible_age_groups.includes(group);
+                        return (
                         <button
                           key={group}
                           disabled={!isEligible}
@@ -922,7 +994,7 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                             if (!isEligible) return;
                             setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                               if (i !== index) return x;
-                              const current = x.filter_selections['age_groups'] ?? [];
+                              const current = x.filter_selections['age_groups']!;
                               const next = isSelected
                                 ? current.filter((g) => g !== group)
                                 : [...current, group];
@@ -955,14 +1027,14 @@ export default function SkillsPricingInline({ className, instructorProfile, onFo
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 block">Skill level</label>
                     <div className="flex gap-1">
                       {DEFAULT_SKILL_LEVELS.map((lvl) => {
-                        const selectedLevels = s.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
+                        const selectedLevels = s.filter_selections['skill_level']!;
                         const isLvlSelected = selectedLevels.includes(lvl);
                         return (
                           <button
                             key={lvl}
                             onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                               if (i !== index) return x;
-                              const current = x.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
+                              const current = x.filter_selections['skill_level']!;
                               const next = isLvlSelected
                                 ? current.filter((v) => v !== lvl)
                                 : [...current, lvl];

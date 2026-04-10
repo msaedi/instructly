@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Step3SkillsPricing from '@/app/(auth)/instructor/onboarding/skill-selection/page';
@@ -145,20 +145,59 @@ jest.mock('@/components/ui/ToggleSwitch', () => ({
 
 jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   PlacesAutocompleteInput: ({
+    'data-testid': dataTestId,
     value,
     onValueChange,
+    onSelectSuggestion,
     placeholder,
+    disabled,
   }: {
+    'data-testid'?: string;
     value?: string;
     onValueChange?: (value: string) => void;
+    onSelectSuggestion?: (suggestion: {
+      place_id: string;
+      description: string;
+      text: string;
+      provider: string;
+      types: string[];
+    }) => void;
     placeholder?: string;
+    disabled?: boolean;
   }) => (
-    <input
-      data-testid="places-autocomplete"
-      value={value ?? ''}
-      onChange={(event) => onValueChange?.(event.target.value)}
-      placeholder={placeholder}
-    />
+    <div>
+      <input
+        data-testid={dataTestId ?? 'places-autocomplete'}
+        value={value ?? ''}
+        onChange={(event) => onValueChange?.(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+      <button
+        type="button"
+        data-testid={`${dataTestId ?? 'places-autocomplete'}-select-suggestion`}
+        disabled={disabled || !onSelectSuggestion}
+        onClick={() => {
+          const suggestionText =
+            typeof value === 'string' && value.trim().length > 0
+              ? value.trim()
+              : '123 Studio Lane, New York, NY';
+          const suggestionId =
+            typeof value === 'string' && value.trim().length > 0
+              ? value.trim().toLowerCase().replace(/\s+/g, '_')
+              : 'place_1';
+          onSelectSuggestion?.({
+            place_id: suggestionId,
+            description: suggestionText,
+            text: suggestionText,
+            provider: 'google',
+            types: ['street_address'],
+          });
+        }}
+      >
+        Select suggestion
+      </button>
+    </div>
   ),
 }));
 
@@ -440,6 +479,8 @@ describe('Skill selection page refine header', () => {
 
     renderWithClient(<Step3SkillsPricing />);
 
+    expect(await screen.findByRole('button', { name: /music/i })).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /music/i }));
     fireEvent.click(await screen.findByRole('button', { name: /toggle subcategory piano/i }));
     fireEvent.click(await screen.findByRole('button', { name: /add service piano/i }));
@@ -487,6 +528,37 @@ describe('Skill selection page refine header', () => {
         },
       },
     });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/places/details?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            formatted_address: '123 Studio Lane, New York, NY',
+            latitude: 40.775,
+            longitude: -73.955,
+            provider_id: 'google:place_1',
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/v1/addresses/validate-service-area') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            in_service_area: true,
+            neighborhood_display_name: 'Upper East Side',
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
 
     renderWithClient(<Step3SkillsPricing />);
 
@@ -504,8 +576,11 @@ describe('Skill selection page refine header', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText(TEACHING_ADDRESS_REQUIRED_MESSAGE)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Type address...'), {
-      target: { value: '123 Studio Lane' },
+    const addButton = screen.getByRole('button', { name: /add address/i });
+    expect(addButton).toBeDisabled();
+    fireEvent.click(screen.getByTestId('ptl-input-select-suggestion'));
+    await waitFor(() => {
+      expect(addButton).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole('button', { name: /add address/i }));
 
@@ -863,5 +938,435 @@ describe('Skill selection page refine header', () => {
     await waitFor(() => {
       expect(screen.getByTestId('service-areas-value')).toHaveTextContent('n1');
     });
+  });
+
+  it('blocks save, shows the inline error, and scrolls to the first empty-rate offender', async () => {
+    useInstructorServiceAreasMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            display_key: 'n1',
+            display_name: 'Upper East Side',
+            borough: 'Manhattan',
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+      isError: false,
+    });
+
+    const rafSpy = jest
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    expect(await screen.findByRole('button', { name: /music/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /music/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /toggle subcategory piano/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /add service piano/i }));
+
+    const studentCard = screen.getByTestId('format-card-student_location');
+    const studentInput = within(studentCard).getByRole('spinbutton');
+    const studentScrollMock = jest.fn();
+    const studentFocusMock = jest.fn();
+    Object.defineProperty(studentCard, 'scrollIntoView', {
+      value: studentScrollMock,
+      configurable: true,
+    });
+    Object.defineProperty(studentInput, 'focus', {
+      value: studentFocusMock,
+      configurable: true,
+    });
+
+    fireEvent.click(
+      within(screen.getByTestId('format-card-online')).getByRole('button', {
+        name: /online/i,
+      })
+    );
+    fireEvent.change(within(screen.getByTestId('format-card-online')).getByRole('spinbutton'), {
+      target: { value: '75' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
+
+    await waitFor(() => {
+      expect(
+        within(studentCard).getByText('Enter a rate to activate this lesson type.')
+      ).toBeInTheDocument();
+    });
+    expect(
+      within(screen.getByTestId('format-card-online')).queryByText(
+        'Enter a rate to activate this lesson type.'
+      )
+    ).not.toBeInTheDocument();
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
+      '/api/v1/instructors/me',
+      expect.anything()
+    );
+    expect(studentScrollMock).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    expect(studentFocusMock).toHaveBeenCalled();
+
+    rafSpy.mockRestore();
+  });
+
+  it('shows empty-rate errors on every offending service card and scrolls to the first one', async () => {
+    useCatalogBrowseMock.mockReturnValue({
+      data: {
+        categories: [
+          {
+            id: 'cat-1',
+            name: 'Music',
+            services: [
+              {
+                id: 'svc-1',
+                name: 'Piano',
+                subcategory_id: 'sub-1',
+                eligible_age_groups: ['kids', 'teens', 'adults'],
+                description: null,
+                display_order: 1,
+              },
+              {
+                id: 'svc-2',
+                name: 'Guitar',
+                subcategory_id: 'sub-1',
+                eligible_age_groups: ['kids', 'teens', 'adults'],
+                description: null,
+                display_order: 2,
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+    useInstructorServiceAreasMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            display_key: 'n1',
+            display_name: 'Upper East Side',
+            borough: 'Manhattan',
+          },
+        ],
+      },
+      isLoading: false,
+      isFetched: true,
+      isError: false,
+    });
+
+    const rafSpy = jest
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.click(screen.getByRole('button', { name: /music/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /toggle subcategory piano/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /add service piano/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /add service guitar/i }));
+
+    const studentCards = screen.getAllByTestId('format-card-student_location');
+    const firstScrollMock = jest.fn();
+    Object.defineProperty(studentCards[0] as Element, 'scrollIntoView', {
+      value: firstScrollMock,
+      configurable: true,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('Enter a rate to activate this lesson type.')
+      ).toHaveLength(2);
+    });
+    expect(firstScrollMock).toHaveBeenCalled();
+    rafSpy.mockRestore();
+  });
+
+  it('rejects an out-of-service-area teaching address and blocks save', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/places/details?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            formatted_address: '1 Newark St, Hoboken, NJ',
+            latitude: 40.744,
+            longitude: -74.032,
+            provider_id: 'google:hoboken_nj',
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/v1/addresses/validate-service-area') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            in_service_area: false,
+            neighborhood_display_name: null,
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.change(screen.getByPlaceholderText('Type address...'), {
+      target: { value: 'Hoboken NJ' },
+    });
+    fireEvent.click(screen.getByTestId('ptl-input-select-suggestion'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('This address is outside our current service area.')
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('ptl-chip-0')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
+
+    expect(fetchWithAuthMock).not.toHaveBeenCalledWith(
+      '/api/v1/instructors/me',
+      expect.anything()
+    );
+  });
+
+  it('shows the verification error when service-area validation fails', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.startsWith('/api/v1/addresses/places/details?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            formatted_address: '123 Studio Lane, New York, NY',
+            latitude: 40.775,
+            longitude: -73.955,
+            provider_id: 'google:place_1',
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/v1/addresses/validate-service-area') {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ detail: 'boom' }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.click(screen.getByTestId('ptl-input-select-suggestion'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "We couldn't verify this address. Please select an address from the dropdown suggestions."
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('keeps the first teaching address and rejects an invalid second one', async () => {
+    useOnboardingStepStatusMock.mockReturnValue({
+      stepStatus: {
+        'account-setup': 'done',
+        'skill-selection': 'pending',
+        'verify-identity': 'pending',
+        'payment-setup': 'pending',
+      },
+      rawData: {
+        profile: {
+          is_live: false,
+          is_founding_instructor: false,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'svc-1',
+              format_prices: [{ format: 'instructor_location', hourly_rate: 95 }],
+              duration_options: [60],
+              filter_selections: {},
+              age_groups: ['adults'],
+            },
+          ],
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          current_tier_pct: null,
+        },
+      },
+    });
+    fetchWithAuthMock.mockImplementation(async (url: string, _options?: RequestInit) => {
+      if (url.includes('place_id=place_1')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            formatted_address: '123 Studio Lane, New York, NY',
+            latitude: 40.775,
+            longitude: -73.955,
+            provider_id: 'google:place_1',
+          }),
+        } as Response;
+      }
+
+      if (url.includes('place_id=hoboken_nj')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            formatted_address: '1 Newark St, Hoboken, NJ',
+            latitude: 40.744,
+            longitude: -74.032,
+            provider_id: 'google:hoboken_nj',
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/v1/addresses/validate-service-area') {
+        const body = JSON.parse(String(_options?.body ?? '{}')) as {
+          latitude?: number;
+          longitude?: number;
+        };
+        if (body.latitude === 40.775 && body.longitude === -73.955) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              in_service_area: true,
+              neighborhood_display_name: 'Upper East Side',
+            }),
+          } as Response;
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            in_service_area: false,
+            neighborhood_display_name: null,
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    renderWithClient(<Step3SkillsPricing />);
+
+    fireEvent.click(screen.getByTestId('ptl-input-select-suggestion'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /add address/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add address/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ptl-chip-0')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Type address...'), {
+      target: { value: 'Hoboken NJ' },
+    });
+    fireEvent.click(screen.getByTestId('ptl-input-select-suggestion'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('This address is outside our current service area.')
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('ptl-chip-0')).toHaveTextContent(
+      '123 Studio Lane, New York, NY'
+    );
+    expect(screen.queryByTestId('ptl-chip-1')).not.toBeInTheDocument();
   });
 });

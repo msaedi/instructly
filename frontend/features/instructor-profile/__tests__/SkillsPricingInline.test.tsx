@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { getReactEventHandler, invokeReactClick } from '@/test-utils/reactEventHandlers';
 import SkillsPricingInline from '../SkillsPricingInline';
@@ -704,8 +704,11 @@ describe('SkillsPricingInline', () => {
     jest.advanceTimersByTime(1200);
 
     await waitFor(() => {
-      expect(screen.getByText(/must have at least one skill/i)).toBeInTheDocument();
+      expect(
+        screen.getByText('Enter a rate to activate this lesson type.')
+      ).toBeInTheDocument();
     });
+    expect(mockFetchWithAuth).not.toHaveBeenCalled();
     jest.useRealTimers();
   });
 
@@ -1627,7 +1630,9 @@ describe('SkillsPricingInline', () => {
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/must have at least one skill/i)).toBeInTheDocument();
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
       });
       // Should not have made API call
       expect(mockFetchWithAuth).not.toHaveBeenCalled();
@@ -1862,7 +1867,7 @@ describe('SkillsPricingInline', () => {
       jest.useRealTimers();
     });
 
-    it('excludes services with empty hourly rate from save payload', async () => {
+    it('blocks save when another selected service has an empty enabled rate', async () => {
       jest.useFakeTimers();
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       mockUseInstructorProfileMe.mockReturnValue({
@@ -1893,13 +1898,11 @@ describe('SkillsPricingInline', () => {
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(mockFetchWithAuth).toHaveBeenCalled();
-        const callArgs = mockFetchWithAuth.mock.calls[0];
-        const body = JSON.parse(callArgs[1].body);
-        // Only the service with a rate should be in the payload
-        expect(body.services).toHaveLength(1);
-        expect(body.services[0].service_catalog_id).toBe('svc-1');
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
       });
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
       jest.useRealTimers();
     });
@@ -2294,7 +2297,55 @@ describe('SkillsPricingInline', () => {
       expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
     });
 
-    it('filters out NaN-rate services from save payload', async () => {
+    it('preserves the remaining empty-rate error when only one offending format is fixed', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_summary: 'Manhattan',
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'student_location', hourly_rate: 70 },
+              ],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const onlineInput = getFormatRateInput('online');
+      const studentInput = getFormatRateInput('student_location');
+
+      await user.clear(onlineInput);
+      await user.clear(studentInput);
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Enter a rate to activate this lesson type.')).toHaveLength(2);
+      });
+
+      fireEvent.change(onlineInput, { target: { value: '80' } });
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Enter a rate to activate this lesson type.')).toHaveLength(1);
+      });
+
+      fireEvent.change(onlineInput, { target: { value: '85' } });
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Enter a rate to activate this lesson type.')).toHaveLength(1);
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('blocks autosave and clears the inline error after a blank enabled rate is fixed', async () => {
       jest.useFakeTimers();
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       mockUseInstructorProfileMe.mockReturnValue({
@@ -2313,25 +2364,217 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      // Clear and type non-numeric then fix it
       const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
-      // Empty rates are filtered from payload
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        // With empty rate the service is filtered from payload
-        // and live=false so it does save with 0 services
-        expect(mockFetchWithAuth).toHaveBeenCalled();
-        const body = JSON.parse(mockFetchWithAuth.mock.calls[0][1].body as string);
-        expect(body.services).toHaveLength(0);
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
       });
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      await user.type(rateInput, '75');
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Enter a rate to activate this lesson type.')
+        ).not.toBeInTheDocument();
+      });
+
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      const body = JSON.parse(mockFetchWithAuth.mock.calls[0][1].body as string);
+      expect(body.services).toHaveLength(1);
+      expect(body.services[0].format_prices).toEqual([
+        { format: 'online', hourly_rate: 75 },
+      ]);
+
+      jest.useRealTimers();
+    });
+
+    it('clears the empty-rate error when the offending format is toggled off', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await user.clear(getFormatRateInput('online'));
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
+      });
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole('switch', { name: /^online$/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Enter a rate to activate this lesson type.')
+        ).not.toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('clears empty-rate errors when removing an offending service card', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [
+            {
+              id: '01HABCTESTCAT0000000000001',
+              name: 'Music',
+              services: [
+                {
+                  id: 'svc-1',
+                  name: 'Piano',
+                  slug: 'piano',
+                  subcategory_id: '01HABCTESTSUBCAT0000000001',
+                  eligible_age_groups: ['kids', 'teens', 'adults'],
+                },
+                {
+                  id: 'svc-2',
+                  name: 'Guitar',
+                  slug: 'guitar',
+                  subcategory_id: '01HABCTESTSUBCAT0000000001',
+                  eligible_age_groups: ['kids', 'teens', 'adults'],
+                },
+              ],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
+            },
+            {
+              service_catalog_id: 'svc-2',
+              service_catalog_name: 'Guitar',
+              format_prices: [{ format: 'online', hourly_rate: 70 }],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInputs = getAllFormatRateInputs('online');
+      await user.clear(rateInputs[0]!);
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText('Enter a rate to activate this lesson type.')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getAllByRole('button', { name: /remove skill/i })[0]!);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Enter a rate to activate this lesson type.')).not.toBeInTheDocument();
+      });
+      expect(screen.getAllByRole('button', { name: /remove skill/i })).toHaveLength(1);
+      expect(screen.queryByText(/^Piano$/i)).not.toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+
+    it('clears empty-rate errors when deselecting an offending service from the catalog list', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await user.clear(getFormatRateInput('online'));
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText('Enter a rate to activate this lesson type.')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /music/i }));
+      await user.click(screen.getByRole('button', { name: /piano ✓/i }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('Enter a rate to activate this lesson type.')).not.toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /remove skill/i })).not.toBeInTheDocument();
 
       jest.useRealTimers();
     });
   });
 
   describe('Capability validation - manual save toast', () => {
+    it('blocks autosave for live instructors when all enabled formats are toggled off', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: true,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await user.click(screen.getByRole('switch', { name: /^online$/i }));
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Live instructors must have at least one skill. Please add a skill before saving.')
+        ).toBeInTheDocument();
+      });
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+
     it('shows toast error for manual-source save with all capabilities disabled', async () => {
       // With format_prices: [] and no service areas, component defaults to
       // online enabled with empty rate. Empty rate = not a valid service.
@@ -2359,6 +2602,43 @@ describe('SkillsPricingInline', () => {
   });
 
   describe('Price floor violations display', () => {
+    it('continues saving when a price-floor map contains no concrete violations', async () => {
+      jest.useFakeTimers();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
+            duration_options: [60],
+          }],
+        },
+      });
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
+        isLoading: false,
+      });
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', []],
+      ]));
+
+      render(<SkillsPricingInline />);
+
+      fireEvent.change(getFormatRateInput('online'), { target: { value: '65' } });
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+      expect(toast.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Min price'),
+        { id: 'price-floor-error' }
+      );
+
+      jest.useRealTimers();
+    });
+
     it('shows toast for autosave when price floor is violated', async () => {
       jest.useFakeTimers();
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
@@ -4697,7 +4977,9 @@ describe('SkillsPricingInline', () => {
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/must have at least one skill/i)).toBeInTheDocument();
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
       });
       expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
@@ -6959,7 +7241,7 @@ describe('SkillsPricingInline', () => {
       expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
     });
 
-    it('save does not fire when all services have empty hourly rate (branch in payload filter, line 735)', async () => {
+    it('save does not fire when an enabled format has an empty hourly rate', async () => {
       jest.useFakeTimers();
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
@@ -6976,24 +7258,19 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      // Clear the rate entirely — makes it empty string, filtered from payload
       const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
 
-      // Also add a description to ensure dirty state
       const descField = screen.getByPlaceholderText(/brief description/i);
       await user.type(descField, 'Something');
       jest.advanceTimersByTime(1200);
 
-      // Autosave should still fire but with empty services array in payload
       await waitFor(() => {
-        expect(mockFetchWithAuth).toHaveBeenCalled();
+        expect(
+          screen.getByText('Enter a rate to activate this lesson type.')
+        ).toBeInTheDocument();
       });
-
-      const call = mockFetchWithAuth.mock.calls[0];
-      const body = JSON.parse(call?.[1]?.body as string);
-      // Service with empty rate gets filtered out
-      expect(body.services).toEqual([]);
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
       jest.useRealTimers();
     });

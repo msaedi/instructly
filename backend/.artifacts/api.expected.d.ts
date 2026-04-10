@@ -399,6 +399,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/addresses/validate-service-area": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["validate_service_area_api_v1_addresses_validate_service_area_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/addresses/zip/is-nyc": {
  parameters: {
  query?: never;
@@ -10851,6 +10867,14 @@ export type components = {
  display_key: string;
  display_name: string;
  };
+ ServiceAreaValidationRequest: {
+ latitude: number;
+ longitude: number;
+ };
+ ServiceAreaValidationResponse: {
+ in_service_area: boolean;
+ neighborhood_display_name?: string | null;
+ };
  ServiceAreasResponse: {
  items: components["schemas"]["ServiceAreaDisplayItem"][];
  total: number;
@@ -12459,6 +12483,37 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["ServiceAreasResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ validate_service_area_api_v1_addresses_validate_service_area_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ServiceAreaValidationRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ServiceAreaValidationResponse"];
  };
  };
  422: {

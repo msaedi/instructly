@@ -27,6 +27,7 @@ import {
   type ServiceFormat,
   defaultFormatPrices,
   formatPricesToPayload,
+  getEmptyRateOffenders,
   getFirstFormatPriceValidationError,
   getFormatPriceValidationErrors,
   hasAnyFormatEnabled,
@@ -58,7 +59,10 @@ import { queryKeys } from '@/src/api/queryKeys';
 import { toast } from 'sonner';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
-import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
+import {
+  PreferredLocationsCard,
+} from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
+import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
 import {
   hasNonEmptyTeachingLocation,
   TEACHING_ADDRESS_REQUIRED_MESSAGE,
@@ -81,6 +85,18 @@ type CategoryServiceGroup = {
   subcategory_id: string;
   subcategory_name: string;
   services: CategoryServiceDetail[];
+};
+
+type PlaceDetailsResponse = {
+  formatted_address: string;
+  latitude: number;
+  longitude: number;
+  provider_id: string;
+};
+
+type ServiceAreaValidationResponse = {
+  in_service_area: boolean;
+  neighborhood_display_name: string | null;
 };
 
 const subcategoryCollapseKey = (categoryId: string, subcategoryId: string): string =>
@@ -204,6 +220,22 @@ function Step3SkillsPricingInner() {
   const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
   const [neutralLocations, setNeutralLocations] = useState<string>('');
   const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
+  const [emptyRateErrorsByService, setEmptyRateErrorsByService] = useState<
+    Record<string, Partial<Record<ServiceFormat, boolean>>>
+  >({});
+  const [preferredAddressValidationError, setPreferredAddressValidationError] = useState<
+    string | null
+  >(null);
+  const [preferredAddressValidating, setPreferredAddressValidating] = useState(false);
+  const [validatedPreferredAddress, setValidatedPreferredAddress] = useState<{
+    address: string;
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const formatCardRefs = useRef<Record<string, Partial<Record<ServiceFormat, HTMLDivElement | null>>>>({});
+  const formatInputRefs = useRef<
+    Record<string, Partial<Record<ServiceFormat, HTMLInputElement | null>>>
+  >({});
 
   const {
     data: serviceAreasDataFromHook,
@@ -227,6 +259,172 @@ function Step3SkillsPricingInner() {
     },
     [],
   );
+
+  const clearEmptyRateErrorsForState = useCallback(
+    (serviceId: string, formatPrices: FormatPriceState) => {
+      setEmptyRateErrorsByService((previous) => {
+        const serviceErrors = previous[serviceId];
+        if (!serviceErrors) {
+          return previous;
+        }
+
+        let changed = false;
+        const nextServiceErrors: Partial<Record<ServiceFormat, boolean>> = { ...serviceErrors };
+
+        for (const format of Object.keys(serviceErrors) as ServiceFormat[]) {
+          const rate = formatPrices[format];
+          if (rate === undefined || rate.trim().length > 0) {
+            delete nextServiceErrors[format];
+            changed = true;
+          }
+        }
+
+        if (!changed) {
+          return previous;
+        }
+
+        const next = { ...previous };
+        if (Object.keys(nextServiceErrors).length === 0) {
+          delete next[serviceId];
+        } else {
+          next[serviceId] = nextServiceErrors;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const registerFormatCardRef = useCallback(
+    (serviceId: string, format: ServiceFormat, node: HTMLDivElement | null) => {
+      if (!formatCardRefs.current[serviceId]) {
+        formatCardRefs.current[serviceId] = {};
+      }
+      formatCardRefs.current[serviceId][format] = node;
+    },
+    [],
+  );
+
+  const registerFormatInputRef = useCallback(
+    (serviceId: string, format: ServiceFormat, node: HTMLInputElement | null) => {
+      if (!formatInputRefs.current[serviceId]) {
+        formatInputRefs.current[serviceId] = {};
+      }
+      formatInputRefs.current[serviceId][format] = node;
+    },
+    [],
+  );
+
+  const focusFirstEmptyRateOffender = useCallback(
+    (serviceId: string, format: ServiceFormat) => {
+      window.requestAnimationFrame(() => {
+        const card = formatCardRefs.current[serviceId]?.[format];
+        const input = formatInputRefs.current[serviceId]?.[format];
+        card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input?.focus();
+      });
+    },
+    [],
+  );
+
+  const handlePreferredAddressChange = useCallback((value: string) => {
+    setPreferredAddress(value);
+    setValidatedPreferredAddress(null);
+    setPreferredAddressValidationError(null);
+  }, []);
+
+  const handlePreferredAddressSelection = useCallback(
+    async (suggestion: PlaceSuggestion) => {
+      const providerQuery =
+        typeof suggestion.provider === 'string' && suggestion.provider.trim().length > 0
+          ? `&provider=${encodeURIComponent(suggestion.provider.trim())}`
+          : '';
+
+      setPreferredAddressValidating(true);
+      setValidatedPreferredAddress(null);
+      setPreferredAddressValidationError(null);
+
+      try {
+        const detailsResponse = await fetchWithAuth(
+          `/api/v1/addresses/places/details?place_id=${encodeURIComponent(suggestion.place_id)}${providerQuery}`
+        );
+        if (!detailsResponse.ok) {
+          throw new Error('place_details_failed');
+        }
+
+        const details = (await detailsResponse.json()) as PlaceDetailsResponse;
+        if (
+          typeof details.latitude !== 'number' ||
+          typeof details.longitude !== 'number'
+        ) {
+          throw new Error('missing_coordinates');
+        }
+
+        const validationResponse = await fetchWithAuth(
+          '/api/v1/addresses/validate-service-area',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: details.latitude,
+              longitude: details.longitude,
+            }),
+          }
+        );
+
+        if (!validationResponse.ok) {
+          throw new Error('validation_failed');
+        }
+
+        const validation = (await validationResponse.json()) as ServiceAreaValidationResponse;
+        if (!validation.in_service_area) {
+          setValidatedPreferredAddress(null);
+          setPreferredAddressValidationError(
+            'This address is outside our current service area.'
+          );
+          return;
+        }
+
+        const canonicalAddress = details.formatted_address?.trim() || suggestion.description.trim();
+        setPreferredAddress(canonicalAddress);
+        setValidatedPreferredAddress({
+          address: canonicalAddress,
+          latitude: details.latitude,
+          longitude: details.longitude,
+        });
+        setPreferredAddressValidationError(null);
+      } catch {
+        setValidatedPreferredAddress(null);
+        setPreferredAddressValidationError(
+          "We couldn't verify this address. Please select an address from the dropdown suggestions."
+        );
+      } finally {
+        setPreferredAddressValidating(false);
+      }
+    },
+    [],
+  );
+
+  const handleAddPreferredLocation = useCallback(() => {
+    if (!validatedPreferredAddress) {
+      return;
+    }
+
+    const address = validatedPreferredAddress.address.trim();
+    if (!address || preferredLocations.length >= 2) {
+      return;
+    }
+
+    setPreferredLocations((previous) => {
+      if (previous.includes(address)) {
+        return previous;
+      }
+      return [...previous, address];
+    });
+    setPreferredAddress('');
+    setValidatedPreferredAddress(null);
+    setPreferredAddressValidationError(null);
+  }, [preferredLocations.length, validatedPreferredAddress]);
 
   // Prefill service areas & preferred locations from profile
   const profileLocationsPrefilled = useRef(false);
@@ -375,10 +573,23 @@ function Step3SkillsPricingInner() {
   const anyServiceUsesInstructorLocation = selected.some(
     (svc) => 'instructor_location' in svc.format_prices
   );
-  const teachingAddressError = anyServiceUsesInstructorLocation &&
-    !hasNonEmptyTeachingLocation(preferredLocations)
-    ? TEACHING_ADDRESS_REQUIRED_MESSAGE
-    : null;
+  const teachingAddressError = preferredAddressValidationError ??
+    (anyServiceUsesInstructorLocation && !hasNonEmptyTeachingLocation(preferredLocations)
+      ? TEACHING_ADDRESS_REQUIRED_MESSAGE
+      : null);
+
+  useEffect(() => {
+    if (anyServiceUsesInstructorLocation) {
+      return;
+    }
+
+    if (preferredAddressValidationError !== null) {
+      setPreferredAddressValidationError(null);
+    }
+    if (validatedPreferredAddress !== null) {
+      setValidatedPreferredAddress(null);
+    }
+  }, [anyServiceUsesInstructorLocation, preferredAddressValidationError, validatedPreferredAddress]);
 
   const servicesByCategory = useMemo(() => {
     const map: Record<string, CategoryServiceDetail[]> = {};
@@ -803,6 +1014,16 @@ function Step3SkillsPricingInner() {
       setSelected((previous) =>
         previous.filter((selectedService) => selectedService.catalog_service_id !== service.id)
       );
+      setEmptyRateErrorsByService((previous) => {
+        if (!previous[service.id]) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[service.id];
+        return next;
+      });
+      delete formatCardRefs.current[service.id];
+      delete formatInputRefs.current[service.id];
       setRefineExpandedByService((previous) => {
         if (previous[service.id] === undefined) {
           return previous;
@@ -846,6 +1067,16 @@ function Step3SkillsPricingInner() {
     setSelected((previous) =>
       previous.filter((service) => service.catalog_service_id !== serviceId)
     );
+    setEmptyRateErrorsByService((previous) => {
+      if (!previous[serviceId]) {
+        return previous;
+      }
+      const next = { ...previous };
+      delete next[serviceId];
+      return next;
+    });
+    delete formatCardRefs.current[serviceId];
+    delete formatInputRefs.current[serviceId];
     setRefineExpandedByService((previous) => {
       if (previous[serviceId] === undefined) {
         return previous;
@@ -861,11 +1092,34 @@ function Step3SkillsPricingInner() {
       setSaving(true);
       setError(null);
 
-      const hasInvalidFormats = selected.some(
-        (service) => !hasAnyFormatEnabled(service.format_prices)
+      const emptyRateOffenders = getEmptyRateOffenders(selected);
+      if (emptyRateOffenders.length > 0) {
+        const nextEmptyRateErrors: Record<string, Partial<Record<ServiceFormat, boolean>>> = {};
+        emptyRateOffenders.forEach(({ serviceId, format }) => {
+          if (!nextEmptyRateErrors[serviceId]) {
+            nextEmptyRateErrors[serviceId] = {};
+          }
+          nextEmptyRateErrors[serviceId][format] = true;
+        });
+        setEmptyRateErrorsByService(nextEmptyRateErrors);
+
+        const firstOffender = emptyRateOffenders[0];
+        if (firstOffender) {
+          focusFirstEmptyRateOffender(firstOffender.serviceId, firstOffender.format);
+        }
+        setSaving(false);
+        return;
+      }
+
+      if (Object.keys(emptyRateErrorsByService).length > 0) {
+        setEmptyRateErrorsByService({});
+      }
+
+      const hasNoEnabledFormats = selected.some(
+        (service) => Object.keys(service.format_prices).length === 0
       );
 
-      if (hasInvalidFormats) {
+      if (hasNoEnabledFormats) {
         toast.error(
           'Enable at least one lesson format and set a rate for each selected skill'
         );
@@ -1499,19 +1753,30 @@ function Step3SkillsPricingInner() {
                     <div className="mb-4">
                       <FormatPricingCards
                         formatPrices={service.format_prices}
-                        onChange={(next) =>
+                        onChange={(next) => {
+                          clearEmptyRateErrorsForState(
+                            service.catalog_service_id,
+                            next
+                          );
                           updateSelectedService(
                             service.catalog_service_id,
                             (currentService) => ({
                               ...currentService,
                               format_prices: next,
                             })
-                          )
-                        }
+                          );
+                        }}
                         priceFloors={pricingFloors}
                         durationOptions={service.duration_options}
                         takeHomePct={instructorTakeHomePct}
                         platformFeeLabel={platformFeeLabel}
+                        emptyRateErrors={emptyRateErrorsByService[service.catalog_service_id]}
+                        onCardRef={(format, node) =>
+                          registerFormatCardRef(service.catalog_service_id, format, node)
+                        }
+                        onInputRef={(format, node) =>
+                          registerFormatInputRef(service.catalog_service_id, format, node)
+                        }
                         {...(Object.keys(formatErrors).length > 0
                           ? { formatErrors }
                           : {})}
@@ -1764,7 +2029,7 @@ function Step3SkillsPricingInner() {
               isTeachingAddressRequired={anyServiceUsesInstructorLocation}
               teachingAddressError={teachingAddressError}
               preferredAddress={preferredAddress}
-              setPreferredAddress={setPreferredAddress}
+              setPreferredAddress={handlePreferredAddressChange}
               preferredLocations={preferredLocations}
               setPreferredLocations={setPreferredLocations}
               preferredLocationTitles={preferredLocationTitles}
@@ -1773,6 +2038,15 @@ function Step3SkillsPricingInner() {
               setNeutralLocations={setNeutralLocations}
               neutralPlaces={neutralPlaces}
               setNeutralPlaces={setNeutralPlaces}
+              onPreferredAddressSelectSuggestion={handlePreferredAddressSelection}
+              onAddPreferredLocation={handleAddPreferredLocation}
+              preferredLocationAddDisabled={
+                preferredAddressValidating ||
+                validatedPreferredAddress === null ||
+                (validatedPreferredAddress !== null &&
+                  preferredLocations.includes(validatedPreferredAddress.address)) ||
+                preferredLocations.length >= 2
+              }
             />
           </div>
         )}

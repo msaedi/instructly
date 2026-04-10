@@ -2,7 +2,10 @@
 
 import { Building2, ChevronDown } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
-import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
+import {
+  PlacesAutocompleteInput,
+  type PlaceSuggestion,
+} from '@/components/forms/PlacesAutocompleteInput';
 
 type PreferredLocationsCardProps = {
   context?: 'dashboard' | 'onboarding';
@@ -20,6 +23,9 @@ type PreferredLocationsCardProps = {
   setNeutralLocations: (value: string) => void;
   neutralPlaces: string[];
   setNeutralPlaces: Dispatch<SetStateAction<string[]>>;
+  onPreferredAddressSelectSuggestion?: ((suggestion: PlaceSuggestion) => void) | undefined;
+  onAddPreferredLocation?: (() => void) | undefined;
+  preferredLocationAddDisabled?: boolean | undefined;
 };
 
 export function PreferredLocationsCard({
@@ -38,6 +44,9 @@ export function PreferredLocationsCard({
   setNeutralLocations,
   neutralPlaces,
   setNeutralPlaces,
+  onPreferredAddressSelectSuggestion,
+  onAddPreferredLocation,
+  preferredLocationAddDisabled,
 }: PreferredLocationsCardProps) {
   const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
@@ -116,6 +125,9 @@ export function PreferredLocationsCard({
                     data-testid="ptl-input"
                     value={preferredAddress}
                     onValueChange={setPreferredAddress}
+                    {...(onPreferredAddressSelectSuggestion
+                      ? { onSelectSuggestion: onPreferredAddressSelectSuggestion }
+                      : {})}
                     placeholder="Type address..."
                     inputClassName={`h-10 border pl-3 pr-12 text-sm leading-10 focus:border-(--color-focus-brand) ${
                       teachingAddressError
@@ -126,9 +138,11 @@ export function PreferredLocationsCard({
                   <button
                     type="button"
                     data-testid="ptl-add"
-                    onClick={addPreferredLocation}
+                    onClick={onAddPreferredLocation ?? addPreferredLocation}
                     aria-label="Add address"
-                    disabled={preferredLocations.length >= maxTeachingLocations}
+                    disabled={
+                      preferredLocationAddDisabled ?? preferredLocations.length >= maxTeachingLocations
+                    }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>

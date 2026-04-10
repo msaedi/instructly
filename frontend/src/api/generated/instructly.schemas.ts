@@ -8781,6 +8781,16 @@ export interface ServiceAreaDisplayItem {
   display_name: string;
 }
 
+export interface ServiceAreaValidationRequest {
+  latitude: number;
+  longitude: number;
+}
+
+export interface ServiceAreaValidationResponse {
+  in_service_area: boolean;
+  neighborhood_display_name?: string | null;
+}
+
 export interface ServiceAreasResponse {
   items: ServiceAreaDisplayItem[];
   total: number;

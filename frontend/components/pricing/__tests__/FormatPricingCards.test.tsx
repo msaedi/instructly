@@ -20,6 +20,7 @@ const defaultProps = {
 
 type RenderOverrides = Partial<typeof defaultProps> & {
   formatErrors?: Partial<Record<ServiceFormat, string>>;
+  emptyRateErrors?: Partial<Record<ServiceFormat, boolean>>;
   studentLocationDisabled?: boolean;
   studentLocationDisabledReason?: string;
 };
@@ -139,6 +140,20 @@ describe('FormatPricingCards', () => {
       formatErrors: { student_location: 'Rate is below the minimum' },
     });
     expect(screen.getByText('Rate is below the minimum')).toBeInTheDocument();
+  });
+
+  it('renders empty-rate errors inline with alert semantics', () => {
+    renderCards({
+      formatPrices: { student_location: '' },
+      emptyRateErrors: { student_location: true },
+    });
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Enter a rate to activate this lesson type.');
+    const enabledInput = screen.getAllByRole('spinbutton').find(
+      (element) => !(element as HTMLInputElement).disabled
+    );
+    expect(enabledInput).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('shows the max hourly rate validation message at $1,001', () => {

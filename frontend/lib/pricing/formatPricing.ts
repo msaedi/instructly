@@ -30,6 +30,7 @@ export type FormatCardConfig = {
 
 export const MAX_HOURLY_RATE = 1000;
 export const MAX_HOURLY_RATE_MESSAGE = `Maximum hourly rate is $${MAX_HOURLY_RATE.toLocaleString()}`;
+export const EMPTY_RATE_ERROR_MESSAGE = 'Enter a rate to activate this lesson type.';
 
 export const FORMAT_CARD_CONFIGS: readonly FormatCardConfig[] = [
   {
@@ -112,6 +113,45 @@ export function getFormatPriceValidationErrors(
   }
 
   return errors;
+}
+
+export function getEmptyEnabledFormats(state: FormatPriceState): ServiceFormat[] {
+  const emptyFormats: ServiceFormat[] = [];
+
+  for (const format of ALL_FORMATS) {
+    const rate = state[format];
+    if (rate === undefined) {
+      continue;
+    }
+
+    if (rate.trim().length === 0) {
+      emptyFormats.push(format);
+    }
+  }
+
+  return emptyFormats;
+}
+
+export type EmptyRateOffender = {
+  serviceId: string;
+  format: ServiceFormat;
+};
+
+export function getEmptyRateOffenders<
+  T extends { catalog_service_id: string; format_prices: FormatPriceState },
+>(services: readonly T[]): EmptyRateOffender[] {
+  const offenders: EmptyRateOffender[] = [];
+
+  for (const service of services) {
+    for (const format of getEmptyEnabledFormats(service.format_prices)) {
+      offenders.push({
+        serviceId: service.catalog_service_id,
+        format,
+      });
+    }
+  }
+
+  return offenders;
 }
 
 export function getFirstFormatPriceValidationError(

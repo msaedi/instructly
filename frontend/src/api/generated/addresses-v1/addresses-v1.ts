@@ -41,6 +41,8 @@ import type {
   PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
   PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
   ServiceAreaDisplayItem,
+  ServiceAreaValidationRequest,
+  ServiceAreaValidationResponse,
   ServiceAreasResponse,
   ServiceAreasUpdateRequest,
 } from '../instructly.schemas';
@@ -1785,6 +1787,100 @@ export const useReplaceMyServiceAreasApiV1AddressesServiceAreasMePut = <
 > => {
   return useMutation(
     getReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Validate Service Area
+ */
+export const getValidateServiceAreaApiV1AddressesValidateServiceAreaPostUrl = () => {
+  return `/api/v1/addresses/validate-service-area`;
+};
+
+export const validateServiceAreaApiV1AddressesValidateServiceAreaPost = async (
+  serviceAreaValidationRequest: ServiceAreaValidationRequest,
+  options?: RequestInit
+): Promise<ServiceAreaValidationResponse> => {
+  return customFetch<ServiceAreaValidationResponse>(
+    getValidateServiceAreaApiV1AddressesValidateServiceAreaPostUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(serviceAreaValidationRequest),
+    }
+  );
+};
+
+export const getValidateServiceAreaApiV1AddressesValidateServiceAreaPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>,
+    TError,
+    { data: ServiceAreaValidationRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>,
+  TError,
+  { data: ServiceAreaValidationRequest },
+  TContext
+> => {
+  const mutationKey = ['validateServiceAreaApiV1AddressesValidateServiceAreaPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>,
+    { data: ServiceAreaValidationRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return validateServiceAreaApiV1AddressesValidateServiceAreaPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ValidateServiceAreaApiV1AddressesValidateServiceAreaPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>
+>;
+export type ValidateServiceAreaApiV1AddressesValidateServiceAreaPostMutationBody =
+  ServiceAreaValidationRequest;
+export type ValidateServiceAreaApiV1AddressesValidateServiceAreaPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Validate Service Area
+ */
+export const useValidateServiceAreaApiV1AddressesValidateServiceAreaPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>,
+      TError,
+      { data: ServiceAreaValidationRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof validateServiceAreaApiV1AddressesValidateServiceAreaPost>>,
+  TError,
+  { data: ServiceAreaValidationRequest },
+  TContext
+> => {
+  return useMutation(
+    getValidateServiceAreaApiV1AddressesValidateServiceAreaPostMutationOptions(options),
     queryClient
   );
 };

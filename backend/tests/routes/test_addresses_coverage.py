@@ -183,6 +183,69 @@ def test_list_service_areas_and_selector(test_instructor):
     assert service.selector_market == "nyc"
 
 
+def test_validate_service_area_returns_covered_neighborhood(test_instructor):
+    class StubService:
+        def find_neighborhood_by_point(self, lat, lng, market="nyc"):
+            assert lat == pytest.approx(40.775)
+            assert lng == pytest.approx(-73.955)
+            assert market == "nyc"
+            return {
+                "display_key": "nyc-manhattan-upper-east-side",
+                "display_name": "Upper East Side",
+                "borough": "Manhattan",
+            }
+
+    response = addresses_routes.validate_service_area(
+        payload=addresses_routes.ServiceAreaValidationRequest(
+            latitude=40.775,
+            longitude=-73.955,
+        ),
+        _current_user=test_instructor,
+        service=StubService(),
+    )
+
+    assert response.in_service_area is True
+    assert response.neighborhood_display_name == "Upper East Side"
+
+
+def test_validate_service_area_returns_false_for_uncovered_or_outside_point(test_instructor):
+    class StubService:
+        def find_neighborhood_by_point(self, lat, lng, market="nyc"):
+            assert market == "nyc"
+            return None
+
+    response = addresses_routes.validate_service_area(
+        payload=addresses_routes.ServiceAreaValidationRequest(
+            latitude=40.743,
+            longitude=-74.032,
+        ),
+        _current_user=test_instructor,
+        service=StubService(),
+    )
+
+    assert response.in_service_area is False
+    assert response.neighborhood_display_name is None
+
+
+def test_validate_service_area_returns_false_for_uncovered_queens_polygon(test_instructor):
+    class StubService:
+        def find_neighborhood_by_point(self, lat, lng, market="nyc"):
+            assert market == "nyc"
+            return None
+
+    response = addresses_routes.validate_service_area(
+        payload=addresses_routes.ServiceAreaValidationRequest(
+            latitude=40.742,
+            longitude=-73.769,
+        ),
+        _current_user=test_instructor,
+        service=StubService(),
+    )
+
+    assert response.in_service_area is False
+    assert response.neighborhood_display_name is None
+
+
 def test_places_autocomplete_scopes(monkeypatch):
     calls = []
 

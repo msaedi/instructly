@@ -2,6 +2,7 @@
 
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
+  EMPTY_RATE_ERROR_MESSAGE,
   FORMAT_CARD_CONFIGS,
   MAX_HOURLY_RATE,
   type FormatPriceState,
@@ -18,8 +19,11 @@ type FormatPricingCardsProps = {
   takeHomePct: number;
   platformFeeLabel: string;
   formatErrors?: Partial<Record<ServiceFormat, string>> | undefined;
+  emptyRateErrors?: Partial<Record<ServiceFormat, boolean>> | undefined;
   studentLocationDisabled?: boolean | undefined;
   studentLocationDisabledReason?: string | undefined;
+  onCardRef?: ((format: ServiceFormat, node: HTMLDivElement | null) => void) | undefined;
+  onInputRef?: ((format: ServiceFormat, node: HTMLInputElement | null) => void) | undefined;
 };
 
 export function FormatPricingCards({
@@ -28,8 +32,11 @@ export function FormatPricingCards({
   takeHomePct,
   platformFeeLabel,
   formatErrors,
+  emptyRateErrors,
   studentLocationDisabled,
   studentLocationDisabledReason,
+  onCardRef,
+  onInputRef,
 }: FormatPricingCardsProps) {
   function isEnabled(format: ServiceFormat): boolean {
     return format in formatPrices;
@@ -79,11 +86,15 @@ export function FormatPricingCards({
         const rateNum = Number(rate);
         const showTakeHome = rate !== '' && rateNum > 0;
         const validationError = getHourlyRateValidationMessage(rate);
-        const error = validationError ?? formatErrors?.[config.format];
+        const emptyRateError = emptyRateErrors?.[config.format]
+          ? EMPTY_RATE_ERROR_MESSAGE
+          : null;
+        const error = emptyRateError ?? validationError ?? formatErrors?.[config.format];
 
         return (
           <div
             key={config.format}
+            ref={(node) => onCardRef?.(config.format, node)}
             data-testid={`format-card-${config.format}`}
             className={`rounded-lg border border-gray-200 dark:border-gray-700 p-4 transition-opacity duration-200 ${
               enabled && !disabled ? 'opacity-100 bg-white dark:bg-gray-800' : 'opacity-40 bg-gray-50 dark:bg-gray-900'
@@ -110,6 +121,7 @@ export function FormatPricingCards({
               <div className="flex items-center gap-1">
                 <span className="text-gray-500 dark:text-gray-400">$</span>
                 <input
+                  ref={(node) => onInputRef?.(config.format, node)}
                   type="number"
                   min={0}
                   max={MAX_HOURLY_RATE}
@@ -142,7 +154,9 @@ export function FormatPricingCards({
 
               {/* Inline error */}
               {error && (
-                <p className="mt-1 text-xs text-red-600">{error}</p>
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {error}
+                </p>
               )}
             </div>
 

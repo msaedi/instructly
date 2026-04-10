@@ -18,6 +18,7 @@ Endpoints:
     GET /neighborhoods/lookup            → Display neighborhood lookup by point
     GET /places/autocomplete             → Autocomplete address search
     GET /places/details                  → Get place details
+    POST /validate-service-area          → Validate point against covered neighborhoods
     GET /coverage/bulk                   → Get bulk coverage GeoJSON
 """
 
@@ -28,7 +29,11 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
-from ...api.dependencies.auth import get_current_active_user, require_beta_access
+from ...api.dependencies.auth import (
+    get_current_active_user,
+    get_current_instructor,
+    require_beta_access,
+)
 from ...api.dependencies.services import get_cache_service_dep
 from ...core.exceptions import DomainException
 from ...database import get_db as get_session
@@ -44,6 +49,8 @@ from ...schemas.address import (
     ServiceAreaDisplayItem,
     ServiceAreasResponse,
     ServiceAreasUpdateRequest,
+    ServiceAreaValidationRequest,
+    ServiceAreaValidationResponse,
 )
 from ...schemas.address_responses import (
     AddressDeleteResponse,
@@ -226,7 +233,7 @@ def delete_my_address(
 )
 @rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def list_my_service_areas(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_instructor),
     service: AddressService = Depends(get_address_service),
 ) -> ServiceAreasResponse:
     """List service areas for the current instructor."""
@@ -460,6 +467,31 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
     )
 
 
+@router.post(
+    "/validate-service-area",
+    response_model=ServiceAreaValidationResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+def validate_service_area(
+    payload: ServiceAreaValidationRequest,
+    _current_user: User = Depends(get_current_instructor),
+    service: AddressService = Depends(get_address_service),
+) -> ServiceAreaValidationResponse:
+    neighborhood = service.find_neighborhood_by_point(
+        payload.latitude,
+        payload.longitude,
+        market="nyc",
+    )
+    return ServiceAreaValidationResponse(
+        in_service_area=neighborhood is not None,
+        neighborhood_display_name=(
+            str(neighborhood["display_name"])
+            if neighborhood and neighborhood.get("display_name")
+            else None
+        ),
+    )
+
+
 @router.put(
     "/service-areas/me",
     response_model=ServiceAreasResponse,
@@ -468,7 +500,7 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
 @rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def replace_my_service_areas(
     payload: ServiceAreasUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_instructor),
     service: AddressService = Depends(get_address_service),
 ) -> ServiceAreasResponse:
     """Replace all service areas for the current instructor."""

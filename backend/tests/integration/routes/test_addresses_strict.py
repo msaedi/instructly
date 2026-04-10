@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from tests.integration.routes.conftest import strict_schema_app
 import ulid
 
+from app.auth import create_access_token
 from app.domain.neighborhood_config import generate_display_key
 from app.models.region_boundary import RegionBoundary
 
@@ -91,3 +92,62 @@ def test_replace_service_areas_blocks_last_area_when_travel_enabled(
     elif isinstance(detail, str):
         message = detail
     assert "last service area" in message.lower()
+
+
+def test_validate_service_area_requires_auth(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/addresses/validate-service-area",
+        json={"latitude": 40.775, "longitude": -73.955},
+    )
+
+    assert response.status_code == 401
+
+
+def test_validate_service_area_forbids_non_instructor(
+    client: TestClient,
+    test_student,
+) -> None:
+    student_headers = {
+        "Authorization": f"Bearer {create_access_token(data={'sub': test_student.email})}",
+        "x-enforce-beta-checks": "1",
+    }
+    response = client.post(
+        "/api/v1/addresses/validate-service-area",
+        json={"latitude": 40.775, "longitude": -73.955},
+        headers=student_headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_list_service_areas_forbids_non_instructor(
+    client: TestClient,
+    test_student,
+) -> None:
+    student_headers = {
+        "Authorization": f"Bearer {create_access_token(data={'sub': test_student.email})}",
+        "x-enforce-beta-checks": "1",
+    }
+    response = client.get(
+        "/api/v1/addresses/service-areas/me",
+        headers=student_headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_replace_service_areas_forbids_non_instructor(
+    client: TestClient,
+    test_student,
+) -> None:
+    student_headers = {
+        "Authorization": f"Bearer {create_access_token(data={'sub': test_student.email})}",
+        "x-enforce-beta-checks": "1",
+    }
+    response = client.put(
+        "/api/v1/addresses/service-areas/me",
+        json={"display_keys": []},
+        headers=student_headers,
+    )
+
+    assert response.status_code == 403
