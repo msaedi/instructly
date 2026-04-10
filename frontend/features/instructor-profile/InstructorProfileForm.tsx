@@ -43,6 +43,7 @@ import SkillsPricingInline, { type EnabledFormats } from '@/features/instructor-
 import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
+import { isAccountSetupComplete } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 function getYearsExperienceValue(profile: ProfileFormState): number {
   return Number(profile.years_experience);
@@ -667,20 +668,17 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       });
 
       // Update visual progress indicators
-      const ok = (
-        (profile.bio?.trim()?.length || 0) >= 400 &&
-        Boolean(profile.first_name?.trim()) &&
-        Boolean(profile.last_name?.trim()) &&
-        Boolean(profile.postal_code?.trim()) &&
-        selectedNeighborhoods.size > 0 &&
-        (!requiresTeachingAddress || hasNonEmptyTeachingLocation(preferredLocations)) &&
-        (hasProfilePicture || false)
-      );
-      try {
-        sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false');
-      } catch (err) {
-        logger.warn('Failed to persist onboarding progress', err);
-      }
+      const ok = isAccountSetupComplete({
+        hasProfilePicture: Boolean(hasProfilePicture),
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        postalCode: profile.postal_code,
+        phoneVerified: Boolean(phoneVerificationFlow.phoneVerified || userDataFromHook?.phone_verified),
+        bio: profile.bio,
+        hasServiceArea: selectedNeighborhoods.size > 0,
+        requiresTeachingLocation: requiresTeachingAddress,
+        hasTeachingLocation: hasNonEmptyTeachingLocation(preferredLocations),
+      });
       onStepStatusChange?.(ok ? 'done' : 'failed');
 
       if (redirectTo) {

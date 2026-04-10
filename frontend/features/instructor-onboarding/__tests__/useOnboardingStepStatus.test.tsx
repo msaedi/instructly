@@ -313,6 +313,26 @@ describe('useOnboardingStepStatus', () => {
     expect(result.current.stepStatus['account-setup']).toBe('done');
   });
 
+  it('requires phone verification before account setup is complete', async () => {
+    setupHookMocks({
+      user: makeQueryResult({
+        first_name: 'Jane',
+        last_name: 'Doe',
+        zip_code: '10001',
+        has_profile_picture: true,
+        phone_verified: false,
+      }),
+    });
+
+    const { result } = renderHook(() => useOnboardingStepStatus(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.stepStatus['account-setup']).toBe('failed');
+  });
+
   it('treats bgc status "eligible" as passed', async () => {
     fetchWithAuthMock.mockResolvedValue(okResponse({ status: 'eligible' }));
 

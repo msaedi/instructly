@@ -22,6 +22,18 @@ type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
 type ServiceAreaItem = components['schemas']['ServiceAreaDisplayItem'];
 type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
 
+type AccountSetupCompletionInput = {
+  hasProfilePicture: boolean;
+  firstName: string | null | undefined;
+  lastName: string | null | undefined;
+  postalCode: string | null | undefined;
+  phoneVerified: boolean;
+  bio: string | null | undefined;
+  hasServiceArea: boolean;
+  requiresTeachingLocation: boolean;
+  hasTeachingLocation: boolean;
+};
+
 const DEFAULT_STEP_STATUS: OnboardingStepStatuses = {
   'account-setup': 'pending',
   'skill-selection': 'pending',
@@ -52,6 +64,29 @@ function getProfileBgcFallback(profile: ProfileData | null): string | null {
   const bgcRaw =
     profileRecord['bgc_status'] || profileRecord['background_check_status'] || '';
   return typeof bgcRaw === 'string' ? bgcRaw.toLowerCase() : null;
+}
+
+export function isAccountSetupComplete({
+  hasProfilePicture,
+  firstName,
+  lastName,
+  postalCode,
+  phoneVerified,
+  bio,
+  hasServiceArea,
+  requiresTeachingLocation,
+  hasTeachingLocation,
+}: AccountSetupCompletionInput): boolean {
+  return (
+    hasProfilePicture &&
+    Boolean(firstName?.trim()) &&
+    Boolean(lastName?.trim()) &&
+    Boolean(postalCode?.trim()) &&
+    phoneVerified &&
+    String(bio || '').trim().length >= 400 &&
+    hasServiceArea &&
+    (!requiresTeachingLocation || hasTeachingLocation)
+  );
 }
 
 /**
@@ -160,22 +195,22 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
     const postalCode = String(defaultAddress?.postal_code || rawData.user?.zip_code || '').trim();
 
     const hasPic = Boolean(rawData.user?.has_profile_picture) || Number.isFinite(rawData.user?.profile_picture_version);
-    const personalInfoFilled =
-      Boolean(rawData.user?.first_name?.trim()) &&
-      Boolean(rawData.user?.last_name?.trim()) &&
-      Boolean(postalCode);
-    const bioOk = String(rawData.profile?.bio || '').trim().length >= 400;
     const hasServiceArea = Boolean(rawData.serviceAreas && rawData.serviceAreas.length > 0);
     const requiresTeachingLocation = servicesUseInstructorLocation(rawData.profile?.services);
     const hasTeachingLocation = hasPreferredTeachingLocations(
       rawData.profile?.preferred_teaching_locations
     );
-    const accountSetupComplete =
-      hasPic &&
-      personalInfoFilled &&
-      bioOk &&
-      hasServiceArea &&
-      (!requiresTeachingLocation || hasTeachingLocation);
+    const accountSetupComplete = isAccountSetupComplete({
+      hasProfilePicture: hasPic,
+      firstName: rawData.user?.first_name,
+      lastName: rawData.user?.last_name,
+      postalCode,
+      phoneVerified: Boolean(rawData.user?.phone_verified),
+      bio: rawData.profile?.bio,
+      hasServiceArea,
+      requiresTeachingLocation,
+      hasTeachingLocation,
+    });
 
     const hasSkills =
       Array.isArray(rawData.profile?.services) && rawData.profile.services.length > 0;

@@ -449,7 +449,7 @@ async def send_phone_verification(
     )
     _result, sms_status = await sms_service.send_sms_with_status(
         phone_number,
-        f"InstaInstru: Your verification code is {code}",
+        f"iNSTAiNSTRU: Your verification code is {code}",
     )
     if sms_status != SMSStatus.SUCCESS:
         raise HTTPException(

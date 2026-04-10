@@ -481,6 +481,19 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
   beforeEach(() => {
     jest.clearAllMocks();
     capturedPhoneVerificationOptions = undefined;
+    mockPhoneVerificationFlow.phoneVerified = false;
+    mockPhoneVerificationFlow.phoneNumber = '';
+    mockPhoneVerificationFlow.phoneLoading = false;
+    mockPhoneVerificationFlow.phoneInput = '';
+    mockPhoneVerificationFlow.phoneCode = '';
+    mockPhoneVerificationFlow.resendCooldown = 0;
+    mockPhoneVerificationFlow.hasPhoneVerificationCodeSent = false;
+    mockPhoneVerificationFlow.showVerifiedPhoneState = false;
+    mockPhoneVerificationFlow.showPendingPhoneState = false;
+    mockPhoneVerificationFlow.showVerifyPhoneAction = true;
+    mockPhoneVerificationFlow.updatePhonePending = false;
+    mockPhoneVerificationFlow.sendVerificationPending = false;
+    mockPhoneVerificationFlow.confirmVerificationPending = false;
     mockUseSession.mockReturnValue({ data: null, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: null, isLoading: false });
     mockUseInvalidateUserAddresses.mockReturnValue(jest.fn());
@@ -535,7 +548,13 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
     const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
     const onStepStatusChange = jest.fn();
     mockUseSession.mockReturnValue({
-      data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+      data: {
+        id: 'user-1',
+        first_name: 'Taylor',
+        last_name: 'Swift',
+        zip_code: '10001',
+        phone_verified: true,
+      },
       isLoading: false,
     });
     mockUseUserAddresses.mockReturnValue({
@@ -597,6 +616,84 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
     expect(invalidateSpy).toHaveBeenCalled();
     expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
     expect(onStepStatusChange).toHaveBeenCalledWith('done');
+  });
+
+  it('reports failed after a successful save when phone verification is still pending', async () => {
+    const { Wrapper } = createWrapper();
+    const onStepStatusChange = jest.fn();
+    mockUseSession.mockReturnValue({
+      data: {
+        id: 'user-1',
+        first_name: 'Taylor',
+        last_name: 'Swift',
+        zip_code: '10001',
+        phone_verified: false,
+      },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        bio: 'A'.repeat(420),
+        years_experience: 5,
+        non_travel_buffer_minutes: 15,
+        travel_buffer_minutes: 60,
+        overnight_protection_enabled: true,
+        service_area_neighborhoods: [makeServiceAreaItem('n1', 'Lower East Side')],
+        service_area_boroughs: ['Manhattan'],
+        preferred_teaching_locations: [{ address: 'Studio', label: 'Main' }],
+        preferred_public_spaces: [{ address: 'Library' }],
+        has_profile_picture: true,
+      },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [makeServiceAreaItem('n1', 'Lower East Side')] }),
+        };
+      }
+      if (url === API_ENDPOINTS.ME) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url === '/api/v1/addresses/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] }),
+        };
+      }
+      if (url === '/api/v1/addresses/me/addr-1') {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toHaveTextContent('Taylor-Swift-00000');
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(API_ENDPOINTS.INSTRUCTOR_PROFILE, expect.any(Object));
+    });
+    await waitFor(() => {
+      expect(onStepStatusChange).toHaveBeenCalledWith('failed');
+    });
+    expect(onStepStatusChange).not.toHaveBeenCalledWith('done');
   });
 
   it('surfaces save errors when the profile update fails', async () => {
@@ -3022,54 +3119,6 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
       });
     });
 
-    it('handles sessionStorage.setItem failure gracefully', async () => {
-      const { Wrapper } = createWrapper();
-      const onStepStatusChange = jest.fn();
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'A'.repeat(420), has_profile_picture: true },
-        isLoading: false,
-      });
-
-      // Make sessionStorage.setItem throw
-      Object.defineProperty(window, 'sessionStorage', {
-        value: {
-          setItem: jest.fn().mockImplementation(() => { throw new Error('QuotaExceeded'); }),
-          getItem: jest.fn(),
-          removeItem: jest.fn(),
-        },
-        writable: true,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        if (url === '/api/v1/addresses/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-      // Should still succeed despite sessionStorage error
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
-      });
-    });
-
     it('handles service_area_boroughs from API taking precedence', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
@@ -4988,54 +5037,6 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
       // Since no locations changed, payload should NOT include them
       expect(savedPayload).not.toHaveProperty('preferred_teaching_locations');
       expect(savedPayload).not.toHaveProperty('preferred_public_spaces');
-    });
-
-    it('handles sessionStorage.setItem throwing an error', async () => {
-      const { Wrapper } = createWrapper();
-      const onStepStatusChange = jest.fn();
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'A'.repeat(420), has_profile_picture: true },
-        isLoading: false,
-      });
-
-      // Make sessionStorage.setItem throw
-      Object.defineProperty(window, 'sessionStorage', {
-        value: {
-          setItem: jest.fn(() => { throw new Error('Storage full'); }),
-          getItem: jest.fn(),
-          removeItem: jest.fn(),
-        },
-        writable: true,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        if (url === '/api/v1/addresses/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-      // Should still succeed even if sessionStorage throws
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
-      });
     });
 
     it('handles address create POST failure on 404 path during save', async () => {
@@ -6972,7 +6973,13 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
       const { Wrapper } = createWrapper();
       const ref = React.createRef<{ save: (options?: { redirectTo?: string }) => Promise<void> }>();
       mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        data: {
+          id: 'user-1',
+          first_name: 'Test',
+          last_name: 'User',
+          zip_code: '10001',
+          phone_verified: true,
+        },
         isLoading: false,
       });
       mockUseUserAddresses.mockReturnValue({
@@ -7139,7 +7146,13 @@ async function openServiceAreasAccordion(user: ReturnType<typeof userEvent.setup
       const onStepStatus = jest.fn();
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        data: {
+          id: 'user-1',
+          first_name: 'Test',
+          last_name: 'User',
+          zip_code: '10001',
+          phone_verified: true,
+        },
         isLoading: false,
       });
       mockUseUserAddresses.mockReturnValue({
