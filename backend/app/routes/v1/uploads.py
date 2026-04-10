@@ -22,6 +22,7 @@ from ...models.user import User
 from ...schemas.base_responses import SuccessResponse
 from ...schemas.upload_responses import ProxyUploadResponse, SignedUploadResponse
 from ...services.dependencies import get_personal_asset_service
+from ...services.image_processing_service import MAX_PROFILE_PHOTO_BYTES
 from ...services.personal_asset_service import PersonalAssetService
 from ...utils.strict import model_filter
 
@@ -40,12 +41,17 @@ class CreateSignedUploadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     filename: str = Field(..., description="Original file name, used for extension validation")
     content_type: str = Field(..., description="Browser-reported MIME type")
-    size_bytes: int = Field(..., ge=1, le=10 * 1024 * 1024, description="Max 10MB")
+    size_bytes: int = Field(
+        ...,
+        ge=1,
+        le=MAX_PROFILE_PHOTO_BYTES,
+        description=f"Max {MAX_PROFILE_PHOTO_BYTES // (1024 * 1024)}MB",
+    )
     purpose: Literal["background_check", "profile_picture"]
 
 
 _PROXY_ALLOWED_CONTENT_TYPES: set[str] = {"image/jpeg", "image/png", "image/webp"}
-_PROXY_MAX_BYTES = 5 * 1024 * 1024
+_PROXY_MAX_BYTES = MAX_PROFILE_PHOTO_BYTES
 
 
 def _validate_background_check_file(filename: str, content_type: str) -> None:
@@ -160,7 +166,7 @@ async def proxy_upload_to_r2(
     if len(data) > _PROXY_MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="File exceeds 5MB limit",
+            detail=f"File exceeds {_PROXY_MAX_BYTES // (1024 * 1024)}MB limit",
         )
 
     try:

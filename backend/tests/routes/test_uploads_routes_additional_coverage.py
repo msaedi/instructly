@@ -8,6 +8,7 @@ import pytest
 from app.core.config import settings
 from app.routes.v1 import uploads as uploads_routes
 from app.services.dependencies import get_personal_asset_service
+from app.services.image_processing_service import MAX_PROFILE_PHOTO_BYTES
 
 
 class _StubPresigned:
@@ -417,6 +418,40 @@ class TestUploadsRoutesAdditionalCoverage:
             },
         )
         assert res.status_code == 200
+
+    def test_signed_upload_profile_picture_accepts_up_to_10mb(
+        self, client, auth_headers, monkeypatch, asset_service_override
+    ):
+        _set_r2_config(monkeypatch)
+
+        res = client.post(
+            "/api/v1/uploads/r2/signed-url",
+            headers=auth_headers,
+            json={
+                "filename": "avatar.jpg",
+                "content_type": "image/jpeg",
+                "size_bytes": MAX_PROFILE_PHOTO_BYTES,
+                "purpose": "profile_picture",
+            },
+        )
+        assert res.status_code == 200
+
+    def test_signed_upload_profile_picture_rejects_over_10mb(
+        self, client, auth_headers, monkeypatch, asset_service_override
+    ):
+        _set_r2_config(monkeypatch)
+
+        res = client.post(
+            "/api/v1/uploads/r2/signed-url",
+            headers=auth_headers,
+            json={
+                "filename": "avatar.jpg",
+                "content_type": "image/jpeg",
+                "size_bytes": MAX_PROFILE_PHOTO_BYTES + 1,
+                "purpose": "profile_picture",
+            },
+        )
+        assert res.status_code == 422
 
     def test_signed_upload_public_url_exception_path(
         self, client, auth_headers, monkeypatch, asset_service_override

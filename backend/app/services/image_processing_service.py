@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png"}
-MAX_SIZE_BYTES = 5 * 1024 * 1024
+MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024
 MAX_ASPECT_RATIO = 2.0  # width/height or height/width must not exceed 2:1
 
 
@@ -48,7 +48,7 @@ class ImageProcessingService:
     def _enforce_constraints(self, content_type: str, data: bytes) -> None:
         if content_type not in ALLOWED_CONTENT_TYPES:
             raise ValueError("Unsupported content type")
-        if len(data) > MAX_SIZE_BYTES:
+        if len(data) > MAX_PROFILE_PHOTO_BYTES:
             raise ValueError("File too large")
 
         with Image.open(io.BytesIO(data)) as img:
@@ -59,6 +59,7 @@ class ImageProcessingService:
 
     def _normalize_to_jpeg(self, data: bytes) -> Image.Image:
         with Image.open(io.BytesIO(data)) as img:
+            img = ImageOps.exif_transpose(img)
             img = img.convert("RGBA")
             # Flatten transparency to white
             background = Image.new("RGBA", img.size, (255, 255, 255, 255))

@@ -3,13 +3,25 @@ import io
 from PIL import Image
 import pytest
 
-from app.services.image_processing_service import MAX_SIZE_BYTES, ImageProcessingService
+from app.services.image_processing_service import (
+    MAX_PROFILE_PHOTO_BYTES,
+    ImageProcessingService,
+)
 
 
 def _make_img_bytes(mode="RGBA", size=(300, 100), color=(0, 128, 255, 255), fmt="PNG") -> bytes:
     img = Image.new(mode, size, color)
     buf = io.BytesIO()
     img.save(buf, format=fmt)
+    return buf.getvalue()
+
+
+def _make_oriented_jpeg_bytes(size=(300, 100), orientation=6) -> bytes:
+    img = Image.new("RGB", size, (255, 0, 0))
+    exif = Image.Exif()
+    exif[274] = orientation
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
     return buf.getvalue()
 
 
@@ -42,4 +54,14 @@ def test_enforce_constraints_rejects_invalid_type_and_size():
     with pytest.raises(ValueError):
         svc._enforce_constraints("image/gif", b"data")
     with pytest.raises(ValueError):
-        svc._enforce_constraints("image/png", b"0" * (MAX_SIZE_BYTES + 1))
+        svc._enforce_constraints("image/png", b"0" * (MAX_PROFILE_PHOTO_BYTES + 1))
+
+
+def test_process_profile_picture_applies_exif_orientation_before_encoding():
+    svc = ImageProcessingService()
+    data = _make_oriented_jpeg_bytes(size=(200, 100), orientation=6)
+
+    out = svc.process_profile_picture(uploaded_bytes=data, browser_content_type="image/jpeg")
+
+    with Image.open(io.BytesIO(out.original)) as normalized:
+        assert normalized.size == (100, 200)

@@ -1,5 +1,11 @@
 type MeasureElement = Pick<HTMLElement, 'getBoundingClientRect' | 'querySelector'>;
 
+export const MAX_PROFILE_PICTURE_INPUT_BYTES = 50 * 1024 * 1024;
+export const PROFILE_PICTURE_TOO_LARGE_MESSAGE =
+  'Please choose a smaller image (under 50MB).';
+export const PROFILE_PICTURE_PROCESS_ERROR_MESSAGE =
+  "We couldn't process this image. Please try a different file.";
+
 export const shouldUseProxyProfileUpload = (
   appEnv: string,
   hostname?: string | null,

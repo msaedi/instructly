@@ -7,6 +7,7 @@ import { createSignedUpload, finalizeProfilePicture, proxyUploadToR2 } from '@/l
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useProfilePictureUrls } from '@/hooks/useProfilePictureUrls';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { compressImage } from '@/lib/image/compress';
 import { toast } from 'sonner';
 
 jest.mock('@/lib/api', () => {
@@ -25,6 +26,10 @@ jest.mock('@/features/shared/hooks/useAuth', () => ({
 
 jest.mock('@/hooks/useProfilePictureUrls', () => ({
   useProfilePictureUrls: jest.fn(),
+}));
+
+jest.mock('@/lib/image/compress', () => ({
+  compressImage: jest.fn(),
 }));
 
 jest.mock('@/components/modals/ImageCropModal', () => ({
@@ -60,6 +65,7 @@ jest.mock('@/lib/publicEnv', () => ({
 
 const mockUseAuth = useAuth as jest.Mock;
 const mockUseProfilePictureUrls = useProfilePictureUrls as jest.Mock;
+const mockCompressImage = compressImage as jest.Mock;
 
 describe('ProfilePictureUpload', () => {
   const createWrapper = () => {
@@ -69,6 +75,29 @@ describe('ProfilePictureUpload', () => {
     );
     Wrapper.displayName = 'ProfilePictureUploadWrapper';
     return { Wrapper, queryClient };
+  };
+
+  const pickFile = (input: HTMLInputElement, file: File) => {
+    fireEvent.change(input, { target: { files: [file] } });
+  };
+
+  const waitForCropModal = async () => {
+    await screen.findByTestId('crop-modal');
+  };
+
+  const clickApplyCrop = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole('button', { name: /apply crop/i }));
+  };
+
+  const makeCompressedResult = (file: File) => {
+    const stem = file.name.replace(/\.[^.]+$/, '') || 'avatar';
+    const compressedFile = new File([file], `${stem}.jpg`, { type: 'image/jpeg' });
+    return {
+      file: compressedFile,
+      originalSize: file.size,
+      compressedSize: compressedFile.size,
+      wasCompressed: true,
+    };
   };
 
   beforeEach(() => {
@@ -86,31 +115,101 @@ describe('ProfilePictureUpload', () => {
     });
     (proxyUploadToR2 as jest.Mock).mockResolvedValue({});
     (finalizeProfilePicture as jest.Mock).mockResolvedValue({ success: true });
+    mockCompressImage.mockImplementation(async (file: File) => makeCompressedResult(file));
     global.URL.createObjectURL = jest.fn(() => 'blob:preview');
   });
 
-  it('rejects unsupported file types', async () => {
+  it('shows an inline processing error when compression fails', async () => {
     const { Wrapper } = createWrapper();
+    mockCompressImage.mockRejectedValueOnce(new Error('unsupported'));
     const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['text'], 'notes.txt', { type: 'text/plain' });
     fireEvent.change(input, { target: { files: [file] } });
 
-    expect(toast.error).toHaveBeenCalledWith('Please select a PNG or JPEG image.');
-    expect(await screen.findByText(/png or jpeg/i)).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText("We couldn't process this image. Please try a different file.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument();
   });
 
-  it('rejects files larger than 5MB', async () => {
+  it('rejects files larger than 50MB inline without a toast', async () => {
     const { Wrapper } = createWrapper();
     const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
-    const file = new File([new ArrayBuffer(5 * 1024 * 1024 + 1)], 'big.jpg', { type: 'image/jpeg' });
+    const file = new File([new ArrayBuffer(1)], 'big.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(file, 'size', { value: 50 * 1024 * 1024 + 1 });
     fireEvent.change(input, { target: { files: [file] } });
 
-    expect(toast.error).toHaveBeenCalledWith('Image must be under 5MB.');
-    expect(await screen.findByText(/under 5mb/i)).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(await screen.findByText(/under 50mb/i)).toBeInTheDocument();
+    expect(mockCompressImage).not.toHaveBeenCalled();
+  });
+
+  it('accepts files between 5MB and 50MB and compresses before opening crop', async () => {
+    const { Wrapper } = createWrapper();
+    const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    const file = new File([new ArrayBuffer(8 * 1024 * 1024)], 'big.jpg', {
+      type: 'image/jpeg',
+    });
+    Object.defineProperty(file, 'size', { value: 8 * 1024 * 1024 });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(mockCompressImage).toHaveBeenCalledWith(file, undefined);
+    expect(await screen.findByTestId('crop-modal')).toBeInTheDocument();
+  });
+
+  it('shows preparing image while compression is in flight', async () => {
+    const { Wrapper } = createWrapper();
+    let resolveCompression:
+      | ((value: ReturnType<typeof makeCompressedResult>) => void)
+      | undefined;
+    mockCompressImage.mockImplementationOnce(
+      () =>
+        new Promise<ReturnType<typeof makeCompressedResult>>((resolve) => {
+          resolveCompression = resolve;
+        })
+    );
+
+    const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['avatar'], 'avatar.heic', { type: 'image/heic' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText('Preparing image...')).toBeInTheDocument();
+    expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument();
+
+    if (resolveCompression) {
+      resolveCompression(makeCompressedResult(file));
+    }
+
+    expect(await screen.findByTestId('crop-modal')).toBeInTheDocument();
+  });
+
+  it('accepts webp and heic inputs at selection time and sends them to compression', async () => {
+    const { Wrapper } = createWrapper();
+    const { container } = render(
+      <ProfilePictureUpload ariaLabel="Change avatar" />,
+      { wrapper: Wrapper }
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const user = userEvent.setup();
+
+    const webp = new File(['avatar'], 'avatar.webp', { type: 'image/webp' });
+    pickFile(input, webp);
+    expect(mockCompressImage).toHaveBeenCalledWith(webp, undefined);
+    await waitForCropModal();
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    const heic = new File(['avatar'], 'avatar.heic', { type: 'image/heic' });
+    pickFile(input, heic);
+    expect(mockCompressImage).toHaveBeenCalledWith(heic, undefined);
   });
 
   it('uploads a cropped image via proxy and updates cache', async () => {
@@ -122,10 +221,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(createSignedUpload).toHaveBeenCalledWith({
@@ -154,10 +253,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     expect(await screen.findByText(/finalize failed/i)).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith('Finalize failed');
@@ -169,9 +268,9 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
-    expect(screen.getByTestId('crop-modal')).toBeInTheDocument();
+    await waitForCropModal();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /cancel/i }));
@@ -186,10 +285,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(proxyUploadToR2).toHaveBeenCalled();
@@ -217,10 +316,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(finalizeProfilePicture).toHaveBeenCalled();
@@ -238,10 +337,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     // Should complete without throwing
     await waitFor(() => {
@@ -260,10 +359,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(finalizeProfilePicture).toHaveBeenCalled();
@@ -283,10 +382,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     // Check for uploading state - button should be disabled during upload
     await waitFor(() => {
@@ -310,10 +409,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Signed upload failed');
@@ -328,10 +427,10 @@ describe('ProfilePictureUpload', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    fireEvent.change(input, { target: { files: [file] } });
+    pickFile(input, file);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /apply crop/i }));
+    await clickApplyCrop(user);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Proxy upload failed');
@@ -358,10 +457,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         // proxyUploadToR2 should NOT be called
@@ -384,10 +483,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Upload failed: 500');
@@ -410,10 +509,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
@@ -442,10 +541,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
@@ -475,10 +574,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(setDataSpy).toHaveBeenCalled();
@@ -502,10 +601,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(finalizeProfilePicture).toHaveBeenCalled();
@@ -529,10 +628,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(finalizeProfilePicture).toHaveBeenCalled();
@@ -554,10 +653,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(setDataSpy).toHaveBeenCalled();
@@ -797,7 +896,7 @@ describe('ProfilePictureUpload', () => {
   });
 
   describe('useProxyUpload SSR and hostname checks', () => {
-    it('returns false when APP_ENV is not local and window hostname is not beta-local', () => {
+    it('returns false when APP_ENV is not local and window hostname is not beta-local', async () => {
       mockAppEnv = 'beta';
       // In JSDOM, window.location.hostname is 'localhost' by default
       const { Wrapper } = createWrapper();
@@ -805,11 +904,12 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       // In non-local env with non-beta-local hostname, should use direct PUT
+      global.fetch = jest.fn().mockResolvedValue({ ok: true } as Response);
       const user = userEvent.setup();
-      void user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       // Should not use proxy upload
       expect(proxyUploadToR2).not.toHaveBeenCalled();
@@ -895,10 +995,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Upload failed');
@@ -1001,10 +1101,10 @@ describe('ProfilePictureUpload', () => {
 
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       // During upload, spinner should be visible
       await waitFor(() => {
@@ -1021,7 +1121,7 @@ describe('ProfilePictureUpload', () => {
   });
 
   describe('filename without extension', () => {
-    it('handles filename without a dot by using avatar as basename', async () => {
+    it('preserves a filename stem without an extension during compression and crop', async () => {
       const { Wrapper } = createWrapper();
       const { container } = render(<ProfilePictureUpload ariaLabel="Upload" />, { wrapper: Wrapper });
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -1029,17 +1129,15 @@ describe('ProfilePictureUpload', () => {
       // File with no extension in its name
       const file = new File(['avatar'], 'myavatar', { type: 'image/jpeg' });
       Object.defineProperty(file, 'size', { value: 1024 });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(createSignedUpload).toHaveBeenCalledWith(
           expect.objectContaining({
-            // 'myavatar' has no dot so split('.').slice(0,-1).join('.') = '' which falls to 'avatar'
-            // Result: 'avatar.jpg'
-            filename: 'avatar.jpg',
+            filename: 'myavatar.jpg',
           })
         );
       });
@@ -1076,24 +1174,27 @@ describe('ProfilePictureUpload', () => {
       const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
-      // Create file just over 5MB limit
-      const largeFile = new File([new ArrayBuffer(5 * 1024 * 1024 + 100)], 'huge.jpg', { type: 'image/jpeg' });
-      fireEvent.change(input, { target: { files: [largeFile] } });
+      // Create file just over 50MB limit
+      const largeFile = new File([new ArrayBuffer(1)], 'huge.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(largeFile, 'size', { value: 50 * 1024 * 1024 + 100 });
+      pickFile(input, largeFile);
 
-      expect(toast.error).toHaveBeenCalledWith('Image must be under 5MB.');
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(await screen.findByText(/under 50mb/i)).toBeInTheDocument();
     });
 
-    it('handles exactly 5MB file (edge case)', async () => {
+    it('handles exactly 50MB file (edge case)', async () => {
       const { Wrapper } = createWrapper();
       const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
-      // Create file exactly 5MB
-      const exactFile = new File([new ArrayBuffer(5 * 1024 * 1024)], 'exact.jpg', { type: 'image/jpeg' });
-      fireEvent.change(input, { target: { files: [exactFile] } });
+      // Create file exactly 50MB
+      const exactFile = new File([new ArrayBuffer(1)], 'exact.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(exactFile, 'size', { value: 50 * 1024 * 1024 });
+      pickFile(input, exactFile);
 
-      // Should be accepted (<=5MB)
-      expect(screen.getByTestId('crop-modal')).toBeInTheDocument();
+      // Should be accepted (<=50MB)
+      await waitForCropModal();
     });
 
     it('handles finalize returning no message in error', async () => {
@@ -1104,10 +1205,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Finalize failed');
@@ -1120,10 +1221,10 @@ describe('ProfilePictureUpload', () => {
       const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
       const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-      fireEvent.change(input, { target: { files: [file] } });
+      pickFile(input, file);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /apply crop/i }));
+      await clickApplyCrop(user);
 
       await waitFor(() => {
         expect(finalizeProfilePicture).toHaveBeenCalled();
