@@ -1262,5 +1262,49 @@ describe('ProfilePictureUpload', () => {
       expect(clickSpy).toHaveBeenCalledTimes(1);
       clickSpy.mockRestore();
     });
+
+    it('does not reopen the file picker while compression is already in progress', async () => {
+      let resolveCompression:
+        | ((value: ReturnType<typeof makeCompressedResult>) => void)
+        | undefined;
+      mockCompressImage.mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof makeCompressedResult>>((resolve) => {
+            resolveCompression = resolve;
+          })
+      );
+
+      const { Wrapper } = createWrapper();
+      const { container } = render(<ProfilePictureUpload ariaLabel="Change avatar" />, { wrapper: Wrapper });
+
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+      const clickSpy = jest.spyOn(input, 'click');
+      const file = new File(['avatar'], 'avatar.heic', { type: 'image/heic' });
+
+      fireEvent.change(input, { target: { files: [file] } });
+      expect(await screen.findByText('Preparing image...')).toBeInTheDocument();
+
+      const cameraButton = screen.getByTitle('Choose Image') as HTMLButtonElement;
+      expect(cameraButton).toBeDisabled();
+
+      const propsKey = Object.keys(cameraButton).find((key) => key.startsWith('__reactProps$'));
+      if (propsKey) {
+        const buttonProps = cameraButton as unknown as Record<string, Record<string, unknown>>;
+        buttonProps[propsKey] = { ...buttonProps[propsKey], disabled: false };
+      }
+
+      fireEvent.click(cameraButton);
+      expect(clickSpy).not.toHaveBeenCalled();
+
+      if (resolveCompression) {
+        resolveCompression(makeCompressedResult(file));
+      }
+
+      await waitFor(() => {
+        expect(screen.getByTestId('crop-modal')).toBeInTheDocument();
+      });
+
+      clickSpy.mockRestore();
+    });
   });
 });
