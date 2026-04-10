@@ -8,6 +8,7 @@ import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
 import type { AddressListResponse, components } from '@/features/shared/api/types';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { useSession } from '@/src/api/hooks/useSession';
+import { isAccountSetupComplete } from '@/lib/accountSetupCompletion';
 import {
   hasPreferredTeachingLocations,
   servicesUseInstructorLocation,
@@ -21,18 +22,6 @@ type UserData = components['schemas']['AuthUserWithPermissionsResponse'];
 type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
 type ServiceAreaItem = components['schemas']['ServiceAreaDisplayItem'];
 type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
-
-type AccountSetupCompletionInput = {
-  hasProfilePicture: boolean;
-  firstName: string | null | undefined;
-  lastName: string | null | undefined;
-  postalCode: string | null | undefined;
-  phoneVerified: boolean;
-  bio: string | null | undefined;
-  hasServiceArea: boolean;
-  requiresTeachingLocation: boolean;
-  hasTeachingLocation: boolean;
-};
 
 const DEFAULT_STEP_STATUS: OnboardingStepStatuses = {
   'account-setup': 'pending',
@@ -64,29 +53,6 @@ function getProfileBgcFallback(profile: ProfileData | null): string | null {
   const bgcRaw =
     profileRecord['bgc_status'] || profileRecord['background_check_status'] || '';
   return typeof bgcRaw === 'string' ? bgcRaw.toLowerCase() : null;
-}
-
-export function isAccountSetupComplete({
-  hasProfilePicture,
-  firstName,
-  lastName,
-  postalCode,
-  phoneVerified,
-  bio,
-  hasServiceArea,
-  requiresTeachingLocation,
-  hasTeachingLocation,
-}: AccountSetupCompletionInput): boolean {
-  return (
-    hasProfilePicture &&
-    Boolean(firstName?.trim()) &&
-    Boolean(lastName?.trim()) &&
-    Boolean(postalCode?.trim()) &&
-    phoneVerified &&
-    String(bio || '').trim().length >= 400 &&
-    hasServiceArea &&
-    (!requiresTeachingLocation || hasTeachingLocation)
-  );
 }
 
 /**

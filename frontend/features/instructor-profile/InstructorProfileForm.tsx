@@ -24,6 +24,7 @@ import {
   hasNonEmptyTeachingLocation,
   TEACHING_ADDRESS_REQUIRED_MESSAGE,
 } from '@/lib/teachingLocations';
+import { isAccountSetupComplete } from '@/lib/accountSetupCompletion';
 import type {
   AddressListResponse,
   ApiErrorResponse,
@@ -43,7 +44,6 @@ import SkillsPricingInline, { type EnabledFormats } from '@/features/instructor-
 import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
 import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
-import { isAccountSetupComplete } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 function getYearsExperienceValue(profile: ProfileFormState): number {
   return Number(profile.years_experience);
