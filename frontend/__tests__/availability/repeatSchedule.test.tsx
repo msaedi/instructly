@@ -37,14 +37,13 @@ let nextWeekBits: WeekBits;
 const EMPTY_WEEK_TAGS: WeekTags = {};
 
 const SAMPLE_WINDOWS: WeekSchedule = {
-  '2025-10-27': [
-    { start_time: '09:00:00', end_time: '10:30:00' },
-    { start_time: '15:00:00', end_time: '16:00:00' },
-  ],
-  '2025-10-29': [
-    { start_time: '08:00:00', end_time: '09:00:00' },
-    { start_time: '18:00:00', end_time: '19:00:00' },
-  ],
+  '2025-10-27': [{ start_time: '09:00:00', end_time: '17:00:00' }],
+  '2025-10-28': [{ start_time: '10:00:00', end_time: '16:00:00' }],
+  '2025-10-29': [{ start_time: '11:00:00', end_time: '15:00:00' }],
+  '2025-10-30': [{ start_time: '12:00:00', end_time: '18:00:00' }],
+  '2025-10-31': [{ start_time: '13:00:00', end_time: '19:00:00' }],
+  '2025-11-01': [{ start_time: '08:00:00', end_time: '12:00:00' }],
+  '2025-11-02': [{ start_time: '14:00:00', end_time: '20:00:00' }],
 };
 
 const toWeekBits = (schedule: WeekSchedule): WeekBits => {
@@ -140,10 +139,10 @@ beforeEach(() => {
 
   const postBody = {
     message: 'Applied schedule to future range',
-    weeks_applied: 4,
-    windows_created: 8,
-    weeks_affected: 4,
-    days_written: 28,
+    weeks_applied: 1,
+    windows_created: 7,
+    weeks_affected: 1,
+    days_written: 7,
   };
 
   const nextWeekIso = formatDateForAPI(NEXT_WEEK_START);
@@ -159,18 +158,14 @@ beforeEach(() => {
 });
 
 const RepeatScheduleHarness: React.FC = () => {
-  const { applyToFutureWeeks, refreshSchedule, currentWeekStart } = useAvailability();
+  const { applyToFutureWeeks, refreshSchedule } = useAvailability();
   const handleClick = async () => {
-    const end = new Date(currentWeekStart);
-    const repeatWeeks = 4;
-    end.setDate(end.getDate() + repeatWeeks * 7);
-    const endIso = formatDateForAPI(end);
-    const result = await applyToFutureWeeks(endIso);
+    const result = await applyToFutureWeeks(1);
     if (!result.success) {
       toast.error(result.message || 'Failed to apply to future weeks');
       return;
     }
-    toast.success(`Applied through ${endIso}`);
+    toast.success(`Applied through ${result.appliedThrough}`);
     await refreshSchedule();
   };
   return (
@@ -181,7 +176,7 @@ const RepeatScheduleHarness: React.FC = () => {
 };
 
 describe('Repeat schedule flow', () => {
-  it('applies the current schedule forward and refreshes the next week', async () => {
+  it('regression: repeat 1 week applies full week not single day', async () => {
     render(<RepeatScheduleHarness />);
 
     fireEvent.click(screen.getByText(/Repeat this schedule/i));
@@ -195,8 +190,18 @@ describe('Repeat schedule flow', () => {
       )
     );
 
+    const requestBody = JSON.parse(
+      (fetchWithAuthMock.mock.calls[0]?.[1] as RequestInit).body as string
+    ) as { from_week_start: string; start_date: string; end_date: string };
+
+    expect(requestBody).toEqual({
+      from_week_start: '2025-10-27',
+      start_date: '2025-11-03',
+      end_date: '2025-11-09',
+    });
+
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('Applied through'));
+      expect(toastSuccessMock).toHaveBeenCalledWith('Applied through 2025-11-09');
       expect(toastErrorMock).not.toHaveBeenCalled();
     });
 
@@ -211,13 +216,20 @@ describe('Repeat schedule flow', () => {
     const lastCall = setWeekBitsSpy.mock.calls[setWeekBitsSpy.mock.calls.length - 1];
     expect(lastCall).toBeTruthy();
     const lastBits = lastCall?.[0] as WeekBits;
-    const nextWeekMondayBits = lastBits?.[nextWeekIso];
-    expect(nextWeekMondayBits).toBeDefined();
-    expect(toWindows(nextWeekMondayBits!)).toEqual(SAMPLE_WINDOWS['2025-10-27']);
+    const expectedNextWeekSchedule: WeekSchedule = Object.fromEntries(
+      Object.entries(SAMPLE_WINDOWS).map(([iso, slots]) => {
+        const date = new Date(`${iso}T00:00:00Z`);
+        date.setDate(date.getDate() + 7);
+        return [formatDateForAPI(date), slots];
+      })
+    );
 
-    const nextWednesdayIso = formatDateForAPI(new Date('2025-11-05T00:00:00Z'));
-    const nextWeekWednesdayBits = lastBits?.[nextWednesdayIso];
-    expect(nextWeekWednesdayBits).toBeDefined();
-    expect(toWindows(nextWeekWednesdayBits!)).toEqual(SAMPLE_WINDOWS['2025-10-29']);
+    expect(Object.keys(expectedNextWeekSchedule)).toHaveLength(7);
+
+    Object.entries(expectedNextWeekSchedule).forEach(([isoDate, slots]) => {
+      const dayBits = lastBits?.[isoDate];
+      expect(dayBits).toBeDefined();
+      expect(toWindows(dayBits!)).toEqual(slots);
+    });
   });
 });

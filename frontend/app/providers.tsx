@@ -38,6 +38,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <AppInitializer>{children}</AppInitializer>
         <Toaster
+          expand={true}
           position="top-right"
           toastOptions={{
             style: {

@@ -781,15 +781,12 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={async () => {
-                const end = new Date(currentWeekStart);
-                end.setDate(end.getDate() + repeatWeeks * 7);
-                const endISO = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-                const result = await applyToFutureWeeks(endISO);
+                const result = await applyToFutureWeeks(repeatWeeks);
                 if (!result.success) {
                   toast.error(result.message || 'Failed to apply to future weeks');
                   return;
                 }
-                toast.success(`Applied through ${endISO}`);
+                toast.success(`Applied through ${result.appliedThrough}`);
                 const persisted = await persistWeek({ source: 'apply' });
                 if (!persisted) return;
               }}

@@ -53,6 +53,7 @@ describe('Providers', () => {
 
     expect(mockToaster).toHaveBeenCalledTimes(1);
     const toasterProps = mockToaster.mock.calls[0][0] as {
+      expand: boolean;
       position: string;
       toastOptions: {
         style: Record<string, string | undefined>;
@@ -60,6 +61,7 @@ describe('Providers', () => {
       };
     };
 
+    expect(toasterProps.expand).toBe(true);
     expect(toasterProps.position).toBe('top-right');
     expect(toasterProps.toastOptions.style).toMatchObject({
       padding: '12px 16px',

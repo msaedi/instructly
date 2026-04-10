@@ -261,6 +261,7 @@ describe('InstructorAvailabilityPage', () => {
     mockApplyToFutureWeeks.mockResolvedValue({
       success: true,
       message: 'Applied schedule to future range',
+      appliedThrough: '2026-04-12',
     });
     mockRefreshSchedule.mockResolvedValue(undefined);
     mockFetchBookedSlots.mockResolvedValue(undefined);
@@ -356,6 +357,28 @@ describe('InstructorAvailabilityPage', () => {
 
     expect(screen.getByRole('option', { name: '1 week' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '2 weeks' })).toBeInTheDocument();
+  });
+
+  it('passes repeat weeks to the hook and uses the returned applied-through date in the toast', async () => {
+    mockApplyToFutureWeeks.mockResolvedValueOnce({
+      success: true,
+      message: 'Applied schedule to future range',
+      appliedThrough: '2026-03-29',
+    });
+
+    const { user } = renderPage({
+      acknowledgedAt: '2026-03-12T20:00:00Z',
+    });
+
+    await user.click(screen.getByRole('combobox', { name: 'Repeat for' }));
+    await user.click(screen.getByRole('option', { name: '1 week' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(mockApplyToFutureWeeks).toHaveBeenCalledWith(1));
+    await waitFor(() =>
+      expect(mockedToast.success).toHaveBeenCalledWith('Applied through 2026-03-29')
+    );
+    await waitFor(() => expect(mockSaveWeek).toHaveBeenCalledTimes(1));
   });
 
   it('hides the paint toolbar for single-format instructors', () => {

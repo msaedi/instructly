@@ -1,6 +1,7 @@
 // frontend/hooks/availability/useAvailability.ts
 
 import { useCallback } from 'react';
+import { addDays, addWeeks } from 'date-fns';
 import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
@@ -66,8 +67,14 @@ export interface UseAvailabilityReturn {
   validateWeek: () => Promise<WeekValidationResponse | null>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
   applyToFutureWeeks: (
-    endISO: string
-  ) => Promise<{ success: boolean; message: string; weeksAffected?: number; daysWritten?: number }>;
+    repeatWeeks: number
+  ) => Promise<{
+    success: boolean;
+    message: string;
+    appliedThrough?: string;
+    weeksAffected?: number;
+    daysWritten?: number;
+  }>;
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -332,14 +339,19 @@ export function useAvailability(): UseAvailabilityReturn {
   }, [currentWeekStart, refreshSchedule]);
 
   const applyToFutureWeeks: UseAvailabilityReturn['applyToFutureWeeks'] = useCallback(
-    async (endISO) => {
+    async (repeatWeeks) => {
+      const startDate = addWeeks(currentWeekStart, 1);
+      const endDate = addDays(addWeeks(startDate, repeatWeeks), -1);
+      const startISO = formatDateForAPI(startDate);
+      const endISO = formatDateForAPI(endDate);
+
       try {
         const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_APPLY_RANGE, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             from_week_start: formatDateForAPI(currentWeekStart),
-            start_date: formatDateForAPI(currentWeekStart),
+            start_date: startISO,
             end_date: endISO,
           }),
         });
@@ -366,6 +378,7 @@ export function useAvailability(): UseAvailabilityReturn {
 
         if (weeksAffected !== undefined || daysWritten !== undefined) {
           logger.info('Applied schedule to future range', {
+            start_date: startISO,
             end_date: endISO,
             weeksAffected,
             daysWritten,
@@ -375,6 +388,7 @@ export function useAvailability(): UseAvailabilityReturn {
         return {
           success: true,
           message: responseJson?.message || 'Applied schedule to future range',
+          appliedThrough: endISO,
           ...(weeksAffected !== undefined ? { weeksAffected } : {}),
           ...(daysWritten !== undefined ? { daysWritten } : {}),
         };

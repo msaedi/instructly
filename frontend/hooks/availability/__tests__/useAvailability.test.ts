@@ -3,7 +3,15 @@ import { useAvailability } from '../useAvailability';
 import type { WeekBits, WeekSchedule, WeekTags } from '@/types/availability';
 
 // Type for operation results
-type OperationResult = { success: boolean; message: string } | undefined;
+type OperationResult =
+  | {
+      success: boolean;
+      message: string;
+      appliedThrough?: string;
+      weeksAffected?: number;
+      daysWritten?: number;
+    }
+  | undefined;
 
 // Mock the logger
 jest.mock('@/lib/logger', () => ({
@@ -526,12 +534,13 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(12);
       });
 
       expect(applyResult).toEqual({
         success: true,
         message: 'Applied to 12 weeks',
+        appliedThrough: '2025-04-13',
         weeksAffected: 12,
         daysWritten: 84,
       });
@@ -549,7 +558,7 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult?.success).toBe(false);
@@ -563,7 +572,7 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult).toEqual({
@@ -572,7 +581,7 @@ describe('useAvailability', () => {
       });
     });
 
-    it('sends correct parameters', async () => {
+    it('sends the next full week range for repeat=1', async () => {
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,
         clone: () => ({
@@ -583,16 +592,74 @@ describe('useAvailability', () => {
       const { result } = renderHook(() => useAvailability());
 
       await act(async () => {
-        await result.current.applyToFutureWeeks('2025-12-31');
+        await result.current.applyToFutureWeeks(1);
       });
+
+      const requestBody = JSON.parse(
+        (fetchWithAuth.mock.calls[0]?.[1] as RequestInit).body as string
+      ) as { from_week_start: string; start_date: string; end_date: string };
 
       expect(fetchWithAuth).toHaveBeenCalledWith(
         '/api/v1/instructors/me/availability/apply-range',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('2025-12-31'),
         })
       );
+      expect(requestBody).toEqual({
+        from_week_start: '2025-01-13',
+        start_date: '2025-01-20',
+        end_date: '2025-01-26',
+      });
+    });
+
+    it('sends the next 4 full weeks for repeat=4', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Applied' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.applyToFutureWeeks(4);
+      });
+
+      const requestBody = JSON.parse(
+        (fetchWithAuth.mock.calls[0]?.[1] as RequestInit).body as string
+      ) as { from_week_start: string; start_date: string; end_date: string };
+
+      expect(requestBody).toEqual({
+        from_week_start: '2025-01-13',
+        start_date: '2025-01-20',
+        end_date: '2025-02-16',
+      });
+    });
+
+    it('sends the next 12 full weeks for repeat=12', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Applied' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.applyToFutureWeeks(12);
+      });
+
+      const requestBody = JSON.parse(
+        (fetchWithAuth.mock.calls[0]?.[1] as RequestInit).body as string
+      ) as { from_week_start: string; start_date: string; end_date: string };
+
+      expect(requestBody).toEqual({
+        from_week_start: '2025-01-13',
+        start_date: '2025-01-20',
+        end_date: '2025-04-13',
+      });
     });
   });
 
@@ -964,12 +1031,13 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult).toEqual({
         success: true,
         message: 'Applied successfully',
+        appliedThrough: '2025-01-26',
       });
     });
 
@@ -985,10 +1053,11 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult?.message).toBe('Applied schedule to future range');
+      expect(applyResult?.appliedThrough).toBe('2025-01-26');
     });
 
     it('includes only weeksAffected when daysWritten is not present', async () => {
@@ -1004,9 +1073,9 @@ describe('useAvailability', () => {
 
       const { result } = renderHook(() => useAvailability());
 
-      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult!.weeksAffected).toBe(5);
@@ -1025,10 +1094,11 @@ describe('useAvailability', () => {
 
       let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+        applyResult = await result.current.applyToFutureWeeks(1);
       });
 
       expect(applyResult?.success).toBe(true);
+      expect(applyResult?.appliedThrough).toBe('2025-01-26');
     });
   });
 
@@ -1547,9 +1617,9 @@ describe('useAvailability', () => {
 
       const { result } = renderHook(() => useAvailability());
 
-      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+        applyResult = await result.current.applyToFutureWeeks(4);
       });
 
       expect(applyResult!.daysWritten).toBe(42);
@@ -1570,9 +1640,9 @@ describe('useAvailability', () => {
 
       const { result } = renderHook(() => useAvailability());
 
-      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+        applyResult = await result.current.applyToFutureWeeks(4);
       });
 
       // 'many' is not a number, so weeksAffected should be undefined
@@ -1590,14 +1660,15 @@ describe('useAvailability', () => {
 
       const { result } = renderHook(() => useAvailability());
 
-      let applyResult: { success: boolean; message: string };
+      let applyResult: OperationResult;
       await act(async () => {
-        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+        applyResult = await result.current.applyToFutureWeeks(4);
       });
 
       // responseJson is undefined, falls back to default message
       expect(applyResult!.success).toBe(true);
       expect(applyResult!.message).toBe('Applied schedule to future range');
+      expect(applyResult!.appliedThrough).toBe('2025-02-16');
     });
   });
 
