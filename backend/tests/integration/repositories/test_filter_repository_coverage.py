@@ -132,23 +132,12 @@ def test_location_distance_filters(db, test_instructor):
     )
     assert test_instructor.id in soft
 
-    distances = repo.get_instructor_min_distance_to_region([test_instructor.id], region.id)
-    assert test_instructor.id in distances
-
 
 def test_availability_filters(db, test_instructor):
     repo = FilterRepository(db)
     target_date = date.today() + timedelta(days=2)
     seed_day(db, test_instructor.id, target_date, [("09:00", "12:00")])
     db.commit()
-
-    assert repo.check_availability_single_date(
-        test_instructor.id,
-        target_date,
-        time_after=time(9, 0),
-        time_before=time(12, 0),
-        duration_minutes=60,
-    )
 
     filtered = repo.filter_by_availability(
         [test_instructor.id],
@@ -158,15 +147,6 @@ def test_availability_filters(db, test_instructor):
         duration_minutes=60,
     )
     assert test_instructor.id in filtered
-
-    batch = repo.batch_check_availability(
-        [test_instructor.id],
-        target_date=target_date,
-        time_after=time(9, 0),
-        time_before=time(12, 0),
-        duration_minutes=60,
-    )
-    assert test_instructor.id in batch
 
     weekend = repo.check_weekend_availability(
         [test_instructor.id],
@@ -189,7 +169,6 @@ def test_availability_default_dates_and_empty_inputs(db, test_instructor):
     assert test_instructor.id in default_dates
 
     assert repo.filter_by_availability([]) == {}
-    assert repo.batch_check_availability([], today) == []
     assert repo.check_weekend_availability([], today, today + timedelta(days=1)) == {}
 
 
@@ -198,44 +177,6 @@ def test_filter_by_availability_requires_explicit_dates_when_target_date_missing
 
     with pytest.raises(ValueError, match="dates_to_check is required"):
         repo.filter_by_availability(["inst-1"])
-
-
-def test_filter_by_lesson_type(db, test_instructor):
-    repo = FilterRepository(db)
-    service = (
-        db.query(InstructorService)
-        .filter(InstructorService.instructor_profile_id == test_instructor.instructor_profile.id)
-        .first()
-    )
-
-    service.offers_online = True
-    service.offers_travel = False
-    service.offers_at_location = False
-    db.flush()
-    online = repo.filter_by_lesson_type([service.id], "online")
-    assert service.id in online
-
-    service.offers_online = False
-    db.flush()
-    fallback = repo.filter_by_lesson_type([service.id], "online")
-    assert service.id not in fallback
-
-    service.offers_travel = True
-    service.offers_at_location = False
-    db.flush()
-    in_person = repo.filter_by_lesson_type([service.id], "in_person")
-    assert service.id in in_person
-
-    any_results = repo.filter_by_lesson_type([service.id], "any")
-    assert any_results == [service.id]
-
-    unknown = repo.filter_by_lesson_type([service.id], "unknown")
-    assert unknown == [service.id]
-
-
-def test_filter_by_lesson_type_empty_inputs(db):
-    repo = FilterRepository(db)
-    assert repo.filter_by_lesson_type([], "online") == []
 
 
 def test_get_lesson_type_rates_intersects_price_with_format(db, test_instructor):

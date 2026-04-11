@@ -10,7 +10,7 @@ Adapted to actual InstaInstru schema:
 from __future__ import annotations
 
 from datetime import date, time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -19,6 +19,114 @@ from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.user import User
+
+
+def _group_availability_rows_by_instructor(rows: Any) -> Dict[str, List[date]]:
+    """Group availability query rows by instructor while preserving row order."""
+    grouped: Dict[str, List[date]] = {}
+    for row in rows:
+        grouped.setdefault(row.instructor_id, []).append(row.day_date)
+    return grouped
+
+
+def _empty_availability_context() -> Dict[str, object]:
+    """Return the default empty buffered availability context shape."""
+    return {
+        "bits_by_key": {},
+        "format_tags_by_key": {},
+        "bookings_by_key": {},
+        "profiles_by_instructor": {},
+        "timezones_by_instructor": {},
+    }
+
+
+def _load_availability_day_rows(
+    db: Session, instructor_ids: List[str], dates: List[date]
+) -> List[Any]:
+    """Load raw availability day rows used for buffered refinement."""
+    return cast(
+        List[Any],
+        db.query(
+            AvailabilityDay.instructor_id,
+            AvailabilityDay.day_date,
+            AvailabilityDay.bits,
+            AvailabilityDay.format_tags,
+        )
+        .filter(
+            AvailabilityDay.instructor_id.in_(instructor_ids),
+            AvailabilityDay.day_date.in_(dates),
+            AvailabilityDay.bits.isnot(None),
+        )
+        .all(),
+    )
+
+
+def _build_availability_maps(
+    availability_rows: List[Any],
+) -> tuple[Dict[tuple[str, date], object], Dict[tuple[str, date], object]]:
+    """Build keyed bitmaps and format-tag maps from raw availability rows."""
+    bits_by_key = {
+        (row.instructor_id, row.day_date): row.bits
+        for row in availability_rows
+        if row.bits is not None
+    }
+    format_tags_by_key = {
+        (row.instructor_id, row.day_date): row.format_tags
+        for row in availability_rows
+        if row.format_tags is not None
+    }
+    return bits_by_key, format_tags_by_key
+
+
+def _load_booking_rows(db: Session, instructor_ids: List[str], dates: List[date]) -> List[Booking]:
+    """Load booked time windows relevant to buffered availability checks."""
+    return cast(
+        List[Booking],
+        db.query(Booking)
+        .filter(
+            Booking.instructor_id.in_(instructor_ids),
+            Booking.booking_date.in_(dates),
+            Booking.status.in_(
+                [
+                    BookingStatus.PENDING,
+                    BookingStatus.CONFIRMED,
+                    BookingStatus.COMPLETED,
+                ]
+            ),
+        )
+        .order_by(Booking.instructor_id, Booking.booking_date, Booking.start_time)
+        .all(),
+    )
+
+
+def _group_bookings_by_key(
+    booking_rows: List[Booking],
+) -> Dict[tuple[str, date], List[Booking]]:
+    """Group booking rows by instructor and booking date."""
+    bookings_by_key: Dict[tuple[str, date], List[Booking]] = {}
+    for booking in booking_rows:
+        bookings_by_key.setdefault((booking.instructor_id, booking.booking_date), []).append(
+            booking
+        )
+    return bookings_by_key
+
+
+def _load_instructor_profiles(
+    db: Session, instructor_ids: List[str]
+) -> Dict[str, InstructorProfile]:
+    """Load instructor profiles keyed by instructor id."""
+    profiles = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id.in_(instructor_ids)).all()
+    )
+    return {profile.user_id: profile for profile in profiles}
+
+
+def _load_instructor_timezones(db: Session, instructor_ids: List[str]) -> Dict[str, Optional[str]]:
+    """Load instructor user timezones keyed by instructor id."""
+    return {
+        row.id: row.timezone
+        for row in db.query(User.id, User.timezone).filter(User.id.in_(instructor_ids)).all()
+    }
 
 
 class FilterRepository:
@@ -80,21 +188,6 @@ class FilterRepository:
             {"instructor_ids": instructor_ids, "region_ids": region_boundary_ids},
         ).fetchall()
         return [row[0] for row in rows]
-
-    def get_instructor_min_distance_to_region(
-        self, instructor_ids: List[str], region_boundary_id: str
-    ) -> Dict[str, float]:
-        """
-        Get the minimum distance (meters) from a region centroid to each instructor's service areas.
-
-        This is used for admin/debug display to sanity-check that results are geographically sensible.
-        Returns a mapping of instructor_id -> distance_meters (float).
-
-        Notes:
-        - Requires Postgres + PostGIS; returns {} in non-Postgres environments.
-        - Uses region_boundaries.centroid as the reference point and distances to each covered polygon.
-        """
-        return self.get_instructor_min_distance_to_regions(instructor_ids, [region_boundary_id])
 
     def get_instructor_min_distance_to_regions(
         self, instructor_ids: List[str], region_boundary_ids: List[str]
@@ -299,54 +392,6 @@ class FilterRepository:
     # Availability Filtering (Bitmap)
     # =========================================================================
 
-    def check_availability_single_date(
-        self,
-        instructor_id: str,
-        target_date: date,
-        time_after: Optional[time] = None,
-        time_before: Optional[time] = None,
-        duration_minutes: int = 60,
-    ) -> bool:
-        """
-        Check if instructor has availability on a specific date.
-
-        Uses the check_availability function defined in the database.
-
-        Args:
-            instructor_id: Instructor user ID
-            target_date: Date to check
-            time_after: Earliest acceptable time (optional)
-            time_before: Latest acceptable time (optional)
-            duration_minutes: Required lesson duration
-
-        Returns:
-            True if instructor has availability matching constraints
-        """
-        query = text(
-            """
-            SELECT check_availability(
-                :instructor_id,
-                :target_date,
-                :time_after,
-                :time_before,
-                :duration
-            ) as available
-        """
-        )
-
-        result = self.db.execute(
-            query,
-            {
-                "instructor_id": instructor_id,
-                "target_date": target_date,
-                "time_after": time_after,
-                "time_before": time_before,
-                "duration": duration_minutes,
-            },
-        ).first()
-
-        return bool(result.available) if result else False
-
     def filter_by_availability(
         self,
         instructor_ids: List[str],
@@ -415,66 +460,7 @@ class FilterRepository:
             },
         )
 
-        # Group results by instructor
-        results: Dict[str, List[date]] = {}
-        for row in result:
-            instructor_id = row.instructor_id
-            day_date = row.day_date
-            if instructor_id not in results:
-                results[instructor_id] = []
-            results[instructor_id].append(day_date)
-
-        return results
-
-    def batch_check_availability(
-        self,
-        instructor_ids: List[str],
-        target_date: date,
-        time_after: Optional[time] = None,
-        time_before: Optional[time] = None,
-        duration_minutes: int = 60,
-    ) -> List[str]:
-        """
-        Batch check availability for multiple instructors on same date.
-
-        More efficient than individual checks for single-date queries.
-
-        Returns:
-            List of instructor IDs that have availability
-        """
-        if not instructor_ids:
-            return []
-
-        # Use set-based query for efficiency
-        query = text(
-            """
-            SELECT DISTINCT ad.instructor_id
-            FROM availability_days ad
-            WHERE ad.instructor_id = ANY(:instructor_ids)
-              AND ad.day_date = :target_date
-              AND ad.bits IS NOT NULL
-              AND check_availability(
-                  ad.instructor_id,
-                  :target_date,
-                  :time_after,
-                  :time_before,
-                  :duration
-              )
-        """
-        )
-
-        result = self.db.execute(
-            query,
-            {
-                "instructor_ids": instructor_ids,
-                "target_date": target_date,
-                "time_after": time_after,
-                "time_before": time_before,
-                "duration": duration_minutes,
-            },
-        )
-
-        return [row.instructor_id for row in result]
+        return _group_availability_rows_by_instructor(result)
 
     def check_weekend_availability(
         self,
@@ -526,90 +512,21 @@ class FilterRepository:
             },
         )
 
-        # Group results by instructor
-        results: Dict[str, List[date]] = {}
-        for row in result:
-            instructor_id = row.instructor_id
-            day_date = row.day_date
-            if instructor_id not in results:
-                results[instructor_id] = []
-            results[instructor_id].append(day_date)
-
-        return results
+        return _group_availability_rows_by_instructor(result)
 
     def get_buffered_availability_context(
         self, instructor_ids: List[str], dates: List[date]
     ) -> Dict[str, object]:
         """Load bitmap windows, bookings, and instructor buffers for Python-side refinement."""
         if not instructor_ids or not dates:
-            return {
-                "bits_by_key": {},
-                "format_tags_by_key": {},
-                "bookings_by_key": {},
-                "profiles_by_instructor": {},
-                "timezones_by_instructor": {},
-            }
+            return _empty_availability_context()
 
-        availability_rows = (
-            self.db.query(
-                AvailabilityDay.instructor_id,
-                AvailabilityDay.day_date,
-                AvailabilityDay.bits,
-                AvailabilityDay.format_tags,
-            )
-            .filter(
-                AvailabilityDay.instructor_id.in_(instructor_ids),
-                AvailabilityDay.day_date.in_(dates),
-                AvailabilityDay.bits.isnot(None),
-            )
-            .all()
-        )
-        bits_by_key = {
-            (row.instructor_id, row.day_date): row.bits
-            for row in availability_rows
-            if row.bits is not None
-        }
-        format_tags_by_key = {
-            (row.instructor_id, row.day_date): row.format_tags
-            for row in availability_rows
-            if row.format_tags is not None
-        }
-
-        booking_rows = (
-            self.db.query(Booking)
-            .filter(
-                Booking.instructor_id.in_(instructor_ids),
-                Booking.booking_date.in_(dates),
-                Booking.status.in_(
-                    [
-                        BookingStatus.PENDING,
-                        BookingStatus.CONFIRMED,
-                        BookingStatus.COMPLETED,
-                    ]
-                ),
-            )
-            .order_by(Booking.instructor_id, Booking.booking_date, Booking.start_time)
-            .all()
-        )
-        bookings_by_key: Dict[tuple[str, date], List[Booking]] = {}
-        for booking in booking_rows:
-            bookings_by_key.setdefault((booking.instructor_id, booking.booking_date), []).append(
-                booking
-            )
-
-        profiles = (
-            self.db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id.in_(instructor_ids))
-            .all()
-        )
-        profiles_by_instructor = {profile.user_id: profile for profile in profiles}
-
-        timezones_by_instructor = {
-            row.id: row.timezone
-            for row in self.db.query(User.id, User.timezone)
-            .filter(User.id.in_(instructor_ids))
-            .all()
-        }
+        availability_rows = _load_availability_day_rows(self.db, instructor_ids, dates)
+        bits_by_key, format_tags_by_key = _build_availability_maps(availability_rows)
+        booking_rows = _load_booking_rows(self.db, instructor_ids, dates)
+        bookings_by_key = _group_bookings_by_key(booking_rows)
+        profiles_by_instructor = _load_instructor_profiles(self.db, instructor_ids)
+        timezones_by_instructor = _load_instructor_timezones(self.db, instructor_ids)
 
         return {
             "bits_by_key": bits_by_key,
@@ -691,29 +608,3 @@ class FilterRepository:
             for row in result
             if row.lesson_type_hourly_rate is not None
         }
-
-    def filter_by_lesson_type(
-        self,
-        service_ids: List[str],
-        lesson_type: str,
-    ) -> List[str]:
-        """
-        Filter services by lesson type (online or in-person).
-
-        The filter works by checking enabled per-format pricing rows.
-        - "online" lesson_type -> services with an `online` format price
-        - "in_person" lesson_type -> services with `student_location` or `instructor_location`
-
-        Args:
-            service_ids: List of instructor_service IDs to filter
-            lesson_type: "online" or "in_person"
-
-        Returns:
-            List of service IDs that match the lesson type filter
-        """
-        if not service_ids or lesson_type == "any":
-            return service_ids
-        if lesson_type not in {"online", "in_person"}:
-            return service_ids
-
-        return list(self.get_lesson_type_rates(service_ids, lesson_type).keys())
