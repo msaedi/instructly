@@ -35,15 +35,19 @@ else
     GRAPHIFY_PYTHON="python3"
 fi
 
-echo "[graphify] Branch switched - rebuilding knowledge graph (code files)..."
-$GRAPHIFY_PYTHON -c "
+# Check if graphify is importable before spawning background process
+if ! $GRAPHIFY_PYTHON -c "import graphify" 2>/dev/null; then
+    echo "[graphify hook] graphify not installed, skipping rebuild"
+    exit 0
+fi
+
+echo "[graphify] Graph rebuild started in background"
+nohup $GRAPHIFY_PYTHON -c "
 from graphify.watch import _rebuild_code
 from pathlib import Path
-import sys
 try:
     _rebuild_code(Path('.'))
 except Exception as exc:
     print(f'[graphify] Rebuild failed: {exc}')
-    sys.exit(1)
-"
+" > graphify-out/rebuild.log 2>&1 &
 # graphify-checkout-hook-end

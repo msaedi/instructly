@@ -8,6 +8,8 @@ if [ -z "$CHANGED" ]; then
     exit 0
 fi
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
 # Detect the correct Python interpreter (handles pipx, venv, system installs)
 GRAPHIFY_BIN=$(command -v graphify 2>/dev/null)
 if [ -n "$GRAPHIFY_BIN" ]; then
@@ -27,29 +29,5 @@ else
 fi
 
 export GRAPHIFY_CHANGED="$CHANGED"
-$GRAPHIFY_PYTHON -c "
-import os, sys
-from pathlib import Path
-
-CODE_EXTS = {
-    '.py', '.ts', '.js', '.go', '.rs', '.java', '.cpp', '.c', '.rb', '.swift',
-    '.kt', '.cs', '.scala', '.php', '.cc', '.cxx', '.hpp', '.h', '.kts',
-}
-
-changed_raw = os.environ.get('GRAPHIFY_CHANGED', '')
-changed = [Path(f.strip()) for f in changed_raw.strip().splitlines() if f.strip()]
-code_changed = [f for f in changed if f.suffix.lower() in CODE_EXTS and f.exists()]
-
-if not code_changed:
-    sys.exit(0)
-
-print(f'[graphify hook] {len(code_changed)} code file(s) changed - rebuilding graph...')
-
-try:
-    from graphify.watch import _rebuild_code
-    _rebuild_code(Path('.'))
-except Exception as exc:
-    print(f'[graphify hook] Rebuild failed: {exc}')
-    sys.exit(1)
-"
+"$GRAPHIFY_PYTHON" "$SCRIPT_DIR/_graphify_rebuild.py"
 # graphify-hook-end
