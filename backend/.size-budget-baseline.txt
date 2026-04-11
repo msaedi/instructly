@@ -1,5 +1,4 @@
 backend/app/models/service_catalog.py
-backend/app/repositories/filter_repository.py
 backend/app/routes/v1/admin/background_checks.py
 backend/app/routes/v1/admin/mcp/invites.py
 backend/app/routes/v1/admin/refunds.py
