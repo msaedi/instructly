@@ -285,6 +285,25 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
         db.close()
 
 
+def _sync_user_lookup_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Synchronous user lookup by email for legacy auth subjects."""
+    from ..repositories.beta_repository import BetaAccessRepository
+    from ..repositories.user_repository import UserRepository
+
+    db = SessionLocal()
+    try:
+        user_repo = UserRepository(db)
+        user = user_repo.get_by_email_with_roles_and_permissions(email)
+        if user:
+            beta_repo = BetaAccessRepository(db)
+            beta_access = beta_repo.get_latest_for_user(user.id)
+            return _user_to_dict(user, beta_access)
+        return None
+    finally:
+        db.rollback()
+        db.close()
+
+
 async def lookup_user_by_id_nonblocking(user_id: str) -> Optional[Dict[str, Any]]:
     """Look up user by ID without blocking the event loop.
 
@@ -302,6 +321,15 @@ async def lookup_user_by_id_nonblocking(user_id: str) -> Optional[Dict[str, Any]
     if user_data:
         await set_cached_user(user_id, user_data)
     return user_data
+
+
+async def lookup_user_by_subject_nonblocking(subject: str) -> Optional[Dict[str, Any]]:
+    """Resolve cached auth user data from a JWT subject that may be an ID or legacy email."""
+    if not subject:
+        return None
+    if "@" in subject:
+        return await asyncio.to_thread(_sync_user_lookup_by_email, subject)
+    return await lookup_user_by_id_nonblocking(subject)
 
 
 def create_transient_user(user_data: Dict[str, Any]) -> User:

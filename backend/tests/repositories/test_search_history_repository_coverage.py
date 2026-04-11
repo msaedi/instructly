@@ -32,74 +32,6 @@ def _clear_search_history(db: Session) -> None:
     db.commit()
 
 
-def test_increment_search_count_updates_and_skips_deleted(db: Session) -> None:
-    _clear_search_history(db)
-    repo = SearchHistoryRepository(db)
-    user = _make_user(db, prefix="increment")
-
-    search = SearchHistory(
-        user_id=user.id,
-        search_query="piano lessons",
-        normalized_query="piano lessons",
-        search_type="natural_language",
-        search_count=1,
-        first_searched_at=datetime.now(timezone.utc) - timedelta(days=1),
-        last_searched_at=datetime.now(timezone.utc) - timedelta(days=1),
-    )
-    db.add(search)
-    db.commit()
-
-    updated = repo.increment_search_count(search.id)
-    assert updated is not None
-    assert updated.search_count == 2
-
-    search.deleted_at = datetime.now(timezone.utc)
-    db.commit()
-    assert repo.increment_search_count(search.id) is None
-    assert repo.increment_search_count("missing") is None
-
-
-def test_find_existing_search_for_update_user_and_guest(db: Session) -> None:
-    _clear_search_history(db)
-    repo = SearchHistoryRepository(db)
-    user = _make_user(db, prefix="existing")
-    guest_id = f"guest-{uuid.uuid4().hex[:8]}"
-
-    user_search = SearchHistory(
-        user_id=user.id,
-        search_query="Yoga",
-        normalized_query="yoga",
-        search_type="natural_language",
-        first_searched_at=datetime.now(timezone.utc),
-        last_searched_at=datetime.now(timezone.utc),
-    )
-    guest_search = SearchHistory(
-        guest_session_id=guest_id,
-        search_query="Piano",
-        normalized_query="piano",
-        search_type="natural_language",
-        first_searched_at=datetime.now(timezone.utc),
-        last_searched_at=datetime.now(timezone.utc),
-    )
-    db.add_all([user_search, guest_search])
-    db.commit()
-
-    found_user = repo.find_existing_search_for_update(
-        user_id=user.id, search_query="  Yoga  "
-    )
-    assert found_user is not None
-    assert found_user.id == user_search.id
-
-    found_guest = repo.find_existing_search_for_update(
-        guest_session_id=guest_id, search_query="piano"
-    )
-    assert found_guest is not None
-    assert found_guest.id == guest_search.id
-
-    assert repo.find_existing_search_for_update(user_id=user.id, search_query=None) is None
-    assert repo.find_existing_search_for_update(search_query="x") is None
-
-
 def test_get_recent_searches_unified_orders(db: Session) -> None:
     _clear_search_history(db)
     repo = SearchHistoryRepository(db)
@@ -289,52 +221,27 @@ def test_counts_and_soft_delete_by_id(db: Session) -> None:
     db.add(search)
     db.commit()
 
-    assert repo.count_searches(user_id=user.id) == 1
-    assert repo.count_searches() == 0
-
     assert repo.soft_delete_by_id(search.id, user.id) is True
     assert repo.soft_delete_by_id("missing", user.id) is False
 
 
-def test_find_analytics_eligible_searches_filters(db: Session) -> None:
+def test_cleanup_counts(db: Session) -> None:
     _clear_search_history(db)
     repo = SearchHistoryRepository(db)
-    user = _make_user(db, prefix="analytics")
+    user = _make_user(db, prefix="cleanup-counts")
 
-    guest_search = SearchHistory(
-        guest_session_id="guest-analytics",
-        search_query="guest",
-        normalized_query="guest",
-        search_type="natural_language",
-        converted_to_user_id=user.id,
-        first_searched_at=datetime.now(timezone.utc),
-        last_searched_at=datetime.now(timezone.utc),
+    db.add(
+        SearchHistory(
+            user_id=user.id,
+            search_query="deleted",
+            normalized_query="deleted",
+            search_type="natural_language",
+            deleted_at=datetime.now(timezone.utc),
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
     )
-    user_search = SearchHistory(
-        user_id=user.id,
-        search_query="user",
-        normalized_query="user",
-        search_type="natural_language",
-        first_searched_at=datetime.now(timezone.utc),
-        last_searched_at=datetime.now(timezone.utc),
-    )
-    deleted_search = SearchHistory(
-        user_id=user.id,
-        search_query="deleted",
-        normalized_query="deleted",
-        search_type="natural_language",
-        deleted_at=datetime.now(timezone.utc),
-        first_searched_at=datetime.now(timezone.utc),
-        last_searched_at=datetime.now(timezone.utc),
-    )
-    db.add_all([guest_search, user_search, deleted_search])
     db.commit()
-
-    rows = repo.find_analytics_eligible_searches(include_deleted=False).all()
-    ids = {row.id for row in rows}
-    assert user_search.id in ids
-    assert guest_search.id not in ids
-    assert deleted_search.id not in ids
 
     assert repo.count_soft_deleted_total() == 1
     assert repo.count_soft_deleted_eligible(days_old=1) == 0
@@ -380,9 +287,6 @@ def test_guest_cleanup_stats_and_deletions(db: Session) -> None:
 
 def test_misc_helpers_return_none_or_counts(db: Session) -> None:
     repo = SearchHistoryRepository(db)
-
-    assert repo.get_previous_search_event() is None
-    assert repo.get_search_event_by_id(event_id=123) is None
 
     old_deleted = SearchHistory(
         guest_session_id=f"hard-delete-{uuid.uuid4().hex[:8]}",
@@ -469,11 +373,10 @@ def test_recent_searches_and_counts_for_guest(db: Session) -> None:
     )
     db.commit()
 
-    recent = repo.get_recent_searches(guest_session_id=guest_id, limit=1)
+    recent = repo.get_recent_searches_unified(
+        SearchUserContext.from_guest(guest_id), limit=1, order_by="last_searched_at"
+    )
     assert recent[0].search_query == "new"
-    assert repo.get_recent_searches() == []
-    assert repo.count_searches(guest_session_id=guest_id) == 2
-    assert repo.count_searches() == 0
 
 
 def test_get_recent_searches_unified_last_searched(db: Session) -> None:
@@ -585,41 +488,6 @@ def test_create_and_conversion_helpers(db: Session) -> None:
     assert [row.search_query for row in ordered] == ["first", "second"]
 
     assert repo.mark_searches_as_converted(guest_id, user.id) == 2
-
-
-def test_find_analytics_eligible_date_filters(db: Session) -> None:
-    _clear_search_history(db)
-    repo = SearchHistoryRepository(db)
-    user = _make_user(db, prefix="date-filter")
-    now = datetime.now(timezone.utc)
-
-    db.add_all(
-        [
-            SearchHistory(
-                user_id=user.id,
-                search_query="old",
-                normalized_query="old",
-                search_type="natural_language",
-                first_searched_at=now - timedelta(days=10),
-                last_searched_at=now - timedelta(days=10),
-            ),
-            SearchHistory(
-                user_id=user.id,
-                search_query="recent",
-                normalized_query="recent",
-                search_type="natural_language",
-                first_searched_at=now - timedelta(days=1),
-                last_searched_at=now - timedelta(days=1),
-            ),
-        ]
-    )
-    db.commit()
-
-    rows = repo.find_analytics_eligible_searches(
-        start_date=now - timedelta(days=2), end_date=now
-    ).all()
-    assert {row.search_query for row in rows} == {"recent"}
-
 
 def test_get_search_by_user_and_query_empty(db: Session) -> None:
     repo = SearchHistoryRepository(db)

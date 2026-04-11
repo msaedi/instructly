@@ -21,7 +21,7 @@ from app.core.config import settings
 from app.core.ulid_helper import generate_ulid
 from app.models.search_history import SearchHistory
 from app.models.user import User
-from app.repositories.search_history_repository import SearchHistoryRepository
+from app.repositories.search_analytics_repository import SearchAnalyticsRepository
 from app.services.search_history_service import SearchHistoryService
 
 # Mark all tests in this file as integration tests
@@ -158,7 +158,7 @@ class TestSoftDeleteFunctionality:
 
     def test_soft_deleted_excluded_from_queries(self, db: Session):
         """Test that soft-deleted searches are excluded from normal queries."""
-        repo = SearchHistoryRepository(db)
+        service = SearchHistoryService(db)
 
         # Create user
         user = User(
@@ -193,9 +193,14 @@ class TestSoftDeleteFunctionality:
         db.add_all([active_search, deleted_search])
         db.commit()
 
-        # Test various repository methods
-        assert repo.count_searches(user_id=user.id) == 1
-        recent = repo.get_recent_searches(user_id=user.id)
+        active_count = (
+            db.query(SearchHistory)
+            .filter(SearchHistory.user_id == user.id, SearchHistory.deleted_at.is_(None))
+            .count()
+        )
+        assert active_count == 1
+
+        recent = service.get_recent_searches(user_id=user.id)
         assert len(recent) == 1
         assert recent[0].search_query == "active search"
 
@@ -409,7 +414,7 @@ class TestAnalyticsEligibility:
 
     def test_analytics_includes_soft_deleted(self, db: Session):
         """Test that analytics queries include soft-deleted searches."""
-        repo = SearchHistoryRepository(db)
+        repo = SearchAnalyticsRepository(db)
         import uuid
 
         unique_id = uuid.uuid4().hex[:8]
@@ -457,7 +462,7 @@ class TestAnalyticsEligibility:
 
     def test_analytics_excludes_converted_guest_searches(self, db: Session):
         """Test that analytics doesn't double-count converted searches."""
-        repo = SearchHistoryRepository(db)
+        repo = SearchAnalyticsRepository(db)
         import uuid
 
         unique_id = uuid.uuid4().hex[:8]

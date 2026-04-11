@@ -39,7 +39,7 @@ from jwt import InvalidIssuerError, PyJWTError
 from .auth import decode_access_token, is_access_token_payload, oauth2_scheme_optional
 from .core.auth_cache import (
     create_transient_user,
-    lookup_user_by_id_nonblocking,
+    lookup_user_by_subject_nonblocking,
 )
 from .core.cache_redis import get_async_cache_redis_client
 from .core.config import settings
@@ -101,7 +101,7 @@ async def _get_user_from_sse_token(token: str) -> Optional[User]:
     user_id = (
         user_id_raw.decode() if isinstance(user_id_raw, (bytes, bytearray)) else str(user_id_raw)
     )
-    user_data = await lookup_user_by_id_nonblocking(user_id)
+    user_data = await lookup_user_by_subject_nonblocking(user_id)
     if not user_data:
         return None
 
@@ -229,7 +229,7 @@ async def get_current_user_sse(
 
     credentials_exception = _credentials_exception()
     payload, user_id = await _validated_payload_and_user_id(token, credentials_exception)
-    user_data = await lookup_user_by_id_nonblocking(user_id)
+    user_data = await lookup_user_by_subject_nonblocking(user_id)
     if user_data is None:
         raise credentials_exception
     _ensure_token_not_invalidated(payload, user_data)

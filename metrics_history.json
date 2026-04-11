@@ -48130,5 +48130,109 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-10",
     "branch": "refactor/service-catalog-repository-decomposition"
+  },
+  {
+    "timestamp": "2026-04-11T19:54:15.168448+00:00",
+    "total_lines": 806177,
+    "total_files": 3193,
+    "backend_lines": 457206,
+    "frontend_lines": 348971,
+    "git_commits": 1780,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10126
+        },
+        "Repositories": {
+          "files": 233,
+          "lines": 45344
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13384
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179639
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21926
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28216
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2484
+        },
+        "Pages": {
+          "files": 147,
+          "lines": 42235
+        },
+        "Components": {
+          "files": 425,
+          "lines": 142924
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28278
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2042,
+    "frontend_files": 1151,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-11",
+    "branch": "msaedi/split-search-history"
   }
 ]
