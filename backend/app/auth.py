@@ -14,7 +14,7 @@ import jwt
 from jwt import InvalidIssuerError, PyJWTError
 import ulid
 
-from .core.auth_cache import lookup_user_by_id_nonblocking
+from .core.auth_cache import lookup_user_by_subject_nonblocking
 from .core.config import secret_or_plain, settings
 from .monitoring.prometheus_metrics import prometheus_metrics
 from .services.token_blacklist_service import TokenBlacklistService
@@ -428,7 +428,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
     if iat_ts is None:
         return
 
-    user_data = await lookup_user_by_id_nonblocking(user_id)
+    user_data = await lookup_user_by_subject_nonblocking(user_id)
     if user_data is None:
         # Fail-open here is intentional. The JTI blacklist check above is
         # fail-closed (Redis error → token rejected). This tokens_valid_after

@@ -1,10 +1,26 @@
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy.orm import Session
+from tests.conftest import TestSessionLocal
 
+from app.api.dependencies.database import get_db as deps_get_db
+from app.core import auth_cache
 from app.core.config import settings
+from app.database import get_db
 import app.main
 import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
+
+
+def _override_test_db(db: Session) -> None:
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.main.fastapi_app.dependency_overrides[get_db] = override_get_db
+    app.main.fastapi_app.dependency_overrides[deps_get_db] = override_get_db
 
 
 @pytest.fixture
@@ -61,13 +77,16 @@ def bitmap_app(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def bitmap_client(bitmap_app) -> TestClient:
+def bitmap_client(bitmap_app, db: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Return a TestClient backed by the bitmap-enabled app instance."""
+    monkeypatch.setattr(auth_cache, "SessionLocal", TestSessionLocal)
+    _override_test_db(db)
     client = TestClient(bitmap_app.fastapi_app, raise_server_exceptions=False)
     try:
         yield client
     finally:
         client.close()
+        app.main.fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -93,23 +112,33 @@ def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def bitmap_client_allow_past(bitmap_app_allow_past) -> TestClient:
+def bitmap_client_allow_past(
+    bitmap_app_allow_past, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> TestClient:
     """Return a TestClient with allow_past enabled."""
+    monkeypatch.setattr(auth_cache, "SessionLocal", TestSessionLocal)
+    _override_test_db(db)
     client = TestClient(bitmap_app_allow_past.fastapi_app, raise_server_exceptions=False)
     try:
         yield client
     finally:
         client.close()
+        app.main.fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def bitmap_client_disallow_past(bitmap_app_disallow_past) -> TestClient:
+def bitmap_client_disallow_past(
+    bitmap_app_disallow_past, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> TestClient:
     """Return a TestClient with allow_past disabled."""
+    monkeypatch.setattr(auth_cache, "SessionLocal", TestSessionLocal)
+    _override_test_db(db)
     client = TestClient(bitmap_app_disallow_past.fastapi_app, raise_server_exceptions=False)
     try:
         yield client
     finally:
         client.close()
+        app.main.fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -124,10 +153,13 @@ def bitmap_booking_app(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def bitmap_booking_client(bitmap_booking_app) -> TestClient:
+def bitmap_booking_client(bitmap_booking_app, db: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Return a TestClient for the bitmap-enabled app instance."""
+    monkeypatch.setattr(auth_cache, "SessionLocal", TestSessionLocal)
+    _override_test_db(db)
     client = TestClient(bitmap_booking_app.fastapi_app, raise_server_exceptions=False)
     try:
         yield client
     finally:
         client.close()
+        app.main.fastapi_app.dependency_overrides.clear()

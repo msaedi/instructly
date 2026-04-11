@@ -126,6 +126,80 @@ def test_search_analytics_aggregations(db, test_student, test_instructor):
     assert repo.get_avg_searches_per_guest(start, end) >= 1
 
 
+def test_find_analytics_eligible_searches_filters(db, test_student):
+    repo = SearchAnalyticsRepository(db)
+    now = datetime.now(timezone.utc)
+
+    guest_search = SearchHistory(
+        guest_session_id="guest-analytics",
+        search_query="guest",
+        normalized_query="guest",
+        search_type="natural_language",
+        converted_to_user_id=test_student.id,
+        first_searched_at=now,
+        last_searched_at=now,
+    )
+    user_search = SearchHistory(
+        user_id=test_student.id,
+        search_query="user",
+        normalized_query="user",
+        search_type="natural_language",
+        first_searched_at=now,
+        last_searched_at=now,
+    )
+    deleted_search = SearchHistory(
+        user_id=test_student.id,
+        search_query="deleted",
+        normalized_query="deleted",
+        search_type="natural_language",
+        deleted_at=now,
+        first_searched_at=now,
+        last_searched_at=now,
+    )
+    db.add_all([guest_search, user_search, deleted_search])
+    db.commit()
+
+    rows = repo.find_analytics_eligible_searches(include_deleted=False).all()
+    ids = {row.id for row in rows}
+    assert user_search.id in ids
+    assert guest_search.id not in ids
+    assert deleted_search.id not in ids
+
+
+def test_find_analytics_eligible_searches_date_filters(db, test_student):
+    repo = SearchAnalyticsRepository(db)
+    now = datetime.now(timezone.utc)
+    old_query = f"old-{ULID()}"
+    recent_query = f"recent-{ULID()}"
+
+    db.add_all(
+        [
+            SearchHistory(
+                user_id=test_student.id,
+                search_query=old_query,
+                normalized_query=old_query,
+                search_type="natural_language",
+                first_searched_at=now - timedelta(days=10),
+                last_searched_at=now - timedelta(days=10),
+            ),
+            SearchHistory(
+                user_id=test_student.id,
+                search_query=recent_query,
+                normalized_query=recent_query,
+                search_type="natural_language",
+                first_searched_at=now - timedelta(days=1),
+                last_searched_at=now - timedelta(days=1),
+            ),
+        ]
+    )
+    db.commit()
+
+    rows = repo.find_analytics_eligible_searches(
+        start_date=now - timedelta(days=2), end_date=now
+    ).filter(SearchHistory.search_query.in_([old_query, recent_query])).all()
+    assert {row.search_query for row in rows} == {recent_query}
+
+
 def test_candidate_analytics(db, test_instructor, test_student):
     repo = SearchAnalyticsRepository(db)
     service = (
