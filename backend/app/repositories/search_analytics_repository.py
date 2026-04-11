@@ -8,6 +8,7 @@ from .search_analytics.candidate_analytics_mixin import CandidateAnalyticsMixin
 from .search_analytics.guest_analytics_mixin import GuestAnalyticsMixin
 from .search_analytics.nl_search_analytics_mixin import NLSearchAnalyticsMixin
 from .search_analytics.nl_search_write_mixin import NLSearchWriteMixin
+from .search_analytics.search_history_analytics_mixin import SearchHistoryAnalyticsMixin
 from .search_analytics.search_metrics_mixin import SearchMetricsMixin
 from .search_analytics.search_trends_mixin import SearchTrendsMixin
 from .search_analytics.types import (
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 class SearchAnalyticsRepository(
     SearchTrendsMixin,
     SearchMetricsMixin,
+    SearchHistoryAnalyticsMixin,
     GuestAnalyticsMixin,
     CandidateAnalyticsMixin,
     NLSearchWriteMixin,

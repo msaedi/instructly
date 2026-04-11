@@ -1729,8 +1729,11 @@ def STRICT_ON():
 
 
 @pytest.fixture
-def client(db: Session):
+def client(db: Session, monkeypatch):
     """Create a test client with the test database."""
+    from app.core import auth_cache
+
+    monkeypatch.setattr(auth_cache, "SessionLocal", TestSessionLocal)
 
     def override_get_db():
         try:
