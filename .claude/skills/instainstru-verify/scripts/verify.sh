@@ -74,8 +74,17 @@ run_backend() {
     if PRECOMMIT_OUTPUT=$(cd "$REPO_ROOT" && backend/venv/bin/pre-commit run --all-files 2>&1); then
         record "Pre-commit" "PASS" "all hooks passed"
     else
+        PRECOMMIT_STATUS=$?
         FAILED_HOOKS=$(echo "$PRECOMMIT_OUTPUT" | grep -c "Failed" || true)
-        record "Pre-commit" "FAIL" "${FAILED_HOOKS} hook(s) failed"
+        if [[ "$FAILED_HOOKS" -gt 0 ]]; then
+            PRECOMMIT_DETAIL="${FAILED_HOOKS} hook(s) failed"
+        else
+            PRECOMMIT_DETAIL=$(echo "$PRECOMMIT_OUTPUT" | tail -1)
+            if [[ -z "$PRECOMMIT_DETAIL" ]]; then
+                PRECOMMIT_DETAIL="pre-commit exited with status ${PRECOMMIT_STATUS}"
+            fi
+        fi
+        record "Pre-commit" "FAIL" "$PRECOMMIT_DETAIL"
         BACKEND_STATUS="FAIL"
         return 1
     fi
