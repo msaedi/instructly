@@ -81,7 +81,7 @@ class LifecycleMixin(SearchHistoryRepositoryMixinBase):
         )
         return result > 0
 
-    def soft_delete_guest_search(self, search_id: int, guest_session_id: str) -> bool:
+    def soft_delete_guest_search(self, search_id: str, guest_session_id: str) -> bool:
         """
         Soft delete a specific search entry for a guest.
         """
