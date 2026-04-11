@@ -352,27 +352,16 @@ else
   log "Skipping DB isolation; CONDUCTOR_WORKSPACE_NAME is not set"
 fi
 
-SOURCE_FRONTEND_NODE_MODULES="$SOURCE_ROOT/frontend/node_modules"
 TARGET_FRONTEND_NODE_MODULES="$WORKSPACE_ROOT/frontend/node_modules"
 
-if [ -d "$SOURCE_FRONTEND_NODE_MODULES" ]; then
-  mkdir -p "$(dirname "$TARGET_FRONTEND_NODE_MODULES")"
-  rm -rf "$TARGET_FRONTEND_NODE_MODULES"
-  ln -sfn "$SOURCE_FRONTEND_NODE_MODULES" "$TARGET_FRONTEND_NODE_MODULES"
-  log "Linked frontend/node_modules -> $SOURCE_FRONTEND_NODE_MODULES"
-else
-  if [ -d "$TARGET_FRONTEND_NODE_MODULES" ] && [ ! -L "$TARGET_FRONTEND_NODE_MODULES" ]; then
-    log "Source frontend/node_modules not found; keeping existing workspace frontend/node_modules"
-  else
-    rm -rf "$TARGET_FRONTEND_NODE_MODULES"
-    log "Source frontend/node_modules not found; running npm ci in frontend/"
-    (
-      cd "$WORKSPACE_ROOT/frontend"
-      npm ci
-    )
-    log "Installed frontend/node_modules with npm ci"
-  fi
-fi
+# Turbopack rejects symlinks pointing outside the project root
+rm -rf "$TARGET_FRONTEND_NODE_MODULES"
+log "Running npm ci in frontend/"
+(
+  cd "$WORKSPACE_ROOT/frontend"
+  npm ci
+)
+log "Installed frontend/node_modules with npm ci"
 
 PRECOMMIT_BIN="$WORKSPACE_ROOT/backend/venv/bin/pre-commit"
 if git -C "$WORKSPACE_ROOT" config --get core.hooksPath >/dev/null 2>&1; then
