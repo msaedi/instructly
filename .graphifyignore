@@ -1,0 +1,11 @@
+# Skip noise directories
+docs/temp-logs/
+monitoring/grafana-data/
+backend/venv/
+node_modules/
+.next/
+dist/
+__pycache__/
+*.pyc
+.git/
+graphify-out/
