@@ -48338,5 +48338,109 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-11",
     "branch": "msaedi/search-history-decomp"
+  },
+  {
+    "timestamp": "2026-04-11T21:21:07.317962+00:00",
+    "total_lines": 806218,
+    "total_files": 3206,
+    "backend_lines": 457247,
+    "frontend_lines": 348971,
+    "git_commits": 1783,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10126
+        },
+        "Repositories": {
+          "files": 246,
+          "lines": 45385
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13384
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179639
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21926
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28216
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 147,
+          "lines": 42235
+        },
+        "Components": {
+          "files": 425,
+          "lines": 142924
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28278
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2484
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2055,
+    "frontend_files": 1151,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-11",
+    "branch": "msaedi/referral-repo-audit"
   }
 ]

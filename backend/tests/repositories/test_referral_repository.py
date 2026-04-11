@@ -23,7 +23,6 @@ from app.models.referrals import (
     RewardStatus,
 )
 from app.repositories.referral_repository import (
-    REFERRER_DASHBOARD_MAX_ROWS,
     ReferralAttributionRepository,
     ReferralClickRepository,
     ReferralCodeRepository,
@@ -282,7 +281,7 @@ def test_list_referrer_dashboard_rows_applies_safety_limit(db, monkeypatch):
         monkeypatch.setattr(SAQuery, "all", original_all)
 
     assert rows == []
-    assert captured_limit["value"] == REFERRER_DASHBOARD_MAX_ROWS
+    assert captured_limit["value"] == 500
 
 
 def test_create_instructor_referrer_reward(db):
