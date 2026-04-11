@@ -29,5 +29,23 @@ else
 fi
 
 export GRAPHIFY_CHANGED="$CHANGED"
-"$GRAPHIFY_PYTHON" "$SCRIPT_DIR/_graphify_rebuild.py"
+SUMMARY=$("$GRAPHIFY_PYTHON" "$SCRIPT_DIR/_graphify_rebuild.py" --summary 2>&1)
+STATUS=$?
+
+case "$STATUS" in
+    0)
+        mkdir -p graphify-out
+        echo "[graphify] Graph rebuild started in background ($SUMMARY)"
+        nohup "$GRAPHIFY_PYTHON" "$SCRIPT_DIR/_graphify_rebuild.py" > graphify-out/rebuild.log 2>&1 &
+        ;;
+    10)
+        printf '%s\n' "$SUMMARY"
+        ;;
+    11)
+        ;;
+    *)
+        printf '%s\n' "$SUMMARY"
+        exit "$STATUS"
+        ;;
+esac
 # graphify-hook-end
