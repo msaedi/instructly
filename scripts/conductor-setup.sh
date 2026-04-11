@@ -84,7 +84,9 @@ else
 fi
 
 PRECOMMIT_BIN="$WORKSPACE_ROOT/backend/venv/bin/pre-commit"
-if [ -x "$PRECOMMIT_BIN" ]; then
+if git -C "$WORKSPACE_ROOT" config --get core.hooksPath >/dev/null 2>&1; then
+  log "Skipping pre-commit install — hooks managed by core.hooksPath"
+elif [ -x "$PRECOMMIT_BIN" ]; then
   log "Installing pre-commit hooks"
   (
     cd "$WORKSPACE_ROOT"
