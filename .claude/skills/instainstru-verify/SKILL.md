@@ -53,6 +53,29 @@ The script is at `scripts/verify.sh` inside this skill's directory. It runs ever
 | Both stacks | `verify.sh all` |
 | DB migration | Run `cd backend && python scripts/prep_db.py int` first, then `verify.sh all` |
 
+### When NOT to re-run the full suite
+
+Ask this before re-running the suite: **did production code change since the last green run?**
+
+If the answer is **no**, targeted verification is sufficient.
+
+After fixing stale tests where production code did not change:
+
+- Run only the specific test file(s) that were modified, directly via `pytest` and not `verify.sh`.
+- Confirm those individual tests pass.
+- Do **not** re-run `verify.sh backend` or the full backend suite.
+- Report: `Fixed stale tests in [files]. Verified directly with pytest [files] — passing. Production code unchanged, full suite re-run not needed.`
+
+After modifying production code:
+
+- Always run the appropriate `verify.sh` scope.
+- This is the legitimate case for the full suite.
+
+Discipline:
+
+- If production code changed since the last green run, a full suite re-run is required.
+- If production code did not change since the last green run, targeted verification of the modified stale tests is enough.
+
 ---
 
 ## 2. Self-Check Protocol
