@@ -56,6 +56,113 @@ print(db_name)
 PY
 }
 
+load_int_db_connection() {
+  env_path="$1"
+
+  eval "$(
+    python3 - "$env_path" <<'PY'
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+import re
+import shlex
+import sys
+
+env_path = Path(sys.argv[1])
+specific_keys = {"DATABASE_URL_INT", "TEST_DATABASE_URL", "test_database_url"}
+fallback_keys = {"DATABASE_URL", "database_url"}
+assign_re = re.compile(r"^(\s*(?:export\s+)?)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(\S+)(\s+#.*)?$")
+
+
+def parse_value(raw: str) -> str:
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+matches: list[tuple[str, str]] = []
+for line in env_path.read_text().splitlines():
+    if line.lstrip().startswith("#"):
+        continue
+    match = assign_re.match(line)
+    if not match:
+        continue
+    key = match.group(2)
+    if key in specific_keys or key in fallback_keys:
+        matches.append((key, parse_value(match.group(4))))
+
+selected = [item for item in matches if item[0] in specific_keys]
+if not selected:
+    selected = [item for item in matches if item[0] in fallback_keys]
+if not selected:
+    raise SystemExit(f"No INT database URL found in {env_path}")
+
+parsed = urlparse(selected[0][1])
+query = parse_qs(parsed.query)
+values = {
+    "INT_DB_NAME": unquote((parsed.path or "").lstrip("/")),
+    "INT_DB_HOST": parsed.hostname or "",
+    "INT_DB_PORT": str(parsed.port or ""),
+    "INT_DB_USER": unquote(parsed.username or ""),
+    "INT_DB_PASSWORD": unquote(parsed.password or ""),
+    "INT_DB_SSLMODE": query.get("sslmode", [""])[0],
+}
+
+for key, value in values.items():
+    print(f"{key}={shlex.quote(value)}")
+PY
+  )"
+}
+
+run_psql() {
+  if [ -n "${INT_DB_PASSWORD:-}" ] && [ -n "${INT_DB_SSLMODE:-}" ]; then
+    PGPASSWORD="$INT_DB_PASSWORD" PGSSLMODE="$INT_DB_SSLMODE" psql "$@"
+  elif [ -n "${INT_DB_PASSWORD:-}" ]; then
+    PGPASSWORD="$INT_DB_PASSWORD" psql "$@"
+  elif [ -n "${INT_DB_SSLMODE:-}" ]; then
+    PGSSLMODE="$INT_DB_SSLMODE" psql "$@"
+  else
+    psql "$@"
+  fi
+}
+
+ensure_workspace_database_exists() {
+  env_path="$1"
+
+  if ! command -v psql >/dev/null 2>&1; then
+    log "Cannot prepare isolated DB; psql not found"
+    exit 1
+  fi
+
+  load_int_db_connection "$env_path"
+
+  if [ -z "${INT_DB_NAME:-}" ]; then
+    log "Cannot prepare isolated DB; no INT database name found in $env_path"
+    exit 1
+  fi
+
+  PSQL_ARGS=(-X -v ON_ERROR_STOP=1 -d postgres -v "dbname=$INT_DB_NAME")
+
+  if [ -n "${INT_DB_HOST:-}" ]; then
+    PSQL_ARGS+=(-h "$INT_DB_HOST")
+  fi
+
+  if [ -n "${INT_DB_PORT:-}" ]; then
+    PSQL_ARGS+=(-p "$INT_DB_PORT")
+  fi
+
+  if [ -n "${INT_DB_USER:-}" ]; then
+    PSQL_ARGS+=(-U "$INT_DB_USER")
+  fi
+
+  if run_psql "${PSQL_ARGS[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname = :'dbname'" | grep -q 1; then
+    log "Isolated DB already exists: $INT_DB_NAME"
+  else
+    log "Creating isolated DB: $INT_DB_NAME"
+    run_psql "${PSQL_ARGS[@]}" -c "CREATE DATABASE :\"dbname\""
+  fi
+}
+
 write_isolated_backend_env() {
   source_env="$1"
   target_env="$2"
@@ -233,6 +340,7 @@ if [ -n "${CONDUCTOR_WORKSPACE_NAME:-}" ]; then
 
   (
     cd "$WORKSPACE_ROOT"
+    ensure_workspace_database_exists "$TARGET_BACKEND_ENV"
     if [ "$SHOULD_RESET_ISOLATED_DB" = "1" ]; then
       log "Resetting schema for $ISOLATED_DB_NAME"
       "$BACKEND_PYTHON" backend/scripts/reset_schema.py int --force --yes
