@@ -29,6 +29,7 @@ __pycache__/
 *.so
 .Python
 venv/
+**/venv/
 env/
 .venv/
 
@@ -132,3 +133,4 @@ mcp-server/src/*.egg-info/
 
 # Graphify
 graphify-out/
+**/graphify-out/
