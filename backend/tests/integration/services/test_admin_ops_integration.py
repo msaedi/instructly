@@ -286,6 +286,76 @@ class TestAdminOpsRepositoryIntegration:
         result = admin_ops_repo.get_instructors_with_pending_payouts(limit=10)
         assert isinstance(result, list)
 
+    def test_get_instructors_with_pending_payouts_returns_ranked_tuples(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+        test_instructor_2: User,
+    ):
+        """Test pending payouts return ordered tuples with aggregate values."""
+        now = datetime.now(timezone.utc)
+        completed_at = now - timedelta(hours=2)
+
+        high_value_booking = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_booking.instructor_id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=now.date(),
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            status=BookingStatus.COMPLETED,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=150.0,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            completed_at=completed_at,
+            allow_overlap=True,
+        )
+        low_value_booking = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_instructor_2.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=now.date(),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            status=BookingStatus.COMPLETED,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=60.0,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            completed_at=completed_at + timedelta(minutes=30),
+            allow_overlap=True,
+        )
+        db.flush()
+
+        result = admin_ops_repo.get_instructors_with_pending_payouts(limit=10)
+
+        assert len(result) >= 2
+        top_user, pending_amount, lesson_count, oldest_date = result[0]
+        assert isinstance(top_user, User)
+        assert pending_amount is not None
+        assert isinstance(lesson_count, int)
+        assert oldest_date is None or isinstance(oldest_date, datetime)
+        assert top_user.id == high_value_booking.instructor_id
+        assert pending_amount == 150.0
+        assert lesson_count == 1
+        assert oldest_date == high_value_booking.completed_at
+
+        ranked_ids = [user.id for user, _, _, _ in result[:2]]
+        assert ranked_ids == [
+            high_value_booking.instructor_id,
+            low_value_booking.instructor_id,
+        ]
+
     def test_get_user_by_email_with_profile_not_found(
         self, admin_ops_repo: AdminOpsRepository
     ):
@@ -405,6 +475,95 @@ class TestAdminOpsRepositoryIntegration:
             limit=10,
         )
         assert len(result) >= 1
+
+    def test_get_booking_with_payment_intent_returns_loaded_relationships(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+    ):
+        """Test payment timeline booking lookup returns loaded payment relationships."""
+        payment_intent_id = f"pi_{generate_ulid()}"
+        db.add(
+            BookingPayment(
+                id=generate_ulid(),
+                booking_id=test_booking.id,
+                payment_status=PaymentStatus.AUTHORIZED.value,
+                payment_intent_id=payment_intent_id,
+            )
+        )
+        db.add(
+            PaymentIntent(
+                booking_id=test_booking.id,
+                stripe_payment_intent_id=payment_intent_id,
+                amount=10000,
+                application_fee=1200,
+                status="requires_capture",
+            )
+        )
+        db.commit()
+
+        result = admin_ops_repo.get_booking_with_payment_intent(test_booking.id)
+
+        assert result is not None
+        assert result.id == test_booking.id
+        assert result.payment_detail is not None
+        assert result.payment_detail.payment_intent_id == payment_intent_id
+        assert result.payment_intent is not None
+        assert result.payment_intent.stripe_payment_intent_id == payment_intent_id
+
+    def test_get_user_bookings_for_payment_timeline_returns_booking_and_auth_matches(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+    ):
+        """Test payment timeline lookup matches booking start and scheduled auth windows."""
+        window_start = test_booking.booking_start_utc - timedelta(minutes=30)
+        window_end = test_booking.booking_start_utc + timedelta(minutes=30)
+
+        db.add(
+            BookingPayment(
+                id=generate_ulid(),
+                booking_id=test_booking.id,
+                payment_status=PaymentStatus.AUTHORIZED.value,
+                payment_intent_id=f"pi_{generate_ulid()}",
+            )
+        )
+
+        auth_match = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_booking.instructor_id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=test_booking.booking_date + timedelta(days=5),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            status=BookingStatus.CONFIRMED,
+            payment_status=PaymentStatus.SCHEDULED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=test_booking.total_price,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            auth_scheduled_for=window_start + timedelta(minutes=10),
+            allow_overlap=True,
+        )
+        db.commit()
+
+        result = admin_ops_repo.get_user_bookings_for_payment_timeline(
+            user_id=test_booking.student_id,
+            start_time=window_start,
+            end_time=window_end,
+        )
+
+        result_ids = [booking.id for booking in result]
+        assert test_booking.id in result_ids
+        assert auth_match.id in result_ids
+        matched = {booking.id: booking for booking in result}
+        assert matched[test_booking.id].payment_detail is not None
+        assert matched[auth_match.id].payment_detail is not None
 
 
 class TestAdminOpsServiceIntegration:
