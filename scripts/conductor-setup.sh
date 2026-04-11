@@ -387,4 +387,11 @@ else
   log "Skipping pre-commit hook install; $PRECOMMIT_BIN not found"
 fi
 
+if [ -d "$WORKSPACE_ROOT/.husky" ]; then
+  git -C "$WORKSPACE_ROOT" config core.hooksPath .husky
+  log "Husky hooks activated (core.hooksPath = .husky)"
+else
+  log "Skipping Husky activation; .husky/ not found"
+fi
+
 log "Conductor workspace setup complete"
