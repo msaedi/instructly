@@ -47,59 +47,52 @@ run_backend() {
     echo "═══════════════════════════════════════════"
     echo ""
 
-    cd "$REPO_ROOT/backend"
-
     # 1. Ruff
     echo "→ Running ruff..."
-    if RUFF_OUTPUT=$(cd "$REPO_ROOT" && ruff check backend/ 2>&1); then
+    if RUFF_OUTPUT=$(cd "$REPO_ROOT" && backend/venv/bin/ruff check backend/ 2>&1); then
         record "ruff" "PASS" "clean"
     else
         ERROR_COUNT=$(echo "$RUFF_OUTPUT" | tail -1)
         record "ruff" "FAIL" "$ERROR_COUNT"
         BACKEND_STATUS="FAIL"
-        cd "$REPO_ROOT"
         return 1
     fi
 
     # 2. mypy
     echo "→ Running mypy..."
-    if MYPY_OUTPUT=$(./venv/bin/mypy --no-incremental app 2>&1); then
+    if MYPY_OUTPUT=$(cd "$REPO_ROOT/backend" && venv/bin/mypy --no-incremental app 2>&1); then
         record "mypy" "PASS" "clean"
     else
         ERROR_COUNT=$(echo "$MYPY_OUTPUT" | tail -1)
         record "mypy" "FAIL" "$ERROR_COUNT"
         BACKEND_STATUS="FAIL"
-        cd "$REPO_ROOT"
         return 1
     fi
 
     # 3. Pre-commit
     echo "→ Running pre-commit..."
-    if PRECOMMIT_OUTPUT=$(python ../venv/bin/pre-commit run --all-files 2>&1); then
+    if PRECOMMIT_OUTPUT=$(cd "$REPO_ROOT" && backend/venv/bin/pre-commit run --all-files 2>&1); then
         record "Pre-commit" "PASS" "all hooks passed"
     else
         FAILED_HOOKS=$(echo "$PRECOMMIT_OUTPUT" | grep -c "Failed" || true)
         record "Pre-commit" "FAIL" "${FAILED_HOOKS} hook(s) failed"
         BACKEND_STATUS="FAIL"
-        cd "$REPO_ROOT"
         return 1
     fi
 
     # 4. Tests
     echo "→ Running pytest..."
-    if TEST_OUTPUT=$(python -m pytest tests/ --tb=short -q 2>&1); then
+    if TEST_OUTPUT=$(cd "$REPO_ROOT/backend" && venv/bin/pytest tests/ --tb=short -q 2>&1); then
         PASS_LINE=$(echo "$TEST_OUTPUT" | tail -1)
         record "Backend tests" "PASS" "$PASS_LINE"
     else
         PASS_LINE=$(echo "$TEST_OUTPUT" | tail -3)
         record "Backend tests" "FAIL" "$PASS_LINE"
         BACKEND_STATUS="FAIL"
-        cd "$REPO_ROOT"
         return 1
     fi
 
     BACKEND_STATUS="PASS"
-    cd "$REPO_ROOT"
     return 0
 }
 
