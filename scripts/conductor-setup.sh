@@ -141,7 +141,7 @@ ensure_workspace_database_exists() {
     exit 1
   fi
 
-  PSQL_ARGS=(-X -v ON_ERROR_STOP=1 -d postgres -v "dbname=$INT_DB_NAME")
+  PSQL_ARGS=(-X -v ON_ERROR_STOP=1 -d postgres)
 
   if [ -n "${INT_DB_HOST:-}" ]; then
     PSQL_ARGS+=(-h "$INT_DB_HOST")
@@ -155,11 +155,11 @@ ensure_workspace_database_exists() {
     PSQL_ARGS+=(-U "$INT_DB_USER")
   fi
 
-  if run_psql "${PSQL_ARGS[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname = :'dbname'" | grep -q 1; then
+  if run_psql "${PSQL_ARGS[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname = '$INT_DB_NAME'" | grep -q 1; then
     log "Isolated DB already exists: $INT_DB_NAME"
   else
     log "Creating isolated DB: $INT_DB_NAME"
-    run_psql "${PSQL_ARGS[@]}" -c "CREATE DATABASE :\"dbname\""
+    run_psql "${PSQL_ARGS[@]}" -c "CREATE DATABASE \"$INT_DB_NAME\""
   fi
 }
 
