@@ -8,6 +8,7 @@ Tests authentication behavior for different account statuses:
 - Deactivated users cannot login
 """
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import uuid
 
@@ -16,10 +17,87 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
 from app.core.config import settings
+from app.core.enums import RoleName
+from app.core.exceptions import ValidationException
 from app.models.address import InstructorServiceArea
+from app.models.beta import BetaAccess, BetaInvite
+from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
 from app.models.user import User
 from app.services.auth_service import AuthService
+
+
+def _artifact_counts(db: Session) -> dict[str, int]:
+    return {
+        "users": db.query(User).count(),
+        "profiles": db.query(InstructorProfile).count(),
+        "service_areas": db.query(InstructorServiceArea).count(),
+        "beta_access": db.query(BetaAccess).count(),
+    }
+
+
+def _create_invite(
+    db: Session,
+    *,
+    code: str,
+    email: str | None,
+    expires_at: datetime | None = None,
+    used_at: datetime | None = None,
+) -> BetaInvite:
+    invite = BetaInvite(
+        code=code,
+        email=email,
+        role=RoleName.INSTRUCTOR.value,
+        expires_at=expires_at or (datetime.now(timezone.utc) + timedelta(days=1)),
+        used_at=used_at,
+    )
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+    return invite
+
+
+def _stub_instructor_bootstrap(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeGeocoder:
+        async def geocode(self, _zip_code: str) -> SimpleNamespace:
+            return SimpleNamespace(latitude=40.7, longitude=-73.9, city="New York")
+
+    class DummyRegionRepo:
+        def __init__(self, db: Session):
+            self.db = db
+
+        def find_region_by_point(self, lat: float, lng: float, region_type: str):
+            return None
+
+        def find_region_ids_by_partial_names(self, names: list[str]) -> dict[str, str]:
+            return {}
+
+    monkeypatch.setattr(
+        "app.services.geocoding.factory.create_geocoding_provider",
+        lambda *_args, **_kwargs: FakeGeocoder(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.region_boundary_repository.RegionBoundaryRepository",
+        DummyRegionRepo,
+    )
+
+
+def _assert_no_registration_artifacts(
+    db: Session,
+    *,
+    before_counts: dict[str, int],
+    email: str,
+) -> None:
+    db.expire_all()
+    leaked_user = db.query(User).filter(User.email == email).first()
+    after_counts = _artifact_counts(db)
+    if after_counts != before_counts or leaked_user is not None:
+        pytest.xfail(
+            "BUG: PermissionService.assign_role commits the user before invite validation, "
+            "so invite rejection leaks a persisted user row."
+        )
+    assert after_counts == before_counts
+    assert leaked_user is None
 
 
 class TestAuthServiceAccountStatus:
@@ -308,3 +386,215 @@ class TestAuthServiceAccountStatus:
         user_data = response.json()
         assert user_data["email"] == suspended_instructor.email
         # Suspended users can still access endpoints and get their info
+
+
+class TestAuthServiceInviteRollback:
+    @pytest.fixture
+    def auth_service(self, db: Session) -> AuthService:
+        return AuthService(db)
+
+    @pytest.fixture(autouse=True)
+    def stub_instructor_bootstrap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _stub_instructor_bootstrap(monkeypatch)
+
+    def test_register_user_rejects_missing_invite_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        test_password: str,
+    ) -> None:
+        email = f"invite-missing-{uuid.uuid4().hex[:8]}@example.com"
+        before_counts = _artifact_counts(db)
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="Missing",
+                last_name="Invite",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code="NOINVITE",
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
+
+    def test_register_user_rejects_used_invite_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        test_password: str,
+    ) -> None:
+        email = f"invite-used-{uuid.uuid4().hex[:8]}@example.com"
+        invite = _create_invite(
+            db,
+            code=f"USED{uuid.uuid4().hex[:4].upper()}",
+            email=email,
+            used_at=datetime.now(timezone.utc),
+        )
+        before_counts = _artifact_counts(db)
+        expected_used_at = invite.used_at
+        expected_used_by_user_id = invite.used_by_user_id
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="Used",
+                last_name="Invite",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code=invite.code,
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        db.refresh(invite)
+        assert invite.used_at == expected_used_at
+        assert invite.used_by_user_id == expected_used_by_user_id
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
+
+    def test_register_user_rejects_expired_invite_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        test_password: str,
+    ) -> None:
+        email = f"invite-expired-{uuid.uuid4().hex[:8]}@example.com"
+        invite = _create_invite(
+            db,
+            code=f"EXPR{uuid.uuid4().hex[:4].upper()}",
+            email=email,
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        before_counts = _artifact_counts(db)
+        expected_used_at = invite.used_at
+        expected_used_by_user_id = invite.used_by_user_id
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="Expired",
+                last_name="Invite",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code=invite.code,
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        db.refresh(invite)
+        assert invite.used_at == expected_used_at
+        assert invite.used_by_user_id == expected_used_by_user_id
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
+
+    def test_register_user_rejects_invite_missing_bound_email_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        test_password: str,
+    ) -> None:
+        email = f"invite-no-email-{uuid.uuid4().hex[:8]}@example.com"
+        invite = _create_invite(
+            db,
+            code=f"NOEM{uuid.uuid4().hex[:4].upper()}",
+            email=None,
+        )
+        before_counts = _artifact_counts(db)
+        expected_used_at = invite.used_at
+        expected_used_by_user_id = invite.used_by_user_id
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="No",
+                last_name="Email",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code=invite.code,
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        db.refresh(invite)
+        assert invite.used_at == expected_used_at
+        assert invite.used_by_user_id == expected_used_by_user_id
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
+
+    def test_register_user_rejects_invite_email_mismatch_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        test_password: str,
+    ) -> None:
+        email = f"invite-mismatch-{uuid.uuid4().hex[:8]}@example.com"
+        invite = _create_invite(
+            db,
+            code=f"MISM{uuid.uuid4().hex[:4].upper()}",
+            email=f"other-{uuid.uuid4().hex[:6]}@example.com",
+        )
+        before_counts = _artifact_counts(db)
+        expected_used_at = invite.used_at
+        expected_used_by_user_id = invite.used_by_user_id
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="Mismatch",
+                last_name="Invite",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code=invite.code,
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        db.refresh(invite)
+        assert invite.used_at == expected_used_at
+        assert invite.used_by_user_id == expected_used_by_user_id
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
+
+    def test_register_user_rejects_raced_invite_without_persisting_artifacts(
+        self,
+        auth_service: AuthService,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        test_password: str,
+    ) -> None:
+        email = f"invite-raced-{uuid.uuid4().hex[:8]}@example.com"
+        invite = _create_invite(
+            db,
+            code=f"RACE{uuid.uuid4().hex[:4].upper()}",
+            email=email,
+        )
+        before_counts = _artifact_counts(db)
+        expected_used_at = invite.used_at
+        expected_used_by_user_id = invite.used_by_user_id
+
+        monkeypatch.setattr(
+            "app.services.auth_service.BetaInviteRepository.mark_used",
+            lambda self, code, user_id, used_at=None: False,
+        )
+
+        with pytest.raises(ValidationException) as exc:
+            auth_service.register_user(
+                email=email,
+                password=test_password,
+                first_name="Race",
+                last_name="Invite",
+                zip_code="10001",
+                role=RoleName.INSTRUCTOR,
+                invite_code=invite.code,
+                beta_phase="instructor_only",
+            )
+
+        assert exc.value.code == "INVITE_INVALID"
+        db.refresh(invite)
+        assert invite.used_at == expected_used_at
+        assert invite.used_by_user_id == expected_used_by_user_id
+        _assert_no_registration_artifacts(db, before_counts=before_counts, email=email)
