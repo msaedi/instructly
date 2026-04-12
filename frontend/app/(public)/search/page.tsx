@@ -40,6 +40,7 @@ import {
 } from '@/components/search/filterTypes';
 import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
 import { logger } from '@/lib/logger';
+import { formatDisplayName } from '@/lib/format/displayName';
 import {
   buildContentFiltersParam,
   buildSkillLevelParam,
@@ -216,6 +217,14 @@ const normalizeStringSelections = (value: unknown): string[] =>
         .map((item) => item.trim().toLowerCase())
         .filter(Boolean)
     : [];
+
+const getSearchInstructorId = (instructor: {
+  user_id?: string | null;
+  id?: string | null;
+}): string | null => {
+  const resolvedId = instructor.user_id || instructor.id;
+  return typeof resolvedId === 'string' && resolvedId.trim().length > 0 ? resolvedId : null;
+};
 
 const getFilterSelectionValues = (
   service: Instructor['services'][number] | null | undefined,
@@ -411,6 +420,10 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
   const casted = input.results as unknown as Instructor[];
   const instructors = casted.map((item) => {
     const matchId = input.serviceCatalogId || null;
+    const profilePictureUrl =
+      typeof item.profile_picture_url === 'string' && item.profile_picture_url.trim().length > 0
+        ? item.profile_picture_url
+        : null;
     const teachingLocationsRaw = getArray(item, 'teaching_locations');
     const preferredLocationsRaw = getArray(item, 'preferred_teaching_locations');
     const teachingLocations = normalizeTeachingLocations(
@@ -430,6 +443,7 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
     return {
       ...item,
       ...(teachingLocations.length ? { teaching_locations: teachingLocations } : {}),
+      profile_picture_url: profilePictureUrl,
       _matchedServiceCatalogId: matchId,
       _matchedServiceContext: {
         skill_level: skillLevels.length ? skillLevels : fallbackLevels,
@@ -675,6 +689,7 @@ function SearchPageInner() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
   const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
@@ -1571,7 +1586,7 @@ function SearchPageInner() {
   const availabilityIds = useMemo(
     () =>
       instructors
-        .map((instructor) => instructor.user_id)
+        .map((instructor) => getSearchInstructorId(instructor))
         .filter((id): id is string => Boolean(id)),
     [instructors]
   );
@@ -1721,7 +1736,7 @@ function SearchPageInner() {
         if (ratingValue < minRating) return false;
       }
 
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       const availability = instructorId ? mergedAvailabilityByInstructor[instructorId] : undefined;
       if (!availabilityMatchesFilters(availability, filters)) return false;
 
@@ -1732,7 +1747,7 @@ function SearchPageInner() {
   const instructorCapabilities = useMemo(() => {
     const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
     for (const instructor of sidebarFilteredInstructors) {
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       if (!instructorId) continue;
       const services = Array.isArray(instructor.services) ? instructor.services : [];
       const activeServices = services.filter((svc) => svc && svc.is_active !== false);
@@ -1750,7 +1765,7 @@ function SearchPageInner() {
       Array.from(
         new Set(
           (instructors || [])
-            .map((i) => i.user_id)
+            .map((instructor) => getSearchInstructorId(instructor))
             .filter((id): id is string => Boolean(id))
         )
       ),
@@ -1785,45 +1800,11 @@ function SearchPageInner() {
     };
   }, [coverageGeoJSON, instructorCapabilities]);
 
-  const locationPins = useMemo(() => {
-    const pins: Array<{ lat: number; lng: number; label?: string; instructorId?: string }> = [];
-    for (const instructor of sidebarFilteredInstructors) {
-      const instructorId = instructor.user_id || instructor.id;
-      if (!instructorId) continue;
-      const capabilities = instructorCapabilities.get(instructorId);
-      if (!capabilities?.offersAtLocation) continue;
-      const locations = Array.isArray(instructor.teaching_locations)
-        ? instructor.teaching_locations
-        : [];
-      for (const loc of locations) {
-        const lat = loc.approx_lat;
-        const lng = loc.approx_lng;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-        const label = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
-        if (label) {
-          pins.push({
-            lat,
-            lng,
-            label,
-            instructorId,
-          });
-        } else {
-          pins.push({
-            lat,
-            lng,
-            instructorId,
-          });
-        }
-      }
-    }
-    return pins;
-  }, [sidebarFilteredInstructors, instructorCapabilities]);
-
   const filteredInstructors = useMemo(() => {
     if (!mapFilterIds || mapFilterIds.length === 0) return sidebarFilteredInstructors;
     const idSet = new Set(mapFilterIds);
     return sidebarFilteredInstructors.filter((instructor) => {
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       return instructorId ? idSet.has(instructorId) : false;
     });
   }, [mapFilterIds, sidebarFilteredInstructors]);
@@ -1859,7 +1840,7 @@ function SearchPageInner() {
   const sortedInstructorIds = useMemo(
     () =>
       sortedInstructors
-        .map((instructor) => instructor.user_id || instructor.id)
+        .map((instructor) => getSearchInstructorId(instructor))
         .filter((id): id is string => Boolean(id)),
     [sortedInstructors]
   );
@@ -1868,6 +1849,57 @@ function SearchPageInner() {
     [sortedInstructorIds]
   );
 
+  const locationPins = useMemo(() => {
+    const pins: Array<{
+      lat: number;
+      lng: number;
+      label?: string;
+      instructorId?: string;
+      displayName?: string;
+      profilePictureUrl?: string | null;
+    }> = [];
+
+    for (const instructor of sidebarFilteredInstructors) {
+      const instructorId = getSearchInstructorId(instructor);
+      if (!instructorId) continue;
+
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) continue;
+
+      const displayName = formatDisplayName(
+        instructor.user.first_name,
+        instructor.user.last_initial,
+        'Instructor',
+      );
+      const profilePictureUrl =
+        typeof instructor.profile_picture_url === 'string' &&
+        instructor.profile_picture_url.trim().length > 0
+          ? instructor.profile_picture_url
+          : null;
+
+      const locations = Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations
+        : [];
+      for (const loc of locations) {
+        const lat = loc.approx_lat;
+        const lng = loc.approx_lng;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+        const label = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
+        pins.push({
+          lat,
+          lng,
+          ...(label ? { label } : {}),
+          instructorId,
+          displayName,
+          profilePictureUrl,
+        });
+      }
+    }
+
+    return pins;
+  }, [instructorCapabilities, sidebarFilteredInstructors]);
+
   useEffect(() => {
     setLastClickedArea(null);
     setAreaClickIndex(0);
@@ -1875,8 +1907,7 @@ function SearchPageInner() {
 
   const scrollToInstructor = useCallback((instructorId: string) => {
     setFocusedInstructorId(instructorId);
-    const target = document.getElementById(`instructor-card-${instructorId}`);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    cardRefs.current[instructorId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
 
   const handleAreaClick = useCallback(
@@ -1927,7 +1958,7 @@ function SearchPageInner() {
 
     const coverageFeatures = coverageFeatureCollection?.features ?? [];
     const hasPinData = sidebarFilteredInstructors.some((instructor) => {
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       if (!instructorId) return false;
       const capabilities = instructorCapabilities.get(instructorId);
       if (!capabilities?.offersAtLocation) return false;
@@ -1946,7 +1977,7 @@ function SearchPageInner() {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
-        const instructorId = instructor.user_id || instructor.id;
+        const instructorId = getSearchInstructorId(instructor);
         const instructorFeatures = coverageFeatures.filter((feature) => {
           const rawInstructors = feature.properties?.['instructors'];
           const instructorsList = Array.isArray(rawInstructors)
@@ -1960,7 +1991,7 @@ function SearchPageInner() {
         );
       }
 
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
       const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
         ? instructor.teaching_locations.some((loc) => {
@@ -1991,7 +2022,7 @@ function SearchPageInner() {
 
     const coverageFeatures = coverageFeatureCollection?.features ?? [];
     const hasPinData = sidebarFilteredInstructors.some((instructor) => {
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       if (!instructorId) return false;
       const capabilities = instructorCapabilities.get(instructorId);
       if (!capabilities?.offersAtLocation) return false;
@@ -2011,7 +2042,7 @@ function SearchPageInner() {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
-        const instructorId = instructor.user_id || instructor.id;
+        const instructorId = getSearchInstructorId(instructor);
         const instructorFeatures = coverageFeatures.filter((feature) => {
           const rawInstructors = feature.properties?.['instructors'];
           const instructorsList = Array.isArray(rawInstructors)
@@ -2025,7 +2056,7 @@ function SearchPageInner() {
         );
       }
 
-      const instructorId = instructor.user_id || instructor.id;
+      const instructorId = getSearchInstructorId(instructor);
       const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
       const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
         ? instructor.teaching_locations.some((loc) => {
@@ -2040,7 +2071,7 @@ function SearchPageInner() {
     });
 
     const nextIds = instructorsInBounds
-      .map((instructor) => instructor.user_id || instructor.id)
+      .map((instructor) => getSearchInstructorId(instructor))
       .filter((id): id is string => Boolean(id));
     setMapFilterIds(nextIds);
     setShowSearchAreaButton(false);
@@ -2289,40 +2320,62 @@ function SearchPageInner() {
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
                   {sortedInstructors.map((instructor, index) => {
+                    const instructorId = getSearchInstructorId(instructor);
+                    if (!instructorId) return null;
                     const highlightServiceCatalogId =
                       (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
                       (serviceCatalogId || null);
                     const enhancedInstructor = { ...instructor };
+                    const isHovered = hoveredInstructorId === instructorId;
+                    const isFocused = focusedInstructorId === instructorId;
 
                     const handleInteraction = (
                       interactionType: 'click' | 'hover' | 'bookmark' | 'view_profile' | 'contact' | 'book' = 'click'
                     ) => {
                       if (interactionType === 'view_profile') {
-                        router.push(`/instructors/${instructor.user_id}`);
+                        router.push(`/instructors/${instructorId}`);
                       }
                     };
                     const position = index + 1;
 
                     return (
                       <div
-                        key={instructor.id}
-                        id={`instructor-card-${instructor.user_id}`}
-                        onMouseEnter={() => setHoveredInstructorId(instructor.user_id)}
+                        key={instructorId}
+                        ref={(node) => {
+                          if (node) {
+                            cardRefs.current[instructorId] = node;
+                            return;
+                          }
+                          delete cardRefs.current[instructorId];
+                        }}
+                        id={`instructor-card-${instructorId}`}
+                        data-instructor-id={instructorId}
+                        data-hovered={isHovered ? 'true' : 'false'}
+                        data-focused={isFocused ? 'true' : 'false'}
+                        onMouseEnter={() => setHoveredInstructorId(instructorId)}
                         onMouseLeave={() => setHoveredInstructorId(null)}
-                        onClick={() => setFocusedInstructorId(instructor.user_id)}
-                        className={`snap-center w-full ${isStacked ? 'h-full flex flex-col justify-center' : 'min-h-fit'} cursor-pointer`}
+                        onClick={() => setFocusedInstructorId(instructorId)}
+                        className={`snap-center w-full rounded-2xl transition-[background-color,box-shadow,transform] duration-200 ${
+                          isStacked ? 'h-full flex flex-col justify-center' : 'min-h-fit'
+                        } cursor-pointer ${
+                          isFocused
+                            ? 'bg-purple-50/45 dark:bg-purple-950/10 ring-2 ring-[var(--color-brand-dark)] shadow-[0_14px_32px_rgba(126,34,206,0.18)]'
+                            : isHovered
+                              ? 'bg-purple-50/35 dark:bg-purple-950/5 ring-2 ring-[rgba(126,34,206,0.35)] shadow-[0_10px_24px_rgba(126,34,206,0.12)]'
+                              : ''
+                        }`}
                       >
                         <InstructorCard
                           instructor={enhancedInstructor}
                           searchLessonType={filters.location}
                           {...(highlightServiceCatalogId ? { highlightServiceCatalogId } : {})}
-                          {...(availabilityByInstructor[instructor.user_id] && {
-                            availabilityByFormat: availabilityByInstructor[instructor.user_id],
+                          {...(availabilityByInstructor[instructorId] && {
+                            availabilityByFormat: availabilityByInstructor[instructorId],
                           })}
                           onViewProfile={() => {
                             trackSearchClick({
                               serviceId: enhancedInstructor.services?.[0]?.id || '',
-                              instructorId: enhancedInstructor.user_id,
+                              instructorId,
                               position,
                               action: 'view',
                             });
@@ -2398,6 +2451,8 @@ function SearchPageInner() {
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
                 locationPins={locationPins}
+                onPinHover={setHoveredInstructorId}
+                onPinClick={scrollToInstructor}
                 onBoundsChange={handleMapBoundsChange}
                 showSearchAreaButton={showSearchAreaButton}
                 onSearchArea={handleSearchArea}
@@ -2409,14 +2464,14 @@ function SearchPageInner() {
       </div>
 
       {showTimeSelection && timeSelectionContext && (
-        <TimeSelectionModal
-          isOpen={showTimeSelection}
-          onClose={() => setShowTimeSelection(false)}
-          instructor={{
-            user_id: timeSelectionContext.instructor.user_id,
-            user: {
-              first_name: timeSelectionContext.instructor.user.first_name,
-              last_initial: timeSelectionContext.instructor.user.last_initial,
+            <TimeSelectionModal
+              isOpen={showTimeSelection}
+              onClose={() => setShowTimeSelection(false)}
+              instructor={{
+                user_id: getSearchInstructorId(timeSelectionContext.instructor) || '',
+                user: {
+                  first_name: timeSelectionContext.instructor.user.first_name,
+                  last_initial: timeSelectionContext.instructor.user.last_initial,
             },
             services: (Array.isArray(timeSelectionContext.instructor.services)
               ? timeSelectionContext.instructor.services

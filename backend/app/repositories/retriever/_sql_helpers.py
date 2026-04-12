@@ -145,6 +145,7 @@ def _build_grouped_instructor_search_tail() -> str:
                     ip.bio,
                     ip.years_experience,
                     u.profile_picture_key,
+                    u.profile_picture_version,
                     (ip.identity_verified_at IS NOT NULL) as verified,
                     ip.is_founding_instructor
                 FROM instructor_matches im
@@ -183,6 +184,7 @@ def _build_grouped_instructor_search_tail() -> str:
                 LEFT(id.bio, 150) as bio_snippet,
                 id.years_experience,
                 id.profile_picture_key,
+                id.profile_picture_version,
                 id.verified,
                 id.is_founding_instructor,
                 id.matching_services,
@@ -238,6 +240,7 @@ def _map_grouped_instructor_row(row: Any) -> Dict[str, Any]:
         "bio_snippet": row.bio_snippet,
         "years_experience": row.years_experience,
         "profile_picture_key": row.profile_picture_key,
+        "profile_picture_version": row.profile_picture_version,
         "verified": row.verified,
         "is_founding_instructor": bool(row.is_founding_instructor),
         "matching_services": row.matching_services,
@@ -259,6 +262,7 @@ def _build_instructor_cards_sql() -> str:
                 LEFT(ip.bio, 150) as bio_snippet,
                 ip.years_experience,
                 u.profile_picture_key,
+                u.profile_picture_version,
                 (ip.identity_verified_at IS NOT NULL) as verified,
                 ip.is_founding_instructor,
                 rs.avg_rating,
@@ -321,6 +325,9 @@ def _map_instructor_card_row(row: Any) -> Dict[str, Any]:
         "bio_snippet": row.bio_snippet,
         "years_experience": int(row.years_experience) if row.years_experience is not None else None,
         "profile_picture_key": row.profile_picture_key,
+        "profile_picture_version": int(row.profile_picture_version)
+        if row.profile_picture_version is not None
+        else None,
         "verified": bool(row.verified),
         "is_founding_instructor": bool(row.is_founding_instructor),
         "avg_rating": float(row.avg_rating) if row.avg_rating is not None else None,

@@ -130,6 +130,9 @@ export interface InstructorProfile {
   /** Top-level profile picture version (mirrors user.profile_picture_version) */
   profile_picture_version?: number;
 
+  /** Signed profile picture URL when available */
+  profile_picture_url?: string | null;
+
   /** Services offered by this instructor */
   services: InstructorService[];
 

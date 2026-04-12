@@ -11,9 +11,20 @@ export async function loadSearchListSchema() {
     const Service = z.object({
       id: z.string(),
       service_catalog_id: z.string(),
-      hourly_rate: z.number(),
+      hourly_rate: z.number().optional(),
+      min_hourly_rate: z.number().optional().nullable(),
+      name: z.string().optional().nullable(),
       description: z.string().optional(),
       duration_options: z.array(z.number()).nonempty(),
+      format_prices: z
+        .array(
+          z.object({
+            format: z.string(),
+            hourly_rate: z.number(),
+          }),
+        )
+        .optional()
+        .default([]),
       is_active: z.boolean().optional(),
       levels_taught: z.array(z.string()).optional().default([]),
       age_groups: z.array(z.string()).optional().default([]),
@@ -42,6 +53,17 @@ export async function loadSearchListSchema() {
       years_experience: z.number(),
       created_at: z.string(),
       updated_at: z.string().optional(),
+      profile_picture_url: z.string().nullable().optional(),
+      preferred_teaching_locations: z
+        .array(
+          z.object({
+            approx_lat: z.number().nullable().optional(),
+            approx_lng: z.number().nullable().optional(),
+            neighborhood: z.string().nullable().optional(),
+          }),
+        )
+        .optional()
+        .default([]),
       user: User,
       services: z.array(Service),
     });

@@ -104,7 +104,11 @@ def test_initialize_symspell_handles_load_failure(monkeypatch):
 
 
 def test_get_symspell_initializes_when_missing(monkeypatch):
-    sentinel = object()
+    class FakeSym:
+        def lookup(self, *args, **kwargs):
+            return []
+
+    sentinel = FakeSym()
     typo_correction._symspell = None
     monkeypatch.setattr(typo_correction, "_initialize_symspell", lambda: sentinel)
     assert typo_correction.get_symspell() is sentinel

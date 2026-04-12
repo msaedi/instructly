@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Sequence
 from pydantic import ConfigDict, Field
 
 from ...utils.privacy import format_last_initial
+from ...utils.profile_picture_urls import build_photo_url
 from ..address import ServiceAreaNeighborhoodOut
 from ..base import StandardizedModel
 from ..service_pricing import ServiceFormatPriceOut
@@ -80,6 +81,10 @@ class _InstructorProfileResponseCommon(InstructorProfileBase):
     service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
     service_area_boroughs: List[str] = Field(default_factory=list)
     service_area_summary: Optional[str] = Field(default=None)
+    profile_picture_url: Optional[str] = Field(
+        default=None,
+        description="Signed profile picture URL when available",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -314,6 +319,13 @@ class _InstructorProfileResponseCommon(InstructorProfileBase):
             "service_area_neighborhoods": neighborhoods_output,
             "service_area_boroughs": sorted_boroughs,
             "service_area_summary": service_area_summary,
+            "profile_picture_url": build_photo_url(
+                getattr(getattr(instructor_profile, "user", None), "profile_picture_key", None),
+                version=getattr(
+                    getattr(instructor_profile, "user", None), "profile_picture_version", None
+                ),
+                variant="thumb",
+            ),
         }
 
 

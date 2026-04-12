@@ -1,7 +1,8 @@
-import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
 import InstructorCoverageMap from '../InstructorCoverageMap';
 
-// Mock the logger
 jest.mock('@/lib/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -11,11 +12,9 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
-// Store references to event handlers
 let moveEndHandler: (() => void) | null = null;
 let zoomEndHandler: (() => void) | null = null;
 
-// Create mock map instance
 const mockMap = {
   getCenter: jest.fn(() => ({ lat: 40.7831, lng: -73.9712 })),
   getZoom: jest.fn(() => 12),
@@ -42,22 +41,147 @@ const mockMap = {
   stop: jest.fn(),
 };
 
-// Mock react-leaflet
+type MarkerRecord = {
+  remove: jest.Mock;
+  iconHtml: string;
+  title?: string;
+};
+
+const markerRecords: MarkerRecord[] = [];
+const controlInstances: Array<{
+  onAdd: ((map: unknown) => HTMLElement) | undefined;
+  remove: jest.Mock;
+  position: string;
+}> = [];
+
+type MockMediaQueryList = MediaQueryList & {
+  trigger: (matches: boolean) => void;
+};
+
+const setMatchMediaMock = (matches = false): MockMediaQueryList => {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  let currentMatches = matches;
+  const mediaQuery = {
+    get matches() {
+      return currentMatches;
+    },
+    media: '(prefers-color-scheme: dark)',
+    onchange: null,
+    addEventListener: jest.fn((_event: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    }),
+    removeEventListener: jest.fn(
+      (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener);
+      }
+    ),
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    trigger(nextMatches: boolean) {
+      currentMatches = nextMatches;
+      listeners.forEach((listener) => listener({ matches: nextMatches } as MediaQueryListEvent));
+    },
+  } as MockMediaQueryList;
+
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: jest.fn().mockImplementation(() => mediaQuery),
+  });
+
+  return mediaQuery;
+};
+
+const setGeolocationMock = (
+  value:
+    | {
+        getCurrentPosition: jest.Mock;
+      }
+    | undefined
+) => {
+  Object.defineProperty(global.navigator, 'geolocation', {
+    configurable: true,
+    value,
+  });
+};
+
+jest.mock('react-leaflet-cluster', () => {
+  const MockMarkerClusterGroup = ({
+    children,
+    chunkedLoading,
+    maxClusterRadius,
+    showCoverageOnHover,
+    spiderfyOnMaxZoom,
+    iconCreateFunction,
+  }: {
+    children: React.ReactNode;
+    chunkedLoading?: boolean;
+    maxClusterRadius?: number;
+    showCoverageOnHover?: boolean;
+    spiderfyOnMaxZoom?: boolean;
+    iconCreateFunction?: (cluster: { getChildCount: () => number }) => { options?: { html?: string } };
+  }) => {
+    const childCount = React.Children.toArray(children).length;
+    const clusterIcon = iconCreateFunction?.({
+      getChildCount: () => childCount,
+    });
+
+    return (
+      <div
+        data-testid="marker-cluster-group"
+        data-chunked-loading={chunkedLoading ? 'true' : 'false'}
+        data-max-cluster-radius={String(maxClusterRadius ?? '')}
+        data-show-coverage-on-hover={showCoverageOnHover ? 'true' : 'false'}
+        data-spiderfy-on-max-zoom={spiderfyOnMaxZoom ? 'true' : 'false'}
+        data-cluster-icon-html={clusterIcon?.options?.html ?? ''}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  MockMarkerClusterGroup.displayName = 'MockMarkerClusterGroup';
+
+  return {
+    __esModule: true,
+    default: MockMarkerClusterGroup,
+  };
+});
+
 jest.mock('react-leaflet', () => ({
-  MapContainer: ({ children, whenReady }: {
+  MapContainer: ({
+    children,
+    whenReady,
+  }: {
     children: React.ReactNode;
     whenReady?: () => void;
-    [key: string]: unknown;
   }) => {
     React.useEffect(() => {
       whenReady?.();
     }, [whenReady]);
+
     return <div data-testid="map-container">{children}</div>;
   },
-  TileLayer: ({ url, eventHandlers }: { url: string; eventHandlers?: { tileerror?: () => void } }) => (
-    <div data-testid="tile-layer" data-url={url} onClick={() => eventHandlers?.tileerror?.()} />
+  TileLayer: ({
+    url,
+    eventHandlers,
+  }: {
+    url: string;
+    eventHandlers?: { tileerror?: () => void };
+  }) => (
+    <button
+      type="button"
+      data-testid="tile-layer"
+      data-url={url}
+      onClick={() => eventHandlers?.tileerror?.()}
+    />
   ),
-  GeoJSON: ({ data, style, onEachFeature }: {
+  GeoJSON: ({
+    data,
+    style,
+    onEachFeature,
+  }: {
     data: { features?: Array<Record<string, unknown>> };
     style?: (feature: unknown) => object;
     onEachFeature?: (feature: unknown, layer: unknown) => void;
@@ -65,37 +189,32 @@ jest.mock('react-leaflet', () => ({
     const features = Array.isArray(data?.features) ? data.features : [];
 
     return (
-      <div data-testid="geojson-layer" data-features={JSON.stringify(data)}>
+      <div data-testid="geojson-layer">
         {features.map((feature, index) => {
+          const properties = (feature as { properties?: { name?: string; region_id?: string } } | undefined)
+            ?.properties;
           const mockLayer = {
             bindPopup: jest.fn(),
             on: jest.fn(),
           };
-          if (style) {
-            style(feature);
-          }
-          if (onEachFeature) {
-            onEachFeature(feature, mockLayer);
-          }
+          const styleResult = style?.(feature);
+          onEachFeature?.(feature, mockLayer);
           const clickHandler = (
             mockLayer.on as jest.Mock
           ).mock.calls.find((call) => typeof call[0]?.click === 'function')?.[0]?.click as
             | (() => void)
             | undefined;
-          const name =
-            String((feature['properties'] as { name?: string; region_id?: string } | undefined)?.name || '') ||
-            String(
-              (feature['properties'] as { name?: string; region_id?: string } | undefined)?.region_id ||
-                `feature-${index}`
-            );
+          const key = String(properties?.name || properties?.region_id || '') || `feature-${index}`;
 
           return (
             <button
-              key={name}
+              key={key}
+              type="button"
               data-testid={`geojson-feature-${index}`}
+              data-style={JSON.stringify(styleResult ?? {})}
               onClick={() => clickHandler?.()}
             >
-              {name}
+              {key}
             </button>
           );
         })}
@@ -103,53 +222,118 @@ jest.mock('react-leaflet', () => ({
     );
   },
   AttributionControl: () => <div data-testid="attribution-control" />,
+  Marker: ({
+    children,
+    icon,
+    eventHandlers,
+    position,
+    title,
+  }: {
+    children?: React.ReactNode;
+    icon?: { options?: { html?: string } };
+    eventHandlers?: {
+      mouseover?: () => void;
+      mouseout?: () => void;
+      click?: () => void;
+    };
+    position: [number, number];
+    title?: string;
+  }) => {
+    const iconHtml = icon?.options?.html ?? '';
+    React.useEffect(() => {
+      const record: MarkerRecord = {
+        remove: jest.fn(),
+        iconHtml,
+        ...(title ? { title } : {}),
+      };
+      markerRecords.push(record);
+      return () => {
+        record.remove();
+      };
+    }, [iconHtml, title]);
+
+    return (
+      <button
+        type="button"
+        data-testid="map-marker"
+        data-lat={String(position[0])}
+        data-lng={String(position[1])}
+        data-title={title ?? ''}
+        data-icon-html={iconHtml}
+        onMouseOver={() => eventHandlers?.mouseover?.()}
+        onMouseOut={() => eventHandlers?.mouseout?.()}
+        onClick={() => eventHandlers?.click?.()}
+      >
+        {children}
+      </button>
+    );
+  },
+  Popup: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="marker-popup">{children}</div>
+  ),
   useMap: () => mockMap,
 }));
 
-// Store control instances for testing
-const controlInstances: Array<{
-  onAdd: ((map: unknown) => HTMLElement) | undefined;
-  remove: jest.Mock;
-  position: string;
-}> = [];
-
-// Track created markers for testing
-const createdMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock }> = [];
-const createdPinMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock; bindPopup: jest.Mock }> = [];
-
-const restoreEnvVar = (key: string, value: string | undefined) => {
-  if (value === undefined) {
-    delete process.env[key];
-    return;
-  }
-  process.env[key] = value;
-};
-
-// Mock Leaflet with better control simulation
 jest.mock('leaflet', () => {
-  const L = {
-    Control: jest.fn().mockImplementation(function (this: {
-      position: string;
-      onAdd?: (map: unknown) => HTMLElement;
-    }, options?: { position?: string }) {
-      this.position = options?.position || 'bottomright';
-      const control = {
-        position: this.position,
-        onAdd: undefined as ((map: unknown) => HTMLElement) | undefined,
+  const controlFactory = jest.fn().mockImplementation(function mockControl(
+    this: { position: string },
+    options?: { position?: string }
+  ) {
+    this.position = options?.position || 'bottomright';
+    const control = {
+      position: this.position,
+      onAdd: undefined as ((map: unknown) => HTMLElement) | undefined,
+      remove: jest.fn(),
+      addTo: jest.fn().mockImplementation((map: unknown) => {
+        if (control.onAdd) {
+          document.body.appendChild(control.onAdd(map));
+        }
+        controlInstances.push(control);
+        return control;
+      }),
+    };
+    return control;
+  });
+
+  const divIcon = jest.fn((options: Record<string, unknown>) => ({ options }));
+
+  return {
+    __esModule: true,
+    default: {
+      Control: controlFactory,
+      DomUtil: {
+        create: jest.fn((tag: string) => document.createElement(tag)),
+      },
+      DomEvent: {
+        disableClickPropagation: jest.fn(),
+        disableScrollPropagation: jest.fn(),
+      },
+      geoJSON: jest.fn(() => ({
+        getBounds: jest.fn(() => ({
+          extend: jest.fn(function extend() {
+            return this;
+          }),
+          isValid: jest.fn(() => true),
+          getNorth: () => 41,
+          getSouth: () => 40,
+          getEast: () => -73,
+          getWest: () => -74,
+        })),
         remove: jest.fn(),
-        addTo: jest.fn().mockImplementation((map: unknown) => {
-          // Execute onAdd when addTo is called to exercise the control logic
-          if (control.onAdd) {
-            const element = control.onAdd(map);
-            // Append to document for testing
-            document.body.appendChild(element);
-          }
-          controlInstances.push(control);
-          return control;
+      })),
+      circleMarker: jest.fn(() => ({
+        addTo: jest.fn().mockReturnThis(),
+        remove: jest.fn(),
+      })),
+      divIcon,
+      latLngBounds: jest.fn(() => ({
+        extend: jest.fn(function extend() {
+          return this;
         }),
-      };
-      return control;
-    }),
+        isValid: jest.fn(() => true),
+      })),
+    },
+    Control: controlFactory,
     DomUtil: {
       create: jest.fn((tag: string) => document.createElement(tag)),
     },
@@ -159,6 +343,9 @@ jest.mock('leaflet', () => {
     },
     geoJSON: jest.fn(() => ({
       getBounds: jest.fn(() => ({
+        extend: jest.fn(function extend() {
+          return this;
+        }),
         isValid: jest.fn(() => true),
         getNorth: () => 41,
         getSouth: () => 40,
@@ -167,36 +354,19 @@ jest.mock('leaflet', () => {
       })),
       remove: jest.fn(),
     })),
-    circleMarker: jest.fn(() => {
-      const marker = {
-        addTo: jest.fn().mockReturnThis(),
-        remove: jest.fn(),
-      };
-      createdMarkers.push(marker);
-      return marker;
-    }),
-    divIcon: jest.fn((options: Record<string, unknown>) => options),
-    marker: jest.fn(() => {
-      const marker = {
-        addTo: jest.fn().mockReturnThis(),
-        remove: jest.fn(),
-        bindPopup: jest.fn().mockReturnThis(),
-      };
-      createdPinMarkers.push(marker);
-      return marker;
-    }),
+    circleMarker: jest.fn(() => ({
+      addTo: jest.fn().mockReturnThis(),
+      remove: jest.fn(),
+    })),
+    divIcon,
     latLngBounds: jest.fn(() => ({
-      extend: jest.fn(function () {
+      extend: jest.fn(function extend() {
         return this;
       }),
       isValid: jest.fn(() => true),
     })),
   };
-  return L;
 });
-
-// Import React after mocks
-import React from 'react';
 
 describe('InstructorCoverageMap', () => {
   const mockFeatureCollection = {
@@ -212,20 +382,6 @@ describe('InstructorCoverageMap', () => {
           name: 'Upper West Side',
           region_id: 'uws',
           instructors: ['inst-1', 'inst-2'],
-          instructors_count: 2,
-        },
-      },
-      {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
-        },
-        properties: {
-          name: 'Chelsea',
-          region_id: 'chelsea',
-          instructors: ['inst-3'],
-          instructors_count: 1,
         },
       },
     ],
@@ -233,154 +389,85 @@ describe('InstructorCoverageMap', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    markerRecords.length = 0;
     controlInstances.length = 0;
-    createdMarkers.length = 0;
-    createdPinMarkers.length = 0;
     moveEndHandler = null;
     zoomEndHandler = null;
-    // Clear document body of any appended controls
-    document.body.textContent = '';
+    document.body.innerHTML = '';
+    setMatchMediaMock(false);
+    setGeolocationMock({
+      getCurrentPosition: jest.fn(),
+    });
+    mockMap.getCenter.mockReturnValue({ lat: 40.7831, lng: -73.9712 });
+    mockMap.getZoom.mockReturnValue(12);
   });
 
-  it('renders map container', () => {
+  it('renders the map shell and fallback tile provider switching', () => {
     render(<InstructorCoverageMap />);
 
     expect(screen.getByTestId('map-container')).toBeInTheDocument();
-  });
-
-  it('renders with default height', () => {
-    const { container } = render(<InstructorCoverageMap />);
-
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveStyle({ height: '420px' });
-  });
-
-  it('renders with custom numeric height', () => {
-    const { container } = render(<InstructorCoverageMap height={600} />);
-
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveStyle({ height: '600px' });
-  });
-
-  it('renders with custom string height', () => {
-    const { container } = render(<InstructorCoverageMap height="100vh" />);
-
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveStyle({ height: '100vh' });
-  });
-
-  it('renders tile layer', () => {
-    render(<InstructorCoverageMap />);
-
     expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
-  });
-
-  it('renders attribution control', () => {
-    render(<InstructorCoverageMap />);
-
     expect(screen.getByTestId('attribution-control')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('tile-layer'));
+
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      expect.stringContaining('cartocdn')
+    );
   });
 
-  it('renders GeoJSON layer when showCoverage is true and features exist', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        showCoverage={true}
-      />
+  it('subscribes to color scheme changes for Jawg tiles and cleans up the listener on unmount', () => {
+    const priorJawgToken = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'jawg-token';
+    const mediaQuery = setMatchMediaMock(true);
+
+    const { unmount } = render(<InstructorCoverageMap />);
+
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      expect.stringContaining('jawg-dark')
     );
 
-    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
-  });
-
-  it('does not render GeoJSON layer when showCoverage is false', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        showCoverage={false}
-      />
-    );
-
-    expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
-  });
-
-  it('does not render GeoJSON layer when featureCollection is null', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={null}
-        showCoverage={true}
-      />
-    );
-
-    expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
-  });
-
-  it('does not render GeoJSON layer when featureCollection has no features', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={{ type: 'FeatureCollection', features: [] }}
-        showCoverage={true}
-      />
-    );
-
-    expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
-  });
-
-  it('updates feature collection when prop changes', () => {
-    const { rerender } = render(
-      <InstructorCoverageMap featureCollection={null} showCoverage={true} />
-    );
-
-    expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
-
-    rerender(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        showCoverage={true}
-      />
-    );
-
-    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
-  });
-
-  it('uses fallback tile URL when Jawg token is not set', () => {
-    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
-    delete process.env['NEXT_PUBLIC_JAWG_TOKEN'];
-
-    render(<InstructorCoverageMap />);
-
-    const tileLayer = screen.getByTestId('tile-layer');
-    expect(tileLayer.getAttribute('data-url')).toContain('cartocdn');
-
-    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
-  });
-
-  it('handles tile error by switching to fallback URL', () => {
-    render(<InstructorCoverageMap />);
-
-    const tileLayer = screen.getByTestId('tile-layer');
-
-    // Simulate tile error
     act(() => {
-      fireEvent.click(tileLayer);
+      mediaQuery.trigger(false);
     });
 
-    // Should switch to fallback
-    expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
-  });
-
-  it('applies highlight style for specific instructor', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        highlightInstructorId="inst-1"
-      />
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      expect.stringContaining('jawg-sunny')
     );
 
-    // GeoJSON layer should be rendered with highlighting applied
-    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    const registeredHandler = (mediaQuery.addEventListener as jest.Mock).mock.calls[0]?.[1];
+
+    unmount();
+
+    expect(mediaQuery.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+    expect(mediaQuery.removeEventListener).toHaveBeenCalledWith('change', registeredHandler);
+
+    if (typeof priorJawgToken === 'string') {
+      process.env['NEXT_PUBLIC_JAWG_TOKEN'] = priorJawgToken;
+    } else {
+      delete process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+    }
   });
 
-  it('calls onAreaClick with area name and instructor ids when a polygon is clicked', () => {
+  it('renders safely when matchMedia is unavailable', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: undefined,
+    });
+
+    render(<InstructorCoverageMap />);
+
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      expect.stringContaining('cartocdn')
+    );
+  });
+
+  it('calls onAreaClick with the selected coverage feature ids', () => {
     const onAreaClick = jest.fn();
 
     render(
@@ -396,1093 +483,641 @@ describe('InstructorCoverageMap', () => {
     expect(onAreaClick).toHaveBeenCalledWith('Upper West Side', ['inst-1', 'inst-2']);
   });
 
-  describe('MapBoundsTracker', () => {
-    it('calls onBoundsChange when moveend event fires', () => {
-      const onBoundsChange = jest.fn();
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          onBoundsChange={onBoundsChange}
-        />
-      );
+  it('handles GeoJSON fallback properties and highlighted coverage styling', () => {
+    const onAreaClick = jest.fn();
 
-      // Map event handlers should be registered
-      expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
-      expect(mockMap.on).toHaveBeenCalledWith('zoomend', expect.any(Function));
-
-      // Trigger moveend event
-      act(() => {
-        if (moveEndHandler) moveEndHandler();
-      });
-
-      // Verify onBoundsChange was called with a bounds-like object
-      expect(onBoundsChange).toHaveBeenCalledWith(
-        expect.objectContaining({
-          getNorth: expect.any(Function),
-          getSouth: expect.any(Function),
-          getEast: expect.any(Function),
-          getWest: expect.any(Function),
-        })
-      );
-    });
-
-    it('calls onBoundsChange when zoomend event fires', () => {
-      const onBoundsChange = jest.fn();
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          onBoundsChange={onBoundsChange}
-        />
-      );
-
-      // Trigger zoomend event
-      act(() => {
-        if (zoomEndHandler) zoomEndHandler();
-      });
-
-      // If zoomEndHandler was registered, onBoundsChange should be called
-      if (zoomEndHandler) {
-        expect(onBoundsChange).toHaveBeenCalled();
-      }
-    });
-
-    it('does not throw when onBoundsChange is not provided', () => {
-      expect(() => {
-        render(
-          <InstructorCoverageMap
-            featureCollection={mockFeatureCollection}
-          />
-        );
-      }).not.toThrow();
-    });
-
-    it('cleans up event listeners on unmount', () => {
-      const onBoundsChange = jest.fn();
-      const { unmount } = render(
-        <InstructorCoverageMap onBoundsChange={onBoundsChange} />
-      );
-
-      unmount();
-
-      expect(mockMap.off).toHaveBeenCalledWith('moveend', expect.any(Function));
-      expect(mockMap.off).toHaveBeenCalledWith('zoomend', expect.any(Function));
-    });
-  });
-
-  describe('SearchAreaButton', () => {
-    it('creates search area button when showSearchAreaButton is true', () => {
-      const onSearchArea = jest.fn();
-      render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          onSearchArea={onSearchArea}
-        />
-      );
-
-      // Button should be created by the control
-      const button = document.querySelector('button');
-      expect(button).toBeInTheDocument();
-    });
-
-    it('calls onSearchArea when button is clicked', () => {
-      const onSearchArea = jest.fn();
-      render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          onSearchArea={onSearchArea}
-        />
-      );
-
-      const buttons = document.querySelectorAll('button');
-      // Find the search button (it's the one with Search this area text or in topleft position)
-      const searchButton = Array.from(buttons).find(btn =>
-        btn.textContent?.toLowerCase().includes('search')
-      );
-
-      if (searchButton) {
-        act(() => {
-          searchButton.click();
-        });
-        expect(onSearchArea).toHaveBeenCalled();
-      }
-    });
-
-    it('handles mouseover and mouseout on search button', () => {
-      const onSearchArea = jest.fn();
-      render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          onSearchArea={onSearchArea}
-        />
-      );
-
-      const buttons = document.querySelectorAll('button');
-      const searchButton = Array.from(buttons).find(btn =>
-        btn.textContent?.toLowerCase().includes('search')
-      );
-
-      if (searchButton) {
-        // Test mouseover - should change box-shadow
-        act(() => {
-          searchButton.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-        });
-
-        // Test mouseout - should revert box-shadow
-        act(() => {
-          searchButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-        });
-
-        // Should still be in the document after hover events
-        expect(searchButton).toBeInTheDocument();
-      }
-    });
-
-    it('does not create search area button when onSearchArea is not provided', () => {
-      render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          // No onSearchArea callback
-        />
-      );
-
-      const buttons = document.querySelectorAll('button');
-      const searchButton = Array.from(buttons).find(btn =>
-        btn.textContent?.toLowerCase().includes('search')
-      );
-      expect(searchButton).toBeUndefined();
-    });
-
-    it('removes search area button on unmount', () => {
-      const onSearchArea = jest.fn();
-      const { unmount } = render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          onSearchArea={onSearchArea}
-        />
-      );
-
-      unmount();
-
-      // Control's remove should have been called
-      const controlWithSearchButton = controlInstances.find(
-        c => c.position === 'topleft'
-      );
-      expect(controlWithSearchButton?.remove).toHaveBeenCalled();
-    });
-  });
-
-  describe('CustomControls', () => {
-    it('creates zoom and locate buttons', () => {
-      render(<InstructorCoverageMap />);
-
-      // Should have created buttons with titles
-      const locateButton = document.querySelector('button[title="Show your location"]');
-      const zoomInButton = document.querySelector('button[title="Zoom in"]');
-      const zoomOutButton = document.querySelector('button[title="Zoom out"]');
-
-      expect(locateButton).toBeInTheDocument();
-      expect(zoomInButton).toBeInTheDocument();
-      expect(zoomOutButton).toBeInTheDocument();
-    });
-
-    it('calls zoomIn when zoom in button is clicked', () => {
-      render(<InstructorCoverageMap />);
-
-      const zoomInButton = document.querySelector('button[title="Zoom in"]') as HTMLButtonElement | null;
-      expect(zoomInButton).toBeInTheDocument();
-
-      act(() => {
-        zoomInButton?.click();
-      });
-
-      expect(mockMap.zoomIn).toHaveBeenCalledWith(1);
-    });
-
-    it('calls zoomOut when zoom out button is clicked', () => {
-      render(<InstructorCoverageMap />);
-
-      const zoomOutButton = document.querySelector('button[title="Zoom out"]') as HTMLButtonElement | null;
-      expect(zoomOutButton).toBeInTheDocument();
-
-      act(() => {
-        zoomOutButton?.click();
-      });
-
-      expect(mockMap.zoomOut).toHaveBeenCalledWith(1);
-    });
-
-    it('handles locate button click with geolocation', async () => {
-      const mockGeolocation = {
-        getCurrentPosition: jest.fn((success) => {
-          success({
-            coords: {
-              latitude: 40.7,
-              longitude: -74.0,
-            },
-          });
-        }),
-      };
-      Object.defineProperty(navigator, 'geolocation', {
-        value: mockGeolocation,
-        configurable: true,
-      });
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-      expect(locateButton).toBeInTheDocument();
-
-      act(() => {
-        locateButton?.click();
-      });
-
-      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
-      // After getting position, map should fly to the location
-      await waitFor(() => {
-        expect(mockMap.flyTo).toHaveBeenCalled();
-      });
-    });
-
-    it('handles locate button click with setView for close positions', async () => {
-      // Set map center close to test coordinates
-      mockMap.getCenter.mockReturnValue({ lat: 40.7, lng: -74.0 });
-
-      const mockGeolocation = {
-        getCurrentPosition: jest.fn((success) => {
-          success({
-            coords: {
-              latitude: 40.7001, // Very close to map center
-              longitude: -74.0001,
-            },
-          });
-        }),
-      };
-      Object.defineProperty(navigator, 'geolocation', {
-        value: mockGeolocation,
-        configurable: true,
-      });
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-
-      act(() => {
-        locateButton?.click();
-      });
-
-      await waitFor(() => {
-        expect(mockMap.setView).toHaveBeenCalled();
-      });
-    });
-
-    it('handles locate button click when geolocation is not available', () => {
-      const originalGeolocation = navigator.geolocation;
-      // @ts-expect-error - intentionally testing missing geolocation
-      delete navigator.geolocation;
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-
-      act(() => {
-        locateButton?.click();
-      });
-
-      // Should not throw
-      expect(locateButton).toBeInTheDocument();
-
-      // Restore
-      Object.defineProperty(navigator, 'geolocation', {
-        value: originalGeolocation,
-        configurable: true,
-      });
-    });
-
-    it('handles geolocation error gracefully', () => {
-      const mockGeolocation = {
-        getCurrentPosition: jest.fn((_success, error) => {
-          error(new Error('Geolocation denied'));
-        }),
-      };
-      Object.defineProperty(navigator, 'geolocation', {
-        value: mockGeolocation,
-        configurable: true,
-      });
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-
-      act(() => {
-        locateButton?.click();
-      });
-
-      // Should handle error gracefully without crashing
-      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
-    });
-
-    it('handles multiple locate button clicks gracefully', async () => {
-      jest.useFakeTimers();
-      const mockGeolocation = {
-        getCurrentPosition: jest.fn((success) => {
-          // Simulate delayed response
-          setTimeout(() => {
-            success({
-              coords: {
-                latitude: 40.7,
-                longitude: -74.0,
+    render(
+      <InstructorCoverageMap
+        featureCollection={{
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: null,
+              properties: {
+                region_id: 'chelsea',
+                instructors: ['inst-3', 42, ''] as unknown as string[],
               },
-            });
-          }, 100);
-        }),
-      };
-      Object.defineProperty(navigator, 'geolocation', {
-        value: mockGeolocation,
-        configurable: true,
-      });
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-
-      // Click twice quickly - should not throw
-      expect(() => {
-        act(() => {
-          locateButton?.click();
-          locateButton?.click();
-        });
-      }).not.toThrow();
-
-      // Geolocation should have been requested
-      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
-
-      act(() => {
-        jest.runOnlyPendingTimers();
-      });
-      jest.useRealTimers();
-    });
-
-    it('removes custom controls on unmount', () => {
-      const { unmount } = render(<InstructorCoverageMap />);
-
-      unmount();
-
-      // Control's remove should have been called
-      const controlWithZoom = controlInstances.find(
-        c => c.position === 'bottomright'
-      );
-      expect(controlWithZoom?.remove).toHaveBeenCalled();
-    });
-
-    it('replaces previous location marker when clicking locate again', async () => {
-      // Track moveend handlers registered by the component
-      const moveendHandlers: Array<() => void> = [];
-      const zoomendHandlers: Array<() => void> = [];
-
-      mockMap.on.mockImplementation((event: string, handler: () => void) => {
-        if (event === 'moveend') {
-          moveEndHandler = handler;
-          moveendHandlers.push(handler);
-        }
-        if (event === 'zoomend') {
-          zoomEndHandler = handler;
-          zoomendHandlers.push(handler);
-        }
-      });
-
-      mockMap.off.mockImplementation((event: string, handler?: () => void) => {
-        if (handler) {
-          if (event === 'moveend') {
-            const idx = moveendHandlers.indexOf(handler);
-            if (idx >= 0) moveendHandlers.splice(idx, 1);
-          }
-          if (event === 'zoomend') {
-            const idx = zoomendHandlers.indexOf(handler);
-            if (idx >= 0) zoomendHandlers.splice(idx, 1);
-          }
-        }
-      });
-
-      const mockGeolocation = {
-        getCurrentPosition: jest.fn((success) => {
-          success({
-            coords: {
-              latitude: 40.7,
-              longitude: -74.0,
             },
-          });
-        }),
-      };
-      Object.defineProperty(navigator, 'geolocation', {
-        value: mockGeolocation,
-        configurable: true,
-      });
-
-      render(<InstructorCoverageMap />);
-
-      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
-
-      // First click creates first marker
-      await act(async () => {
-        locateButton?.click();
-        await new Promise(resolve => setTimeout(resolve, 10));
-      });
-
-      expect(createdMarkers).toHaveLength(1);
-
-      // Simulate moveend event to reset isMoving flag
-      await act(async () => {
-        // Trigger all registered moveend handlers to reset isMoving
-        moveendHandlers.forEach(h => h());
-        await new Promise(resolve => setTimeout(resolve, 10));
-      });
-
-      // Second click should remove first marker and create second
-      await act(async () => {
-        locateButton?.click();
-        await new Promise(resolve => setTimeout(resolve, 10));
-      });
-
-      // First marker should have been removed before creating second
-      expect(createdMarkers[0]?.remove).toHaveBeenCalled();
-      expect(createdMarkers).toHaveLength(2);
-    });
-  });
-
-  it('respects dark mode preference', () => {
-    // Mock matchMedia
-    const mockMatchMedia = jest.fn().mockReturnValue({
-      matches: true,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-    });
-    window.matchMedia = mockMatchMedia;
-
-    render(<InstructorCoverageMap />);
-
-    expect(mockMatchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
-  });
-
-  it('handles when featureCollection is undefined', () => {
-    render(<InstructorCoverageMap />);
-
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
-  });
-
-  it('supports focus on specific instructor coverage', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        focusInstructorId="inst-1"
+            {
+              type: 'Feature',
+              geometry: null,
+            },
+          ],
+        }}
+        highlightInstructorId="inst-3"
+        onAreaClick={onAreaClick}
       />
     );
 
-    // Should render map with focus handling
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    expect(screen.getByTestId('geojson-feature-0')).toHaveTextContent('chelsea');
+    expect(screen.getByTestId('geojson-feature-0')).toHaveAttribute(
+      'data-style',
+      JSON.stringify({ color: 'var(--color-brand-dark)', weight: 2, fillOpacity: 0.35 })
+    );
+    expect(screen.getByTestId('geojson-feature-1')).toHaveTextContent('feature-1');
+
+    fireEvent.click(screen.getByTestId('geojson-feature-0'));
+    fireEvent.click(screen.getByTestId('geojson-feature-1'));
+
+    expect(onAreaClick).toHaveBeenNthCalledWith(1, 'chelsea', ['inst-3']);
+    expect(onAreaClick).toHaveBeenNthCalledWith(2, 'Coverage Area', []);
   });
 
-  it('renders location pins when provided', () => {
+  it('renders a photo pin with a popup when no click override is provided', () => {
     render(
       <InstructorCoverageMap
-        locationPins={[{ lat: 40.71, lng: -73.99, label: 'Studio' }]}
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            label: 'Lower East Side',
+            instructorId: 'inst-1',
+            displayName: 'Ava L.',
+            profilePictureUrl: 'https://cdn.example.com/ava.jpg',
+          },
+        ]}
       />
     );
 
-    expect(createdPinMarkers).toHaveLength(1);
-    expect(createdPinMarkers[0]?.bindPopup).toHaveBeenCalledWith('<div>Studio</div>');
+    const marker = screen.getByTestId('map-marker');
+    const iconHtml = marker.getAttribute('data-icon-html') ?? '';
+
+    expect(iconHtml).toContain('data-photo-pin="true"');
+    expect(iconHtml).toContain('src="https://cdn.example.com/ava.jpg"');
+    expect(iconHtml).toContain('alt="Ava L."');
+    expect(screen.getByTestId('marker-popup')).toHaveTextContent('Lower East Side');
   });
 
-  it('handles dark mode preference change', () => {
-    const mockAddEventListener = jest.fn();
-    const mockRemoveEventListener = jest.fn();
-
-    const mockMatchMedia = jest.fn().mockReturnValue({
-      matches: false,
-      addEventListener: mockAddEventListener,
-      removeEventListener: mockRemoveEventListener,
-    });
-    window.matchMedia = mockMatchMedia;
-
-    const { unmount } = render(<InstructorCoverageMap />);
-
-    expect(mockAddEventListener).toHaveBeenCalledWith('change', expect.any(Function));
-
-    // Simulate dark mode change
-    if (mockAddEventListener.mock.calls[0]) {
-      const changeHandler = mockAddEventListener.mock.calls[0][1];
-      act(() => {
-        changeHandler({ matches: true });
-      });
-    }
-
-    unmount();
-    expect(mockRemoveEventListener).toHaveBeenCalled();
-  });
-
-  it('renders with empty feature properties', () => {
-    const emptyPropsFeatureCollection = {
-      type: 'FeatureCollection' as const,
-      features: [
-        {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
-          },
-          properties: {},
-        },
-      ],
-    };
-
+  it('renders the lavender fallback pin when no profile photo url is available', () => {
     render(
       <InstructorCoverageMap
-        featureCollection={emptyPropsFeatureCollection}
-        showCoverage={true}
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            label: 'Fallback Studio',
+            instructorId: 'inst-1',
+            displayName: 'Ava L.',
+            profilePictureUrl: null,
+          },
+        ]}
       />
     );
 
-    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    const iconHtml = screen.getByTestId('map-marker').getAttribute('data-icon-html') ?? '';
+
+    expect(iconHtml).toContain('data-photo-fallback="true"');
+    expect(iconHtml).not.toContain('<img');
+    expect(iconHtml).toContain('#F3E8FF');
   });
 
-  it('handles feature without instructors array', () => {
-    const noInstructorsFeatureCollection = {
-      type: 'FeatureCollection' as const,
-      features: [
-        {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+  it('skips the marker layer when all provided pins have invalid coordinates', () => {
+    render(
+      <InstructorCoverageMap
+        locationPins={[
+          {
+            lat: Number.NaN,
+            lng: -73.99,
+            instructorId: 'inst-1',
           },
-          properties: {
-            name: 'Test Region',
-            // No instructors array
+          {
+            lat: 40.71,
+            lng: Number.POSITIVE_INFINITY,
+            instructorId: 'inst-2',
           },
-        },
-      ],
-    };
+        ]}
+      />
+    );
+
+    expect(screen.queryByTestId('marker-cluster-group')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('map-marker')).not.toBeInTheDocument();
+  });
+
+  it('uses label and generic instructor fallbacks when a pin lacks display metadata', () => {
+    render(
+      <InstructorCoverageMap
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            label: 'Label only',
+          },
+          {
+            lat: 40.72,
+            lng: -73.98,
+          },
+        ]}
+      />
+    );
+
+    const markers = screen.getAllByTestId('map-marker');
+
+    expect(markers[0]).toHaveAttribute('data-title', 'Label only');
+    expect(markers[0]).toHaveAttribute(
+      'data-icon-html',
+      expect.stringContaining('aria-label="Label only location pin"')
+    );
+    expect(markers[1]).toHaveAttribute('data-title', '');
+    expect(markers[1]).toHaveAttribute(
+      'data-icon-html',
+      expect.stringContaining('aria-label="Instructor location pin"')
+    );
+  });
+
+  it('fires onPinHover on mouseover and clears it on mouseout', () => {
+    const onPinHover = jest.fn();
 
     render(
       <InstructorCoverageMap
-        featureCollection={noInstructorsFeatureCollection}
-        showCoverage={true}
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            instructorId: 'inst-1',
+            displayName: 'Ava L.',
+          },
+        ]}
+        onPinHover={onPinHover}
+      />
+    );
+
+    const marker = screen.getByTestId('map-marker');
+    fireEvent.mouseOver(marker);
+    fireEvent.mouseOut(marker);
+
+    expect(onPinHover).toHaveBeenNthCalledWith(1, 'inst-1');
+    expect(onPinHover).toHaveBeenNthCalledWith(2, null);
+  });
+
+  it('fires onPinClick with the matching instructor id and suppresses popups when click sync is enabled', () => {
+    const onPinClick = jest.fn();
+
+    render(
+      <InstructorCoverageMap
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            label: 'No Popup',
+            instructorId: 'inst-1',
+            displayName: 'Ava L.',
+          },
+        ]}
+        onPinClick={onPinClick}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('map-marker'));
+
+    expect(onPinClick).toHaveBeenCalledWith('inst-1');
+    expect(screen.queryByTestId('marker-popup')).not.toBeInTheDocument();
+  });
+
+  it('applies hover and focus pin states from instructor ids', () => {
+    render(
+      <InstructorCoverageMap
+        locationPins={[
+          {
+            lat: 40.71,
+            lng: -73.99,
+            instructorId: 'inst-1',
+            displayName: 'Hover Target',
+          },
+          {
+            lat: 40.72,
+            lng: -73.98,
+            instructorId: 'inst-2',
+            displayName: 'Focus Target',
+          },
+        ]}
         highlightInstructorId="inst-1"
+        focusInstructorId="inst-2"
       />
     );
 
-    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    const markers = screen.getAllByTestId('map-marker');
+    expect(markers[0]).toHaveAttribute('data-icon-html', expect.stringContaining('data-pin-state="hovered"'));
+    expect(markers[1]).toHaveAttribute('data-icon-html', expect.stringContaining('data-pin-state="focused"'));
   });
 
-  it('focuses on instructor coverage when focusInstructorId changes', () => {
+  it('configures clustering with branded cluster icons', () => {
+    render(
+      <InstructorCoverageMap
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+          { lat: 40.7102, lng: -73.9901, instructorId: 'inst-2', displayName: 'Ben Q.' },
+          { lat: 40.7103, lng: -73.9902, instructorId: 'inst-3', displayName: 'Cara P.' },
+        ]}
+      />
+    );
+
+    const clusterGroup = screen.getByTestId('marker-cluster-group');
+    expect(clusterGroup).toHaveAttribute('data-chunked-loading', 'true');
+    expect(clusterGroup).toHaveAttribute('data-max-cluster-radius', '40');
+    expect(clusterGroup).toHaveAttribute('data-show-coverage-on-hover', 'false');
+    expect(clusterGroup).toHaveAttribute('data-spiderfy-on-max-zoom', 'true');
+    expect(clusterGroup.getAttribute('data-cluster-icon-html')).toContain('data-cluster-count="3"');
+  });
+
+  it('fits to coverage and pin bounds, and focuses with flyToBounds when instructed', async () => {
     const { rerender } = render(
       <InstructorCoverageMap
         featureCollection={mockFeatureCollection}
-        focusInstructorId={null}
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+        ]}
       />
     );
+
+    await waitFor(() => {
+      expect(mockMap.fitBounds).toHaveBeenCalled();
+    });
 
     rerender(
       <InstructorCoverageMap
         featureCollection={mockFeatureCollection}
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+        ]}
         focusInstructorId="inst-1"
       />
     );
 
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    expect(mockMap.flyToBounds).toHaveBeenCalled();
   });
 
-  it('handles JAWG token with dark mode', () => {
-    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
+  it('fits using a string height and skips refits for unchanged data keys', async () => {
+    const initialPins = [
+      { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+    ];
+    const { container, rerender } = render(
+      <InstructorCoverageMap
+        height="50vh"
+        featureCollection={mockFeatureCollection}
+        locationPins={initialPins}
+      />
+    );
 
-    const mockMatchMedia = jest.fn().mockReturnValue({
-      matches: true, // dark mode
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+    expect(container.firstChild).toHaveStyle({ height: '50vh' });
+
+    await waitFor(() => {
+      expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
     });
-    window.matchMedia = mockMatchMedia;
 
-    render(<InstructorCoverageMap />);
+    rerender(
+      <InstructorCoverageMap
+        height="50vh"
+        featureCollection={mockFeatureCollection}
+        locationPins={[...initialPins]}
+      />
+    );
 
-    expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
-
-    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
+    await waitFor(() => {
+      expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it('handles JAWG token with light mode', () => {
-    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
+  it('handles repeated fit initialization safely under strict mode', () => {
+    render(
+      <React.StrictMode>
+        <InstructorCoverageMap featureCollection={mockFeatureCollection} />
+      </React.StrictMode>
+    );
 
-    const mockMatchMedia = jest.fn().mockReturnValue({
-      matches: false, // light mode
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-    });
-    window.matchMedia = mockMatchMedia;
-
-    render(<InstructorCoverageMap />);
-
-    expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
-
-    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
+    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
   });
 
-  it('handles missing matchMedia', () => {
-    const originalMatchMedia = window.matchMedia;
-    // @ts-expect-error - intentionally testing missing matchMedia
-    delete window.matchMedia;
+  it('treats truthy non-array location pin payloads as empty map pins without crashing', () => {
+    const weirdLocationPins = { length: 1 } as unknown as NonNullable<
+      Parameters<typeof InstructorCoverageMap>[0]['locationPins']
+    >;
 
-    render(<InstructorCoverageMap />);
+    render(
+      <InstructorCoverageMap
+        showCoverage={false}
+        locationPins={weirdLocationPins}
+      />
+    );
 
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
-
-    window.matchMedia = originalMatchMedia;
+    expect(screen.queryByTestId('marker-cluster-group')).not.toBeInTheDocument();
+    expect(mockMap.fitBounds).not.toHaveBeenCalled();
   });
 
-  it('keeps using fallback URL after Jawg fails even when theme changes', () => {
-    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
+  it('skips invalid initial coverage bounds', async () => {
+    const leafletMock = jest.requireMock('leaflet') as {
+      default: {
+        geoJSON: jest.Mock;
+      };
+    };
 
-    const mockAddEventListener = jest.fn();
-    const mockMatchMedia = jest.fn().mockReturnValue({
-      matches: false,
-      addEventListener: mockAddEventListener,
-      removeEventListener: jest.fn(),
+    leafletMock.default.geoJSON.mockImplementationOnce(() => ({
+      getBounds: jest.fn(() => ({
+        isValid: jest.fn(() => false),
+      })),
+      remove: jest.fn(),
+    }));
+
+    render(<InstructorCoverageMap featureCollection={mockFeatureCollection} />);
+
+    await waitFor(() => {
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
     });
-    window.matchMedia = mockMatchMedia;
-
-    render(<InstructorCoverageMap />);
-
-    // Simulate tile error (Jawg fails)
-    const tileLayer = screen.getByTestId('tile-layer');
-    act(() => {
-      fireEvent.click(tileLayer);
-    });
-
-    // Should be using fallback
-    expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
-
-    // Change theme
-    if (mockAddEventListener.mock.calls[0]) {
-      const changeHandler = mockAddEventListener.mock.calls[0][1];
-      act(() => {
-        changeHandler({ matches: true }); // Switch to dark mode
-      });
-    }
-
-    // Should still be using fallback (not switch back to Jawg)
-    expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
-
-    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
   });
 
-  describe('FitToCoverage', () => {
-    it('fits bounds to coverage on initial render', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-        />
-      );
+  it('skips focus flyToBounds when focused coverage and pins do not resolve to valid bounds', async () => {
+    const leafletMock = jest.requireMock('leaflet') as {
+      default: {
+        geoJSON: jest.Mock;
+        latLngBounds: jest.Mock;
+      };
+    };
 
-      expect(mockMap.fitBounds).toHaveBeenCalled();
-    });
-
-    it('does not fit bounds when focusInstructorId is set initially', () => {
-      mockMap.fitBounds.mockClear();
-
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="inst-1"
-        />
-      );
-
-      // Should use flyToBounds for focused instructor, not fitBounds
-      expect(mockMap.flyToBounds).toHaveBeenCalled();
-    });
-
-    it('flies to instructor coverage when focusInstructorId is set', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="inst-1"
-        />
-      );
-
-      expect(mockMap.flyToBounds).toHaveBeenCalled();
-    });
-
-    it('handles focusInstructorId with no matching features', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="non-existent-instructor"
-        />
-      );
-
-      // Should render without errors
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-
-    it('handles invalid bounds gracefully', () => {
-      const L = jest.requireMock('leaflet');
-      L.geoJSON.mockReturnValue({
+    leafletMock.default.geoJSON
+      .mockImplementationOnce(() => ({
+        getBounds: jest.fn(() => ({
+          extend: jest.fn(function extend() {
+            return this;
+          }),
+          isValid: jest.fn(() => true),
+        })),
+        remove: jest.fn(),
+      }))
+      .mockImplementationOnce(() => ({
         getBounds: jest.fn(() => ({
           isValid: jest.fn(() => false),
         })),
         remove: jest.fn(),
-      });
+      }));
+    leafletMock.default.latLngBounds
+      .mockImplementationOnce(() => ({
+        isValid: jest.fn(() => true),
+      }))
+      .mockImplementationOnce(() => ({
+        isValid: jest.fn(() => false),
+      }));
 
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-        />
-      );
+    const { rerender } = render(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+        ]}
+      />
+    );
 
-      // Should render without errors even with invalid bounds
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-
-    it('no-ops when FitToCoverage is mounted without usable coverage or pin data', () => {
-      let reads = 0;
-      const malformedPins = {
-        get length() {
-          reads += 1;
-          return reads === 1 ? 1 : 0;
-        },
-      };
-
-      render(
-        <InstructorCoverageMap
-          showCoverage={false}
-          locationPins={malformedPins as unknown as Array<{ lat: number; lng: number }>}
-        />
-      );
-
-      expect(mockMap.fitBounds).not.toHaveBeenCalled();
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-
-    it('does not refit when the logical instructor dataset has not changed', () => {
-      const L = jest.requireMock('leaflet');
-      const originalGeoJson = L.geoJSON.getMockImplementation();
-      L.geoJSON.mockReturnValue({
-        getBounds: jest.fn(() => ({
-          isValid: jest.fn(() => true),
-          getNorth: () => 41,
-          getSouth: () => 40,
-          getEast: () => -73,
-          getWest: () => -74,
-        })),
-        remove: jest.fn(),
-      });
-      mockMap.fitBounds.mockClear();
-
-      const { rerender } = render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-        />
-      );
-
-      return waitFor(() => {
-        expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
-
-        rerender(
-          <InstructorCoverageMap
-            featureCollection={{
-              ...mockFeatureCollection,
-              features: mockFeatureCollection.features.map((feature) => ({
-                ...feature,
-                properties: { ...feature.properties },
-              })),
-            }}
-            showCoverage={true}
-          />
-        );
-
-        expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
-      }).finally(() => {
-        if (originalGeoJson) {
-          L.geoJSON.mockImplementation(originalGeoJson);
-        }
-      });
-    });
-  });
-
-  describe('GeoJSON styling', () => {
-    it('applies default style when instructor is not highlighted', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          highlightInstructorId="inst-1"
-        />
-      );
-
-      // GeoJSON should be rendered
-      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
-    });
-
-    it('uses region_id as fallback name in popup', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={{
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
-              },
-              properties: {
-                region_id: 'test-region',
-                // No name property
-              },
-            }],
-          }}
-          showCoverage={true}
-        />
-      );
-
-      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
-    });
-
-    it('uses default Coverage Area when no name or region_id', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={{
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
-              },
-              properties: {},
-            }],
-          }}
-          showCoverage={true}
-        />
-      );
-
-      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
-    });
-  });
-
-  describe('control cleanup', () => {
-    it('removes controls when component unmounts', () => {
-      const { unmount } = render(
-        <InstructorCoverageMap
-          showSearchAreaButton={true}
-          onSearchArea={jest.fn()}
-        />
-      );
-
-      const controlsBefore = controlInstances.length;
-      expect(controlsBefore).toBeGreaterThan(0);
-
-      unmount();
-
-      // All controls should have remove called
-      controlInstances.forEach(control => {
-        expect(control.remove).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('FitToCoverage focusInstructorId with locationPins (lines 316-325)', () => {
-    it('focuses on instructor pins when focusInstructorId matches pin instructorId', () => {
-      const L = jest.requireMock('leaflet');
-
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="inst-1"
-          locationPins={[
-            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
-            { lat: 40.73, lng: -73.98, label: 'Studio B', instructorId: 'inst-2' },
-          ]}
-        />
-      );
-
-      // flyToBounds should be called with bounds that include the focused instructor's pin
-      expect(mockMap.flyToBounds).toHaveBeenCalled();
-      // L.latLngBounds should have been called to create pin bounds for focused pins
-      expect(L.latLngBounds).toHaveBeenCalled();
-    });
-
-    it('handles focusInstructorId with locationPins that have no matching instructor', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="non-existent"
-          locationPins={[
-            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
-          ]}
-        />
-      );
-
-      // Should not crash, map should still render
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-
-    it('focuses on instructor pins without coverage features', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={{ type: 'FeatureCollection', features: [] }}
-          showCoverage={true}
-          focusInstructorId="inst-1"
-          locationPins={[
-            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
-          ]}
-        />
-      );
-
-      // Should still attempt to focus on pin bounds
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-
-    it('handles focusInstructorId with no locationPins at all', () => {
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          showCoverage={true}
-          focusInstructorId="inst-1"
-          locationPins={[]}
-        />
-      );
-
-      // Should use only coverage bounds - flyToBounds or fitBounds should be called
-      // When focusInstructorId is set, the focus effect runs and may call flyToBounds
-      // if there are matching features
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-  });
-
-  describe('MapPins with invalid or empty locations (line 349)', () => {
-    it('skips markers for locations with invalid lat/lng', () => {
-      render(
-        <InstructorCoverageMap
-          locationPins={[
-            { lat: NaN, lng: -73.99, label: 'Invalid Lat' },
-            { lat: 40.72, lng: Infinity, label: 'Invalid Lng' },
-            { lat: 40.73, lng: -73.98, label: 'Valid Pin' },
-          ]}
-        />
-      );
-
-      // Only the valid pin should create a marker
-      expect(createdPinMarkers).toHaveLength(1);
-      expect(createdPinMarkers[0]?.bindPopup).toHaveBeenCalledWith('<div>Valid Pin</div>');
-    });
-
-    it('handles empty locations array in MapPins', () => {
-      render(
-        <InstructorCoverageMap
-          locationPins={[]}
-        />
-      );
-
-      // No markers should be created
-      expect(createdPinMarkers).toHaveLength(0);
-    });
-
-    it('renders pins without labels (no bindPopup)', () => {
-      render(
-        <InstructorCoverageMap
-          locationPins={[
-            { lat: 40.72, lng: -73.99 },
-          ]}
-        />
-      );
-
-      expect(createdPinMarkers).toHaveLength(1);
-      // bindPopup should NOT be called when no label
-      expect(createdPinMarkers[0]?.bindPopup).not.toHaveBeenCalled();
-    });
-
-    it('cleans up pin markers on unmount', () => {
-      const { unmount } = render(
-        <InstructorCoverageMap
-          locationPins={[
-            { lat: 40.72, lng: -73.99, label: 'Studio' },
-            { lat: 40.73, lng: -73.98, label: 'Studio 2' },
-          ]}
-        />
-      );
-
-      expect(createdPinMarkers).toHaveLength(2);
-
-      unmount();
-
-      // All markers should be cleaned up
-      createdPinMarkers.forEach(marker => {
-        expect(marker.remove).toHaveBeenCalled();
-      });
-    });
-
-    it('lets MapPins exit cleanly when pins disappear before its effect runs', () => {
-      let reads = 0;
-      const shrinkingPins = {
-        get length() {
-          reads += 1;
-          return reads === 1 ? 1 : 0;
-        },
-      };
-
-      render(
-        <InstructorCoverageMap
-          featureCollection={mockFeatureCollection}
-          locationPins={shrinkingPins as unknown as Array<{ lat: number; lng: number }>}
-        />
-      );
-
-      expect(createdPinMarkers).toHaveLength(0);
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
-    });
-  });
-
-  describe('FitToCoverage with only locationPins (no coverage)', () => {
-    it('fits to pin bounds when coverage is disabled but pins exist', () => {
-      const L = jest.requireMock('leaflet');
-
-      render(
-        <InstructorCoverageMap
-          showCoverage={false}
-          locationPins={[
-            { lat: 40.72, lng: -73.99, label: 'Studio A' },
-            { lat: 40.73, lng: -73.98, label: 'Studio B' },
-          ]}
-        />
-      );
-
-      // Should fit to pin bounds when only pins are available
-      expect(L.latLngBounds).toHaveBeenCalled();
+    await waitFor(() => {
       expect(mockMap.fitBounds).toHaveBeenCalled();
     });
 
-    it('filters invalid pins when fitting bounds', () => {
-      render(
-        <InstructorCoverageMap
-          showCoverage={false}
-          locationPins={[
-            { lat: NaN, lng: -73.99, label: 'Invalid' },
-            { lat: 40.73, lng: -73.98, label: 'Valid' },
-          ]}
-        />
-      );
+    mockMap.flyToBounds.mockClear();
 
-      // Should still render and fit to valid pins only
-      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    rerender(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-1', displayName: 'Ava L.' },
+        ]}
+        focusInstructorId="inst-1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockMap.flyToBounds).not.toHaveBeenCalled();
     });
+  });
+
+  it('skips focus flyToBounds when the focused instructor matches neither coverage nor pins', async () => {
+    render(
+      <InstructorCoverageMap
+        featureCollection={{
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: null,
+            },
+          ],
+        }}
+        locationPins={[
+          { lat: 40.71, lng: -73.99, instructorId: 'inst-2', displayName: 'Other Instructor' },
+        ]}
+        focusInstructorId="inst-1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockMap.flyToBounds).not.toHaveBeenCalled();
+    });
+  });
+
+  it('focuses coverage even when location pins are omitted entirely', async () => {
+    render(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        focusInstructorId="inst-1"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockMap.flyToBounds).toHaveBeenCalled();
+    });
+  });
+
+  it('tracks map bounds through move and zoom events', () => {
+    const onBoundsChange = jest.fn();
+
+    render(<InstructorCoverageMap onBoundsChange={onBoundsChange} />);
+
+    act(() => {
+      moveEndHandler?.();
+      zoomEndHandler?.();
+    });
+
+    expect(onBoundsChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not mount the search area control when no callback is provided', () => {
+    render(<InstructorCoverageMap showSearchAreaButton={true} />);
+
+    expect(screen.queryByRole('button', { name: /search this area/i })).not.toBeInTheDocument();
+    expect(controlInstances.filter((control) => control.position === 'topleft')).toHaveLength(0);
+  });
+
+  it('mounts the search area control, handles hover and click, and removes it on unmount', () => {
+    const onSearchArea = jest.fn();
+    const { unmount } = render(
+      <InstructorCoverageMap showSearchAreaButton={true} onSearchArea={onSearchArea} />
+    );
+
+    const searchAreaButton = screen.getByRole('button', { name: /search this area/i });
+    const searchAreaControl = controlInstances.find((control) => control.position === 'topleft');
+
+    fireEvent.mouseOver(searchAreaButton);
+    expect(searchAreaButton).toHaveStyle({ boxShadow: '0 4px 12px rgba(0,0,0,0.2)' });
+
+    fireEvent.mouseOut(searchAreaButton);
+    expect(searchAreaButton).toHaveStyle({ boxShadow: '0 2px 8px rgba(0,0,0,0.15)' });
+
+    fireEvent.click(searchAreaButton);
+    expect(onSearchArea).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    expect(searchAreaControl?.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles locate, repeat locate, zoom, and cleanup through the custom control buttons', () => {
+    const leafletMock = jest.requireMock('leaflet') as {
+      default: {
+        circleMarker: jest.Mock;
+      };
+    };
+    const getCurrentPosition = jest.fn<
+      void,
+      [
+        PositionCallback,
+        PositionErrorCallback | null | undefined,
+        PositionOptions | undefined,
+      ]
+    >();
+    const successCallbacks: PositionCallback[] = [];
+
+    getCurrentPosition.mockImplementation((success) => {
+      successCallbacks.push(success);
+    });
+    setGeolocationMock({ getCurrentPosition });
+
+    const { unmount } = render(<InstructorCoverageMap />);
+
+    const locateButton = screen.getByTitle('Show your location');
+    const zoomInButton = screen.getByTitle('Zoom in');
+    const zoomOutButton = screen.getByTitle('Zoom out');
+    const customControl = controlInstances.find((control) => control.position === 'bottomright');
+
+    fireEvent.click(locateButton);
+    expect(getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+
+    act(() => {
+      successCallbacks[0]?.({
+        coords: {
+          latitude: 40.71,
+          longitude: -73.99,
+        },
+      } as GeolocationPosition);
+    });
+
+    expect(mockMap.stop).toHaveBeenCalled();
+    expect(mockMap.flyTo).toHaveBeenCalledWith([40.71, -73.99], 14, { animate: false });
+
+    const firstLocationMarker = leafletMock.default.circleMarker.mock.results[0]?.value as {
+      addTo: jest.Mock;
+      remove: jest.Mock;
+    };
+    expect(firstLocationMarker.addTo).toHaveBeenCalledWith(mockMap);
+
+    fireEvent.click(locateButton);
+    act(() => {
+      successCallbacks[1]?.({
+        coords: {
+          latitude: 40.72,
+          longitude: -73.98,
+        },
+      } as GeolocationPosition);
+    });
+
+    expect(leafletMock.default.circleMarker).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      moveEndHandler?.();
+      zoomEndHandler?.();
+    });
+
+    mockMap.getCenter.mockReturnValue({ lat: 40.7201, lng: -73.9801 });
+
+    fireEvent.click(locateButton);
+    act(() => {
+      successCallbacks[2]?.({
+        coords: {
+          latitude: 40.7202,
+          longitude: -73.9801,
+        },
+      } as GeolocationPosition);
+    });
+
+    expect(mockMap.setView).toHaveBeenCalledWith([40.7202, -73.9801], 14, { animate: false });
+    expect(firstLocationMarker.remove).toHaveBeenCalledTimes(1);
+
+    const secondLocationMarker = leafletMock.default.circleMarker.mock.results[1]?.value as {
+      addTo: jest.Mock;
+    };
+    expect(secondLocationMarker.addTo).toHaveBeenCalledWith(mockMap);
+    expect(mockMap.off).toHaveBeenCalledWith('moveend', expect.any(Function));
+    expect(mockMap.off).toHaveBeenCalledWith('zoomend', expect.any(Function));
+
+    fireEvent.click(zoomInButton);
+    expect(mockMap.zoomIn).toHaveBeenCalledWith(1);
+
+    fireEvent.click(zoomOutButton);
+    expect(mockMap.zoomOut).toHaveBeenCalledWith(1);
+
+    unmount();
+
+    expect(customControl?.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores locate clicks when geolocation is unavailable', () => {
+    setGeolocationMock(undefined);
+
+    render(<InstructorCoverageMap />);
+
+    fireEvent.click(screen.getByTitle('Show your location'));
+
+    expect(mockMap.flyTo).not.toHaveBeenCalled();
+    expect(mockMap.setView).not.toHaveBeenCalled();
+    expect(mockMap.stop).not.toHaveBeenCalled();
+  });
+
+  it('handles geolocation errors and locate flows even when the map stop method is unavailable', () => {
+    const successCallbacks: PositionCallback[] = [];
+    const errorCallbacks: Array<PositionErrorCallback | null | undefined> = [];
+    const getCurrentPosition = jest.fn<
+      void,
+      [
+        PositionCallback,
+        PositionErrorCallback | null | undefined,
+        PositionOptions | undefined,
+      ]
+    >((success, error) => {
+      successCallbacks.push(success);
+      errorCallbacks.push(error);
+    });
+    const originalStop = mockMap.stop;
+
+    setGeolocationMock({ getCurrentPosition });
+    (mockMap as { stop?: unknown }).stop = undefined;
+
+    render(<InstructorCoverageMap />);
+
+    fireEvent.click(screen.getByTitle('Show your location'));
+    act(() => {
+      successCallbacks[0]?.({
+        coords: {
+          latitude: 40.73,
+          longitude: -73.97,
+        },
+      } as GeolocationPosition);
+    });
+    act(() => {
+      errorCallbacks[0]?.({} as GeolocationPositionError);
+    });
+
+    expect(mockMap.flyTo).toHaveBeenCalledWith([40.73, -73.97], 14, { animate: false });
+
+    (mockMap as { stop?: unknown }).stop = originalStop;
   });
 });

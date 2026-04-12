@@ -32,6 +32,7 @@ import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { WhereTheyTeach } from '@/components/instructor/WhereTheyTeach';
 import type { LocationType } from '@/types/booking';
+import type { LocationPin } from '@/components/maps/InstructorCoverageMap';
 
 import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
@@ -200,6 +201,11 @@ function InstructorProfileContent() {
   const { data: coverage } = useInstructorCoverage(coverageInstructorId, {
     enabled: shouldShowMap && Boolean(coverageInstructorId),
   });
+  const studioProfilePictureUrl =
+    typeof instructor?.profile_picture_url === 'string' &&
+    instructor.profile_picture_url.trim().length > 0
+      ? instructor.profile_picture_url
+      : null;
 
   const formatCityState = (address: string): string => {
     const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
@@ -211,8 +217,13 @@ function InstructorProfileContent() {
     }
     return '';
   };
-  const studioPins: Array<{ lat: number; lng: number; label?: string }> = [];
+  const studioPins: LocationPin[] = [];
   if (instructor && offersAtLocation && Array.isArray(instructor.preferred_teaching_locations)) {
+    const displayName = formatDisplayName(
+      instructor.user.first_name,
+      instructor.user.last_initial,
+      'Instructor',
+    );
     for (const location of instructor.preferred_teaching_locations) {
       if (!location || typeof location !== 'object') continue;
       const approxLat = typeof location.approx_lat === 'number' ? location.approx_lat : undefined;
@@ -225,9 +236,22 @@ function InstructorProfileContent() {
         : '';
       const label = neighborhood || addressFallback || labelFallback || undefined;
       if (label) {
-        studioPins.push({ lat: approxLat, lng: approxLng, label });
+        studioPins.push({
+          lat: approxLat,
+          lng: approxLng,
+          label,
+          instructorId: instructor.user_id,
+          displayName,
+          profilePictureUrl: studioProfilePictureUrl,
+        });
       } else {
-        studioPins.push({ lat: approxLat, lng: approxLng });
+        studioPins.push({
+          lat: approxLat,
+          lng: approxLng,
+          instructorId: instructor.user_id,
+          displayName,
+          profilePictureUrl: studioProfilePictureUrl,
+        });
       }
     }
   }

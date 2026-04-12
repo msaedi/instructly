@@ -3,14 +3,9 @@
 import type { ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin } from 'lucide-react';
+import type { LocationPin } from '@/components/maps/InstructorCoverageMap';
 
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
-
-type LocationPin = {
-  lat: number;
-  lng: number;
-  label?: string;
-};
 
 type FeatureCollection = {
   type: 'FeatureCollection';

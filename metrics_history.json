@@ -48650,5 +48650,733 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-11",
     "branch": "main"
+  },
+  {
+    "timestamp": "2026-04-12T16:43:20.216223+00:00",
+    "total_lines": 806424,
+    "total_files": 3217,
+    "backend_lines": 457469,
+    "frontend_lines": 348955,
+    "git_commits": 1788,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 252,
+          "lines": 45292
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13392
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179811
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21938
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28261
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2486
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42694
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142416
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2062,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "main"
+  },
+  {
+    "timestamp": "2026-04-12T16:46:59.471572+00:00",
+    "total_lines": 806424,
+    "total_files": 3217,
+    "backend_lines": 457469,
+    "frontend_lines": 348955,
+    "git_commits": 1788,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 252,
+          "lines": 45292
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13392
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179811
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21938
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28261
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2486
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42694
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142416
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        }
+      }
+    },
+    "backend_files": 2062,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
+  },
+  {
+    "timestamp": "2026-04-12T16:53:28.367201+00:00",
+    "total_lines": 806424,
+    "total_files": 3217,
+    "backend_lines": 457469,
+    "frontend_lines": 348955,
+    "git_commits": 1789,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 252,
+          "lines": 45292
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13392
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179811
+        },
+        "Unit Tests": {
+          "files": 133,
+          "lines": 21938
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28261
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2486
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42694
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142416
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2062,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
+  },
+  {
+    "timestamp": "2026-04-12T18:01:16.595766+00:00",
+    "total_lines": 807148,
+    "total_files": 3218,
+    "backend_lines": 457600,
+    "frontend_lines": 349548,
+    "git_commits": 1789,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 252,
+          "lines": 45298
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179833
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21972
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28279
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2486
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42813
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142890
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35665
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        }
+      }
+    },
+    "backend_files": 2063,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
+  },
+  {
+    "timestamp": "2026-04-12T19:15:51.607611+00:00",
+    "total_lines": 807207,
+    "total_files": 3219,
+    "backend_lines": 457637,
+    "frontend_lines": 349570,
+    "git_commits": 1789,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 253,
+          "lines": 45322
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179833
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21985
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28279
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42821
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2064,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
+  },
+  {
+    "timestamp": "2026-04-12T19:39:06.412076+00:00",
+    "total_lines": 807271,
+    "total_files": 3219,
+    "backend_lines": 457648,
+    "frontend_lines": 349623,
+    "git_commits": 1789,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 253,
+          "lines": 45322
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179833
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21985
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28279
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42874
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2064,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
+  },
+  {
+    "timestamp": "2026-04-12T19:52:26.739564+00:00",
+    "total_lines": 807347,
+    "total_files": 3219,
+    "backend_lines": 457724,
+    "frontend_lines": 349623,
+    "git_commits": 1789,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20220
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10179
+        },
+        "Repositories": {
+          "files": 253,
+          "lines": 45322
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 231,
+          "lines": 59938
+        },
+        "Services": {
+          "files": 527,
+          "lines": 179909
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21985
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28279
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 42874
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2064,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-12",
+    "branch": "fix/catalog-search-photo-pin-parity"
   }
 ]

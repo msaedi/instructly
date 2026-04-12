@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, TypedDict, cast
 
-from app.core.config import settings
 from app.schemas.nl_search import (
     InstructorSummary,
     InstructorTeachingLocationSummary,
@@ -16,6 +15,7 @@ from app.schemas.nl_search import (
 )
 from app.services.search.location_resolver import LocationResolver
 from app.services.search.nl_pipeline.protocols import AsyncioLike, DBSessionFactory
+from app.utils.profile_picture_urls import build_photo_url
 
 if TYPE_CHECKING:
     from app.repositories.filter_repository import FilterRepository
@@ -40,6 +40,7 @@ class InstructorProfileRow(TypedDict):
     avg_rating: Optional[float]
     review_count: int
     profile_picture_key: Optional[str]
+    profile_picture_version: Optional[int]
     bio_snippet: Optional[str]
     verified: bool
     is_founding_instructor: bool
@@ -93,14 +94,6 @@ def derive_service_offers(format_prices: List[SerializedFormatPrice]) -> Dict[st
         "offers_at_location": "instructor_location" in enabled_formats,
         "offers_online": "online" in enabled_formats,
     }
-
-
-def build_photo_url(key: Optional[str], *, assets_domain: Optional[str] = None) -> Optional[str]:
-    """Build Cloudflare R2 URL for profile photo."""
-    if not key:
-        return None
-    domain = assets_domain or getattr(settings, "r2_public_url", "https://assets.instainstru.com")
-    return f"{domain}/{key}"
 
 
 def group_results_by_instructor(ranked: List[RankedResult], limit: int) -> HydrationGrouping:
@@ -254,7 +247,11 @@ def build_instructor_dto(
         id=instructor_id,
         first_name=profile["first_name"],
         last_initial=profile.get("last_initial") or "",
-        profile_picture_url=build_photo_url(profile.get("profile_picture_key")),
+        profile_picture_url=build_photo_url(
+            profile.get("profile_picture_key"),
+            version=profile.get("profile_picture_version"),
+            variant="thumb",
+        ),
         bio_snippet=profile.get("bio_snippet"),
         verified=bool(profile.get("verified", False)),
         is_founding_instructor=bool(profile.get("is_founding_instructor", False)),
@@ -374,7 +371,11 @@ def build_transformed_result_row(
         id=row["instructor_id"],
         first_name=row["first_name"],
         last_initial=row["last_initial"] or "",
-        profile_picture_url=build_photo_url(row.get("profile_picture_key")),
+        profile_picture_url=build_photo_url(
+            row.get("profile_picture_key"),
+            version=row.get("profile_picture_version"),
+            variant="thumb",
+        ),
         bio_snippet=row.get("bio_snippet"),
         verified=bool(row.get("verified", False)),
         is_founding_instructor=bool(row.get("is_founding_instructor", False)),

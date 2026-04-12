@@ -26,10 +26,32 @@ from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
+from app.utils.profile_picture_urls import build_photo_url
+
+
+class _StubPresignedGet:
+    def __init__(self, url: str):
+        self.url = url
+        self.headers = {}
+        self.expires_at = "2026-01-01T00:00:00Z"
+
+
+class _StubR2StorageClient:
+    def generate_presigned_get(self, object_key, expires_seconds=3600, extra_query_params=None):
+        version = (extra_query_params or {}).get("v", "0")
+        return _StubPresignedGet(f"https://signed.example.com/{object_key}?v={version}")
 
 
 def _online_format_prices(hourly_rate: float) -> list[dict[str, float]]:
     return [{"format": "online", "hourly_rate": hourly_rate}]
+
+
+def _get_active_service_catalog_id(db: Session, instructor_id: str) -> str:
+    profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+    assert profile is not None
+    active_service = next((service for service in profile.instructor_services if service.is_active), None)
+    assert active_service is not None
+    return active_service.service_catalog_id
 
 
 class TestInstructorRoutes:
@@ -160,6 +182,61 @@ class TestInstructorRoutes:
         assert "items" in data
         assert "total" in data
         assert data["total"] >= 0
+
+    def test_get_all_instructors_includes_profile_picture_url_when_available(
+        self,
+        client: TestClient,
+        test_instructor: User,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(
+            "app.utils.profile_picture_urls.R2StorageClient",
+            _StubR2StorageClient,
+        )
+        test_instructor.profile_picture_key = (
+            f"private/personal-assets/profile-pictures/{test_instructor.id}/v1/original.jpg"
+        )
+        test_instructor.profile_picture_version = 1
+        db.add(test_instructor)
+        db.commit()
+        db.refresh(test_instructor)
+
+        service_catalog_id = _get_active_service_catalog_id(db, test_instructor.id)
+
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog_id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        item = next(
+            entry for entry in response.json()["items"] if entry["user_id"] == test_instructor.id
+        )
+        assert item["profile_picture_url"] == build_photo_url(
+            test_instructor.profile_picture_key,
+            version=test_instructor.profile_picture_version,
+            variant="thumb",
+        )
+
+    def test_get_all_instructors_returns_null_profile_picture_url_when_missing(
+        self,
+        client: TestClient,
+        test_instructor: User,
+        db: Session,
+    ):
+        test_instructor.profile_picture_key = None
+        test_instructor.profile_picture_version = 0
+        db.add(test_instructor)
+        db.commit()
+        db.refresh(test_instructor)
+
+        service_catalog_id = _get_active_service_catalog_id(db, test_instructor.id)
+
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog_id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        item = next(
+            entry for entry in response.json()["items"] if entry["user_id"] == test_instructor.id
+        )
+        assert item["profile_picture_url"] is None
 
     def test_get_all_instructors_with_pagination(self, client: TestClient, test_instructor: User, db: Session):
         """Test pagination parameters."""

@@ -9,6 +9,7 @@ from ...domain.neighborhood_helpers import display_area_from_region
 from ...models.instructor import InstructorPreferredPlace, InstructorProfile
 from ...models.user import User
 from ...utils.privacy import format_last_initial
+from ...utils.profile_picture_urls import build_photo_url
 from ..base import BaseService
 from .mixin_base import InstructorMixinBase, JsonDict
 
@@ -265,6 +266,11 @@ class InstructorProfileReadsMixin(InstructorMixinBase):
             "is_founding_instructor": getattr(profile, "is_founding_instructor", False),
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
+            "profile_picture_url": build_photo_url(
+                getattr(profile.user, "profile_picture_key", None),
+                version=getattr(profile.user, "profile_picture_version", None),
+                variant="thumb",
+            ),
             "user": self._build_user_summary(profile),
             "services": services,
         }
