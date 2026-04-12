@@ -1086,6 +1086,176 @@ class TestConflictCheckerFormatAwareBuffers:
         )
         assert non_travel_clear == []
 
+    def test_same_minute_boundary_does_not_conflict(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_bookings_for_conflict_check.return_value = [existing_booking]
+
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 0
+        profile.travel_buffer_minutes = 0
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+
+        assert conflicts == []
+
+    def test_buffer_zero_service_can_book_back_to_back_on_both_sides(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_bookings_for_conflict_check.return_value = [existing_booking]
+
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 0
+        profile.travel_buffer_minutes = 0
+
+        before_conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        after_conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+
+        assert before_conflicts == []
+        assert after_conflicts == []
+
+    def test_buffer_nonzero_service_respects_buffer_on_both_sides(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_bookings_for_conflict_check.return_value = [existing_booking]
+
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+
+        blocked_before = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(9, 50),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        allowed_before = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(9, 45),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        blocked_after = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 10),
+            end_time=time(12, 10),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        allowed_after = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 15),
+            end_time=time(12, 15),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+
+        assert len(blocked_before) == 1
+        assert allowed_before == []
+        assert len(blocked_after) == 1
+        assert allowed_after == []
+
+    def test_student_time_conflicts_boolean_wrapper_true_and_false(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+
+        has_conflict = service.check_student_time_conflicts(
+            student_id=generate_ulid(),
+            booking_date=date.today(),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
+        )
+        no_conflict = service.check_student_time_conflicts(
+            student_id=generate_ulid(),
+            booking_date=date.today(),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+        )
+
+        assert has_conflict is True
+        assert no_conflict is False
+
+    def test_instructor_with_two_simultaneous_pending_auths_reports_both_conflicts(self, service):
+        pending_one = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+            service_name="Pending Lesson A",
+        )
+        pending_one.status = BookingStatus.PENDING
+
+        pending_two = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+            service_name="Pending Lesson B",
+        )
+        pending_two.status = BookingStatus.PENDING
+
+        service.repository.get_bookings_for_conflict_check.return_value = [
+            pending_one,
+            pending_two,
+        ]
+
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 0
+        profile.travel_buffer_minutes = 0
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(10, 15),
+            end_time=time(10, 45),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+
+        assert {conflict["booking_id"] for conflict in conflicts} == {
+            pending_one.id,
+            pending_two.id,
+        }
+        assert all(conflict["status"] == BookingStatus.PENDING for conflict in conflicts)
+
     def test_student_proximity_warnings_for_different_effective_locations(self, service):
         existing_booking = _make_booking_for_conflict(
             start_time=time(14, 0),

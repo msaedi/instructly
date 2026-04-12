@@ -12,11 +12,35 @@ from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.auth import get_password_hash
 from app.core.ulid_helper import generate_ulid
 from app.models.availability import BlackoutDate
-from app.models.booking import Booking
+from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
+from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.services.conflict_checker import ConflictChecker
+
+try:  # pragma: no cover - allow repo root or backend/ test execution
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
+
+
+def _create_secondary_student(db: Session, test_password: str) -> User:
+    student = User(
+        email=f"secondary.student.{generate_ulid().lower()}@example.com",
+        hashed_password=get_password_hash(test_password),
+        first_name="Second",
+        last_name="Student",
+        phone="+12125550001",
+        zip_code="10001",
+        is_active=True,
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+    return student
 
 
 class TestConflictCheckerDatabaseOperations:
@@ -50,6 +74,206 @@ class TestConflictCheckerDatabaseOperations:
         )
 
         assert len(no_conflicts) == 0
+
+    def test_cancelled_booking_does_not_block_same_slot(
+        self,
+        db: Session,
+        test_student: User,
+        test_instructor_with_availability: User,
+        test_booking: Booking,
+    ):
+        booking_date = date.today() + timedelta(days=5)
+        cancelled_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=booking_date,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            status=BookingStatus.CANCELLED,
+            service_name="Cancelled lesson",
+            hourly_rate=80.0,
+            total_price=80.0,
+            duration_minutes=60,
+            location_type="online",
+            meeting_location="Zoom",
+            service_area="Manhattan",
+            instructor_timezone="America/New_York",
+        )
+        db.commit()
+
+        service = ConflictChecker(db)
+        conflicts = service.check_booking_conflicts(
+            instructor_id=test_instructor_with_availability.id,
+            check_date=booking_date,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            new_location_type="online",
+        )
+
+        assert cancelled_booking.cancelled_at is not None
+        assert conflicts == []
+
+    def test_pending_auth_from_different_student_blocks_slot(
+        self,
+        db: Session,
+        test_password: str,
+        test_student: User,
+        test_instructor_with_availability: User,
+        test_booking: Booking,
+    ):
+        requester_student = _create_secondary_student(db, test_password)
+        booking_date = date.today() + timedelta(days=6)
+        pending_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=booking_date,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            status=BookingStatus.PENDING,
+            service_name="Pending auth lesson",
+            hourly_rate=80.0,
+            total_price=80.0,
+            duration_minutes=60,
+            location_type="online",
+            meeting_location="Zoom",
+            service_area="Manhattan",
+            instructor_timezone="America/New_York",
+        )
+        db.add(
+            BookingPayment(
+                booking_id=pending_booking.id,
+                payment_status="scheduled",
+                auth_failure_count=0,
+            )
+        )
+        db.commit()
+
+        service = ConflictChecker(db)
+        instructor_conflicts = service.check_booking_conflicts(
+            instructor_id=test_instructor_with_availability.id,
+            check_date=booking_date,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            new_location_type="online",
+        )
+        requester_student_conflicts = service.check_student_booking_conflicts(
+            student_id=requester_student.id,
+            check_date=booking_date,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+        )
+
+        assert [conflict["booking_id"] for conflict in instructor_conflicts] == [
+            pending_booking.id
+        ]
+        assert instructor_conflicts[0]["status"] == BookingStatus.PENDING
+        assert requester_student_conflicts == []
+
+    def test_spring_forward_day_back_to_back_boundary_is_not_conflict(
+        self,
+        db: Session,
+        test_student: User,
+        test_instructor_with_availability: User,
+        test_booking: Booking,
+    ):
+        booking_date = date(2026, 3, 8)
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
+            .first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.travel_buffer_minutes = 0
+        db.commit()
+
+        dst_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=booking_date,
+            start_time=time(1, 30),
+            end_time=time(3, 0),
+            status=BookingStatus.CONFIRMED,
+            service_name="Spring-forward lesson",
+            hourly_rate=120.0,
+            total_price=180.0,
+            duration_minutes=90,
+            location_type="online",
+            meeting_location="Zoom",
+            service_area="Manhattan",
+            instructor_timezone="America/New_York",
+        )
+        db.commit()
+
+        service = ConflictChecker(db)
+        conflicts = service.check_booking_conflicts(
+            instructor_id=test_instructor_with_availability.id,
+            check_date=booking_date,
+            start_time=time(3, 0),
+            end_time=time(4, 0),
+            new_location_type="online",
+        )
+
+        assert dst_booking.booking_start_utc.isoformat() == "2026-03-08T06:30:00+00:00"
+        assert dst_booking.booking_end_utc.isoformat() == "2026-03-08T07:00:00+00:00"
+        assert conflicts == []
+
+    def test_fall_back_day_back_to_back_boundary_is_not_conflict(
+        self,
+        db: Session,
+        test_student: User,
+        test_instructor_with_availability: User,
+        test_booking: Booking,
+    ):
+        booking_date = date(2026, 11, 1)
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
+            .first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.travel_buffer_minutes = 0
+        db.commit()
+
+        dst_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=booking_date,
+            start_time=time(1, 0),
+            end_time=time(2, 0),
+            status=BookingStatus.CONFIRMED,
+            service_name="Fall-back lesson",
+            hourly_rate=80.0,
+            total_price=80.0,
+            duration_minutes=60,
+            location_type="online",
+            meeting_location="Zoom",
+            service_area="Manhattan",
+            instructor_timezone="America/New_York",
+        )
+        db.commit()
+
+        service = ConflictChecker(db)
+        conflicts = service.check_booking_conflicts(
+            instructor_id=test_instructor_with_availability.id,
+            check_date=booking_date,
+            start_time=time(2, 0),
+            end_time=time(3, 0),
+            new_location_type="online",
+        )
+
+        assert dst_booking.booking_start_utc.isoformat() == "2026-11-01T05:00:00+00:00"
+        assert dst_booking.booking_end_utc.isoformat() == "2026-11-01T07:00:00+00:00"
+        assert conflicts == []
 
     def test_get_booked_times_for_date_integration(
         self, db: Session, test_instructor_with_availability: User, test_booking

@@ -8,6 +8,7 @@ Missed lines: 129-132, 186, 284, 363, 372->380, 376->380, 391, 399->408, 402->40
 
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -737,6 +738,121 @@ class TestCheckMinimumAdvanceBookingCoverage:
         assert result["valid"] is False
         assert "profile not found" in result["reason"]
 
+    @patch("app.core.timezone_utils.get_user_now")
+    def test_spring_forward_nonexistent_time_current_buggy_behavior(self, mock_get_user_now, service):
+        # KNOWN BUG: ConflictChecker incorrectly handles DST spring-forward day.
+        # A booking for 2:30 AM on March 8, 2026 does not exist in America/New_York,
+        # but the current implementation treats it as a valid local timestamp because
+        # it assigns tzinfo directly instead of localizing the wall-clock time.
+        # When the production bug is fixed, invert this assertion to reject the slot.
+        import pytz
+
+        ny_tz = pytz.timezone("America/New_York")
+        service.repository.get_instructor_profile.return_value = Mock(spec=InstructorProfile)
+        service.user_repository.get_by_id.return_value = Mock(timezone="America/New_York")
+        service.config_service.get_advance_notice_minutes = Mock(return_value=60)
+        mock_get_user_now.return_value = ny_tz.localize(
+            datetime(2026, 3, 8, 0, 30),
+            is_dst=False,
+        )
+
+        result = service.check_minimum_advance_booking(
+            instructor_id=generate_ulid(),
+            booking_date=date(2026, 3, 8),
+            booking_time=time(2, 30),
+        )
+
+        assert result == {"valid": True, "min_advance_minutes": 60}
+
+
+class TestConflictCheckerOverlapUtilityCoverage:
+    @pytest.fixture
+    def service(self):
+        mock_db = Mock(spec=Session)
+        mock_repository = Mock(spec=ConflictCheckerRepository)
+        svc = ConflictChecker(mock_db)
+        svc.repository = mock_repository
+        svc.user_repository = Mock(spec=UserRepository)
+        return _attach_default_config_service(svc)
+
+    def test_coerce_optional_float_handles_string_and_fallback_objects(self, service):
+        class FloatableValue:
+            def __float__(self):
+                return 40.7128
+
+        class InvalidFloatValue:
+            def __float__(self):
+                raise ValueError("bad float")
+
+        assert service._coerce_optional_float("40.7128") == pytest.approx(40.7128)
+        assert service._coerce_optional_float("not-a-number") is None
+        assert service._coerce_optional_float(FloatableValue()) == pytest.approx(40.7128)
+        assert service._coerce_optional_float(InvalidFloatValue()) is None
+
+    def test_same_effective_location_matches_by_distance(self, service):
+        first_location = service._location_snapshot_from_values(
+            location_type="instructor_location",
+            location_lat=40.7501,
+            location_lng=-73.9901,
+        )
+        second_location = service._location_snapshot_from_values(
+            location_type="neutral_location",
+            location_lat=40.7501,
+            location_lng=-73.9901,
+        )
+
+        assert service._same_effective_location(first_location, second_location) is True
+
+    def test_same_effective_location_matches_by_normalized_address(self, service):
+        first_location = service._location_snapshot_from_values(
+            location_type="instructor_location",
+            location_address="123 Main St., New York, NY",
+        )
+        second_location = service._location_snapshot_from_values(
+            location_type="neutral_location",
+            location_address=" 123 main st new york ny ",
+        )
+
+        assert service._same_effective_location(first_location, second_location) is True
+
+    def test_gap_between_bookings_returns_positive_gap_when_second_is_before_first(self, service):
+        gap_minutes = service._gap_between_bookings(
+            time(10, 0),
+            time(11, 0),
+            time(8, 0),
+            time(9, 0),
+        )
+
+        assert gap_minutes == 60
+
+    def test_gap_between_bookings_returns_negative_overlap_minutes(self, service):
+        gap_minutes = service._gap_between_bookings(
+            time(10, 0),
+            time(11, 0),
+            time(10, 30),
+            time(11, 30),
+        )
+
+        assert gap_minutes == -30
+
+    def test_get_buffer_minutes_uses_student_travel_formats_for_student_perspective(self, service):
+        profile = SimpleNamespace(
+            travel_buffer_minutes=45,
+            non_travel_buffer_minutes=10,
+        )
+
+        assert (
+            service._get_buffer_minutes(
+                "online",
+                "instructor_location",
+                profile,
+                travel_default=60,
+                non_travel_default=15,
+                perspective="student",
+            )
+            == 45
+        )
+
 
 class TestValidateBookingConstraintsCoverage:
     """Additional tests for validate_booking_constraints - Lines 368, 386."""
@@ -809,3 +925,127 @@ class TestValidateBookingConstraintsCoverage:
 
         assert result["valid"] is False
         assert any("not available on this date" in error for error in result["errors"])
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_same_day_without_loaded_instructor_skips_past_slot_check(self, mock_get_today, service):
+        instructor_id = generate_ulid()
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        service.user_repository.get_by_id.return_value = None
+        service.repository.get_instructor_profile.return_value = Mock(spec=InstructorProfile)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor_id,
+            booking_date=today,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+        )
+
+        assert result["valid"] is True
+        assert all("past time slots" not in error for error in result["errors"])
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    @patch("app.core.timezone_utils.get_user_now")
+    def test_same_day_future_slot_with_loaded_instructor_stays_valid(
+        self, mock_get_user_now, mock_get_today, service
+    ):
+        import pytz
+
+        instructor_id = generate_ulid()
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        self._setup_basic_mocks(service, instructor_id)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+
+        ny_tz = pytz.timezone("America/New_York")
+        mock_get_user_now.return_value = ny_tz.localize(datetime.combine(today, time(13, 0)))
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor_id,
+            booking_date=today,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+        )
+
+        assert result["valid"] is True
+        assert result["errors"] == []
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_student_id_without_conflicts_keeps_validation_valid(self, mock_get_today, service):
+        instructor_id = generate_ulid()
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        self._setup_basic_mocks(service, instructor_id)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+        service.check_student_booking_conflicts = Mock(return_value=[])
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor_id,
+            booking_date=today + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            student_id=generate_ulid(),
+        )
+
+        assert result["valid"] is True
+        assert result["details"]["student_conflicts"] == []
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_service_without_duration_options_adds_no_warning(self, mock_get_today, service):
+        instructor_id = generate_ulid()
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        self._setup_basic_mocks(service, instructor_id)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+        mock_service = Mock(spec=Service)
+        mock_service.duration_options = []
+        service.repository.get_active_service.return_value = mock_service
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor_id,
+            booking_date=today + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            service_id=generate_ulid(),
+        )
+
+        assert result["valid"] is True
+        assert result["warnings"] == []
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_matching_service_duration_adds_no_warning(self, mock_get_today, service):
+        instructor_id = generate_ulid()
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        self._setup_basic_mocks(service, instructor_id)
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+        service.check_blackout_date = Mock(return_value=False)
+        service.check_booking_conflicts = Mock(return_value=[])
+        mock_service = Mock(spec=Service)
+        mock_service.duration_options = [60, 90]
+        service.repository.get_active_service.return_value = mock_service
+
+        result = service.validate_booking_constraints(
+            instructor_id=instructor_id,
+            booking_date=today + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            service_id=generate_ulid(),
+        )
+
+        assert result["valid"] is True
+        assert result["warnings"] == []
