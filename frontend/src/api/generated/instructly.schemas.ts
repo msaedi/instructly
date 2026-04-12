@@ -3980,6 +3980,8 @@ export interface InstructorProfilePublic {
   overnight_protection_enabled?: boolean;
   preferred_public_spaces?: PreferredPublicSpaceOut[];
   preferred_teaching_locations?: PreferredTeachingLocationPublicOut[];
+  /** Public profile picture URL when available */
+  profile_picture_url?: string | null;
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;
@@ -4618,6 +4620,8 @@ export interface InstructorProfileResponse {
   overnight_protection_enabled?: boolean;
   preferred_public_spaces?: PreferredPublicSpaceOut[];
   preferred_teaching_locations?: PreferredTeachingLocationOut[];
+  /** Public profile picture URL when available */
+  profile_picture_url?: string | null;
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;

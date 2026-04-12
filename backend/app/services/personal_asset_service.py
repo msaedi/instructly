@@ -31,6 +31,7 @@ from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter, get_cache_service
 from .image_processing_service import ImageProcessingService
 from .r2_storage_client import PresignedUrl, R2StorageClient
+from .search.cache_invalidation import invalidate_on_instructor_profile_change
 from .storage_null_client import NullStorageClient
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,29 @@ class PersonalAssetService(BaseService):
     # Cache helpers
     def _cache_key_profile_url(self, user_id: str, variant: str, version: int) -> str:
         return f"profile_pic_url:{user_id}:{variant}:v{version}"
+
+    def _invalidate_profile_picture_caches(self, user: User) -> None:
+        try:
+            if self.cache:
+                self.cache.delete_pattern(f"profile_pic_url:{user.id}:*")
+        except Exception:
+            logger.warning("Failed to invalidate profile picture cache for user %s", user.id)
+
+        if getattr(user, "is_instructor", False) is not True:
+            return
+
+        try:
+            if self.cache:
+                self.cache.delete(f"instructor:public:{user.id}")
+        except Exception:
+            logger.warning("Failed to invalidate public instructor cache for user %s", user.id)
+
+        try:
+            invalidate_on_instructor_profile_change(user.id)
+        except Exception:
+            logger.warning(
+                "Failed to invalidate instructor profile search cache for user %s", user.id
+            )
 
     # Key strategies
     def _profile_picture_prefix(self, user_id: str, version: int) -> str:
@@ -289,12 +313,7 @@ class PersonalAssetService(BaseService):
         except Exception:
             logger.warning("Failed to delete temp upload: %s", temp_object_key)
 
-        # Invalidate cached URLs
-        try:
-            if self.cache:
-                self.cache.delete_pattern(f"profile_pic_url:{user.id}:*")
-        except Exception:
-            logger.warning("Failed to invalidate profile picture cache for user %s", user.id)
+        self._invalidate_profile_picture_caches(user)
 
         return True
 
@@ -320,12 +339,7 @@ class PersonalAssetService(BaseService):
         )
         if updated is not None:
             invalidate_cached_user_by_id_sync(user.id, self.db)
-        # Invalidate cached URLs
-        try:
-            if self.cache:
-                self.cache.delete_pattern(f"profile_pic_url:{user.id}:*")
-        except Exception:
-            logger.warning("Failed to invalidate profile picture cache for user %s", user.id)
+        self._invalidate_profile_picture_caches(user)
 
         return updated is not None
 

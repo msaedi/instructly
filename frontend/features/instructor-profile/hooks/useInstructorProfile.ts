@@ -6,6 +6,7 @@ type ServerInstructorProfileResult = {
   id?: string;
   user_id: string;
   user?: { first_name: string; last_initial: string; has_profile_picture?: boolean; profile_picture_version?: number };
+  profile_picture_url?: string | null;
   services?: Array<{
     id?: string;
     service_catalog_id?: string;
@@ -204,6 +205,13 @@ export function useInstructorProfile(instructorId: string) {
       },
       ...(typeof topLevelHasProfilePicture !== 'undefined' ? { has_profile_picture: topLevelHasProfilePicture } : {}),
       ...(typeof topLevelProfilePictureVersion !== 'undefined' ? { profile_picture_version: topLevelProfilePictureVersion } : {}),
+      ...(typeof serverInst.profile_picture_url === 'string'
+        ? {
+            profile_picture_url: serverInst.profile_picture_url.trim() || null,
+          }
+        : serverInst.profile_picture_url === null
+          ? { profile_picture_url: null }
+          : {}),
       services: mappedServices,
       favorited_count: serverInst.favorited_count || 0,
       ...(typeof serverInst.is_live === 'boolean' && { is_live: serverInst.is_live }),

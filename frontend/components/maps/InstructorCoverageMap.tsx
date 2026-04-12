@@ -3,10 +3,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { getString, getArray } from '@/lib/typesafe';
-import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  GeoJSON,
+  AttributionControl,
+  Marker,
+  Popup,
+  useMap,
+} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
 import type { Feature, Geometry } from 'geojson';
+import MarkerClusterGroup from 'react-leaflet-cluster';
+import { createClusterPinIcon, createInstructorPhotoPinIcon } from './photoPin';
 
 interface GeoJSONProperties {
   [key: string]: unknown;
@@ -37,20 +49,24 @@ type FeatureCollection = {
   features: GeoJSONFeature[];
 };
 
-type LocationPin = {
+export type LocationPin = {
   lat: number;
   lng: number;
   label?: string;
   instructorId?: string;
+  displayName?: string;
+  profilePictureUrl?: string | null;
 };
 
-interface InstructorCoverageMapProps {
+export interface InstructorCoverageMapProps {
   featureCollection?: FeatureCollection | null;
   height?: number | string;
   showCoverage?: boolean;
   highlightInstructorId?: string | null;
   focusInstructorId?: string | null;
   locationPins?: LocationPin[];
+  onPinHover?: (instructorId: string | null) => void;
+  onPinClick?: (instructorId: string) => void;
   onBoundsChange?: (bounds: L.LatLngBounds) => void;
   showSearchAreaButton?: boolean;
   onSearchArea?: () => void;
@@ -89,6 +105,8 @@ export default function InstructorCoverageMap({
   highlightInstructorId = null,
   focusInstructorId = null,
   locationPins = [],
+  onPinHover,
+  onPinClick,
   onBoundsChange,
   showSearchAreaButton = false,
   onSearchArea,
@@ -199,7 +217,15 @@ export default function InstructorCoverageMap({
           />
         ) : null}
 
-        {locationPins && locationPins.length ? <MapPins locations={locationPins} /> : null}
+        {locationPins && locationPins.length ? (
+          <MapPins
+            locations={Array.isArray(locationPins) ? locationPins : []}
+            highlightInstructorId={highlightInstructorId}
+            focusInstructorId={focusInstructorId}
+            onPinHover={onPinHover}
+            onPinClick={onPinClick}
+          />
+        ) : null}
 
         {/* Place custom controls top-right so they're always visible in stacked view */}
         <CustomControls />
@@ -362,39 +388,88 @@ function FitToCoverage({
   return null;
 }
 
-function MapPins({ locations }: { locations: LocationPin[] }) {
-  const map = useMap();
+function MapPins({
+  locations,
+  highlightInstructorId,
+  focusInstructorId,
+  onPinHover,
+  onPinClick,
+}: {
+  locations: LocationPin[];
+  highlightInstructorId: string | null;
+  focusInstructorId: string | null;
+  onPinHover: ((instructorId: string | null) => void) | undefined;
+  onPinClick: ((instructorId: string) => void) | undefined;
+}) {
+  const validLocations = useMemo(
+    () =>
+      locations.filter(
+        (loc) => Number.isFinite(loc.lat) && Number.isFinite(loc.lng)
+      ),
+    [locations]
+  );
 
-  useEffect(() => {
-    if (!locations || locations.length === 0) return;
+  if (!validLocations.length) {
+    return null;
+  }
 
-    const pinSvg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="var(--color-brand-dark)" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.3 7 13 7 13s7-7.7 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#ffffff" stroke="none"/></svg>';
-    const icon = L.divIcon({
-      html: pinSvg,
-      className: 'studio-pin',
-      iconSize: [28, 28],
-      iconAnchor: [14, 26],
-      popupAnchor: [0, -22],
-    });
-
-    const markers: L.Marker<GeoJSONProperties>[] = [];
-    locations.forEach((loc) => {
-      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
-      const marker: L.Marker<GeoJSONProperties> = L.marker<GeoJSONProperties>([loc.lat, loc.lng], { icon });
-      if (loc.label) {
-        marker.bindPopup(`<div>${loc.label}</div>`);
+  return (
+    <MarkerClusterGroup
+      chunkedLoading={true}
+      maxClusterRadius={40}
+      showCoverageOnHover={false}
+      spiderfyOnMaxZoom={true}
+      iconCreateFunction={(cluster: { getChildCount: () => number }) =>
+        createClusterPinIcon(cluster.getChildCount())
       }
-      marker.addTo(map);
-      markers.push(marker);
-    });
+    >
+      {validLocations.map((loc) => {
+        const markerKey = `${loc.instructorId || 'pin'}:${loc.lat}:${loc.lng}`;
+        const pinState =
+          loc.instructorId && loc.instructorId === focusInstructorId
+            ? 'focused'
+            : loc.instructorId && loc.instructorId === highlightInstructorId
+              ? 'hovered'
+              : 'default';
+        const icon = createInstructorPhotoPinIcon({
+          displayName: loc.displayName || loc.label || 'Instructor',
+          profilePictureUrl: loc.profilePictureUrl ?? null,
+          state: pinState,
+        });
 
-    return () => {
-      markers.forEach((m) => m.remove());
-    };
-  }, [map, locations]);
+        const eventHandlers: LeafletEventHandlerFnMap = {};
+        if (loc.instructorId && onPinHover) {
+          eventHandlers.mouseover = () => {
+            onPinHover(loc.instructorId!);
+          };
+          eventHandlers.mouseout = () => {
+            onPinHover(null);
+          };
+        }
+        if (loc.instructorId && onPinClick) {
+          eventHandlers.click = () => {
+            onPinClick(loc.instructorId!);
+          };
+        }
 
-  return null;
+        return (
+          <Marker
+            key={markerKey}
+            position={[loc.lat, loc.lng]}
+            icon={icon}
+            title={loc.label || loc.displayName}
+            eventHandlers={eventHandlers}
+          >
+            {!onPinClick && loc.label ? (
+              <Popup>
+                <div>{loc.label}</div>
+              </Popup>
+            ) : null}
+          </Marker>
+        );
+      })}
+    </MarkerClusterGroup>
+  );
 }
 
 function MapBoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: L.LatLngBounds) => void }) {

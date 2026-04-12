@@ -339,6 +339,55 @@ def test_finalize_profile_picture_invalidates_auth_cache(monkeypatch):
     assert calls == [("user-cache-1", fake_db)]
 
 
+def test_finalize_profile_picture_invalidates_public_instructor_cache(monkeypatch):
+    from app.services import personal_asset_service as module
+
+    class DummyImages:
+        def process_profile_picture(self, data, content_type):
+            return SimpleNamespace(
+                original=b"orig",
+                display_400=b"disp",
+                thumb_200=b"thumb",
+            )
+
+    class DummyStorage:
+        def download_bytes(self, key):
+            return b"data"
+
+        def upload_bytes(self, key, content, ct):
+            return True, 200
+
+        def delete_object(self, key):
+            return True
+
+    class DummyUsers:
+        def update_profile(self, **kwargs):
+            return True
+
+    search_invalidations: list[str] = []
+    monkeypatch.setattr(module, "invalidate_cached_user_by_id_sync", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        module,
+        "invalidate_on_instructor_profile_change",
+        lambda user_id: search_invalidations.append(user_id),
+    )
+
+    fake_cache = MagicMock()
+    user = SimpleNamespace(id="inst-cache-1", profile_picture_version=0, is_instructor=True)
+    service = PersonalAssetService(
+        db=MagicMock(),
+        storage=DummyStorage(),
+        images=DummyImages(),
+        users_repo=DummyUsers(),
+        cache_service=fake_cache,
+    )
+
+    assert service.finalize_profile_picture(user, "uploads/profile_picture/x.png") is True
+    fake_cache.delete_pattern.assert_called_once_with("profile_pic_url:inst-cache-1:*")
+    fake_cache.delete.assert_called_once_with("instructor:public:inst-cache-1")
+    assert search_invalidations == ["inst-cache-1"]
+
+
 def test_delete_profile_picture_handles_no_version():
     class DummyStorage:
         def delete_object(self, key):
@@ -400,6 +449,40 @@ def test_delete_profile_picture_invalidates_auth_cache(monkeypatch):
     user = SimpleNamespace(id="user-cache-2", profile_picture_version=1)
     assert service.delete_profile_picture(user) is True
     assert calls == [("user-cache-2", fake_db)]
+
+
+def test_delete_profile_picture_invalidates_public_instructor_cache(monkeypatch):
+    from app.services import personal_asset_service as module
+
+    class DummyStorage:
+        def delete_object(self, key):
+            return True
+
+    class DummyUsers:
+        def update_profile(self, **kwargs):
+            return True
+
+    search_invalidations: list[str] = []
+    monkeypatch.setattr(module, "invalidate_cached_user_by_id_sync", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        module,
+        "invalidate_on_instructor_profile_change",
+        lambda user_id: search_invalidations.append(user_id),
+    )
+
+    fake_cache = MagicMock()
+    service = PersonalAssetService(
+        db=MagicMock(),
+        storage=DummyStorage(),
+        users_repo=DummyUsers(),
+        cache_service=fake_cache,
+    )
+    user = SimpleNamespace(id="inst-cache-2", profile_picture_version=1, is_instructor=True)
+
+    assert service.delete_profile_picture(user) is True
+    fake_cache.delete_pattern.assert_called_once_with("profile_pic_url:inst-cache-2:*")
+    fake_cache.delete.assert_called_once_with("instructor:public:inst-cache-2")
+    assert search_invalidations == ["inst-cache-2"]
 
 
 def test_get_profile_picture_view_errors(monkeypatch):

@@ -14619,6 +14619,11 @@ export type components = {
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
             /** Preferred Teaching Locations */
             preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationPublicOut"][];
+            /**
+             * Profile Picture Url
+             * @description Public profile picture URL when available
+             */
+            profile_picture_url?: string | null;
             /** Service Area Boroughs */
             service_area_boroughs?: string[];
             /** Service Area Neighborhoods */
@@ -14726,6 +14731,11 @@ export type components = {
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
             /** Preferred Teaching Locations */
             preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
+            /**
+             * Profile Picture Url
+             * @description Public profile picture URL when available
+             */
+            profile_picture_url?: string | null;
             /** Service Area Boroughs */
             service_area_boroughs?: string[];
             /** Service Area Neighborhoods */

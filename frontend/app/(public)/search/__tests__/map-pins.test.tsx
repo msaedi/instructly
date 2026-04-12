@@ -3,15 +3,40 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SearchResultsPage from '../page';
 
+let mockSearchParamsValue = 'q=piano lessons';
+
 jest.mock('next/dynamic', () => () => {
   const MockCoverageMap = ({
     locationPins,
     onAreaClick,
+    onBoundsChange,
+    showSearchAreaButton,
+    onSearchArea,
   }: {
     locationPins?: unknown[];
     onAreaClick?: (areaName: string, instructorIds: string[]) => void;
+    onBoundsChange?: (bounds: unknown) => void;
+    showSearchAreaButton?: boolean;
+    onSearchArea?: () => void;
   }) => (
     <div data-testid="coverage-map" data-pins={JSON.stringify(locationPins ?? [])}>
+      <button
+        type="button"
+        data-testid="coverage-bounds-les"
+        onClick={() =>
+          onBoundsChange?.({
+            _southWest: { lat: 40.7, lng: -74.01 },
+            _northEast: { lat: 40.72, lng: -73.99 },
+          })
+        }
+      >
+        Tight bounds
+      </button>
+      {showSearchAreaButton ? (
+        <button type="button" data-testid="coverage-search-area" onClick={() => onSearchArea?.()}>
+          Search this area
+        </button>
+      ) : null}
       <button
         type="button"
         data-testid="coverage-area-uws"
@@ -33,7 +58,7 @@ jest.mock('next/dynamic', () => () => {
 });
 
 jest.mock('next/navigation', () => ({
-  useSearchParams: jest.fn(() => new URLSearchParams('q=piano lessons')),
+  useSearchParams: jest.fn(() => new URLSearchParams(mockSearchParamsValue)),
   useRouter: jest.fn(() => ({
     push: jest.fn(),
     replace: jest.fn(),
@@ -147,6 +172,7 @@ describe('Search results map pins', () => {
   });
 
   beforeEach(() => {
+    mockSearchParamsValue = 'q=piano lessons';
     mockPublicApi.searchWithNaturalLanguage.mockResolvedValue({
       data: {
         results: [
@@ -157,7 +183,7 @@ describe('Search results map pins', () => {
               first_name: 'Ava',
               last_initial: 'L.',
               bio_snippet: '',
-              profile_picture_url: '',
+              profile_picture_url: 'https://cdn.example.com/ava.jpg',
               verified: false,
               is_founding_instructor: false,
               years_experience: 4,
@@ -185,6 +211,17 @@ describe('Search results map pins', () => {
           },
         ],
         meta: { total_results: 1 },
+      },
+      status: 200,
+    });
+    mockPublicApi.searchInstructors.mockResolvedValue({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
       },
       status: 200,
     });
@@ -233,8 +270,268 @@ describe('Search results map pins', () => {
         lng: -74.006,
         label: 'Lower East Side',
         instructorId: 'inst-1',
+        displayName: 'Ava L.',
+        profilePictureUrl: 'https://cdn.example.com/ava.jpg',
       });
     });
+  });
+
+  it('passes profile picture URLs to map pins for catalog search results', async () => {
+    mockSearchParamsValue = 'service_catalog_id=cat-1&service_name=Piano';
+    mockPublicApi.searchInstructors.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: 'profile-1',
+            user_id: 'inst-1',
+            bio: 'Catalog search instructor bio',
+            years_experience: 7,
+            created_at: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+            profile_picture_url: 'https://cdn.example.com/catalog-ava.jpg',
+            user: {
+              id: 'inst-1',
+              first_name: 'Ava',
+              last_initial: 'L.',
+            },
+            services: [
+              {
+                id: 'svc-1',
+                service_catalog_id: 'cat-1',
+                hourly_rate: 60,
+                min_hourly_rate: 60,
+                name: 'Piano Lessons',
+                format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+                offers_travel: false,
+                offers_at_location: true,
+                offers_online: false,
+                duration_options: [60],
+                is_active: true,
+              },
+            ],
+            preferred_teaching_locations: [
+              {
+                approx_lat: 40.7128,
+                approx_lng: -74.006,
+                neighborhood: 'Lower East Side',
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      },
+      status: 200,
+    });
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockPublicApi.searchInstructors).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      const pinsRaw = screen.getByTestId('coverage-map').getAttribute('data-pins') ?? '[]';
+      const pins = JSON.parse(pinsRaw) as Array<{
+        lat: number;
+        lng: number;
+        label?: string;
+        instructorId?: string;
+        profilePictureUrl?: string | null;
+      }>;
+      expect(pins.length).toBe(1);
+      expect(pins[0]).toMatchObject({
+        lat: 40.7128,
+        lng: -74.006,
+        label: 'Lower East Side',
+        instructorId: 'inst-1',
+        displayName: 'Ava L.',
+        profilePictureUrl: 'https://cdn.example.com/catalog-ava.jpg',
+      });
+    });
+  });
+
+  it('falls back to id when catalog results are missing user_id', async () => {
+    mockSearchParamsValue = 'service_catalog_id=cat-1&service_name=Piano';
+    mockPublicApi.searchInstructors.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: 'inst-legacy',
+            user_id: '',
+            bio: 'Catalog search instructor bio',
+            years_experience: 7,
+            created_at: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+            profile_picture_url: 'https://cdn.example.com/catalog-legacy.jpg',
+            user: {
+              id: 'inst-legacy',
+              first_name: 'Ava',
+              last_initial: 'L.',
+            },
+            services: [
+              {
+                id: 'svc-1',
+                service_catalog_id: 'cat-1',
+                hourly_rate: 60,
+                min_hourly_rate: 60,
+                name: 'Piano Lessons',
+                format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+                offers_travel: false,
+                offers_at_location: true,
+                offers_online: false,
+                duration_options: [60],
+                is_active: true,
+              },
+            ],
+            preferred_teaching_locations: [
+              {
+                approx_lat: 40.7128,
+                approx_lng: -74.006,
+                neighborhood: 'Lower East Side',
+              },
+            ],
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      },
+      status: 200,
+    });
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockPublicApi.searchInstructors).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      const pinsRaw = screen.getByTestId('coverage-map').getAttribute('data-pins') ?? '[]';
+      const pins = JSON.parse(pinsRaw) as Array<{
+        instructorId?: string;
+      }>;
+      expect(pins).toHaveLength(1);
+      expect(pins[0]).toMatchObject({ instructorId: 'inst-legacy' });
+      expect(document.getElementById('instructor-card-inst-legacy')).toBeInTheDocument();
+    });
+  });
+
+  it('keeps map pins stable when map bounds filter narrows the sidebar results', async () => {
+    mockPublicApi.searchWithNaturalLanguage.mockResolvedValue({
+      data: {
+        results: [
+          {
+            instructor_id: 'inst-1',
+            relevance_score: 0.95,
+            instructor: {
+              first_name: 'Ava',
+              last_initial: 'L.',
+              bio_snippet: '',
+              profile_picture_url: 'https://cdn.example.com/ava.jpg',
+              verified: false,
+              is_founding_instructor: false,
+              years_experience: 4,
+              teaching_locations: [
+                {
+                  approx_lat: 40.7128,
+                  approx_lng: -74.006,
+                  neighborhood: 'Lower East Side',
+                },
+              ],
+            },
+            rating: { average: 4.7, count: 12 },
+            coverage_areas: ['Lower East Side'],
+            best_match: {
+              service_id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              name: 'Piano Lessons',
+              description: '',
+              min_hourly_rate: 60,
+              format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
+            },
+            other_matches: [],
+          },
+          {
+            instructor_id: 'inst-2',
+            relevance_score: 0.9,
+            instructor: {
+              first_name: 'James',
+              last_initial: 'W.',
+              bio_snippet: '',
+              profile_picture_url: 'https://cdn.example.com/james.jpg',
+              verified: false,
+              is_founding_instructor: false,
+              years_experience: 6,
+              teaching_locations: [
+                {
+                  approx_lat: 40.78,
+                  approx_lng: -73.97,
+                  neighborhood: 'Upper West Side',
+                },
+              ],
+            },
+            rating: { average: 4.6, count: 9 },
+            coverage_areas: ['Upper West Side'],
+            best_match: {
+              service_id: 'svc-2',
+              service_catalog_id: 'cat-1',
+              name: 'Piano Lessons',
+              description: '',
+              min_hourly_rate: 75,
+              format_prices: [{ format: 'instructor_location', hourly_rate: 75 }],
+            },
+            other_matches: [],
+          },
+        ],
+        meta: { total_results: 2 },
+      },
+      status: 200,
+    });
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('instructor-card')).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByTestId('coverage-bounds-les'));
+
+    const searchAreaButton = await screen.findByTestId('coverage-search-area');
+    fireEvent.click(searchAreaButton);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('instructor-card')).toHaveLength(1);
+    });
+
+    const pinsRaw = screen.getByTestId('coverage-map').getAttribute('data-pins') ?? '[]';
+    const pins = JSON.parse(pinsRaw) as Array<{
+      instructorId?: string;
+    }>;
+    expect(pins).toHaveLength(2);
+    expect(pins.map((pin) => pin.instructorId)).toEqual(['inst-1', 'inst-2']);
   });
 
   it('cycles through visible instructors when the same coverage area is clicked repeatedly', async () => {

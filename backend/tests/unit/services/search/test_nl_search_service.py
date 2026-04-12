@@ -619,6 +619,7 @@ class TestHydrateInstructorResults:
                 "bio_snippet": "A bio",
                 "years_experience": 10,
                 "profile_picture_key": "photos/usr_A.jpg",
+                "profile_picture_version": 1,
                 "verified": True,
                 "avg_rating": 4.9,
                 "review_count": 50,
@@ -651,6 +652,14 @@ class TestHydrateInstructorResults:
                 return_value=_DummySessionCtx(),
             ),
             patch("app.repositories.retriever_repository.RetrieverRepository") as mock_repo_cls,
+            patch(
+                "app.services.search.nl_pipeline.hydration_helpers.build_photo_url",
+                side_effect=lambda key, version=None, variant="original": (
+                    f"https://signed.example.com/{key}?variant={variant}&v={version}"
+                    if key
+                    else None
+                ),
+            ),
         ):
             mock_repo_cls.return_value.get_instructor_cards = Mock(return_value=instructor_cards)
             results = await hydration.hydrate_instructor_results_for_service(
@@ -664,8 +673,10 @@ class TestHydrateInstructorResults:
         assert results[0].total_matching_services == 2
         assert results[0].rating.count == 50
         assert results[0].coverage_areas == ["Brooklyn"]
-        assert results[0].instructor.profile_picture_url
-        assert results[0].instructor.profile_picture_url.endswith("photos/usr_A.jpg")
+        assert (
+            results[0].instructor.profile_picture_url
+            == "https://signed.example.com/photos/usr_A.jpg?variant=thumb&v=1"
+        )
 
 
 class TestSearchPipeline:

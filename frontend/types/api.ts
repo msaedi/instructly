@@ -312,6 +312,9 @@ export interface Instructor {
   /** Years of teaching experience */
   years_experience: number;
 
+  /** Signed profile picture URL when available in search responses */
+  profile_picture_url?: string | null;
+
   /** User information */
   user: {
     /** First name */

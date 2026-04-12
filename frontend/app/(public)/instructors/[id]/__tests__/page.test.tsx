@@ -122,7 +122,12 @@ describe('InstructorProfilePage', () => {
     mockUseInstructorProfile.mockReturnValue({
       data: {
         user_id: 'inst-1',
-        user: { first_name: 'Ava', last_initial: 'L.' },
+        user: {
+          first_name: 'Ava',
+          last_initial: 'L.',
+          profile_picture_version: 3,
+        },
+        profile_picture_url: 'https://cdn.example.com/response-thumb.jpg',
         services: [
           {
             id: 'svc-1',
@@ -172,7 +177,14 @@ describe('InstructorProfilePage', () => {
       offersAtLocation: boolean;
       offersOnline: boolean;
       coverage: unknown;
-      studioPins: Array<{ lat: number; lng: number; label?: string }>;
+      studioPins: Array<{
+        lat: number;
+        lng: number;
+        label?: string;
+        instructorId?: string;
+        displayName?: string;
+        profilePictureUrl?: string | null;
+      }>;
     };
 
     expect(props.offersTravel).toBe(true);
@@ -180,7 +192,14 @@ describe('InstructorProfilePage', () => {
     expect(props.offersOnline).toBe(false);
     expect(props.coverage).toEqual({ type: 'FeatureCollection', features: [] });
     expect(props.studioPins).toEqual([
-      { lat: 40.7128, lng: -74.006, label: 'Lower East Side, Manhattan' },
+      {
+        lat: 40.7128,
+        lng: -74.006,
+        label: 'Lower East Side, Manhattan',
+        instructorId: 'inst-1',
+        displayName: 'Ava L.',
+        profilePictureUrl: 'https://cdn.example.com/response-thumb.jpg',
+      },
     ]);
   });
 });
