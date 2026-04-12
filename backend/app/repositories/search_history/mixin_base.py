@@ -1,5 +1,8 @@
 """Shared typing surface for search history repository mixins."""
 
+from __future__ import annotations
+
+import logging
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Query, Session
@@ -12,6 +15,7 @@ if TYPE_CHECKING:
         """Typed attribute surface supplied by the search history facade."""
 
         db: Session
+        logger: logging.Logger
 
         def _add_user_filter(self, query: Query[Any], context: SearchUserContext) -> Query[Any]:
             ...
@@ -22,3 +26,4 @@ else:
         """Runtime no-op base that keeps mixin MRO clean."""
 
         db: Session
+        logger: logging.Logger

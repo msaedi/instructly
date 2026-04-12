@@ -326,7 +326,7 @@ async def test_get_current_user_cookie_fallback(monkeypatch):
     async def _lookup_none(_user_id):
         return None
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_none)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_none)
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
@@ -468,7 +468,7 @@ async def test_get_current_user_rejects_token_invalidated_by_user_timestamp(monk
     async def _lookup_by_id(_user_id):
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts + 10}
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_by_id)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     with pytest.raises(auth_module.HTTPException) as exc:
@@ -496,7 +496,7 @@ async def test_get_current_user_allows_token_when_user_timestamp_is_before_iat(m
     async def _lookup_by_id(_user_id):
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts - 10}
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_by_id)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     assert await get_current_user(request, token=token) == TEST_USER_ULID
@@ -510,7 +510,7 @@ async def test_get_current_user_allows_token_when_tokens_valid_after_missing(mon
     async def _lookup_by_id(_user_id):
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": None}
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_by_id)
 
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
@@ -551,7 +551,7 @@ async def test_get_current_user_optional_cookie_fallback(monkeypatch):
     async def _lookup_none(_user_id):
         return None
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_none)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_none)
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
@@ -651,7 +651,7 @@ async def test_get_current_user_optional_returns_none_for_invalidated_token(monk
     async def _lookup_by_id(_user_id):
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts + 10}
 
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_by_id)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     assert await get_current_user_optional(request, token=token) is None
@@ -722,7 +722,7 @@ async def test_enforce_revocation_invalidated_ignores_metric_failure(monkeypatch
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": 200}
 
     monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevoked())
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_user)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", _lookup_user)
     monkeypatch.setattr(
         auth_module.prometheus_metrics,
         "record_token_rejection",

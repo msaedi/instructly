@@ -344,7 +344,7 @@ class TestRevocationEnforcement:
         """L389: user lookup returns None → skip tokens_valid_after (fail-open)."""
         payload = {"sub": "user_01ABC", "jti": "jti_003", "iat": 1000000}
         with patch("app.auth.TokenBlacklistService") as MockBlacklist, \
-             patch("app.auth.lookup_user_by_id_nonblocking", new_callable=AsyncMock) as mock_lookup:
+             patch("app.auth.lookup_user_by_subject_nonblocking", new_callable=AsyncMock) as mock_lookup:
             instance = MockBlacklist.return_value
             instance.is_revoked = AsyncMock(return_value=False)
             mock_lookup.return_value = None
@@ -357,7 +357,7 @@ class TestRevocationEnforcement:
         payload = {"sub": "user_01ABC", "jti": "jti_004", "iat": 500}
         user_data = {"tokens_valid_after_ts": 1000.5}
         with patch("app.auth.TokenBlacklistService") as MockBlacklist, \
-             patch("app.auth.lookup_user_by_id_nonblocking", new_callable=AsyncMock) as mock_lookup:
+             patch("app.auth.lookup_user_by_subject_nonblocking", new_callable=AsyncMock) as mock_lookup:
             instance = MockBlacklist.return_value
             instance.is_revoked = AsyncMock(return_value=False)
             mock_lookup.return_value = user_data
@@ -371,7 +371,7 @@ class TestRevocationEnforcement:
         payload = {"sub": "user_01ABC", "jti": "jti_005", "iat": 2000}
         user_data = {"tokens_valid_after_ts": 1000}
         with patch("app.auth.TokenBlacklistService") as MockBlacklist, \
-             patch("app.auth.lookup_user_by_id_nonblocking", new_callable=AsyncMock) as mock_lookup:
+             patch("app.auth.lookup_user_by_subject_nonblocking", new_callable=AsyncMock) as mock_lookup:
             instance = MockBlacklist.return_value
             instance.is_revoked = AsyncMock(return_value=False)
             mock_lookup.return_value = user_data

@@ -304,7 +304,11 @@ async def test_get_current_user_legacy_not_found(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_user_production_not_found(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        auth_module,
+        "lookup_user_by_subject_nonblocking",
+        AsyncMock(return_value=None),
+    )
 
     request = _make_request()
 
@@ -318,7 +322,7 @@ async def test_get_current_user_production_not_found(monkeypatch):
 async def test_get_current_user_production_success(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
     lookup_by_id = AsyncMock(return_value={"id": "u2"})
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_by_subject_nonblocking", lookup_by_id)
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
 
     result = await auth_module.get_current_user(
@@ -467,7 +471,7 @@ async def test_get_current_active_user_optional_production_lookup(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
     monkeypatch.setattr(
         auth_module,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True}),
     )
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
@@ -550,7 +554,7 @@ async def test_get_current_active_user_optional_production_inactive(monkeypatch)
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
     monkeypatch.setattr(
         auth_module,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u3", "is_active": False}),
     )
 

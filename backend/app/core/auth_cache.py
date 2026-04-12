@@ -328,7 +328,13 @@ async def lookup_user_by_subject_nonblocking(subject: str) -> Optional[Dict[str,
     if not subject:
         return None
     if "@" in subject:
-        return await asyncio.to_thread(_sync_user_lookup_by_email, subject)
+        user_data = await asyncio.to_thread(_sync_user_lookup_by_email, subject)
+        if user_data:
+            user_id_obj = user_data.get("id")
+            resolved_user_id = user_id_obj.strip() if isinstance(user_id_obj, str) else ""
+            if resolved_user_id:
+                await set_cached_user(resolved_user_id, user_data)
+        return user_data
     return await lookup_user_by_id_nonblocking(subject)
 
 

@@ -298,6 +298,75 @@ async def test_lookup_user_by_id_nonblocking(monkeypatch):
     assert result == {"id": "user1"}
 
 
+@pytest.mark.asyncio
+async def test_lookup_user_by_subject_nonblocking_email_path(monkeypatch):
+    cached: list[tuple[str, dict[str, object]]] = []
+
+    async def fake_set_cached(identifier, data):
+        cached.append((identifier, data))
+
+    async def fake_to_thread(func, *args, **kwargs):
+        assert func is auth_cache._sync_user_lookup_by_email
+        assert args == ("user@example.com",)
+        return {"id": "user1", "email": "user@example.com"}
+
+    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+
+    result = await auth_cache.lookup_user_by_subject_nonblocking("user@example.com")
+
+    assert result == {"id": "user1", "email": "user@example.com"}
+    assert cached == [("user1", {"id": "user1", "email": "user@example.com"})]
+
+
+@pytest.mark.asyncio
+async def test_lookup_user_by_subject_nonblocking_id_path(monkeypatch):
+    async def fake_lookup(identifier):
+        assert identifier == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        return {"id": identifier}
+
+    monkeypatch.setattr(auth_cache, "lookup_user_by_id_nonblocking", fake_lookup)
+
+    result = await auth_cache.lookup_user_by_subject_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+
+    assert result == {"id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"}
+
+
+@pytest.mark.asyncio
+async def test_lookup_user_by_subject_nonblocking_empty_subject_returns_none():
+    assert await auth_cache.lookup_user_by_subject_nonblocking("") is None
+    assert await auth_cache.lookup_user_by_subject_nonblocking(None) is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_user_by_subject_nonblocking_email_populates_id_cache_for_later_hit(
+    monkeypatch,
+):
+    cache: dict[str, dict[str, object]] = {}
+    user_data = {"id": "user1", "email": "user@example.com"}
+
+    async def fake_get_cached(identifier):
+        return cache.get(identifier)
+
+    async def fake_set_cached(identifier, data):
+        cache[identifier] = data
+
+    async def fake_to_thread(func, *args, **kwargs):
+        if func is auth_cache._sync_user_lookup_by_email:
+            return user_data
+        raise AssertionError("ID-path lookup should hit cache and avoid DB thread hop")
+
+    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached)
+    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+
+    first = await auth_cache.lookup_user_by_subject_nonblocking("user@example.com")
+    second = await auth_cache.lookup_user_by_subject_nonblocking("user1")
+
+    assert first == user_data
+    assert second == user_data
+
+
 
 def test_create_transient_user_and_permissions():
     user_data = {

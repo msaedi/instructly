@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -19,6 +19,8 @@ try:  # pragma: no cover - support running from repo root or backend/
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
+
+# Use db.flush() in integration tests so the outer rollback fixture preserves isolation.
 
 
 @pytest.fixture
@@ -66,7 +68,7 @@ class TestAdminOpsRepositoryIntegration:
         # Note: test_student is created fresh each test
         result = admin_ops_repo.get_first_booking_date_for_student(test_student.id)
         # Can be None or a date depending on test ordering
-        assert result is None or isinstance(result, datetime)
+        assert result is None or isinstance(result, date)
 
     def test_get_first_booking_date_for_student_with_booking(
         self, admin_ops_repo: AdminOpsRepository, test_booking: Booking
@@ -268,7 +270,7 @@ class TestAdminOpsRepositoryIntegration:
                 status="succeeded",
             )
         )
-        db.commit()
+        db.flush()
 
         result = admin_ops_repo.sum_platform_fees(start_date=today, end_date=today)
         assert result == 2100
@@ -501,7 +503,7 @@ class TestAdminOpsRepositoryIntegration:
                 status="requires_capture",
             )
         )
-        db.commit()
+        db.flush()
 
         result = admin_ops_repo.get_booking_with_payment_intent(test_booking.id)
 
@@ -550,7 +552,7 @@ class TestAdminOpsRepositoryIntegration:
             auth_scheduled_for=window_start + timedelta(minutes=10),
             allow_overlap=True,
         )
-        db.commit()
+        db.flush()
 
         result = admin_ops_repo.get_user_bookings_for_payment_timeline(
             user_id=test_booking.student_id,

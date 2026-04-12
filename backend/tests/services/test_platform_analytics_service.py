@@ -321,6 +321,7 @@ def test_supply_demand_with_filters(db, test_student, test_instructor_with_avail
             device_type="mobile",
         )
     )
+    db.flush()
 
     result = service.supply_demand(
         period=SupplyDemandPeriod.LAST_7_DAYS,

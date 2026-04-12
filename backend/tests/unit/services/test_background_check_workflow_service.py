@@ -313,6 +313,40 @@ class TestBackgroundCheckWorkflowService:
             scheduled_at=datetime.now(timezone.utc),
         ) is False
 
+    def test_execute_final_adverse_action_uses_fresh_session_even_when_repo_has_db(
+        self, monkeypatch
+    ) -> None:
+        created_sessions: list[FakeSession] = []
+
+        class FakeSession:
+            def __init__(self) -> None:
+                self.closed = False
+
+            def close(self) -> None:
+                self.closed = True
+
+        class FakeRepo:
+            def __init__(self, session: object) -> None:
+                created_sessions.append(session)
+
+            def get_by_id(self, *_args, **_kwargs):
+                return None
+
+        existing_session = object()
+        service = BackgroundCheckWorkflowService(SimpleNamespace(db=existing_session))
+
+        monkeypatch.setattr(workflow_module, "InstructorProfileRepository", FakeRepo)
+        monkeypatch.setattr(workflow_module, "SessionLocal", lambda: FakeSession())
+
+        assert service._execute_final_adverse_action(
+            profile_id="prof-1",
+            notice_id="notice-1",
+            scheduled_at=datetime.now(timezone.utc),
+        ) is False
+        assert len(created_sessions) == 1
+        assert created_sessions[0] is not existing_session
+        assert created_sessions[0].closed is True
+
     def test_execute_final_adverse_action_missing_metadata(self, monkeypatch) -> None:
         profile = SimpleNamespace(
             bgc_in_dispute=False,

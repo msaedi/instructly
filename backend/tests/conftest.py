@@ -264,7 +264,14 @@ from app.core.enums import PermissionName, RoleName
 from app.database import Base, get_db
 from app.domain.neighborhood_config import NEIGHBORHOOD_MAPPING, generate_display_key
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
-from app.models import SearchEvent, SearchHistory
+from app.models import (
+    SearchClick,
+    SearchEvent,
+    SearchEventCandidate,
+    SearchHistory,
+    SearchInteraction,
+    SearchQuery,
+)
 
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
@@ -1662,6 +1669,15 @@ def cleanup_test_database() -> None:
     try:
         if os.getenv("PYTEST_VERBOSE"):
             print("\n🧹 Cleaning up test data...")
+
+        # Search analytics tables are heavily used by integration tests and must
+        # be cleared explicitly because this shared test DB persists across tests.
+        cleanup_db.query(SearchInteraction).delete()
+        cleanup_db.query(SearchEventCandidate).delete()
+        cleanup_db.query(SearchEvent).delete()
+        cleanup_db.query(SearchHistory).delete()
+        cleanup_db.query(SearchClick).delete()
+        cleanup_db.query(SearchQuery).delete()
 
         cleanup_db.query(Booking).delete()
         cleanup_db.query(AvailabilityDay).delete()  # Bitmap-only storage now

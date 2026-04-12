@@ -39,7 +39,11 @@ async def test_get_user_from_sse_token_inactive(monkeypatch) -> None:
             return None
 
     monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", AsyncMock(return_value=DummyRedis()))
-    monkeypatch.setattr(auth_sse, "lookup_user_by_id_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": False}))
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_subject_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": False}),
+    )
 
     result = await auth_sse._get_user_from_sse_token("tok")
     assert result is None
@@ -57,7 +61,7 @@ async def test_get_user_from_sse_token_success(monkeypatch) -> None:
     monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", AsyncMock(return_value=DummyRedis()))
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "email": "a@b.com", "is_active": True}),
     )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
@@ -90,7 +94,11 @@ async def test_get_user_from_sse_token_missing_user_data(monkeypatch) -> None:
             return None
 
     monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", AsyncMock(return_value=DummyRedis()))
-    monkeypatch.setattr(auth_sse, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_subject_nonblocking",
+        AsyncMock(return_value=None),
+    )
 
     assert await auth_sse._get_user_from_sse_token("tok") is None
 
@@ -159,7 +167,7 @@ async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": False}),
     )
 
@@ -191,7 +199,7 @@ async def test_get_current_user_sse_cookie_flow(monkeypatch) -> None:
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True}),
     )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
@@ -230,7 +238,7 @@ async def test_get_current_user_sse_site_mode_error_falls_back_to_local(monkeypa
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True}),
     )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
@@ -326,7 +334,7 @@ async def test_get_current_user_sse_ignores_invalid_string_iat(monkeypatch) -> N
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True, "tokens_valid_after_ts": 99999}),
     )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
@@ -351,7 +359,7 @@ async def test_get_current_user_sse_casts_float_invalidation_timestamp(monkeypat
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
     monkeypatch.setattr(
         auth_sse,
-        "lookup_user_by_id_nonblocking",
+        "lookup_user_by_subject_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True, "tokens_valid_after_ts": 101.9}),
     )
     monkeypatch.setattr(

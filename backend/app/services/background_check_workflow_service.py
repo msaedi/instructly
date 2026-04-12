@@ -636,12 +636,10 @@ class BackgroundCheckWorkflowService:
     ) -> bool:
         scheduled_at = _ensure_utc(scheduled_at)
 
-        repo = self.repo
-        session = getattr(repo, "db", None)
-        owns_session = session is None
-        if session is None:
-            session = SessionLocal()
-            repo = InstructorProfileRepository(session)
+        # Final adverse action must commit on its own session so worker job-state
+        # transitions are not committed alongside the adverse-action lifecycle.
+        session = SessionLocal()
+        repo = InstructorProfileRepository(session)
         try:
             profile = repo.get_by_id(profile_id, load_relationships=True)
             if not profile:
@@ -749,5 +747,4 @@ class BackgroundCheckWorkflowService:
             BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_status").inc()
             return False
         finally:
-            if owns_session:
-                session.close()
+            session.close()
