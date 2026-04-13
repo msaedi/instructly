@@ -398,11 +398,51 @@ class TestPricingService:
 
             assert result == Decimal("0.1500")
 
+        def test_resolve_modality_checks_meeting_location_when_service_flags_ambiguous(self):
+            service = _make_service(
+                offers_online=False,
+                offers_travel=False,
+                offers_at_location=False,
+                format_prices=[],
+            )
+            booking = SimpleNamespace(
+                location_type="unknown",
+                meeting_location="Virtual studio",
+                instructor_service=service,
+            )
+
+            assert PricingService._resolve_modality(booking) == "remote"
+
+        def test_normalize_stored_tier_rate_keeps_decimal_rates(self):
+            result = PricingService._normalize_stored_tier_rate(
+                Decimal("0.12"),
+                fallback=Decimal("0.15"),
+            )
+
+            assert result == Decimal("0.1200")
+
+        def test_normalize_stored_tier_rate_falls_back_on_invalid_value(self):
+            result = PricingService._normalize_stored_tier_rate(
+                "bad",
+                fallback=Decimal("0.15"),
+            )
+
+            assert result == Decimal("0.1500")
+
     class TestUpdateInstructorTier:
         def test_update_instructor_tier_converts_pct_values(self, pricing_service):
             profile = SimpleNamespace(is_founding_instructor=False)
 
             updated = pricing_service.update_instructor_tier(profile, new_tier_pct=0.15)
+
+            assert updated is True
+            assert profile.current_tier_pct == Decimal("15")
+            assert profile.last_tier_eval_at is not None
+
+        def test_update_instructor_tier_preserves_whole_pct_values(self, pricing_service):
+            profile = SimpleNamespace(is_founding_instructor=False)
+
+            updated = pricing_service.update_instructor_tier(profile, new_tier_pct=15)
 
             assert updated is True
             assert profile.current_tier_pct == Decimal("15")
@@ -423,6 +463,73 @@ class TestPricingService:
             assert result == Decimal("0")
 
     class TestCommissionStatus:
+        def test_commission_tier_definitions_fallbacks_invalid_min_and_max(self):
+            pricing_config = deepcopy(DEFAULT_PRICING_CONFIG)
+            pricing_config["instructor_tiers"] = [
+                {"min": "a", "max": 4, "pct": 0.15},
+                {"min": "b", "max": "bad", "pct": 0.12},
+                {"min": "c", "max": None, "pct": 0.10},
+            ]
+
+            result = PricingService._commission_tier_definitions(pricing_config)
+
+            assert result[0]["min_lessons"] == 1
+            assert result[0]["max_lessons"] == 4
+            assert result[1]["min_lessons"] == 5
+            assert result[1]["max_lessons"] == 10
+            assert result[2]["min_lessons"] == 11
+            assert result[2]["max_lessons"] is None
+
+        def test_resolve_persisted_tier_name_defaults_to_entry_without_tiers(self):
+            result = PricingService._resolve_persisted_tier_name(
+                SimpleNamespace(current_tier_pct=Decimal("0.12")),
+                [],
+            )
+
+            assert result == "entry"
+
+        def test_resolve_persisted_tier_name_defaults_to_entry_without_pct(self):
+            tier_defs = PricingService._commission_tier_definitions(deepcopy(DEFAULT_PRICING_CONFIG))
+
+            result = PricingService._resolve_persisted_tier_name(
+                SimpleNamespace(current_tier_pct=None),
+                tier_defs,
+            )
+
+            assert result == "entry"
+
+        def test_resolve_persisted_tier_name_falls_back_to_entry_for_unmatched_rate(self):
+            tier_defs = PricingService._commission_tier_definitions(deepcopy(DEFAULT_PRICING_CONFIG))
+
+            result = PricingService._resolve_persisted_tier_name(
+                SimpleNamespace(current_tier_pct=Decimal("0.11")),
+                tier_defs,
+            )
+
+            assert result == "entry"
+
+        @pytest.mark.parametrize(
+            "tier_defs,tier_name,expected_rate",
+            [
+                (
+                    PricingService._commission_tier_definitions(deepcopy(DEFAULT_PRICING_CONFIG)),
+                    "vip",
+                    Decimal("0.1500"),
+                ),
+                (
+                    [],
+                    "vip",
+                    Decimal("0"),
+                ),
+            ],
+        )
+        def test_tier_rate_for_name_falls_back_for_unknown_and_empty_defs(
+            self, tier_defs, tier_name, expected_rate
+        ):
+            result = PricingService._tier_rate_for_name(tier_name, tier_defs)
+
+            assert result == expected_rate
+
         def test_get_instructor_commission_status_raises_when_profile_missing(
             self, pricing_service, instructor_profile_repo
         ):
@@ -566,6 +673,22 @@ class TestPricingService:
             assert result.commission_rate_pct == pytest.approx(15.0)
 
     class TestBatchTierEvaluation:
+        def test_evaluate_and_persist_instructor_tier_fetches_config_and_returns_false_when_profile_missing(
+            self, pricing_service, instructor_profile_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = None
+
+            result = pricing_service.evaluate_and_persist_instructor_tier(
+                instructor_user_id="missing_instructor",
+                instructor_profile=None,
+                pricing_config=None,
+                completion_stats=(0, None),
+            )
+
+            pricing_service.config_service.get_pricing_config.assert_called_once()
+            instructor_profile_repo.get_by_user_id.assert_called_once_with("missing_instructor")
+            assert result is False
+
         def test_evaluate_active_instructor_tiers_uses_bulk_completion_stats(
             self, pricing_service, instructor_profile_repo, booking_repo
         ):
@@ -600,3 +723,27 @@ class TestPricingService:
             ]
             assert result["evaluated"] == 2
             assert result["updated"] == 1
+
+        def test_evaluate_active_instructor_tiers_counts_failures_and_continues(
+            self, pricing_service, instructor_profile_repo, booking_repo, caplog
+        ):
+            profiles = [
+                SimpleNamespace(user_id="instructor_1"),
+                SimpleNamespace(user_id="instructor_2"),
+            ]
+            instructor_profile_repo.list_active_for_tier_evaluation.return_value = profiles
+            booking_repo.get_instructor_completion_stats_in_window.return_value = {
+                "instructor_1": (0, None),
+                "instructor_2": (3, datetime.now(timezone.utc)),
+            }
+            pricing_service.evaluate_and_persist_instructor_tier = Mock(
+                side_effect=[Exception("boom"), True]
+            )
+
+            with caplog.at_level("ERROR"):
+                result = pricing_service.evaluate_active_instructor_tiers()
+
+            assert result["evaluated"] == 2
+            assert result["updated"] == 1
+            assert result["failed"] == 1
+            assert "Failed evaluating instructor tier for instructor_1: boom" in caplog.text
