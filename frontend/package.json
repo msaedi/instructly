@@ -89,7 +89,7 @@
     "@tanstack/react-query": "^5.95.2",
     "@tanstack/react-query-devtools": "^5.96.2",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/otel": "^2.1.0",
+    "@vercel/otel": "^2.1.2",
     "@vercel/speed-insights": "^2.0.0",
     "botid": "^1.5.11",
     "browser-image-compression": "^2.0.2",
