@@ -583,6 +583,66 @@ def test_pricing_service_handles_large_credit_top_up(db, pricing_service, test_i
     assert response["top_up_transfer_cents"] == target_payout - student_pay
 
 
+def test_application_fee_clamps_to_zero_at_one_cent_boundary(
+    db, pricing_service, test_instructor, test_student, instructor_service
+):
+    """Crossing the fee-retained boundary by one cent should require a one-cent top-up."""
+
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = False
+    profile.current_tier_pct = 15
+    db.flush()
+
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("100.00"),
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=2701,
+    )
+
+    assert response["application_fee_cents"] == 0
+    assert response["top_up_transfer_cents"] == 1
+    assert response["student_pay_cents"] == 8499
+    assert (
+        response["student_pay_cents"]
+        - response["application_fee_cents"]
+        + response["top_up_transfer_cents"]
+        == response["target_instructor_payout_cents"]
+    )
+
+
+def test_round_half_up_boundary_preserves_split_math(
+    db, pricing_service, test_instructor, test_student, instructor_service
+):
+    """A half-cent base price should round half-up and keep payout math balanced."""
+
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("60.01"),
+        duration_minutes=30,
+        location_type="online",
+    )
+
+    response = pricing_service.compute_booking_pricing(booking.id)
+
+    assert response["base_price_cents"] == 3001
+    assert response["student_fee_cents"] == 360
+    assert response["instructor_platform_fee_cents"] == 450
+    assert (
+        response["student_pay_cents"] - response["application_fee_cents"]
+        == response["target_instructor_payout_cents"]
+    )
+
+
 def test_pricing_service_outputs_integer_cents(db, pricing_service, test_instructor, test_student, instructor_service):
     """All monetary outputs should be integer cents to avoid float drift."""
 
@@ -641,6 +701,40 @@ def test_founding_instructor_gets_founding_rate(
     )
 
     assert rate == Decimal("0.0800")
+
+
+def test_founding_instructor_partial_credit_preserves_fee_and_payout_invariant(
+    db, pricing_service, test_instructor, test_student, instructor_service
+):
+    """Founding-rate math should still balance when credits wipe out retained fees."""
+
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = True
+    profile.current_tier_pct = 15
+    db.flush()
+
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("100.01"),
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=3333,
+    )
+
+    assert response["instructor_platform_fee_cents"] == 800
+    assert response["application_fee_cents"] == 0
+    assert response["top_up_transfer_cents"] == 1333
+    assert (
+        response["student_pay_cents"]
+        - response["application_fee_cents"]
+        + response["top_up_transfer_cents"]
+        == response["target_instructor_payout_cents"]
+    )
 
 
 def test_regular_instructor_uses_tier_rate(
