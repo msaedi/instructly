@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
+from prometheus_client import CONTENT_TYPE_LATEST
 import pytest
+from starlette.requests import Request
+from starlette.responses import Response
 
+import app.core.internal_metrics as internal_metrics
 from app.core.internal_metrics import (
     _check_metrics_basic_auth,
     _extract_metrics_client_ip,
@@ -16,6 +21,37 @@ from app.core.internal_metrics import (
     _metrics_method_not_allowed,
     prewarm_metrics_cache,
 )
+from app.core.metrics import METRICS_AUTH_FAILURE_TOTAL
+from app.monitoring.prometheus_metrics import REGISTRY
+
+
+def _make_request(headers: dict[str, str] | None = None, client_host: str | None = None) -> Request:
+    raw_headers = [
+        (key.lower().encode("latin-1"), value.encode("latin-1"))
+        for key, value in (headers or {}).items()
+    ]
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/internal/metrics",
+        "headers": raw_headers,
+        "client": (client_host, 1234) if client_host else None,
+        "scheme": "http",
+    }
+    return Request(scope)
+
+
+def _sample_value(metric_name: str, labels: dict[str, str]) -> float:
+    value = REGISTRY.get_sample_value(metric_name, labels)
+    return float(value or 0.0)
+
+
+def _find_sample(metric_name: str, labels: dict[str, str]):
+    for metric_family in METRICS_AUTH_FAILURE_TOTAL.collect():
+        for sample in metric_family.samples:
+            if sample.name == metric_name and sample.labels == labels:
+                return sample
+    return None
 
 # ---------------------------------------------------------------------------
 # _metrics_auth_failure
@@ -49,6 +85,15 @@ class TestExtractMetricsClientIP:
         request = MagicMock()
         request.headers = {"x-forwarded-for": "10.0.0.1, 10.0.0.2"}
         assert _extract_metrics_client_ip(request) == "10.0.0.1"
+
+    def test_blank_cf_connecting_ip_falls_through_to_forwarded_for(self) -> None:
+        request = _make_request(
+            {
+                "cf-connecting-ip": " , 10.0.0.9",
+                "x-forwarded-for": "10.0.0.7, 10.0.0.8",
+            }
+        )
+        assert _extract_metrics_client_ip(request) == "10.0.0.7"
 
     def test_client_host_fallback(self) -> None:
         request = MagicMock()
@@ -86,6 +131,16 @@ class TestIpAllowed:
         """Valid IP, invalid network entry → falls back to exact string match."""
         assert _ip_allowed("10.0.0.1", ["10.0.0.1"]) is True
 
+    def test_exact_string_match_fallback_when_ip_network_rejects_entry(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def raise_value_error(_entry: str, strict: bool = False):
+            raise ValueError("bad allowlist entry")
+
+        monkeypatch.setattr(internal_metrics, "ip_network", raise_value_error)
+        assert _ip_allowed("10.0.0.1", ["10.0.0.1"]) is True
+
     def test_invalid_network_no_match(self) -> None:
         """Valid IP, invalid network entry, no exact match → False."""
         assert _ip_allowed("10.0.0.1", ["bad-network"]) is False
@@ -102,6 +157,53 @@ class TestMetricsMethodNotAllowed:
         with pytest.raises(HTTPException) as exc_info:
             _metrics_method_not_allowed()
         assert exc_info.value.status_code == 405
+
+    @pytest.mark.parametrize(
+        ("method_name", "handler"),
+        [
+            ("head", internal_metrics.internal_metrics_head),
+            ("post", internal_metrics.internal_metrics_post),
+            ("put", internal_metrics.internal_metrics_put),
+            ("patch", internal_metrics.internal_metrics_patch),
+            ("delete", internal_metrics.internal_metrics_delete),
+            ("options", internal_metrics.internal_metrics_options),
+        ],
+    )
+    def test_route_wrappers_emit_method_counter(
+        self,
+        method_name: str,
+        handler,
+    ) -> None:
+        metric_name = "instainstru_metrics_auth_fail_total"
+        labels = {"reason": "method"}
+
+        assert REGISTRY._names_to_collectors[metric_name] is METRICS_AUTH_FAILURE_TOTAL
+        assert METRICS_AUTH_FAILURE_TOTAL._labelnames == ("reason",)
+
+        metric_family = list(METRICS_AUTH_FAILURE_TOTAL.collect())[0]
+        assert metric_family.type == "counter"
+
+        before = _sample_value(metric_name, labels)
+
+        with pytest.raises(HTTPException) as first_exc:
+            handler()
+        assert first_exc.value.status_code == 405
+        assert first_exc.value.headers["Allow"] == "GET"
+
+        first_sample = _find_sample(metric_name, labels)
+        assert first_sample is not None, f"{method_name} did not register {metric_name}"
+        assert first_sample.labels == labels
+        assert first_sample.value == before + 1.0
+
+        with pytest.raises(HTTPException) as second_exc:
+            handler()
+        assert second_exc.value.status_code == 405
+        assert second_exc.value.headers["Allow"] == "GET"
+
+        second_sample = _find_sample(metric_name, labels)
+        assert second_sample is not None, f"{method_name} lost {metric_name}"
+        assert second_sample.labels == labels
+        assert second_sample.value == first_sample.value + 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +310,85 @@ class TestLoadMetricsPayload:
         result = _load_metrics_payload(1_000_000)
         assert result == b"cached data"
         mod._metrics_cache = None  # cleanup
+
+    def test_stale_cache_refreshes_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stale_at = 50.0
+        monkeypatch.setattr(internal_metrics, "_metrics_cache", (stale_at, b"stale"))
+        monkeypatch.setattr(
+            internal_metrics,
+            "monotonic",
+            lambda: stale_at + internal_metrics._METRICS_CACHE_TTL_SECONDS + 0.01,
+        )
+        monkeypatch.setattr(internal_metrics, "generate_latest", lambda _registry: b"fresh")
+
+        result = _load_metrics_payload(1_000_000)
+
+        assert result == b"fresh"
+
+
+# ---------------------------------------------------------------------------
+# internal_metrics_endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestInternalMetricsEndpoint:
+    def test_returns_prometheus_payload_response(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.core.config.settings",
+            SimpleNamespace(metrics_ip_allowlist=[], metrics_max_bytes=1024),
+            raising=False,
+        )
+        monkeypatch.setattr(internal_metrics, "_load_metrics_payload", lambda _max_bytes: b"payload")
+
+        response = internal_metrics.internal_metrics_endpoint(_make_request(client_host="10.0.0.1"))
+
+        assert response.status_code == 200
+        assert response.body == b"payload"
+        assert response.headers["content-type"] == CONTENT_TYPE_LATEST
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.headers["Pragma"] == "no-cache"
+
+    def test_returns_payload_response_passthrough(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        payload_response = Response(
+            content=b"metrics payload exceeds configured limit",
+            status_code=503,
+            media_type="text/plain; charset=utf-8",
+        )
+        monkeypatch.setattr(
+            "app.core.config.settings",
+            SimpleNamespace(metrics_ip_allowlist=[], metrics_max_bytes=8),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            internal_metrics,
+            "_load_metrics_payload",
+            lambda _max_bytes: payload_response,
+        )
+
+        response = internal_metrics.internal_metrics_endpoint(_make_request(client_host="10.0.0.1"))
+
+        assert response is payload_response
+
+    def test_forbidden_ip_emits_forbidden_metric(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        labels = {"reason": "forbidden"}
+        before = _sample_value("instainstru_metrics_auth_fail_total", labels)
+
+        monkeypatch.setattr(
+            "app.core.config.settings",
+            SimpleNamespace(metrics_ip_allowlist=["10.0.0.0/24"], metrics_max_bytes=1024),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            internal_metrics,
+            "_load_metrics_payload",
+            lambda _max_bytes: pytest.fail("_load_metrics_payload should not run"),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            internal_metrics.internal_metrics_endpoint(_make_request(client_host="192.168.1.25"))
+
+        assert exc_info.value.status_code == 403
+        assert _sample_value("instainstru_metrics_auth_fail_total", labels) == before + 1.0
 
 
 # ---------------------------------------------------------------------------
