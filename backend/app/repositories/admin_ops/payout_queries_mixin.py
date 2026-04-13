@@ -32,12 +32,14 @@ class PayoutQueriesMixin(AdminOpsRepositoryMixinBase):
             List of tuples: (User, pending_amount, lesson_count, oldest_date)
         """
         try:
+            pending_amount_expr = func.sum(Booking.total_price)
+            oldest_date_expr = func.min(Booking.completed_at)
             subquery = (
                 self.db.query(
                     Booking.instructor_id,
-                    func.sum(Booking.total_price).label("pending_amount"),
+                    pending_amount_expr.label("pending_amount"),
                     func.count(Booking.id).label("lesson_count"),
-                    func.min(Booking.completed_at).label("oldest_date"),
+                    oldest_date_expr.label("oldest_date"),
                 )
                 .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
@@ -45,7 +47,11 @@ class PayoutQueriesMixin(AdminOpsRepositoryMixinBase):
                     Booking.status == BookingStatus.COMPLETED.value,
                 )
                 .group_by(Booking.instructor_id)
-                .order_by(func.sum(Booking.total_price).desc())
+                .order_by(
+                    pending_amount_expr.desc(),
+                    oldest_date_expr.asc().nullslast(),
+                    Booking.instructor_id.asc(),
+                )
                 .limit(limit)
                 .subquery()
             )
@@ -62,6 +68,11 @@ class PayoutQueriesMixin(AdminOpsRepositoryMixinBase):
                     joinedload(User.instructor_profile).joinedload(
                         InstructorProfile.stripe_connected_account
                     )
+                )
+                .order_by(
+                    subquery.c.pending_amount.desc(),
+                    subquery.c.oldest_date.asc().nullslast(),
+                    User.id.asc(),
                 )
                 .all()
             )
