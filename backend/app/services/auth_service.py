@@ -140,6 +140,64 @@ class AuthService(BaseService):
             with self.transaction():
                 instructor_profile: InstructorProfile | None = None
                 is_founding_instructor = False
+                invite = None
+
+                if invite_code and beta_phase:
+                    invite_repo = BetaInviteRepository(self.db)
+                    invite = invite_repo.get_by_code(invite_code)
+                    now = datetime.now(timezone.utc)
+
+                    if not invite:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=not_found email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
+                    if invite.used_at is not None:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=used email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
+                    if invite.expires_at and invite.expires_at.astimezone(timezone.utc) < now:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=expired email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
+                    invite_email = (getattr(invite, "email", None) or "").strip().lower()
+                    if not invite_email:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=missing_invite_email email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
+                    if invite_email != normalized_email:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=email_mismatch email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
 
                 # Create user without role (will be assigned via RBAC)
                 user: User = self.user_repository.create(
@@ -152,6 +210,21 @@ class AuthService(BaseService):
                     zip_code=zip_code,
                     timezone=resolved_timezone,
                 )
+
+                if invite_code and beta_phase:
+                    invite_repo = BetaInviteRepository(self.db)
+                    now = datetime.now(timezone.utc)
+                    marked = invite_repo.mark_used(invite_code, user.id, used_at=now)
+                    if not marked:
+                        self.logger.info(
+                            "Registration invite rejected in service: reason=no_longer_available email=%s code=%s",
+                            masked_email,
+                            invite_code,
+                        )
+                        raise ValidationException(
+                            "Invite code is invalid.",
+                            code="INVITE_INVALID",
+                        )
 
                 # Assign role using PermissionService
                 permission_service = PermissionService(self.db)
@@ -251,74 +324,7 @@ class AuthService(BaseService):
                         )
 
                 if invite_code and beta_phase:
-                    invite_repo = BetaInviteRepository(self.db)
                     access_repo = BetaAccessRepository(self.db)
-                    invite = invite_repo.get_by_code(invite_code)
-                    now = datetime.now(timezone.utc)
-                    normalized_email = (email or "").strip().lower()
-
-                    if not invite:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=not_found email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
-                    if invite.used_at is not None:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=used email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
-                    if invite.expires_at and invite.expires_at.astimezone(timezone.utc) < now:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=expired email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
-                    invite_email = (getattr(invite, "email", None) or "").strip().lower()
-                    if not invite_email:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=missing_invite_email email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
-                    if invite_email != normalized_email:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=email_mismatch email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
-                    marked = invite_repo.mark_used(invite_code, user.id, used_at=now)
-                    if not marked:
-                        self.logger.info(
-                            "Registration invite rejected in service: reason=no_longer_available email=%s code=%s",
-                            masked_email,
-                            invite_code,
-                        )
-                        raise ValidationException(
-                            "Invite code is invalid.",
-                            code="INVITE_INVALID",
-                        )
                     access_repo.grant_access(
                         user_id=user.id,
                         role=role_name_value.lower(),
@@ -327,18 +333,19 @@ class AuthService(BaseService):
                     )
                     invalidate_cached_user_by_id_sync(user.id, self.db)
 
-                    if (
-                        role_name_value.lower() == RoleName.INSTRUCTOR.value
-                        and instructor_profile is not None
-                        and getattr(invite, "grant_founding_status", False)
-                    ):
-                        from .beta_service import BetaService
+                if (
+                    invite is not None
+                    and role_name_value.lower() == RoleName.INSTRUCTOR.value
+                    and instructor_profile is not None
+                    and getattr(invite, "grant_founding_status", False)
+                ):
+                    from .beta_service import BetaService
 
-                        beta_service = BetaService(self.db)
-                        granted, _message = beta_service.try_grant_founding_status(
-                            instructor_profile.id
-                        )
-                        is_founding_instructor = granted
+                    beta_service = BetaService(self.db)
+                    granted, _message = beta_service.try_grant_founding_status(
+                        instructor_profile.id
+                    )
+                    is_founding_instructor = granted
 
                 if role_name_value.lower() == RoleName.INSTRUCTOR.value:
                     from .instructor_lifecycle_service import InstructorLifecycleService

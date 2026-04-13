@@ -91,11 +91,6 @@ def _assert_no_registration_artifacts(
     db.expire_all()
     leaked_user = db.query(User).filter(User.email == email).first()
     after_counts = _artifact_counts(db)
-    if after_counts != before_counts or leaked_user is not None:
-        pytest.xfail(
-            "BUG: PermissionService.assign_role commits the user before invite validation, "
-            "so invite rejection leaks a persisted user row."
-        )
     assert after_counts == before_counts
     assert leaked_user is None
 
