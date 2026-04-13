@@ -358,6 +358,66 @@ class TestAdminOpsRepositoryIntegration:
             low_value_booking.instructor_id,
         ]
 
+    def test_get_instructors_with_pending_payouts_breaks_ties_by_oldest_date(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+        test_instructor_2: User,
+    ):
+        """Equal pending amounts should rank the oldest pending payout first."""
+        now = datetime.now(timezone.utc)
+        older_completed_at = now - timedelta(hours=4)
+        newer_completed_at = now - timedelta(hours=2)
+
+        older_booking = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_booking.instructor_id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=now.date(),
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            status=BookingStatus.COMPLETED,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=100.0,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            completed_at=older_completed_at,
+            allow_overlap=True,
+        )
+        newer_booking = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_instructor_2.id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=now.date(),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            status=BookingStatus.COMPLETED,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=100.0,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            completed_at=newer_completed_at,
+            allow_overlap=True,
+        )
+        db.flush()
+
+        result = admin_ops_repo.get_instructors_with_pending_payouts(limit=2)
+
+        ranked_ids = [user.id for user, _, _, _ in result]
+        assert ranked_ids == [
+            older_booking.instructor_id,
+            newer_booking.instructor_id,
+        ]
+
     def test_get_user_by_email_with_profile_not_found(
         self, admin_ops_repo: AdminOpsRepository
     ):
