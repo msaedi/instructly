@@ -59,8 +59,8 @@ def _ip_allowed(ip_str: str, allowlist: list[str]) -> bool:
             if ip_obj in ip_network(entry, strict=False):
                 return True
         except ValueError:
-            if ip_str == entry:
-                return True
+            logger.warning("Malformed metrics_ip_allowlist entry (skipping): %s", entry)
+            continue
     return False
 
 

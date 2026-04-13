@@ -26,6 +26,7 @@ from app.schemas.pricing_preview import (
     PricingPreviewData,
     PricingPreviewIn,
 )
+from app.services.pricing_helpers import _coerce_tier_bound
 
 if TYPE_CHECKING:
     from app.repositories.conflict_checker_repository import ConflictCheckerRepository
@@ -503,11 +504,12 @@ class PricingService(BaseService):
             return self._founding_rate_pct(pricing_config)
 
         tiers = sorted(
-            pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
+            pricing_config.get("instructor_tiers", []),
+            key=lambda tier: _coerce_tier_bound(tier.get("min", 0)),
         )
         if not tiers:
             default_tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
-            tiers = sorted(default_tiers, key=lambda tier: tier.get("min", 0))
+            tiers = sorted(default_tiers, key=lambda tier: _coerce_tier_bound(tier.get("min", 0)))
         if not tiers:
             return Decimal("0")
 
@@ -541,8 +543,9 @@ class PricingService(BaseService):
 
         required_pct = fallback_pct
         for tier in tiers:
-            min_count = int(tier.get("min", 0))
-            max_count = tier.get("max")
+            min_count = _coerce_tier_bound(tier.get("min", 0))
+            max_count_raw = tier.get("max")
+            max_count = _coerce_tier_bound(max_count_raw) if max_count_raw is not None else None
             if projected_count < min_count:
                 break
             required_pct = Decimal(str(tier["pct"]))
@@ -625,12 +628,13 @@ class PricingService(BaseService):
     @classmethod
     def _commission_tier_definitions(cls, pricing_config: Dict[str, Any]) -> List[TierDefinition]:
         configured = sorted(
-            pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
+            pricing_config.get("instructor_tiers", []),
+            key=lambda tier: _coerce_tier_bound(tier.get("min", 0)),
         )
         default_tiers = sorted(
             DEFAULT_PRICING_CONFIG.get("instructor_tiers")
             or PRICING_DEFAULTS.get("instructor_tiers", []),
-            key=lambda tier: tier.get("min", 0),
+            key=lambda tier: _coerce_tier_bound(tier.get("min", 0)),
         )
 
         tier_defs: List[TierDefinition] = []
@@ -648,15 +652,25 @@ class PricingService(BaseService):
             )
             min_lessons_raw = tier.get("min", fallback.get("min", 0))
             max_lessons_raw = tier.get("max", fallback.get("max"))
-            try:
-                min_lessons = int(min_lessons_raw)
-            except (TypeError, ValueError):
-                min_lessons = int(fallback.get("min", 0) or 0)
-            try:
-                max_lessons = int(max_lessons_raw) if max_lessons_raw is not None else None
-            except (TypeError, ValueError):
-                fallback_max = fallback.get("max")
-                max_lessons = int(fallback_max) if fallback_max is not None else None
+            min_lessons = _coerce_tier_bound(
+                min_lessons_raw,
+                default=_coerce_tier_bound(fallback.get("min", 0)),
+            )
+            fallback_max_raw = fallback.get("max")
+            fallback_max = (
+                _coerce_tier_bound(fallback_max_raw) if fallback_max_raw is not None else None
+            )
+            max_lessons = (
+                _coerce_tier_bound(max_lessons_raw, default=fallback_max)
+                if max_lessons_raw is not None and fallback_max is not None
+                else (
+                    _coerce_tier_bound(max_lessons_raw)
+                    if max_lessons_raw is not None
+                    and isinstance(max_lessons_raw, (int, float, str))
+                    and str(max_lessons_raw).strip().lstrip("-").isdigit()
+                    else fallback_max
+                )
+            )
 
             tier_defs.append(
                 {
@@ -811,7 +825,7 @@ class PricingService(BaseService):
         if not tiers:
             tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
         if tiers:
-            entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+            entry_tier = min(tiers, key=lambda tier: _coerce_tier_bound(tier.get("min", 0)))
             pct = entry_tier.get("pct", 0)
             return Decimal(str(pct)).quantize(Decimal("0.0001"))
         # Fallback to the default config's entry tier (only used when no pricing config exists)

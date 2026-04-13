@@ -41,6 +41,7 @@ from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.mcp_confirm_token_service import MCPConfirmTokenService
 from app.services.mcp_idempotency_service import MCPIdempotencyService
 from app.services.notification_service import NotificationService
+from app.services.pricing_helpers import _coerce_tier_bound
 from app.services.search.cache_invalidation import invalidate_on_instructor_profile_change
 
 logger = logging.getLogger(__name__)
@@ -144,7 +145,7 @@ class InstructorAdminService(BaseService):
         tiers = pricing_config.get("instructor_tiers") or DEFAULT_PRICING_CONFIG.get(
             "instructor_tiers", []
         )
-        tiers = sorted(tiers, key=lambda tier: tier.get("min", 0))
+        tiers = sorted(tiers, key=lambda tier: _coerce_tier_bound(tier.get("min", 0)))
         tier_names = ["entry", "growth", "pro"]
         mapping: dict[str, Decimal] = {}
         for idx, tier in enumerate(tiers):

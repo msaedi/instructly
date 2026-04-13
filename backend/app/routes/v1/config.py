@@ -11,6 +11,7 @@ from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.schemas.platform_config import PlatformFees, PublicConfigResponse
 from app.schemas.pricing_config import PricingConfig, PricingConfigResponse
 from app.services.config_service import ConfigService
+from app.services.pricing_helpers import _coerce_tier_bound
 
 # V1 router - mounted at /api/v1/config
 router = APIRouter(tags=["config"])
@@ -18,7 +19,7 @@ router = APIRouter(tags=["config"])
 
 def _build_platform_fees(config: Dict[str, Any]) -> PlatformFees:
     tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
-    tiers = sorted(tiers, key=lambda tier: tier.get("min", 0))
+    tiers = sorted(tiers, key=lambda tier: _coerce_tier_bound(tier.get("min", 0)))
     default_tiers = PRICING_DEFAULTS.get("instructor_tiers", [])
 
     def _tier_pct(index: int) -> float:

@@ -127,23 +127,37 @@ class TestIpAllowed:
     def test_invalid_ip_string(self) -> None:
         assert _ip_allowed("not-an-ip", ["10.0.0.0/8"]) is False
 
-    def test_exact_string_match_fallback(self) -> None:
-        """Valid IP, invalid network entry → falls back to exact string match."""
+    def test_valid_single_ip_allowlist_entry_is_allowed(self) -> None:
         assert _ip_allowed("10.0.0.1", ["10.0.0.1"]) is True
 
-    def test_exact_string_match_fallback_when_ip_network_rejects_entry(
+    def test_malformed_entry_is_skipped_with_warning(
         self,
+        caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def raise_value_error(_entry: str, strict: bool = False):
             raise ValueError("bad allowlist entry")
 
         monkeypatch.setattr(internal_metrics, "ip_network", raise_value_error)
-        assert _ip_allowed("10.0.0.1", ["10.0.0.1"]) is True
+        with caplog.at_level("WARNING"):
+            assert _ip_allowed("10.0.0.1", ["10.0.0.1"]) is False
 
-    def test_invalid_network_no_match(self) -> None:
-        """Valid IP, invalid network entry, no exact match → False."""
-        assert _ip_allowed("10.0.0.1", ["bad-network"]) is False
+        assert "Malformed metrics_ip_allowlist entry (skipping): 10.0.0.1" in caplog.text
+
+    def test_malformed_entry_does_not_block_later_valid_cidr(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level("WARNING"):
+            assert _ip_allowed("10.0.0.1", ["bad-network", "10.0.0.0/24"]) is True
+
+        assert "Malformed metrics_ip_allowlist entry (skipping): bad-network" in caplog.text
+
+    def test_invalid_network_no_match_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING"):
+            assert _ip_allowed("10.0.0.1", ["bad-network"]) is False
+
+        assert "Malformed metrics_ip_allowlist entry (skipping): bad-network" in caplog.text
 
 
 # ---------------------------------------------------------------------------

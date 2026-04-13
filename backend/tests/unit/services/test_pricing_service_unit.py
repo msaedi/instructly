@@ -463,12 +463,12 @@ class TestPricingService:
             assert result == Decimal("0")
 
     class TestCommissionStatus:
-        def test_commission_tier_definitions_fallbacks_invalid_min_and_max(self):
+        def test_commission_tier_definitions_handles_mixed_type_bounds(self):
             pricing_config = deepcopy(DEFAULT_PRICING_CONFIG)
             pricing_config["instructor_tiers"] = [
-                {"min": "a", "max": 4, "pct": 0.15},
-                {"min": "b", "max": "bad", "pct": 0.12},
-                {"min": "c", "max": None, "pct": 0.10},
+                {"min": 11, "max": None, "pct": 0.10},
+                {"min": "1", "max": 4, "pct": 0.15},
+                {"min": 5, "max": "10", "pct": 0.12},
             ]
 
             result = PricingService._commission_tier_definitions(pricing_config)
@@ -479,6 +479,44 @@ class TestPricingService:
             assert result[1]["max_lessons"] == 10
             assert result[2]["min_lessons"] == 11
             assert result[2]["max_lessons"] is None
+
+        def test_default_instructor_tier_pct_handles_mixed_type_min_bounds(self):
+            pricing_config = {
+                "instructor_tiers": [
+                    {"min": 11, "max": None, "pct": 0.10},
+                    {"min": "1", "max": 4, "pct": 0.15},
+                    {"min": 5, "max": 10, "pct": 0.12},
+                ]
+            }
+
+            result = PricingService._default_instructor_tier_pct(pricing_config)
+
+            assert result == Decimal("0.1500")
+
+        def test_resolve_instructor_tier_pct_handles_mixed_type_min_bounds(
+            self,
+            pricing_service,
+            booking_repo,
+        ):
+            pricing_config = deepcopy(DEFAULT_PRICING_CONFIG)
+            pricing_config["instructor_tiers"] = [
+                {"min": 11, "max": None, "pct": 0.10},
+                {"min": "1", "max": 4, "pct": 0.15},
+                {"min": 5, "max": "10", "pct": 0.12},
+            ]
+            booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
+            booking_repo.count_instructor_completed_in_window.return_value = 6
+
+            result = pricing_service._resolve_instructor_tier_pct_for_instructor(
+                instructor_user_id="instructor_1",
+                instructor_profile=SimpleNamespace(
+                    is_founding_instructor=False,
+                    current_tier_pct=None,
+                ),
+                pricing_config=pricing_config,
+            )
+
+            assert result == Decimal("0.1200")
 
         def test_resolve_persisted_tier_name_defaults_to_entry_without_tiers(self):
             result = PricingService._resolve_persisted_tier_name(

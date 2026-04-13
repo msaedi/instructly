@@ -12,6 +12,7 @@ from ...constants.pricing_defaults import PRICING_DEFAULTS
 from ...core.exceptions import ServiceException
 from ..base import BaseService
 from ..config_service import ConfigService
+from ..pricing_helpers import _coerce_tier_bound
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -53,7 +54,7 @@ class StripeEarningsExportMixin(BaseService):
 
         tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
         if tiers:
-            entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+            entry_tier = min(tiers, key=lambda tier: _coerce_tier_bound(tier.get("min", 0)))
             default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
             default_pct = float(entry_tier.get("pct", default_entry_pct))
         else:
