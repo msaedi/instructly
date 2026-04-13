@@ -14621,7 +14621,7 @@ export type components = {
             preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationPublicOut"][];
             /**
              * Profile Picture Url
-             * @description Public profile picture URL when available
+             * @description Signed profile picture URL when available
              */
             profile_picture_url?: string | null;
             /** Service Area Boroughs */
@@ -14733,7 +14733,7 @@ export type components = {
             preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
             /**
              * Profile Picture Url
-             * @description Public profile picture URL when available
+             * @description Signed profile picture URL when available
              */
             profile_picture_url?: string | null;
             /** Service Area Boroughs */

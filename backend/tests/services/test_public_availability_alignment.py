@@ -368,17 +368,26 @@ class TestPublicAvailabilityBugHunt:
 
         assert supported is False
 
-    def test_windows_support_booking_request_currently_accepts_unaligned_thirty_minute_window(
+    def test_windows_support_booking_request_rejects_unaligned_thirty_minute_window(
         self,
     ) -> None:
-        # BUG: the helper only checks raw duration and ignores the 15-minute booking-start
-        # contract, so a 09:05-09:35 window is treated as bookable for 30 minutes.
         supported = AvailabilityService._windows_support_booking_request(
             [(time(9, 5), time(9, 35))],
             duration_minutes=30,
         )
 
-        assert supported is True
+        assert supported is False
+
+    def test_first_aligned_start_in_window_returns_none_when_alignment_exceeds_window_end(
+        self,
+    ) -> None:
+        aligned_start = AvailabilityService._first_aligned_start_in_window(
+            9 * 60 + 10,
+            9 * 60 + 20,
+            duration_minutes=15,
+        )
+
+        assert aligned_start is None
 
     def test_compute_public_availability_requires_config_service(self, db) -> None:
         service = AvailabilityService(db)

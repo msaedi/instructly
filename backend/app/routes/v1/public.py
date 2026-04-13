@@ -126,10 +126,23 @@ def _build_public_day_availability(
             continue
 
         intervals = computed.get(date_str, [])
-        available_slots = [
-            PublicTimeSlot(start_time=start.strftime("%H:%M"), end_time=end.strftime("%H:%M"))
-            for start, end in intervals
-        ]
+        available_slots: List[PublicTimeSlot] = []
+        for start, end in intervals:
+            start_minute = time_to_minutes(start, is_end_time=False)
+            end_minute = time_to_minutes(end, is_end_time=True)
+            aligned_start_minute = AvailabilityService._first_aligned_start_in_window(
+                start_minute,
+                end_minute,
+                duration_minutes=BOOKING_START_STEP_MINUTES,
+            )
+            if aligned_start_minute is None:
+                continue
+            available_slots.append(
+                PublicTimeSlot(
+                    start_time=_minutes_to_time_str(aligned_start_minute),
+                    end_time=_minutes_to_time_str(end_minute),
+                )
+            )
         total_available_slots += len(available_slots)
         if available_slots and earliest_available_date is None:
             earliest_available_date = date_str
@@ -224,9 +237,7 @@ def _apply_public_booking_filters(
         earliest_allowed_local = now_local + timedelta(minutes=min_advance_minutes)
         earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
         minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
-        aligned_minutes = (
-            (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
-        ) * BOOKING_START_STEP_MINUTES
+        aligned_minutes = AvailabilityService._align_start_minute(minutes_since_midnight)
         base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
         earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
         earliest_allowed_date = earliest_allowed_local.date()
@@ -259,9 +270,16 @@ def _apply_public_booking_filters(
                 minimum_start_minutes = earliest_allowed_minutes
             if end_min <= minimum_start_minutes:
                 continue
+            aligned_start_minutes = AvailabilityService._first_aligned_start_in_window(
+                minimum_start_minutes,
+                end_min,
+                duration_minutes=BOOKING_START_STEP_MINUTES,
+            )
+            if aligned_start_minutes is None:
+                continue
             filtered_slots.append(
                 PublicTimeSlot(
-                    start_time=_minutes_to_time_str(minimum_start_minutes),
+                    start_time=_minutes_to_time_str(aligned_start_minutes),
                     end_time=_minutes_to_time_str(end_min),
                 )
             )
@@ -784,36 +802,34 @@ async def get_next_available_slot(
         if slots:
             # Find first slot that can accommodate the duration
             for slot_start_time, slot_end_time in sorted(slots, key=lambda s: s[0]):
-                # Calculate slot duration in minutes
-                slot_duration = (
+                start_minute = time_to_minutes(slot_start_time, is_end_time=False)
+                end_minute = time_to_minutes(slot_end_time, is_end_time=True)
+                aligned_start_minute = AvailabilityService._first_aligned_start_in_window(
+                    start_minute,
+                    end_minute,
+                    duration_minutes=duration_minutes,
+                )
+                if aligned_start_minute is None:
+                    continue
+
+                aligned_start_time = AvailabilityService._minutes_to_time(aligned_start_minute)
+                end_time = (
                     datetime.combine(  # tz-pattern-ok: time-only duration math
-                        date.min, slot_end_time, tzinfo=timezone.utc
+                        date.min, aligned_start_time, tzinfo=timezone.utc
                     )
-                    - datetime.combine(  # tz-pattern-ok: time-only duration math
-                        date.min, slot_start_time, tzinfo=timezone.utc
-                    )
-                ).seconds // 60
+                    + timedelta(minutes=duration_minutes)
+                ).time()
 
-                if slot_duration >= duration_minutes:
-                    # Found an available slot!
-                    # Return the requested duration from the start of the slot
-                    end_time = (
-                        datetime.combine(  # tz-pattern-ok: time-only duration math
-                            date.min, slot_start_time, tzinfo=timezone.utc
-                        )
-                        + timedelta(minutes=duration_minutes)
-                    ).time()
+                # Set cache headers for successful results (2 minutes for next-available)
+                response_obj.headers["Cache-Control"] = "public, max-age=120"
 
-                    # Set cache headers for successful results (2 minutes for next-available)
-                    response_obj.headers["Cache-Control"] = "public, max-age=120"
-
-                    return NextAvailableSlotResponse(
-                        found=True,
-                        date=current_date.isoformat(),
-                        start_time=slot_start_time.strftime("%H:%M:%S"),
-                        end_time=end_time.strftime("%H:%M:%S"),
-                        duration_minutes=duration_minutes,
-                    )
+                return NextAvailableSlotResponse(
+                    found=True,
+                    date=current_date.isoformat(),
+                    start_time=aligned_start_time.strftime("%H:%M:%S"),
+                    end_time=end_time.strftime("%H:%M:%S"),
+                    duration_minutes=duration_minutes,
+                )
 
         current_date += timedelta(days=1)
 

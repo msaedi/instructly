@@ -44,6 +44,29 @@ class AvailabilityPublicMixin(AvailabilityMixinBase):
         clamped = max(0, minute_value)
         return time(clamped // 60, clamped % 60)
 
+    @staticmethod
+    def _align_start_minute(start_minute: int) -> int:
+        clamped_start = max(0, int(start_minute))
+        return (
+            (clamped_start + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
+        ) * BOOKING_START_STEP_MINUTES
+
+    @classmethod
+    def _first_aligned_start_in_window(
+        cls,
+        start_minute: int,
+        end_minute: int,
+        *,
+        duration_minutes: int,
+    ) -> int | None:
+        required_minutes = max(0, int(duration_minutes))
+        aligned_start = cls._align_start_minute(start_minute)
+        if aligned_start > end_minute:
+            return None
+        if aligned_start + required_minutes > end_minute:
+            return None
+        return aligned_start
+
     @classmethod
     def _merge_time_intervals(cls, intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
         if not intervals:
@@ -193,8 +216,9 @@ class AvailabilityPublicMixin(AvailabilityMixinBase):
             )
         return cls._subtract_time_intervals(bases, cuts)
 
-    @staticmethod
+    @classmethod
     def _windows_support_booking_request(
+        cls,
         windows: Iterable[tuple[time, time]],
         *,
         time_after: time | None = None,
@@ -213,7 +237,14 @@ class AvailabilityPublicMixin(AvailabilityMixinBase):
                 time_to_minutes(start_time, is_end_time=False), earliest_start_minute
             )
             end_minute = min(time_to_minutes(end_time, is_end_time=True), latest_end_minute)
-            if end_minute - start_minute >= required_minutes:
+            if (
+                cls._first_aligned_start_in_window(
+                    start_minute,
+                    end_minute,
+                    duration_minutes=required_minutes,
+                )
+                is not None
+            ):
                 return True
         return False
 
@@ -362,9 +393,7 @@ class AvailabilityPublicMixin(AvailabilityMixinBase):
         ) + timedelta(minutes=min_advance_minutes)
         earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
         minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
-        aligned_minutes = (
-            (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
-        ) * BOOKING_START_STEP_MINUTES
+        aligned_minutes = self._align_start_minute(minutes_since_midnight)
         base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
         earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
         earliest_allowed_date = earliest_allowed_local.date()
