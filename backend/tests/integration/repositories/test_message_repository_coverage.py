@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import RepositoryException
 from app.core.ulid_helper import generate_ulid
@@ -13,6 +14,8 @@ from app.models.message import (
     Message,
     MessageNotification,
 )
+from app.repositories.conversation_repository import ConversationRepository
+from app.repositories.conversation_state_repository import ConversationStateRepository
 from app.repositories.message_repository import MessageRepository
 
 
@@ -50,6 +53,23 @@ def _create_message(
         message.created_at = created_at
     db.commit()
     return message
+
+
+def _make_conversation(
+    db,
+    *,
+    student_id: str,
+    instructor_id: str,
+    last_message_at: datetime | None = None,
+) -> Conversation:
+    conversation = Conversation(
+        student_id=student_id,
+        instructor_id=instructor_id,
+        last_message_at=last_message_at,
+    )
+    db.add(conversation)
+    db.commit()
+    return conversation
 
 
 def test_get_unread_messages_by_conversation(
@@ -287,6 +307,182 @@ def test_messages_after_id_and_find_by_conversation(
     assert message_repo.get_messages_after_id_for_conversations([], first.id) == []
 
 
+def test_message_aggregate_queries_are_scoped_and_include_soft_deleted_latest(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+    test_instructor,
+    test_instructor_2,
+):
+    other_conversation = _make_conversation(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_2.id,
+    )
+    empty_conversation = _make_conversation(
+        db,
+        student_id=test_instructor.id,
+        instructor_id=test_instructor_2.id,
+    )
+
+    older = _create_message(
+        db,
+        message_repo,
+        conversation.id,
+        test_student.id,
+        "Older visible",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+    )
+    newest_deleted = _create_message(
+        db,
+        message_repo,
+        conversation.id,
+        test_student.id,
+        "Newest deleted",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    other_message = _create_message(
+        db,
+        message_repo,
+        other_conversation.id,
+        test_student.id,
+        "Other conversation",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+    )
+
+    deleted = message_repo.soft_delete_message(newest_deleted.id, test_student.id)
+    assert deleted is not None
+    db.commit()
+
+    assert message_repo.count_for_conversation(conversation.id) == 2
+    assert message_repo.count_for_conversation(other_conversation.id) == 1
+    assert message_repo.count_for_conversation("missing-conversation") == 0
+
+    assert message_repo.get_last_message_at_for_conversation(conversation.id) == newest_deleted.created_at
+    assert message_repo.get_last_message_at_for_conversation(other_conversation.id) == other_message.created_at
+    assert message_repo.get_last_message_at_for_conversation(empty_conversation.id) is None
+
+    db.refresh(older)
+    assert older.is_deleted is False
+
+
+def test_batch_get_latest_messages_excludes_soft_deleted_rows(
+    db,
+    message_repo,
+    test_student,
+    test_instructor,
+    test_instructor_with_availability,
+    test_instructor_2,
+):
+    mixed_conversation = _make_conversation(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_2.id,
+    )
+    active_conversation = _make_conversation(
+        db,
+        student_id=test_instructor.id,
+        instructor_id=test_instructor_with_availability.id,
+    )
+    deleted_only_conversation = _make_conversation(
+        db,
+        student_id=test_instructor.id,
+        instructor_id=test_instructor_2.id,
+    )
+    empty_conversation = _make_conversation(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor.id,
+    )
+
+    visible_mixed = _create_message(
+        db,
+        message_repo,
+        mixed_conversation.id,
+        test_student.id,
+        "Mixed visible",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+    )
+    deleted_mixed = _create_message(
+        db,
+        message_repo,
+        mixed_conversation.id,
+        test_student.id,
+        "Mixed deleted",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    visible_active = _create_message(
+        db,
+        message_repo,
+        active_conversation.id,
+        test_instructor.id,
+        "Active visible",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+    )
+    deleted_only = _create_message(
+        db,
+        message_repo,
+        deleted_only_conversation.id,
+        test_instructor.id,
+        "Deleted only",
+        created_at=datetime.now(timezone.utc) - timedelta(seconds=30),
+    )
+
+    assert message_repo.soft_delete_message(deleted_mixed.id, test_student.id) is not None
+    assert message_repo.soft_delete_message(deleted_only.id, test_instructor.id) is not None
+    db.commit()
+
+    assert message_repo.batch_get_latest_messages([]) == {}
+
+    latest_messages = message_repo.batch_get_latest_messages(
+        [
+            mixed_conversation.id,
+            active_conversation.id,
+            deleted_only_conversation.id,
+            empty_conversation.id,
+        ]
+    )
+
+    assert set(latest_messages) == {mixed_conversation.id, active_conversation.id}
+    assert latest_messages[mixed_conversation.id].id == visible_mixed.id
+    assert latest_messages[active_conversation.id].id == visible_active.id
+
+
+def test_messages_after_id_fallback_stays_within_requested_conversations(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+    test_instructor_2,
+):
+    other_conversation = _make_conversation(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_2.id,
+    )
+
+    requested_one = _create_message(db, message_repo, conversation.id, test_student.id, "Requested one")
+    requested_two = _create_message(db, message_repo, conversation.id, test_student.id, "Requested two")
+    other_message = _create_message(
+        db,
+        message_repo,
+        other_conversation.id,
+        test_student.id,
+        "Other conversation",
+    )
+
+    results = message_repo.get_messages_after_id_for_conversations(
+        [conversation.id],
+        "00000000000000000000000000",
+        limit=10,
+    )
+
+    assert [message.conversation_id for message in results] == [conversation.id, conversation.id]
+    assert [message.id for message in results] == sorted([requested_one.id, requested_two.id])
+    assert other_message.id not in [message.id for message in results]
+
+
 def test_find_by_conversation_with_cursor_and_booking_filter(
     db,
     message_repo,
@@ -386,6 +582,194 @@ def test_add_reaction_missing_message_raises(
         message_repo.add_reaction("missing", test_student.id, "🔥")
 
 
+def test_add_reaction_integrity_error_is_idempotent():
+    db = Mock()
+    repo = MessageRepository(db)
+
+    message_query = Mock()
+    message_query.filter.return_value = message_query
+    message_query.first.return_value = object()
+
+    reaction_query = Mock()
+    reaction_query.filter.return_value = reaction_query
+    reaction_query.first.return_value = None
+
+    db.query.side_effect = [message_query, reaction_query]
+    db.flush.side_effect = IntegrityError("insert", {}, Exception("duplicate"))
+
+    assert repo.add_reaction("msg", "user", "🔥") is True
+    db.add.assert_called_once()
+
+
+def test_conversation_model_is_fixed_two_party_and_repository_has_no_participant_mutators(
+    conversation,
+    test_student,
+    test_instructor_with_availability,
+):
+    assert conversation.student_id == test_student.id
+    assert conversation.instructor_id == test_instructor_with_availability.id
+    assert conversation.is_participant(test_student.id) is True
+    assert conversation.is_participant(test_instructor_with_availability.id) is True
+    assert conversation.get_other_user_id(test_student.id) == test_instructor_with_availability.id
+
+    public_methods = {name for name in dir(MessageRepository) if not name.startswith("_")}
+    assert "add_participant" not in public_methods
+    assert "remove_participant" not in public_methods
+    assert "replace_participant" not in public_methods
+
+
+def test_same_user_archive_then_trash_latest_state_wins(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+):
+    _create_message(db, message_repo, conversation.id, test_student.id, "Stateful conversation")
+
+    state_repo = ConversationStateRepository(db)
+    conversation_repo = ConversationRepository(db)
+
+    state_repo.set_state(test_student.id, "archived", conversation_id=conversation.id)
+    state_repo.set_state(test_student.id, "trashed", conversation_id=conversation.id)
+    db.commit()
+
+    active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_student.id, ["archived", "trashed"], limit=20
+        )
+    }
+    archived_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "archived")
+    }
+    trashed_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "trashed")
+    }
+
+    assert conversation.id not in active_ids
+    assert conversation.id not in archived_ids
+    assert conversation.id in trashed_ids
+
+
+def test_same_user_trash_then_archive_latest_state_wins(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+):
+    _create_message(db, message_repo, conversation.id, test_student.id, "Stateful conversation")
+
+    state_repo = ConversationStateRepository(db)
+    conversation_repo = ConversationRepository(db)
+
+    state_repo.set_state(test_student.id, "trashed", conversation_id=conversation.id)
+    state_repo.set_state(test_student.id, "archived", conversation_id=conversation.id)
+    db.commit()
+
+    active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_student.id, ["archived", "trashed"], limit=20
+        )
+    }
+    archived_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "archived")
+    }
+    trashed_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "trashed")
+    }
+
+    assert conversation.id not in active_ids
+    assert conversation.id in archived_ids
+    assert conversation.id not in trashed_ids
+
+
+def test_archive_state_is_per_user_isolated(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+    test_instructor_with_availability,
+):
+    _create_message(db, message_repo, conversation.id, test_student.id, "Archive isolation")
+
+    state_repo = ConversationStateRepository(db)
+    conversation_repo = ConversationRepository(db)
+
+    state_repo.set_state(test_student.id, "archived", conversation_id=conversation.id)
+    db.commit()
+
+    student_active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_student.id, ["archived", "trashed"], limit=20
+        )
+    }
+    instructor_active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_instructor_with_availability.id, ["archived", "trashed"], limit=20
+        )
+    }
+    student_archived_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "archived")
+    }
+    instructor_archived_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_with_state(
+            test_instructor_with_availability.id, "archived"
+        )
+    }
+
+    assert conversation.id not in student_active_ids
+    assert conversation.id in instructor_active_ids
+    assert conversation.id in student_archived_ids
+    assert conversation.id not in instructor_archived_ids
+
+
+def test_trash_state_is_per_user_isolated(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+    test_instructor_with_availability,
+):
+    _create_message(db, message_repo, conversation.id, test_student.id, "Trash isolation")
+
+    state_repo = ConversationStateRepository(db)
+    conversation_repo = ConversationRepository(db)
+
+    state_repo.set_state(test_student.id, "trashed", conversation_id=conversation.id)
+    db.commit()
+
+    student_active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_student.id, ["archived", "trashed"], limit=20
+        )
+    }
+    instructor_active_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_excluding_states(
+            test_instructor_with_availability.id, ["archived", "trashed"], limit=20
+        )
+    }
+    student_trashed_ids = {
+        conv.id for conv in conversation_repo.find_for_user_with_state(test_student.id, "trashed")
+    }
+    instructor_trashed_ids = {
+        conv.id
+        for conv in conversation_repo.find_for_user_with_state(
+            test_instructor_with_availability.id, "trashed"
+        )
+    }
+
+    assert conversation.id not in student_active_ids
+    assert conversation.id in instructor_active_ids
+    assert conversation.id in student_trashed_ids
+    assert conversation.id not in instructor_trashed_ids
+
+
 def test_message_repository_error_paths():
     db = Mock()
     db.query.side_effect = RuntimeError("boom")
@@ -405,6 +789,15 @@ def test_message_repository_error_paths():
 
     with pytest.raises(RepositoryException):
         repo.get_unread_count_for_user("user")
+
+    with pytest.raises(RepositoryException):
+        repo.count_for_conversation("conv")
+
+    with pytest.raises(RepositoryException):
+        repo.batch_get_latest_messages(["conv"])
+
+    with pytest.raises(RepositoryException):
+        repo.get_last_message_at_for_conversation("conv")
 
     with pytest.raises(RepositoryException):
         repo.get_read_receipts_for_message_ids(["msg"])
