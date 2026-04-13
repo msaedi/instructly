@@ -235,6 +235,7 @@ def create_booking_pg_safe(
     max_shifts: int = 120,
     instructor_timezone: Optional[str] = None,
     student_timezone: Optional[str] = None,
+    is_dst_for_ambiguous: Optional[bool] = None,
     **extra_fields: Any,
 ) -> Booking:
     """
@@ -311,6 +312,7 @@ def create_booking_pg_safe(
         end_time,
         instructor_timezone=lesson_timezone,
         student_timezone=student_tz,
+        is_dst_for_ambiguous=is_dst_for_ambiguous,
     )
 
     booking_kwargs = {

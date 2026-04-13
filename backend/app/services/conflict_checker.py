@@ -19,6 +19,7 @@ import math
 import re
 from typing import Any, Dict, List, Optional, Sequence, cast
 
+import pytz
 from sqlalchemy.orm import Session
 
 from ..core.timezone_utils import get_user_today_by_id
@@ -723,18 +724,34 @@ class ConflictChecker(BaseService):
 
         instructor_now = get_user_now(instructor)
 
-        # Calculate booking datetime in instructor's timezone
-        booking_datetime = datetime.combine(
-            booking_date, booking_time, tzinfo=instructor_now.tzinfo
-        )
-
         # Calculate minimum booking time
         min_advance_minutes = self.config_service.get_advance_notice_minutes(location_type)
         min_booking_time = instructor_now + timedelta(minutes=min_advance_minutes)
 
-        # For comparison, we need to ensure both times are timezone-aware
-        # Convert booking_datetime to instructor's timezone for fair comparison
-        booking_datetime_tz = booking_datetime
+        tz = pytz.timezone(instructor.timezone)
+        naive_dt = datetime.combine(
+            booking_date, booking_time
+        )  # utc-naive-ok: intentionally naive for pytz.localize()
+        # Spring-forward nonexistent times (e.g., 2:30 AM on March 8, 2026
+        # in America/New_York) are rejected because the wall-clock time
+        # literally doesn't exist on that date. Fall-back ambiguous times
+        # (e.g., 1:30 AM on November 1, 2026, which occurs twice) are
+        # accepted at the first occurrence (EDT), because that matches
+        # user intent: when someone books a 1:30 AM lesson, they mean the
+        # 1:30 AM that comes first on their calendar.
+        try:
+            booking_datetime_tz = tz.localize(naive_dt, is_dst=None)
+        except pytz.AmbiguousTimeError:
+            booking_datetime_tz = tz.localize(naive_dt, is_dst=True)
+        except pytz.NonExistentTimeError:
+            return {
+                "valid": False,
+                "reason": (
+                    "Selected booking time does not exist on this date due to daylight "
+                    "saving time transition"
+                ),
+                "min_advance_minutes": min_advance_minutes,
+            }
 
         if booking_datetime_tz < min_booking_time:
             hours_until_booking = (booking_datetime_tz - instructor_now).total_seconds() / 3600

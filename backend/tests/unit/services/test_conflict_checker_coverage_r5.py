@@ -739,12 +739,7 @@ class TestCheckMinimumAdvanceBookingCoverage:
         assert "profile not found" in result["reason"]
 
     @patch("app.core.timezone_utils.get_user_now")
-    def test_spring_forward_nonexistent_time_current_buggy_behavior(self, mock_get_user_now, service):
-        # KNOWN BUG: ConflictChecker incorrectly handles DST spring-forward day.
-        # A booking for 2:30 AM on March 8, 2026 does not exist in America/New_York,
-        # but the current implementation treats it as a valid local timestamp because
-        # it assigns tzinfo directly instead of localizing the wall-clock time.
-        # When the production bug is fixed, invert this assertion to reject the slot.
+    def test_spring_forward_nonexistent_time_is_rejected(self, mock_get_user_now, service):
         import pytz
 
         ny_tz = pytz.timezone("America/New_York")
@@ -760,6 +755,29 @@ class TestCheckMinimumAdvanceBookingCoverage:
             instructor_id=generate_ulid(),
             booking_date=date(2026, 3, 8),
             booking_time=time(2, 30),
+        )
+
+        assert result["valid"] is False
+        assert result["min_advance_minutes"] == 60
+        assert "does not exist" in result["reason"]
+
+    @patch("app.core.timezone_utils.get_user_now")
+    def test_fall_back_ambiguous_time_uses_first_occurrence(self, mock_get_user_now, service):
+        import pytz
+
+        ny_tz = pytz.timezone("America/New_York")
+        service.repository.get_instructor_profile.return_value = Mock(spec=InstructorProfile)
+        service.user_repository.get_by_id.return_value = Mock(timezone="America/New_York")
+        service.config_service.get_advance_notice_minutes = Mock(return_value=60)
+        mock_get_user_now.return_value = ny_tz.localize(
+            datetime(2026, 11, 1, 0, 0),
+            is_dst=True,
+        )
+
+        result = service.check_minimum_advance_booking(
+            instructor_id=generate_ulid(),
+            booking_date=date(2026, 11, 1),
+            booking_time=time(1, 30),
         )
 
         assert result == {"valid": True, "min_advance_minutes": 60}

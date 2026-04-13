@@ -259,6 +259,7 @@ class TestConflictCheckerDatabaseOperations:
             meeting_location="Zoom",
             service_area="Manhattan",
             instructor_timezone="America/New_York",
+            is_dst_for_ambiguous=True,
         )
         db.commit()
 
