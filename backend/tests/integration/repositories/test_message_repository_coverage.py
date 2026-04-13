@@ -307,7 +307,7 @@ def test_messages_after_id_and_find_by_conversation(
     assert message_repo.get_messages_after_id_for_conversations([], first.id) == []
 
 
-def test_message_aggregate_queries_are_scoped_and_include_soft_deleted_latest(
+def test_message_aggregate_queries_are_scoped_and_exclude_soft_deleted_latest(
     db,
     message_repo,
     conversation,
@@ -355,16 +355,43 @@ def test_message_aggregate_queries_are_scoped_and_include_soft_deleted_latest(
     assert deleted is not None
     db.commit()
 
-    assert message_repo.count_for_conversation(conversation.id) == 2
+    assert message_repo.count_for_conversation(conversation.id) == 1
     assert message_repo.count_for_conversation(other_conversation.id) == 1
     assert message_repo.count_for_conversation("missing-conversation") == 0
 
-    assert message_repo.get_last_message_at_for_conversation(conversation.id) == newest_deleted.created_at
+    assert message_repo.get_last_message_at_for_conversation(conversation.id) == older.created_at
     assert message_repo.get_last_message_at_for_conversation(other_conversation.id) == other_message.created_at
     assert message_repo.get_last_message_at_for_conversation(empty_conversation.id) is None
 
     db.refresh(older)
     assert older.is_deleted is False
+    db.refresh(conversation)
+    assert conversation.last_message_at == older.created_at
+
+
+def test_soft_delete_message_recomputes_conversation_last_message_at_to_none_when_empty(
+    db,
+    message_repo,
+    conversation,
+    test_student,
+):
+    only_message = _create_message(
+        db,
+        message_repo,
+        conversation.id,
+        test_student.id,
+        "Only visible",
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+
+    deleted = message_repo.soft_delete_message(only_message.id, test_student.id)
+    assert deleted is not None
+    db.commit()
+
+    db.refresh(conversation)
+    assert conversation.last_message_at is None
+    assert message_repo.count_for_conversation(conversation.id) == 0
+    assert message_repo.get_last_message_at_for_conversation(conversation.id) is None
 
 
 def test_batch_get_latest_messages_excludes_soft_deleted_rows(
