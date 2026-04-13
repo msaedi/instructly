@@ -5,17 +5,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple, cast
 
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.orm import joinedload
 
 from ...core.exceptions import RepositoryException
 from ...models.message import Message, MessageNotification
-from .mixin_base import MessageRepositoryMixinBase
+from .mixin_base import MessageRepositoryMixinBase, _visible_message_filters
 from .types import AtomicMarkResult
 
 
 class MessageReadStateMixin(MessageRepositoryMixinBase):
     """Unread state and receipt operations for messages."""
+
+    _visibility_filters = _visible_message_filters(cast(str, Message.conversation_id))[1:]
 
     def get_unread_messages_by_conversation(
         self, conversation_id: str, user_id: str
@@ -32,13 +34,9 @@ class MessageReadStateMixin(MessageRepositoryMixinBase):
                     self.db.query(Message)
                     .join(MessageNotification)
                     .filter(
-                        and_(
-                            Message.conversation_id == conversation_id,
-                            Message.is_deleted == False,
-                            Message.deleted_at.is_(None),
-                            MessageNotification.user_id == user_id,
-                            MessageNotification.is_read == False,
-                        )
+                        *self._visible_message_filters(conversation_id),
+                        MessageNotification.user_id == user_id,
+                        MessageNotification.is_read == False,
                     )
                     .options(joinedload(Message.sender))
                     .order_by(Message.created_at)
@@ -106,23 +104,21 @@ class MessageReadStateMixin(MessageRepositoryMixinBase):
     ) -> AtomicMarkResult:
         """Atomically mark unread messages as read and return message IDs."""
         try:
+            visible_message_ids = select(Message.id).where(
+                *self._visible_message_filters(conversation_id)
+            )
             result = self.db.execute(
-                text(
-                    """
-                    UPDATE message_notifications AS mn
-                    SET is_read = TRUE,
-                        read_at = NOW()
-                    FROM messages AS m
-                    WHERE mn.message_id = m.id
-                      AND m.conversation_id = :conversation_id
-                      AND mn.user_id = :user_id
-                      AND mn.is_read = FALSE
-                      AND m.is_deleted = FALSE
-                      AND m.deleted_at IS NULL
-                    RETURNING mn.message_id, mn.read_at
-                    """
-                ),
-                {"conversation_id": conversation_id, "user_id": user_id},
+                update(MessageNotification)
+                .where(
+                    MessageNotification.message_id.in_(visible_message_ids),
+                    MessageNotification.user_id == user_id,
+                    MessageNotification.is_read == False,
+                )
+                .values(
+                    is_read=True,
+                    read_at=func.now(),
+                )
+                .returning(MessageNotification.message_id, MessageNotification.read_at)
             )
             rows = result.fetchall()
             message_ids = [str(row.message_id) for row in rows]
@@ -145,12 +141,9 @@ class MessageReadStateMixin(MessageRepositoryMixinBase):
                 self.db.query(func.count(MessageNotification.id))
                 .join(Message)
                 .filter(
-                    and_(
-                        MessageNotification.user_id == user_id,
-                        MessageNotification.is_read == False,
-                        Message.is_deleted == False,
-                        Message.deleted_at.is_(None),
-                    )
+                    MessageNotification.user_id == user_id,
+                    MessageNotification.is_read == False,
+                    *self._visibility_filters,
                 )
                 .scalar()
             ) or 0

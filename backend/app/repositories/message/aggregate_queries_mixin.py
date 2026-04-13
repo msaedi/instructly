@@ -10,11 +10,13 @@ from sqlalchemy.orm import joinedload
 
 from ...core.exceptions import RepositoryException
 from ...models.message import Message, MessageReaction
-from .mixin_base import MessageRepositoryMixinBase
+from .mixin_base import MessageRepositoryMixinBase, _visible_message_filters
 
 
 class MessageAggregateQueriesMixin(MessageRepositoryMixinBase):
     """Aggregate and enrichment queries for messages."""
+
+    _visibility_filters = _visible_message_filters(cast(str, Message.conversation_id))[1:]
 
     def count_for_conversation(self, conversation_id: str) -> int:
         """Count visible messages for a conversation."""
@@ -46,8 +48,7 @@ class MessageAggregateQueriesMixin(MessageRepositoryMixinBase):
                 )
                 .filter(
                     Message.conversation_id.in_(conversation_ids),
-                    Message.is_deleted == False,
-                    Message.deleted_at.is_(None),
+                    *self._visibility_filters,
                 )
                 .subquery()
             )
