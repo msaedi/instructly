@@ -32,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Protocol, cast
 from urllib.parse import urljoin
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
@@ -85,6 +85,14 @@ logger = logging.getLogger(__name__)
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["payments-v1"])
+
+
+class _StripeWebhookEvent(Protocol):
+    def __getitem__(self, key: str) -> Any:
+        ...
+
+    def to_dict(self, recursive: bool = True, for_json: bool = False) -> dict[str, Any]:
+        ...
 
 
 def get_stripe_service(
@@ -799,13 +807,15 @@ async def handle_stripe_webhook(
             raise HTTPException(status_code=500, detail="Webhook configuration error")
 
         # Try each configured secret until one works
-        event = None
+        event: _StripeWebhookEvent | None = None
         _last_error = None
         webhook_kind = None
 
         for i, secret in enumerate(webhook_secrets):
             try:
-                event = stripe.Webhook.construct_event(payload, sig_header, secret)
+                event = cast(
+                    _StripeWebhookEvent, stripe.Webhook.construct_event(payload, sig_header, secret)
+                )
                 # Determine which secret worked for logging
                 if i == 0 and settings.stripe_webhook_secret:
                     webhook_kind = "local/CLI"
@@ -841,10 +851,7 @@ async def handle_stripe_webhook(
         try:
             event_payload = json.loads(payload.decode("utf-8"))
         except json.JSONDecodeError:
-            if hasattr(event, "to_dict_recursive"):
-                event_payload = event.to_dict_recursive()
-            else:
-                event_payload = dict(event)
+            event_payload = event.to_dict()
 
         # Log account context for debugging
         if event_payload.get("account"):
