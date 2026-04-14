@@ -23,6 +23,7 @@
   "ignoreDependencies": [
     "@tanstack/react-query-devtools",
     "eslint-config-next",
+    "jsdom",
     "tailwindcss",
     "ts-prune",
     "vercel"
