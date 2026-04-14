@@ -58,9 +58,7 @@ class StripeTransferMixin(BaseService):
             connected.stripe_account_id,
             settings={"payouts": {"schedule": schedule_settings}},
         )
-        account_id = (
-            account.get("id") if isinstance(account, dict) else getattr(account, "id", None)
-        )
+        account_id = getattr(account, "id", None)
         return PayoutScheduleResponse(
             ok=True,
             account_id=account_id,
@@ -74,7 +72,7 @@ class StripeTransferMixin(BaseService):
         profile = self._require_instructor_profile(user)
         connected = self._require_connected_account_record(profile.id)
         link = stripe_sdk.Account.create_login_link(connected.stripe_account_id)
-        dashboard_url = link.get("url") if isinstance(link, dict) else getattr(link, "url", None)
+        dashboard_url = getattr(link, "url", None)
         return DashboardLinkResponse(dashboard_url=dashboard_url or "", expires_in_minutes=5)
 
     @BaseService.measure_operation("stripe_request_instant_payout")
@@ -97,14 +95,8 @@ class StripeTransferMixin(BaseService):
             method="instant",
             idempotency_key=payout_key,
         )
-        payout_id = (
-            getattr(payout, "id", None) if not isinstance(payout, dict) else payout.get("id")
-        )
-        payout_status = (
-            getattr(payout, "status", None)
-            if not isinstance(payout, dict)
-            else payout.get("status")
-        )
+        payout_id = getattr(payout, "id", None)
+        payout_status = getattr(payout, "status", None)
         return InstantPayoutResponse(ok=True, payout_id=payout_id, status=payout_status)
 
     @BaseService.measure_operation("stripe_ensure_top_up_transfer")
@@ -204,9 +196,7 @@ class StripeTransferMixin(BaseService):
                 metadata=transfer_metadata,
                 idempotency_key=idempotency_key,
             )
-            transfer_id = (
-                transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
-            )
+            transfer_id = getattr(transfer, "id", None)
             return {"transfer": transfer, "transfer_id": transfer_id, "amount": amount_cents}
         except stripe.StripeError as exc:  # pragma: no cover - network path
             self.logger.error(
@@ -272,9 +262,7 @@ class StripeTransferMixin(BaseService):
                 metadata=metadata,
                 idempotency_key=idempotency_key,
             )
-            transfer_id = (
-                transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
-            )
+            transfer_id = getattr(transfer, "id", None)
             if not transfer_id:
                 raise ServiceException("Failed to create referral bonus transfer")
             self.logger.info(
@@ -355,25 +343,31 @@ class StripeTransferMixin(BaseService):
     def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
         """Compute top-up from PaymentIntent metadata when available."""
         metadata = getattr(pi, "metadata", None)
-        if not metadata and hasattr(pi, "get"):
-            metadata = pi.get("metadata")
+        if metadata is None and isinstance(pi, dict):
+            metadata = pi["metadata"] if "metadata" in pi else None
         if not metadata:
             return None
 
+        def _metadata_value(key: str) -> Any:
+            value = getattr(metadata, key, None)
+            if value is None and isinstance(metadata, dict):
+                value = metadata[key] if key in metadata else None
+            return value
+
         try:
-            base_price_cents = int(str(metadata["base_price_cents"]))
-            platform_fee_cents = int(str(metadata["platform_fee_cents"]))
-            _ = int(str(metadata["student_fee_cents"]))
-            applied_credit_cents = int(str(metadata["applied_credit_cents"]))
-        except (KeyError, TypeError, ValueError):
+            base_price_cents = int(str(_metadata_value("base_price_cents")))
+            platform_fee_cents = int(str(_metadata_value("platform_fee_cents")))
+            _ = int(str(_metadata_value("student_fee_cents")))
+            applied_credit_cents = int(str(_metadata_value("applied_credit_cents")))
+        except (TypeError, ValueError):
             return None
 
         if applied_credit_cents < 0:
             return None
 
         amount_value: Optional[Any] = getattr(pi, "amount", None)
-        if amount_value is None and hasattr(pi, "get"):
-            amount_value = pi.get("amount")
+        if amount_value is None and isinstance(pi, dict):
+            amount_value = pi["amount"] if "amount" in pi else None
         if amount_value is None:
             return None
 

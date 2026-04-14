@@ -19,14 +19,18 @@ from app.services.stripe_service import ChargeContext, StripeService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.stripe_fixtures import (
+        make_account,
         make_charge,
         make_payment_intent,
+        make_payout,
         make_transfer,
     )
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.stripe_fixtures import (
+        make_account,
         make_charge,
         make_payment_intent,
+        make_payout,
         make_transfer,
     )
 
@@ -433,7 +437,7 @@ class TestPayoutScheduleAndHistory:
         )
 
         with patch.object(
-            stripe_service.stripe.Account, "modify", return_value={"id": "acct_1"}
+            stripe_service.stripe.Account, "modify", return_value=make_account(id="acct_1")
         ) as modify_mock:
             result = StripeService.set_instructor_payout_schedule(
                 service,
@@ -465,7 +469,7 @@ class TestPayoutScheduleAndHistory:
             patch.object(
                 stripe_service.stripe.Payout,
                 "create",
-                return_value={"id": "po_1", "status": "paid"},
+                return_value=make_payout(id="po_1", status="paid"),
             ),
         ):
             result = StripeService.request_instructor_instant_payout(
@@ -763,7 +767,7 @@ class TestTransfersAndPaymentIntents:
 
     def test_create_manual_transfer_success(self):
         service = _make_service()
-        transfer_obj = {"id": "tr_123"}
+        transfer_obj = make_transfer(id="tr_123")
 
         with patch.object(
             stripe_service.stripe.Transfer, "create", return_value=transfer_obj
@@ -816,7 +820,7 @@ class TestTransfersAndPaymentIntents:
 
     def test_create_referral_bonus_transfer_success(self):
         service = _make_service()
-        transfer_obj = {"id": "tr_bonus"}
+        transfer_obj = make_transfer(id="tr_bonus")
 
         with patch.object(
             stripe_service.stripe.Transfer, "create", return_value=transfer_obj

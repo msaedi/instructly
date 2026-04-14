@@ -97,6 +97,36 @@ def make_transfer(**overrides: Any) -> stripe.Transfer:
     return transfer
 
 
+def make_payout(**overrides: Any) -> stripe.Payout:
+    payload = _merge(
+        {
+            "id": "po_test",
+            "object": "payout",
+            "amount": 5000,
+            "currency": "usd",
+            "status": "paid",
+        },
+        overrides,
+    )
+    payout = _construct(stripe.Payout, payload)
+    _assert_constructed(payout, stripe.Payout)
+    return payout
+
+
+def make_login_link(**overrides: Any) -> stripe.LoginLink:
+    payload = _merge(
+        {
+            "object": "login_link",
+            "created": 1_700_000_000,
+            "url": "https://stripe.test/dashboard",
+        },
+        overrides,
+    )
+    login_link = _construct(stripe.LoginLink, payload)
+    _assert_constructed(login_link, stripe.LoginLink)
+    return login_link
+
+
 def make_refund(**overrides: Any) -> stripe.Refund:
     payload = _merge(
         {
@@ -183,8 +213,10 @@ __all__ = [
     "make_account",
     "make_charge",
     "make_event",
+    "make_login_link",
     "make_list_object",
     "make_payment_intent",
+    "make_payout",
     "make_refund",
     "make_transfer",
     "make_verification_session",

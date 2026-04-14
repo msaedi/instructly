@@ -27,6 +27,11 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_account, make_payout
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_account, make_payout
+
 
 @pytest.fixture
 def stripe_service(db: Session) -> StripeService:
@@ -158,10 +163,7 @@ def test_request_instructor_instant_payout_success(
     )
 
     mock_balance.return_value = MagicMock(available=[MagicMock(amount=5000)])
-    mock_payout = MagicMock()
-    mock_payout.id = "po_instant"
-    mock_payout.status = "paid"
-    mock_create.return_value = mock_payout
+    mock_create.return_value = make_payout(id="po_instant", status="paid")
 
     result = stripe_service.request_instructor_instant_payout(user=user)
 
@@ -214,7 +216,7 @@ def test_set_instructor_payout_schedule_success(
     stripe_service.payment_repository.create_connected_account_record(
         profile.id, "acct_sched", onboarding_completed=True
     )
-    mock_modify.return_value = {"id": "acct_sched"}
+    mock_modify.return_value = make_account(id="acct_sched")
 
     result = stripe_service.set_instructor_payout_schedule(
         user=user, monthly_anchor=15, interval="monthly"

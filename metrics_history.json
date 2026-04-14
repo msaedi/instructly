@@ -50626,5 +50626,109 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-14",
     "branch": "stripe-v15-migration"
+  },
+  {
+    "timestamp": "2026-04-14T11:34:23.079229+00:00",
+    "total_lines": 811205,
+    "total_files": 3234,
+    "backend_lines": 461582,
+    "frontend_lines": 349623,
+    "git_commits": 1815,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6967
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20232
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10337
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 45967
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9553
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 60160
+        },
+        "Services": {
+          "files": 531,
+          "lines": 182448
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21985
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28279
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 42874
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2079,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-14",
+    "branch": "stripe-v15-migration"
   }
 ]

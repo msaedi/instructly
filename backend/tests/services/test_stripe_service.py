@@ -40,6 +40,7 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.stripe_fixtures import (
         make_account,
         make_charge,
+        make_login_link,
         make_payment_intent,
         make_transfer,
     )
@@ -47,6 +48,7 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.stripe_fixtures import (
         make_account,
         make_charge,
+        make_login_link,
         make_payment_intent,
         make_transfer,
     )
@@ -913,7 +915,7 @@ class TestStripeService:
         stripe_service.payment_repository.create_connected_account_record(
             profile.id, "acct_dash", onboarding_completed=True
         )
-        mock_link.return_value = {"url": "https://stripe.test/dash"}
+        mock_link.return_value = make_login_link(url="https://stripe.test/dash")
 
         response = stripe_service.get_instructor_dashboard_link(user=user)
 
@@ -4660,84 +4662,84 @@ class TestStripeService:
         assert result["amount"] == 12.0
 
     def test_top_up_from_pi_metadata_returns_top_up(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "2000",
             },
-            amount=5000,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) == 3500
 
     def test_top_up_from_pi_metadata_returns_zero_when_no_top_up(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=8500,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount=8500,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) == 0
 
     def test_top_up_from_pi_metadata_returns_none_without_metadata(self) -> None:
-        pi = SimpleNamespace(metadata=None, amount=5000)
+        pi = make_payment_intent(metadata=None, amount=5000)
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_negative_credit(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "-100",
             },
-            amount=5000,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_when_amount_missing(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=None,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount=None,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_invalid_metadata(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "not-a-number",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount=5000,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_invalid_amount(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount="not-a-number",
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount="not-a-number",
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None

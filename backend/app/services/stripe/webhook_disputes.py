@@ -159,8 +159,6 @@ class StripeWebhookDisputesMixin(BaseService):
                 return None
             charge = charge_resource.retrieve(charge_id)
             payment_intent_id = getattr(charge, "payment_intent", None)
-            if payment_intent_id is None and hasattr(charge, "get"):
-                payment_intent_id = charge.get("payment_intent")
             return cast(Optional[str], payment_intent_id)
         except Exception as exc:
             self.logger.warning(
