@@ -70,7 +70,7 @@ class StripeWebhookRouterMixin(BaseService):
             self.logger.error("Error verifying webhook signature: %s", exc)
             raise ServiceException(f"Failed to verify webhook signature: {str(exc)}")
 
-    @BaseService.measure_operation("stripe_handle_webhook")
+    @BaseService.measure_operation("stripe_handle_webhook_event")
     def handle_webhook_event(self, event: dict[str, Any]) -> dict[str, Any]:
         """Process an already-verified Stripe webhook event."""
         try:
@@ -101,40 +101,6 @@ class StripeWebhookRouterMixin(BaseService):
         except Exception as exc:
             self.logger.error("Error processing webhook event: %s", exc)
             raise ServiceException(f"Failed to process webhook event: {str(exc)}")
-
-    @BaseService.measure_operation("stripe_handle_webhook_with_verification")
-    def handle_webhook(self, payload: str, signature: str) -> dict[str, Any]:
-        """Verify and process a Stripe webhook event in one call."""
-        stripe_sdk = _stripe_service_module().stripe
-        settings = _stripe_service_module().settings
-        try:
-            webhook_secret = (
-                settings.stripe_webhook_secret.get_secret_value()
-                if settings.stripe_webhook_secret
-                else None
-            )
-            if not webhook_secret:
-                raise ServiceException("Webhook secret not configured")
-
-            try:
-                event = stripe_sdk.Webhook.construct_event(
-                    payload.encode("utf-8") if isinstance(payload, str) else payload,
-                    signature,
-                    webhook_secret,
-                )
-            except stripe_sdk.SignatureVerificationError as exc:
-                self.logger.warning("Invalid webhook signature: %s", exc)
-                raise ServiceException("Invalid webhook signature")
-            except Exception as exc:
-                self.logger.error("Error constructing webhook event: %s", exc)
-                raise ServiceException(f"Invalid webhook payload: {str(exc)}")
-
-            return dict(self.handle_webhook_event(event))
-        except ServiceException:
-            raise
-        except Exception as exc:
-            self.logger.error("Unexpected error handling webhook: %s", exc)
-            raise ServiceException(f"Failed to process webhook: {str(exc)}")
 
     @BaseService.measure_operation("stripe_handle_payment_intent_webhook")
     def handle_payment_intent_webhook(self, event: dict[str, Any]) -> bool:

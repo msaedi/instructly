@@ -396,15 +396,11 @@ class TestWebhookEdgePaths:
         service = _make_service()
         service.stripe_configured = True
 
-        class Charge:
-            payment_intent = None
-
-            def get(self, key):
-                if key == "payment_intent":
-                    return "pi_123"
-                return None
-
-        with patch.object(stripe_service.stripe.Charge, "retrieve", return_value=Charge()):
+        with patch.object(
+            stripe_service.stripe.Charge,
+            "retrieve",
+            return_value=make_charge(payment_intent="pi_123"),
+        ):
             assert StripeService._resolve_payment_intent_id_from_charge(service, "ch_2") == "pi_123"
 
 

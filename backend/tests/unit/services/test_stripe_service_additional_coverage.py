@@ -14,6 +14,11 @@ from app.core.exceptions import ServiceException
 import app.services.stripe_service as stripe_service
 from app.services.stripe_service import PRICING_DEFAULTS, StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_payment_intent
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_payment_intent
+
 
 def _make_service() -> StripeService:
     service = StripeService.__new__(StripeService)
@@ -345,7 +350,7 @@ def test_handle_webhook_event_unhandled():
 
 
 def test_top_up_from_pi_metadata_valid_and_zero():
-    pi = SimpleNamespace(
+    pi = make_payment_intent(
         amount=8000,
         metadata={
             "base_price_cents": "10000",
@@ -356,7 +361,15 @@ def test_top_up_from_pi_metadata_valid_and_zero():
     )
     assert StripeService._top_up_from_pi_metadata(pi) == 1000
 
-    pi.amount = 9500
+    pi = make_payment_intent(
+        amount=9500,
+        metadata={
+            "base_price_cents": "10000",
+            "platform_fee_cents": "1000",
+            "student_fee_cents": "500",
+            "applied_credit_cents": "0",
+        },
+    )
     assert StripeService._top_up_from_pi_metadata(pi) == 0
 
 
@@ -380,7 +393,7 @@ def test_top_up_from_pi_metadata_valid_and_zero():
     ],
 )
 def test_top_up_from_pi_metadata_invalid(metadata):
-    pi = SimpleNamespace(amount=100, metadata=metadata)
+    pi = make_payment_intent(amount=100, metadata=metadata)
 
     assert StripeService._top_up_from_pi_metadata(pi) is None
 
