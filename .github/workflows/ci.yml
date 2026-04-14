@@ -92,7 +92,18 @@ jobs:
 
       - name: npm audit (security scan)
         working-directory: frontend
-        run: npm audit --audit-level=high --omit=dev
+        run: |
+          # IGNORING GHSA-q4gf-8mx6-v5v3 (Next.js Server Components DoS, fix in
+          # next 16.2.3). We are pinned to next 16.1.7 because Vercel's
+          # @vercel/next adapter is broken on Next 16.2.x with
+          # routes-manifest-deterministic.json ENOENT. Re-check
+          # https://github.com/vercel/vercel/releases monthly. Remove this
+          # exception when either:
+          # 1. Vercel ships @vercel/next compatible with Next 16.2.x, OR
+          # 2. Next.js backports the security fix to 16.1.x
+          # Added: 2026-04-13. Last checked: 2026-04-13.
+          npm audit --json --omit=dev > .artifacts/npm-audit.json || true
+          node scripts/check-npm-audit-exceptions.mjs .artifacts/npm-audit.json
 
       - name: Lint (full project)
         working-directory: frontend
