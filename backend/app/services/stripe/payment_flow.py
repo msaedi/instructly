@@ -343,9 +343,11 @@ class StripePaymentFlowMixin(BaseService):
         )
         try:
             charge_context = self.build_charge_context(booking_id, requested_credit_cents=None)
-            amount_value = getattr(refreshed_payment_intent, "amount", None)
-            if amount_value is None and hasattr(refreshed_payment_intent, "get"):
-                amount_value = refreshed_payment_intent.get("amount")
+            amount_value = None
+            if self.stripe_configured:
+                amount_value = getattr(refreshed_payment_intent, "amount_received", None)
+            if amount_value is None:
+                amount_value = getattr(refreshed_payment_intent, "amount", None)
             charged_amount = (
                 int(str(amount_value))
                 if amount_value is not None
