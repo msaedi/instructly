@@ -22,16 +22,12 @@ from app.core.exceptions import ServiceException
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.stripe_fixtures import (
         make_charge,
-        make_list_object,
         make_payment_intent,
-        make_verification_session,
     )
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.stripe_fixtures import (
         make_charge,
-        make_list_object,
         make_payment_intent,
-        make_verification_session,
     )
 
 
@@ -968,33 +964,6 @@ class TestCaptureBookingTopUpAmountNone:
 @pytest.mark.unit
 class TestGetLatestVerificationSessionFiltering:
     """Cover lines 1868->1865, 1869->1865: verification session loop filtering."""
-
-    @patch("app.services.stripe_service.stripe")
-    def test_filters_by_user_id(self, mock_stripe):
-        svc = _make_stripe_service()
-        mock_stripe.identity.VerificationSession.list.return_value = make_list_object(
-            [
-                make_verification_session(
-                    id="vs_old",
-                    created=100,
-                    metadata={"user_id": "USER_OTHER"},
-                ),
-                make_verification_session(
-                    id="vs_mid",
-                    created=200,
-                    metadata={"user_id": "USER1"},
-                ),
-                make_verification_session(
-                    id="vs_new",
-                    created=300,
-                    metadata={"user_id": "USER1"},
-                ),
-            ]
-        )
-
-        result = svc.get_latest_identity_status(user_id="USER1")
-        assert result.get("status") != "not_found"
-
 
 @pytest.mark.unit
 class TestCheckAccountStatusRequirements:

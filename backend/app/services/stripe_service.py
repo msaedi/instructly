@@ -100,7 +100,6 @@ if TYPE_CHECKING:  # pragma: no cover
     class StripeIdentityMixin(BaseService):
         create_identity_verification_session: Callable[..., Any]
         refresh_instructor_identity: Callable[..., Any]
-        get_latest_identity_status: Callable[..., Any]
         _persist_verified_identity: Callable[..., None]
 
     class StripeOnboardingMixin(BaseService):

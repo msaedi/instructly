@@ -384,15 +384,6 @@ def test_top_up_from_pi_metadata_invalid(metadata):
 
     assert StripeService._top_up_from_pi_metadata(pi) is None
 
-
-def test_get_latest_identity_status_reraises_service_exception():
-    service = _make_service()
-    service._check_stripe_configured = MagicMock(side_effect=ServiceException("not configured"))
-
-    with pytest.raises(ServiceException, match="not configured"):
-        StripeService.get_latest_identity_status(service, "user_1")
-
-
 def test_create_customer_unconfigured_handles_auth_type_check_failure():
     service = _make_service()
     service.stripe_configured = False

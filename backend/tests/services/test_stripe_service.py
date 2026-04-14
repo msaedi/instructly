@@ -40,19 +40,15 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.stripe_fixtures import (
         make_account,
         make_charge,
-        make_list_object,
         make_payment_intent,
         make_transfer,
-        make_verification_session,
     )
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.stripe_fixtures import (
         make_account,
         make_charge,
-        make_list_object,
         make_payment_intent,
         make_transfer,
-        make_verification_session,
     )
 
 
@@ -4489,86 +4485,6 @@ class TestStripeService:
                 stripe_service.create_identity_verification_session(
                     user_id=test_user.id, return_url="https://app.test/return"
                 )
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_found(
-        self, mock_list, stripe_service: StripeService, test_user: User
-    ) -> None:
-        """Return the latest identity session for a user."""
-        stripe_service.stripe_configured = True
-        mock_list.return_value = make_list_object(
-            [
-                make_verification_session(
-                    id="vs_old",
-                    status="processing",
-                    created=10,
-                    metadata={"user_id": test_user.id},
-                ),
-                make_verification_session(
-                    id="vs_new",
-                    status="verified",
-                    created=20,
-                    metadata={"user_id": test_user.id},
-                ),
-            ]
-        )
-
-        result = stripe_service.get_latest_identity_status(test_user.id)
-
-        assert result["status"] == "verified"
-        assert result["id"] == "vs_new"
-        assert result["created"] == 20
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_not_found(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.return_value = make_list_object([])
-
-        result = stripe_service.get_latest_identity_status("user_missing")
-
-        assert result["status"] == "not_found"
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_skips_bad_metadata(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.return_value = make_list_object(
-            [
-                make_verification_session(
-                    id="vs_bad",
-                    status="processing",
-                    created=10,
-                    metadata={},
-                )
-            ]
-        )
-
-        result = stripe_service.get_latest_identity_status("user_missing")
-
-        assert result["status"] == "not_found"
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_stripe_error(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.side_effect = stripe.StripeError("stripe down")
-
-        with pytest.raises(ServiceException, match="Failed to get identity status"):
-            stripe_service.get_latest_identity_status("user_missing")
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_unexpected_error(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.side_effect = Exception("boom")
-
-        with pytest.raises(ServiceException, match="Failed to get identity status"):
-            stripe_service.get_latest_identity_status("user_missing")
 
     def test_get_user_credit_balance_returns_earliest_expiry(
         self, stripe_service: StripeService, test_user: User
