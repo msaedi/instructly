@@ -19,6 +19,21 @@ import stripe
 
 from app.core.exceptions import ServiceException
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import (
+        make_charge,
+        make_list_object,
+        make_payment_intent,
+        make_verification_session,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import (
+        make_charge,
+        make_list_object,
+        make_payment_intent,
+        make_verification_session,
+    )
+
 
 def _make_stripe_service(**overrides: Any) -> Any:
     """Build StripeService with mocked dependencies."""
@@ -910,9 +925,7 @@ class TestCaptureBookingTopUpAmountNone:
     def test_top_up_amount_falls_to_zero(self, mock_stripe):
         svc = _make_stripe_service()
         # Mock refreshed_pi with amount that is None
-        refreshed_pi = MagicMock()
-        refreshed_pi.amount = None
-        refreshed_pi.get = MagicMock(return_value=None)
+        refreshed_pi = make_payment_intent(amount=None, amount_received=None, metadata={})
         mock_stripe.PaymentIntent.retrieve.return_value = refreshed_pi
 
         # build_charge_context raises so top_up goes to fallback
@@ -931,10 +944,13 @@ class TestCaptureBookingTopUpAmountNone:
         svc.payment_repository.get_connected_account_by_instructor_id.return_value = connected
 
         # Capture call
-        pi_captured = MagicMock()
-        pi_captured.status = "succeeded"
-        pi_captured.id = "pi_test"
-        pi_captured.get = MagicMock(return_value=None)
+        pi_captured = make_payment_intent(
+            id="pi_test",
+            status="succeeded",
+            amount=None,
+            amount_received=None,
+            metadata={},
+        )
         mock_stripe.PaymentIntent.capture.return_value = pi_captured
 
         svc.payment_repository.update_payment_status = MagicMock()
@@ -956,22 +972,25 @@ class TestGetLatestVerificationSessionFiltering:
     @patch("app.services.stripe_service.stripe")
     def test_filters_by_user_id(self, mock_stripe):
         svc = _make_stripe_service()
-
-        session1 = MagicMock()
-        session1.metadata = {"user_id": "USER_OTHER"}
-        session1.created = 100
-
-        session2 = MagicMock()
-        session2.metadata = {"user_id": "USER1"}
-        session2.created = 200
-
-        session3 = MagicMock()
-        session3.metadata = {"user_id": "USER1"}
-        session3.created = 300  # More recent
-
-        mock_stripe.identity.VerificationSession.list.return_value = {
-            "data": [session1, session2, session3]
-        }
+        mock_stripe.identity.VerificationSession.list.return_value = make_list_object(
+            [
+                make_verification_session(
+                    id="vs_old",
+                    created=100,
+                    metadata={"user_id": "USER_OTHER"},
+                ),
+                make_verification_session(
+                    id="vs_mid",
+                    created=200,
+                    metadata={"user_id": "USER1"},
+                ),
+                make_verification_session(
+                    id="vs_new",
+                    created=300,
+                    metadata={"user_id": "USER1"},
+                ),
+            ]
+        )
 
         result = svc.get_latest_identity_status(user_id="USER1")
         assert result.get("status") != "not_found"
@@ -1050,18 +1069,12 @@ class TestCapturePaymentIntentChargeDetails:
     def test_transfer_retrieve_fails_metadata_fallback(self, mock_stripe, mock_transfer):
         """When transfer retrieval fails, falls back to PI metadata."""
         svc = _make_stripe_service()
-
-        charge = {"id": "ch_123", "amount": 5000, "transfer": "tr_123"}
-        pi = MagicMock()
-        pi.status = "succeeded"
-        pi.get = lambda key, default=None: {
-            "charges": {"data": [charge]},
-            "amount_received": None,
-            "metadata": {"target_instructor_payout_cents": "4250"},
-        }.get(key, default)
-        pi.__getitem__ = lambda self, key: {
-            "charges": {"data": [charge]},
-        }[key]
+        pi = make_payment_intent(
+            status="succeeded",
+            amount_received=None,
+            latest_charge=make_charge(id="ch_123", amount=5000, transfer="tr_123"),
+            metadata={"target_instructor_payout_cents": "4250"},
+        )
         mock_stripe.PaymentIntent.capture.return_value = pi
 
         # Transfer retrieve raises
@@ -1087,25 +1100,11 @@ class TestCapturePaymentIntentChargeDetails:
     def test_amount_received_none_fallback_to_amount(self, mock_stripe):
         """Cover lines 2695->2697, 2701->2707: amount_received is None, falls to pi.amount."""
         svc = _make_stripe_service()
-
-        pi = MagicMock()
-        pi.status = "succeeded"
-        pi.amount_received = None
-        pi.amount = 5000
-        # Simulate dict-like access
-        pi.get = MagicMock(return_value=None)
-
-        # No charges
-        def pi_get(key, default=None):
-            if key == "charges":
-                return None
-            if key == "amount_received":
-                return None
-            if key == "amount":
-                return 5000
-            return default
-
-        pi.get = pi_get
+        pi = make_payment_intent(
+            status="succeeded",
+            amount_received=None,
+            amount=5000,
+        )
         mock_stripe.PaymentIntent.capture.return_value = pi
 
         svc.payment_repository.update_payment_status = MagicMock()
@@ -1132,24 +1131,13 @@ class TestGetPaymentIntentCaptureDetailsNoBranches:
     @patch("app.services.stripe_service.stripe")
     def test_details_transfer_fails_metadata_fallback(self, mock_stripe, mock_transfer):
         svc = _make_stripe_service()
-
-        charge = {"id": "ch_x", "amount": 6000, "transfer": "tr_x"}
-        pi = MagicMock()
-        pi.status = "succeeded"
-        pi.amount_received = None
-        pi.amount = None
-
-        def pi_get(key, default=None):
-            mapping = {
-                "charges": {"data": [charge]},
-                "amount_received": None,
-                "metadata": {"target_instructor_payout_cents": "4500"},
-                "amount": None,
-            }
-            return mapping.get(key, default)
-
-        pi.get = pi_get
-        pi.__getitem__ = lambda s, k: pi_get(k)
+        pi = make_payment_intent(
+            status="succeeded",
+            amount_received=None,
+            amount=None,
+            latest_charge=make_charge(id="ch_x", amount=6000, transfer="tr_x"),
+            metadata={"target_instructor_payout_cents": "4500"},
+        )
         mock_stripe.PaymentIntent.retrieve.return_value = pi
         mock_transfer.retrieve.side_effect = Exception("fail")
 
@@ -1160,22 +1148,11 @@ class TestGetPaymentIntentCaptureDetailsNoBranches:
     def test_details_no_charges_amount_from_pi(self, mock_stripe):
         """Cover lines 2766->2768, 2772->2778: no charges, fallback to pi.amount."""
         svc = _make_stripe_service()
-
-        pi = MagicMock()
-        pi.status = "succeeded"
-        pi.amount_received = None
-        pi.amount = 7000
-
-        def pi_get(key, default=None):
-            if key == "charges":
-                return None  # No charges
-            if key == "amount_received":
-                return None
-            if key == "amount":
-                return 7000
-            return default
-
-        pi.get = pi_get
+        pi = make_payment_intent(
+            status="succeeded",
+            amount_received=None,
+            amount=7000,
+        )
         mock_stripe.PaymentIntent.retrieve.return_value = pi
 
         result = svc.get_payment_intent_capture_details("pi_test")
@@ -1546,8 +1523,7 @@ class TestResolvePaymentIntentFromCharge:
     @patch("app.services.stripe_service.stripe")
     def test_charge_dict_like_get(self, mock_stripe):
         svc = _make_stripe_service()
-        charge = MagicMock(spec=["get"])
-        charge.get.return_value = "pi_resolved"
+        charge = make_charge(payment_intent="pi_resolved")
         mock_stripe.Charge.retrieve.return_value = charge
 
         result = svc._resolve_payment_intent_id_from_charge("ch_123")

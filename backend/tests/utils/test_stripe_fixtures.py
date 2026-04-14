@@ -50,7 +50,8 @@ def test_payment_intent_overrides_work() -> None:
     payment_intent = make_payment_intent(amount=10000, metadata={"user_id": "test"})
 
     assert payment_intent.amount == 10000
-    assert payment_intent.metadata == {"user_id": "test"}
+    _assert_real_stripe_object(payment_intent.metadata, StripeObject)
+    assert payment_intent.metadata["user_id"] == "test"
 
 
 def test_account_settings_are_nested_stripe_objects() -> None:

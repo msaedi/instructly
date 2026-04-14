@@ -18,11 +18,7 @@ def _merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_payload(value: Any) -> Any:
     if isinstance(value, StripeObject):
-        to_payload = getattr(value, "_to_dict_recursive", None)
-        if callable(to_payload):
-            raw = to_payload()
-        else:
-            raw = value.to_dict()
+        raw = value.to_dict()
         return {key: _normalize_payload(item) for key, item in raw.items()}
     if isinstance(value, dict):
         return {key: _normalize_payload(item) for key, item in value.items()}
