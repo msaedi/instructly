@@ -34,6 +34,7 @@ class StripeCaptureRefundMixin(BaseService):
         payment_intent = _stripe_service_module().stripe.PaymentIntent.capture(
             payment_intent_id,
             idempotency_key=idempotency_key,
+            expand=["latest_charge"],
         )
         api_duration_ms = (_time.time() - api_start) * 1000
         self.logger.info(
@@ -53,11 +54,7 @@ class StripeCaptureRefundMixin(BaseService):
             return None
         try:
             transfer = _stripe_service_module().StripeTransfer.retrieve(transfer_id)
-            return (
-                transfer.get("amount")
-                if hasattr(transfer, "get")
-                else getattr(transfer, "amount", None)
-            )
+            return getattr(transfer, "amount", None)
         except Exception as exc:
             logger.warning(
                 "Failed to retrieve transfer %s for capture details: %s",
@@ -65,8 +62,8 @@ class StripeCaptureRefundMixin(BaseService):
                 str(exc),
                 exc_info=True,
             )
-            metadata = payment_intent.get("metadata", {}) if hasattr(payment_intent, "get") else {}
-            target_payout = metadata.get("target_instructor_payout_cents") if metadata else None
+            metadata = getattr(payment_intent, "metadata", None)
+            target_payout = getattr(metadata, "target_instructor_payout_cents", None)
             if not target_payout:
                 return None
             try:
@@ -77,12 +74,8 @@ class StripeCaptureRefundMixin(BaseService):
     def _resolve_amount_received(self, payment_intent: Any, amount_received: Any) -> Any:
         if amount_received is None:
             amount_received = getattr(payment_intent, "amount_received", None)
-            if amount_received is None and hasattr(payment_intent, "get"):
-                amount_received = payment_intent.get("amount_received")
         if amount_received is None:
             fallback_amount = getattr(payment_intent, "amount", None)
-            if fallback_amount is None and hasattr(payment_intent, "get"):
-                fallback_amount = payment_intent.get("amount")
             if fallback_amount is not None:
                 try:
                     return int(fallback_amount)
@@ -99,16 +92,27 @@ class StripeCaptureRefundMixin(BaseService):
         transfer_amount = None
 
         try:
-            if payment_intent.get("charges") and payment_intent["charges"]["data"]:
-                charge = payment_intent["charges"]["data"][0]
-                charge_id = charge.get("id")
-                amount_received = charge.get("amount") or payment_intent.get("amount_received")
-                transfer_id = charge.get("transfer")
+            charge = getattr(payment_intent, "latest_charge", None)
+            if charge is None:
+                amount_received = getattr(payment_intent, "amount_received", None)
+            elif isinstance(charge, str):
+                logger.warning(
+                    "capture_refund: latest_charge is not expanded for payment intent %s",
+                    getattr(payment_intent, "id", None),
+                )
+                charge_id = charge
+                amount_received = getattr(payment_intent, "amount_received", None)
+            else:
+                charge_id = getattr(charge, "id", None)
+                amount_received = getattr(charge, "amount", None)
+                if amount_received is None:
+                    amount_received = getattr(payment_intent, "amount_received", None)
+                transfer_id = getattr(charge, "transfer", None)
                 transfer_amount = self._extract_transfer_amount(payment_intent, transfer_id)
         except Exception as exc:
             logger.warning(
                 "Failed to extract capture details from payment intent %s: %s",
-                payment_intent.get("id") if hasattr(payment_intent, "get") else None,
+                getattr(payment_intent, "id", None),
                 str(exc),
                 exc_info=True,
             )
@@ -164,7 +168,8 @@ class StripeCaptureRefundMixin(BaseService):
         """Retrieve a PaymentIntent and extract charge/transfer details without capturing."""
         try:
             payment_intent = _stripe_service_module().stripe.PaymentIntent.retrieve(
-                payment_intent_id
+                payment_intent_id,
+                expand=["latest_charge"],
             )
             (
                 charge_id,
@@ -230,11 +235,7 @@ class StripeCaptureRefundMixin(BaseService):
                         amount_cents,
                         reversed_amount,
                     )
-                failure_code = (
-                    getattr(reversal, "failure_code", None) or reversal.get("failure_code")
-                    if isinstance(reversal, dict)
-                    else None
-                )
+                failure_code = getattr(reversal, "failure_code", None)
                 if failure_code:
                     self.logger.error(
                         "Transfer reversal reported failure_code=%s for transfer %s",
