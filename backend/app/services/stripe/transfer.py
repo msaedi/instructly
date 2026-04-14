@@ -343,16 +343,11 @@ class StripeTransferMixin(BaseService):
     def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
         """Compute top-up from PaymentIntent metadata when available."""
         metadata = getattr(pi, "metadata", None)
-        if metadata is None and isinstance(pi, dict):
-            metadata = pi["metadata"] if "metadata" in pi else None
-        if not metadata:
+        if metadata is None:
             return None
 
         def _metadata_value(key: str) -> Any:
-            value = getattr(metadata, key, None)
-            if value is None and isinstance(metadata, dict):
-                value = metadata[key] if key in metadata else None
-            return value
+            return getattr(metadata, key, None)
 
         try:
             base_price_cents = int(str(_metadata_value("base_price_cents")))
@@ -366,8 +361,6 @@ class StripeTransferMixin(BaseService):
             return None
 
         amount_value: Optional[Any] = getattr(pi, "amount", None)
-        if amount_value is None and isinstance(pi, dict):
-            amount_value = pi["amount"] if "amount" in pi else None
         if amount_value is None:
             return None
 

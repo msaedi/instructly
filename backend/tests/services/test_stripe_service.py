@@ -2715,15 +2715,17 @@ class TestStripeService:
     ) -> None:
         stripe_service.stripe_configured = False
         _, profile, _ = test_instructor
-        payment_intent = {
-            "metadata": {
+        payment_intent = make_payment_intent(
+            id="pi_test_topup_error",
+            amount=5000,
+            amount_received=5000,
+            metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "2000",
             },
-            "amount": 5000,
-        }
+        )
 
         capture_result = {"payment_intent": payment_intent}
         connected_account = MagicMock(stripe_account_id="acct_topup")
