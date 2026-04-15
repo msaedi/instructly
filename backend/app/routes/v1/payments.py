@@ -91,7 +91,7 @@ class _StripeWebhookEvent(Protocol):
     def __getitem__(self, key: str) -> Any:
         ...
 
-    def to_dict(self, recursive: bool = True, for_json: bool = False) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         ...
 
 
