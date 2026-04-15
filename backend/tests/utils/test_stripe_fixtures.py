@@ -58,6 +58,7 @@ def test_account_settings_are_nested_stripe_objects() -> None:
     account = make_account()
 
     _assert_real_stripe_object(account.settings, StripeObject)
+    _assert_real_stripe_object(account.requirements, StripeObject)
     assert account.settings["payouts"]["schedule"]["interval"] == "manual"
 
 

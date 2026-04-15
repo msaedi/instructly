@@ -960,11 +960,6 @@ class TestCaptureBookingTopUpAmountNone:
         # top_up_amount should be 0 (fallback)
         assert result is not None
 
-
-@pytest.mark.unit
-class TestGetLatestVerificationSessionFiltering:
-    """Cover lines 1868->1865, 1869->1865: verification session loop filtering."""
-
 @pytest.mark.unit
 class TestCheckAccountStatusRequirements:
     """Cover lines 2264->2275: req_obj has items that get iterated."""

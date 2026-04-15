@@ -121,9 +121,11 @@ def _ensure_stripe_api_key() -> None:
     global _stripe_api_key_configured
 
     if _stripe_api_key_configured:
+        # See app.services.stripe_service for why setattr() is used here.
         setattr(stripe, "api_version", STRIPE_API_VERSION)
         return
     if getattr(stripe, "api_key", None):
+        # See app.services.stripe_service for why setattr() is used here.
         setattr(stripe, "api_version", STRIPE_API_VERSION)
         _stripe_api_key_configured = True
         return
@@ -131,6 +133,7 @@ def _ensure_stripe_api_key() -> None:
         return
 
     stripe.api_key = settings.stripe_secret_key.get_secret_value()
+    # See app.services.stripe_service for why setattr() is used here.
     setattr(stripe, "api_version", STRIPE_API_VERSION)
     _stripe_api_key_configured = True
 

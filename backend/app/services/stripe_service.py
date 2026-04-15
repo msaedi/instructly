@@ -278,6 +278,9 @@ class StripeService(
         try:
             if settings.stripe_secret_key:
                 stripe.api_key = settings.stripe_secret_key.get_secret_value()
+                # Stripe's type stubs declare api_version as read-only even though
+                # it's writable at runtime. setattr() avoids a suppression while
+                # still matching the runtime behavior.
                 setattr(stripe, "api_version", STRIPE_API_VERSION)
                 self.logger.info(
                     "Stripe SDK %s, API version %s",

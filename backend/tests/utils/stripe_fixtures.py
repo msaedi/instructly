@@ -164,7 +164,9 @@ def make_account(**overrides: Any) -> stripe.Account:
     return account
 
 
-def make_event(event_type: str, data_object: dict[str, Any], **overrides: Any) -> stripe.Event:
+def make_event(
+    event_type: str, data_object: dict[str, Any] | StripeObject, **overrides: Any
+) -> stripe.Event:
     payload = _merge(
         {
             "id": "evt_test",
