@@ -349,6 +349,8 @@ class StripeTransferMixin(BaseService):
         def _metadata_value(key: str) -> Any:
             return getattr(metadata, key, None)
 
+        # Metadata values arrive as strings from Stripe; str() unifies coercion
+        # with direct numeric fields that may arrive as int.
         try:
             base_price_cents = int(str(_metadata_value("base_price_cents")))
             platform_fee_cents = int(str(_metadata_value("platform_fee_cents")))
