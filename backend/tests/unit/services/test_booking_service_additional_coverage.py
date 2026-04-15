@@ -1841,6 +1841,39 @@ def test_execute_cancellation_stripe_calls_under_12h_missing_transfer_id(
     assert results["payout_success"] is False
 
 
+def test_execute_lock_capture_and_reversal_missing_transfer_id(
+    booking_service: BookingService,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stripe_service = MagicMock()
+    stripe_service.capture_payment_intent.return_value = {
+        "transfer_id": None,
+        "amount_received": 1000,
+        "transfer_amount": None,
+    }
+
+    with (
+        patch(
+            "app.services.booking.lock_service._stripe_service_class",
+            return_value=lambda *_args, **_kwargs: stripe_service,
+        ),
+        caplog.at_level(logging.ERROR, logger="app.services.booking.lock_service"),
+    ):
+        results = booking_service._execute_lock_capture_and_reversal(
+            booking_id="booking_lock",
+            payment_intent_id="pi_lock",
+            pricing_service=MagicMock(),
+        )
+
+    assert results["locked_amount"] == 1000
+    assert results["transfer_id"] is None
+    assert results["reverse_failed"] is True
+    assert results["reversal_id"] is None
+    assert results["reversal_error"] == "Missing transfer_id for lock booking booking_lock"
+    assert "Missing transfer_id for lock booking booking_lock" in caplog.text
+    stripe_service.reverse_transfer.assert_not_called()
+
+
 def test_execute_cancellation_stripe_calls_under_12h_zero_payout_success(
     booking_service: BookingService,
 ) -> None:

@@ -202,26 +202,6 @@ def test_verify_webhook_signature_missing_secret(
         stripe_service.verify_webhook_signature(b"payload", "signature")
 
 
-@patch("app.services.stripe_service.settings")
-def test_handle_webhook_requires_secret(mock_settings, stripe_service: StripeService) -> None:
-    mock_settings.stripe_webhook_secret = None
-
-    with pytest.raises(ServiceException, match="Webhook secret not configured"):
-        stripe_service.handle_webhook("{}", "sig")
-
-
-@patch("stripe.Webhook.construct_event")
-@patch("app.services.stripe_service.settings")
-def test_handle_webhook_invalid_signature(
-    mock_settings, mock_construct, stripe_service: StripeService
-) -> None:
-    mock_settings.stripe_webhook_secret = MagicMock(get_secret_value=lambda: "whsec_test_secret")
-    mock_construct.side_effect = stripe.SignatureVerificationError("Invalid", "sig")
-
-    with pytest.raises(ServiceException, match="Invalid webhook signature"):
-        stripe_service.handle_webhook("{}", "sig")
-
-
 def _create_payment_record(db: Session, booking: Booking, pi_id: str) -> PaymentIntent:
     payment_record = PaymentIntent(
         booking_id=booking.id,
@@ -369,52 +349,6 @@ def test_dispute_closed_lost_sets_refund_outcome(
     assert dispute is not None
     assert dispute.dispute_status == "lost"
     assert credit.status == "revoked"
-
-
-@patch("stripe.Webhook.construct_event")
-@patch("app.services.stripe_service.settings")
-def test_handle_webhook_success(
-    mock_settings, mock_construct, stripe_service: StripeService
-) -> None:
-    mock_settings.stripe_webhook_secret = MagicMock(get_secret_value=lambda: "whsec_test_secret")
-    event = {"type": "payment_intent.succeeded"}
-    mock_construct.return_value = event
-
-    with patch.object(
-        stripe_service,
-        "handle_webhook_event",
-        return_value={"success": True, "event_type": "payment_intent.succeeded"},
-    ) as mock_handle:
-        result = stripe_service.handle_webhook("{}", "sig")
-
-    assert result["success"] is True
-    assert result["event_type"] == "payment_intent.succeeded"
-    mock_handle.assert_called_once_with(event)
-
-
-@patch("stripe.Webhook.construct_event")
-@patch("app.services.stripe_service.settings")
-def test_handle_webhook_invalid_payload(
-    mock_settings, mock_construct, stripe_service: StripeService
-) -> None:
-    mock_settings.stripe_webhook_secret = MagicMock(get_secret_value=lambda: "whsec_test_secret")
-    mock_construct.side_effect = ValueError("bad payload")
-
-    with pytest.raises(ServiceException, match="Invalid webhook payload"):
-        stripe_service.handle_webhook("{}", "sig")
-
-
-@patch("stripe.Webhook.construct_event")
-@patch("app.services.stripe_service.settings")
-def test_handle_webhook_unexpected_error(
-    mock_settings, mock_construct, stripe_service: StripeService
-) -> None:
-    mock_settings.stripe_webhook_secret = MagicMock(get_secret_value=lambda: "whsec_test_secret")
-    mock_construct.return_value = {"type": "payment_intent.succeeded"}
-
-    with patch.object(stripe_service, "handle_webhook_event", side_effect=Exception("boom")):
-        with pytest.raises(ServiceException, match="Failed to process webhook"):
-            stripe_service.handle_webhook("{}", "sig")
 
 
 def test_handle_webhook_event_raises_on_handler_error(

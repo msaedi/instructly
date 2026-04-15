@@ -215,7 +215,13 @@ class BookingLockMixin:
         reverse_failed = False
         reversal_id: Optional[str] = None
         reversal_error: Optional[str] = None
-        if transfer_id:
+        # Invariant: every booking capture produces a transfer via Stripe Connect
+        # destination charges. If platform-only bookings are introduced, revisit this.
+        if transfer_id is None:
+            reverse_failed = True
+            reversal_error = f"Missing transfer_id for lock booking {booking_id}"
+            logger.error("Missing transfer_id for lock booking %s", booking_id)
+        else:
             try:
                 reversal = stripe_service.reverse_transfer(
                     transfer_id=transfer_id,

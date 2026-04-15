@@ -17,6 +17,23 @@ from app.models.booking import BookingStatus, PaymentStatus
 import app.services.stripe_service as stripe_service
 from app.services.stripe_service import ChargeContext, StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import (
+        make_account,
+        make_charge,
+        make_payment_intent,
+        make_payout,
+        make_transfer,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import (
+        make_account,
+        make_charge,
+        make_payment_intent,
+        make_payout,
+        make_transfer,
+    )
+
 
 @contextmanager
 def _noop_txn():
@@ -265,17 +282,13 @@ class TestPaymentIntents:
     def test_capture_payment_intent_uses_metadata_fallback(self):
         service = _make_service()
         service.payment_repository.update_payment_status = MagicMock()
-
-        class AttrDict(dict):
-            __getattr__ = dict.get
-
-        pi_payload = AttrDict({
-            "id": "pi_123",
-            "status": "succeeded",
-            "amount_received": 4200,
-            "charges": {"data": [{"id": "ch_1", "amount": 4200, "transfer": "tr_1"}]},
-            "metadata": {"target_instructor_payout_cents": "4200"},
-        })
+        pi_payload = make_payment_intent(
+            id="pi_123",
+            status="succeeded",
+            amount_received=4200,
+            latest_charge=make_charge(id="ch_1", amount=4200, transfer="tr_1"),
+            metadata={"target_instructor_payout_cents": "4200"},
+        )
 
         with patch.object(stripe_service.stripe.PaymentIntent, "capture", return_value=pi_payload):
             with patch.object(
@@ -424,7 +437,7 @@ class TestPayoutScheduleAndHistory:
         )
 
         with patch.object(
-            stripe_service.stripe.Account, "modify", return_value={"id": "acct_1"}
+            stripe_service.stripe.Account, "modify", return_value=make_account(id="acct_1")
         ) as modify_mock:
             result = StripeService.set_instructor_payout_schedule(
                 service,
@@ -456,7 +469,7 @@ class TestPayoutScheduleAndHistory:
             patch.object(
                 stripe_service.stripe.Payout,
                 "create",
-                return_value={"id": "po_1", "status": "paid"},
+                return_value=make_payout(id="po_1", status="paid"),
             ),
         ):
             result = StripeService.request_instructor_instant_payout(
@@ -754,7 +767,7 @@ class TestTransfersAndPaymentIntents:
 
     def test_create_manual_transfer_success(self):
         service = _make_service()
-        transfer_obj = {"id": "tr_123"}
+        transfer_obj = make_transfer(id="tr_123")
 
         with patch.object(
             stripe_service.stripe.Transfer, "create", return_value=transfer_obj
@@ -807,7 +820,7 @@ class TestTransfersAndPaymentIntents:
 
     def test_create_referral_bonus_transfer_success(self):
         service = _make_service()
-        transfer_obj = {"id": "tr_bonus"}
+        transfer_obj = make_transfer(id="tr_bonus")
 
         with patch.object(
             stripe_service.stripe.Transfer, "create", return_value=transfer_obj
@@ -850,16 +863,18 @@ class TestTransfersAndPaymentIntents:
 
     def test_get_payment_intent_capture_details_with_transfer(self):
         service = _make_service()
-        pi_payload = {
-            "charges": {"data": [{"id": "ch_1", "amount": 5000, "transfer": "tr_1"}]},
-            "amount_received": None,
-        }
+        pi_payload = make_payment_intent(
+            amount_received=None,
+            latest_charge=make_charge(id="ch_1", amount=5000, transfer="tr_1"),
+        )
 
         with patch.object(
             stripe_service.stripe.PaymentIntent, "retrieve", return_value=pi_payload
         ):
             with patch.object(
-                stripe_service.StripeTransfer, "retrieve", return_value={"amount": 4200}
+                stripe_service.StripeTransfer,
+                "retrieve",
+                return_value=make_transfer(id="tr_1", amount=4200),
             ):
                 result = StripeService.get_payment_intent_capture_details(service, "pi_1")
 
@@ -868,11 +883,12 @@ class TestTransfersAndPaymentIntents:
 
     def test_get_payment_intent_capture_details_metadata_fallback(self):
         service = _make_service()
-        pi_payload = {
-            "charges": {"data": [{"id": "ch_2", "amount": None, "transfer": "tr_fail"}]},
-            "metadata": {"target_instructor_payout_cents": "3100"},
-            "amount": "5000",
-        }
+        pi_payload = make_payment_intent(
+            amount_received=None,
+            amount="5000",
+            latest_charge=make_charge(id="ch_2", amount=None, transfer="tr_fail"),
+            metadata={"target_instructor_payout_cents": "3100"},
+        )
 
         with patch.object(
             stripe_service.stripe.PaymentIntent, "retrieve", return_value=pi_payload
@@ -899,22 +915,20 @@ class TestTransfersAndPaymentIntents:
     def test_capture_payment_intent_transfer_amount_from_transfer(self):
         service = _make_service()
         service.payment_repository.update_payment_status = MagicMock()
-
-        class AttrDict(dict):
-            __getattr__ = dict.get
-
-        pi_payload = AttrDict({
-            "id": "pi_cap",
-            "status": "succeeded",
-            "charges": {"data": [{"id": "ch_1", "amount": 4200, "transfer": "tr_1"}]},
-            "amount_received": 4200,
-        })
+        pi_payload = make_payment_intent(
+            id="pi_cap",
+            status="succeeded",
+            amount_received=4200,
+            latest_charge=make_charge(id="ch_1", amount=4200, transfer="tr_1"),
+        )
 
         with patch.object(
             stripe_service.stripe.PaymentIntent, "capture", return_value=pi_payload
         ):
             with patch.object(
-                stripe_service.StripeTransfer, "retrieve", return_value={"amount": 4000}
+                stripe_service.StripeTransfer,
+                "retrieve",
+                return_value=make_transfer(id="tr_1", amount=4000),
             ):
                 result = StripeService.capture_payment_intent(service, "pi_cap")
 

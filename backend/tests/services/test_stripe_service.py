@@ -36,6 +36,23 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import (
+        make_account,
+        make_charge,
+        make_login_link,
+        make_payment_intent,
+        make_transfer,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import (
+        make_account,
+        make_charge,
+        make_login_link,
+        make_payment_intent,
+        make_transfer,
+    )
+
 
 @pytest.fixture(autouse=True)
 def _no_floors_for_service_tests(disable_price_floors):
@@ -898,7 +915,7 @@ class TestStripeService:
         stripe_service.payment_repository.create_connected_account_record(
             profile.id, "acct_dash", onboarding_completed=True
         )
-        mock_link.return_value = {"url": "https://stripe.test/dash"}
+        mock_link.return_value = make_login_link(url="https://stripe.test/dash")
 
         response = stripe_service.get_instructor_dashboard_link(user=user)
 
@@ -927,7 +944,10 @@ class TestStripeService:
         stripe_service.payment_repository.create_connected_account_record(
             profile.id, "acct_schedule", onboarding_completed=True
         )
-        mock_modify.return_value = MagicMock(settings={"payouts": {"schedule": {"interval": "weekly"}}})
+        mock_modify.return_value = make_account(
+            id="acct_schedule",
+            settings={"payouts": {"schedule": {"interval": "weekly"}}},
+        )
 
         result = stripe_service.set_payout_schedule_for_account(
             instructor_profile_id=profile.id,
@@ -2360,6 +2380,13 @@ class TestStripeService:
                 amount_cents=1000,
             )
 
+    @pytest.mark.parametrize(
+        "stripe_configured",
+        [
+            pytest.param(True, id="stripe_configured"),
+            pytest.param(False, id="stripe_not_configured"),
+        ],
+    )
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
     @patch("stripe.PaymentIntent.retrieve")
@@ -2368,6 +2395,7 @@ class TestStripeService:
         mock_retrieve,
         mock_capture,
         mock_transfer,
+        stripe_configured: bool,
         stripe_service: StripeService,
         test_booking: Booking,
         test_instructor: tuple,
@@ -2375,6 +2403,7 @@ class TestStripeService:
         """Wrapper should pass through capture and trigger top-up once."""
 
         _, profile, _ = test_instructor
+        stripe_service.stripe_configured = stripe_configured
         stripe_service.payment_repository.create_customer_record(
             test_booking.student_id, "cus_student123"
         )
@@ -2421,12 +2450,11 @@ class TestStripeService:
             status="requires_capture",
         )
 
-        capture_response = {
-            "id": "pi_capture123",
-            "status": "succeeded",
-            "charges": {"data": []},
-            "amount_received": context.student_pay_cents,
-        }
+        capture_response = make_payment_intent(
+            id="pi_capture123",
+            status="succeeded",
+            amount_received=context.student_pay_cents,
+        )
         mock_capture.return_value = capture_response
         mock_retrieve.return_value = capture_response
         mock_transfer.return_value = {"id": "tr_topup123"}
@@ -2482,17 +2510,14 @@ class TestStripeService:
             "instructor_tier_pct": str(instructor_pct),
         }
 
-        capture_template = {
-            "id": "pi_topup_meta",
-            "status": "succeeded",
-            "amount": 6960,
-            "amount_received": 6960,
-            "metadata": pi_metadata,
-            "charges": {"data": []},
-        }
-
         def _capture_side_effect(*_, **__):
-            return {**capture_template, "metadata": dict(pi_metadata)}
+            return make_payment_intent(
+                id="pi_topup_meta",
+                status="succeeded",
+                amount=6960,
+                amount_received=6960,
+                metadata=dict(pi_metadata),
+            )
 
         mock_capture.side_effect = _capture_side_effect
         mock_retrieve.side_effect = _capture_side_effect
@@ -2580,12 +2605,12 @@ class TestStripeService:
         _, profile, _ = test_instructor
         connected_account = MagicMock(stripe_account_id="acct_topup")
 
-        payment_intent = {
-            "id": "pi_fallback_dict",
-            "amount": "1000",
-            "metadata": {},
-            "charges": {"data": []},
-        }
+        payment_intent = make_payment_intent(
+            id="pi_fallback_dict",
+            amount="1000",
+            amount_received=None,
+            metadata={},
+        )
         capture_result = {"payment_intent": payment_intent}
 
         ctx = ChargeContext(
@@ -2700,15 +2725,17 @@ class TestStripeService:
     ) -> None:
         stripe_service.stripe_configured = False
         _, profile, _ = test_instructor
-        payment_intent = {
-            "metadata": {
+        payment_intent = make_payment_intent(
+            id="pi_test_topup_error",
+            amount=5000,
+            amount_received=5000,
+            metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "2000",
             },
-            "amount": 5000,
-        }
+        )
 
         capture_result = {"payment_intent": payment_intent}
         connected_account = MagicMock(stripe_account_id="acct_topup")
@@ -3130,31 +3157,25 @@ class TestStripeService:
     ) -> None:
         """Direct capture should return capture data but defer top-up to booking wrapper."""
 
-        capture_payload = {
-            "id": "pi_direct123",
-            "status": "succeeded",
-            "charges": {
-                "data": [
-                    {
-                        "id": "ch_123",
-                        "amount": 5960,
-                        "transfer": "tr_primary",
-                    }
-                ]
-            },
-            "amount_received": 5960,
-        }
+        capture_payload = make_payment_intent(
+            id="pi_direct123",
+            status="succeeded",
+            amount_received=5960,
+            latest_charge=make_charge(
+                id="ch_123",
+                amount=5960,
+                transfer="tr_primary",
+            ),
+        )
 
         mock_capture.return_value = capture_payload
 
         # Mock Transfer.retrieve to return the transfer amount
         with patch("stripe.Transfer.retrieve") as mock_transfer_retrieve:
-            # Create a mock that behaves like a Stripe object
-            # The code uses: transfer.get("amount") if hasattr(transfer, "get") else ...
-            mock_transfer_obj = MagicMock()
-            mock_transfer_obj.get.side_effect = lambda key: 5230 if key == "amount" else None
-            mock_transfer_obj.amount = 5230  # Instructor payout (5960 - 12% fee)
-            mock_transfer_retrieve.return_value = mock_transfer_obj
+            mock_transfer_retrieve.return_value = make_transfer(
+                id="tr_primary",
+                amount=5230,
+            )
 
             result = stripe_service.capture_payment_intent("pi_direct123")
 
@@ -3176,29 +3197,23 @@ class TestStripeService:
         # With transfer_data[amount] architecture:
         # - amount_received: Total charge to student (e.g., $134.40 = 13440 cents)
         # - transfer_amount: Amount to instructor (e.g., $105.60 = 10560 cents)
-        capture_payload = {
-            "id": "pi_transfer_amount_test",
-            "status": "succeeded",
-            "charges": {
-                "data": [
-                    {
-                        "id": "ch_456",
-                        "amount": 13440,  # Total charge
-                        "transfer": "tr_instructor",
-                    }
-                ]
-            },
-            "amount_received": 13440,
-            "metadata": {"target_instructor_payout_cents": "10560"},
-        }
+        capture_payload = make_payment_intent(
+            id="pi_transfer_amount_test",
+            status="succeeded",
+            amount_received=13440,
+            metadata={"target_instructor_payout_cents": "10560"},
+            latest_charge=make_charge(
+                id="ch_456",
+                amount=13440,
+                transfer="tr_instructor",
+            ),
+        )
         mock_capture.return_value = capture_payload
 
-        # Transfer has the correct instructor payout
-        # The code uses: transfer.get("amount") if hasattr(transfer, "get") else ...
-        mock_transfer_obj = MagicMock()
-        mock_transfer_obj.get.side_effect = lambda key: 10560 if key == "amount" else None
-        mock_transfer_obj.amount = 10560
-        mock_transfer_retrieve.return_value = mock_transfer_obj
+        mock_transfer_retrieve.return_value = make_transfer(
+            id="tr_instructor",
+            amount=10560,
+        )
 
         result = stripe_service.capture_payment_intent("pi_transfer_amount_test")
 
@@ -3215,12 +3230,12 @@ class TestStripeService:
         self, mock_capture, stripe_service: StripeService
     ) -> None:
         """Fallback to amount when amount_received is missing."""
-        mock_capture.return_value = {
-            "id": "pi_fallback",
-            "status": "succeeded",
-            "amount": 1234,
-            "charges": {"data": []},
-        }
+        mock_capture.return_value = make_payment_intent(
+            id="pi_fallback",
+            status="succeeded",
+            amount=1234,
+            amount_received=None,
+        )
 
         result = stripe_service.capture_payment_intent("pi_fallback")
 
@@ -4485,80 +4500,6 @@ class TestStripeService:
                     user_id=test_user.id, return_url="https://app.test/return"
                 )
 
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_found(
-        self, mock_list, stripe_service: StripeService, test_user: User
-    ) -> None:
-        """Return the latest identity session for a user."""
-        stripe_service.stripe_configured = True
-        session_old = MagicMock()
-        session_old.id = "vs_old"
-        session_old.status = "processing"
-        session_old.created = 10
-        session_old.metadata = {"user_id": test_user.id}
-
-        session_new = MagicMock()
-        session_new.id = "vs_new"
-        session_new.status = "verified"
-        session_new.created = 20
-        session_new.metadata = {"user_id": test_user.id}
-
-        mock_list.return_value = {"data": [session_old, session_new]}
-
-        result = stripe_service.get_latest_identity_status(test_user.id)
-
-        assert result["status"] == "verified"
-        assert result["id"] == "vs_new"
-        assert result["created"] == 20
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_not_found(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.return_value = {"data": []}
-
-        result = stripe_service.get_latest_identity_status("user_missing")
-
-        assert result["status"] == "not_found"
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_skips_bad_metadata(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-
-        class BadSession:
-            @property
-            def metadata(self) -> dict:
-                raise Exception("metadata boom")
-
-        mock_list.return_value = {"data": [BadSession()]}
-
-        result = stripe_service.get_latest_identity_status("user_missing")
-
-        assert result["status"] == "not_found"
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_stripe_error(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.side_effect = stripe.StripeError("stripe down")
-
-        with pytest.raises(ServiceException, match="Failed to get identity status"):
-            stripe_service.get_latest_identity_status("user_missing")
-
-    @patch("stripe.identity.VerificationSession.list")
-    def test_get_latest_identity_status_unexpected_error(
-        self, mock_list, stripe_service: StripeService
-    ) -> None:
-        stripe_service.stripe_configured = True
-        mock_list.side_effect = Exception("boom")
-
-        with pytest.raises(ServiceException, match="Failed to get identity status"):
-            stripe_service.get_latest_identity_status("user_missing")
-
     def test_get_user_credit_balance_returns_earliest_expiry(
         self, stripe_service: StripeService, test_user: User
     ) -> None:
@@ -4733,84 +4674,96 @@ class TestStripeService:
         assert result["amount"] == 12.0
 
     def test_top_up_from_pi_metadata_returns_top_up(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "2000",
             },
-            amount=5000,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) == 3500
 
     def test_top_up_from_pi_metadata_returns_zero_when_no_top_up(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=8500,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount=8500,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) == 0
 
     def test_top_up_from_pi_metadata_returns_none_without_metadata(self) -> None:
-        pi = SimpleNamespace(metadata=None, amount=5000)
+        pi = make_payment_intent(metadata=None, amount=5000)
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_negative_credit(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "-100",
             },
-            amount=5000,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_when_amount_missing(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=None,
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount=None,
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_invalid_metadata(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount=5000,
             metadata={
                 "base_price_cents": "not-a-number",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
+    def test_top_up_from_pi_metadata_returns_none_when_key_missing(self) -> None:
+        pi = make_payment_intent(
             amount=5000,
+            metadata={
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "500",
+            },
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
     def test_top_up_from_pi_metadata_returns_none_on_invalid_amount(self) -> None:
-        pi = SimpleNamespace(
+        pi = make_payment_intent(
+            amount="not-a-number",
             metadata={
                 "base_price_cents": "10000",
                 "platform_fee_cents": "1500",
                 "student_fee_cents": "1200",
                 "applied_credit_cents": "0",
             },
-            amount="not-a-number",
         )
 
         assert StripeService._top_up_from_pi_metadata(pi) is None

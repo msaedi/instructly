@@ -44,6 +44,11 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_account
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_account
+
 
 def _charge_context_from_config(
     *,
@@ -1945,15 +1950,17 @@ class TestPaymentTasks:
 
         def _retrieve(account_id: str):
             if account_id == "acct_good":
-                return MagicMock(
+                return make_account(
+                    id="acct_good",
                     settings={
                         "payouts": {"schedule": {"interval": "weekly", "weekly_anchor": "tuesday"}}
-                    }
+                    },
                 )
-            return MagicMock(
+            return make_account(
+                id="acct_bad",
                 settings={
                     "payouts": {"schedule": {"interval": "daily", "weekly_anchor": "monday"}}
-                }
+                },
             )
 
         with patch("app.tasks.payment_tasks.stripe.Account.retrieve", side_effect=_retrieve):

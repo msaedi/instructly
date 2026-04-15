@@ -36,6 +36,11 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_event
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_event
+
 HTTP_422_STATUS = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
 
@@ -45,11 +50,6 @@ class _DummySecret:
 
     def get_secret_value(self) -> str:
         return self._value
-
-
-class _StripeEvent(dict[str, object]):
-    def to_dict_recursive(self) -> dict[str, object]:
-        return dict(self)
 
 
 class TestPaymentRoutes:
@@ -292,7 +292,10 @@ class TestPaymentRoutes:
         mock_settings.webhook_secrets = ["whsec_test_secret"]
 
         # Mock successful signature verification
-        mock_construct_event.return_value = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_test"}}}
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_test", "object": "payment_intent"},
+        )
 
         # Mock successful webhook handling
         mock_handle_event.return_value = {"success": True, "event_type": "payment_intent.succeeded"}
@@ -347,7 +350,10 @@ class TestPaymentRoutes:
         mock_settings.webhook_secrets = ["whsec_test_secret"]
 
         # Mock successful signature verification
-        mock_construct_event.return_value = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_test"}}}
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_test", "object": "payment_intent"},
+        )
 
         # Mock processing error (not signature error)
         mock_handle_event.side_effect = ServiceException("Processing error")
@@ -1649,12 +1655,11 @@ class TestWebhookErrorCases:
         client: TestClient,
     ):
         mock_settings.webhook_secrets = ["whsec_test"]
-        mock_construct_event.return_value = _StripeEvent(
-            {
-                "id": "evt_duplicate",
-                "type": "payout.paid",
-                "account": "acct_connected",
-            }
+        mock_construct_event.return_value = make_event(
+            "payout.paid",
+            {"id": "po_duplicate", "object": "payout"},
+            id="evt_duplicate",
+            account="acct_connected",
         )
         ledger_service = MagicMock()
         ledger_service.log_received.return_value = MagicMock(id="ledger_evt", status="received")
@@ -1692,7 +1697,11 @@ class TestWebhookErrorCases:
         client: TestClient,
     ):
         mock_settings.webhook_secrets = ["whsec_test"]
-        mock_construct_event.return_value = _StripeEvent({"id": "evt_retry", "type": "charge.refunded"})
+        mock_construct_event.return_value = make_event(
+            "charge.refunded",
+            {"id": "ch_retry", "object": "charge"},
+            id="evt_retry",
+        )
         mock_handle_event.side_effect = ConnectionError("temporary network issue")
         ledger_event = MagicMock(id="ledger_evt", status="received")
         ledger_service = MagicMock()
@@ -1722,11 +1731,11 @@ class TestWebhookErrorCases:
         client: TestClient,
     ):
         mock_settings.webhook_secrets = ["whsec_test"]
-        mock_construct_event.return_value = {
-            "type": "payout.paid",
-            "account": "acct_connected",
-            "data": {"object": {"id": "po_test"}},
-        }
+        mock_construct_event.return_value = make_event(
+            "payout.paid",
+            {"id": "po_test", "object": "payout"},
+            account="acct_connected",
+        )
         mock_handle_event.return_value = {"success": True}
 
         response = client.post(
@@ -1752,7 +1761,10 @@ class TestWebhookErrorCases:
         mock_settings.stripe_webhook_secret = None
         mock_settings.stripe_webhook_secret_platform = _DummySecret("whsec_platform")
         mock_settings.stripe_webhook_secret_connect = None
-        mock_construct_event.return_value = {"type": "payout.paid", "data": {"object": {"id": "po_test"}}}
+        mock_construct_event.return_value = make_event(
+            "payout.paid",
+            {"id": "po_test", "object": "payout"},
+        )
         mock_handle_event.return_value = {"success": True}
 
         response = client.post(
@@ -1778,7 +1790,10 @@ class TestWebhookErrorCases:
         mock_settings.stripe_webhook_secret = None
         mock_settings.stripe_webhook_secret_platform = None
         mock_settings.stripe_webhook_secret_connect = _DummySecret("whsec_connect")
-        mock_construct_event.return_value = {"type": "payout.paid", "data": {"object": {"id": "po_test"}}}
+        mock_construct_event.return_value = make_event(
+            "payout.paid",
+            {"id": "po_test", "object": "payout"},
+        )
         mock_handle_event.return_value = {"success": True}
 
         response = client.post(
@@ -1804,7 +1819,10 @@ class TestWebhookErrorCases:
         mock_settings.stripe_webhook_secret = None
         mock_settings.stripe_webhook_secret_platform = None
         mock_settings.stripe_webhook_secret_connect = None
-        mock_construct_event.return_value = {"type": "payout.paid", "data": {"object": {"id": "po_test"}}}
+        mock_construct_event.return_value = make_event(
+            "payout.paid",
+            {"id": "po_test", "object": "payout"},
+        )
         mock_handle_event.return_value = {"success": True}
 
         response = client.post(

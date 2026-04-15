@@ -105,6 +105,8 @@ class NoShowResolutionResults(TypedDict):
     processed_at: str
 
 
+STRIPE_API_VERSION = "2026-03-25.dahlia"
+
 logger = logging.getLogger("app.tasks.payment_tasks")
 logger.info(
     "Stripe SDK %s, API version %s",
@@ -119,14 +121,20 @@ def _ensure_stripe_api_key() -> None:
     global _stripe_api_key_configured
 
     if _stripe_api_key_configured:
+        # See app.services.stripe_service for why setattr() is used here.
+        setattr(stripe, "api_version", STRIPE_API_VERSION)
         return
     if getattr(stripe, "api_key", None):
+        # See app.services.stripe_service for why setattr() is used here.
+        setattr(stripe, "api_version", STRIPE_API_VERSION)
         _stripe_api_key_configured = True
         return
     if not settings.stripe_secret_key:
         return
 
     stripe.api_key = settings.stripe_secret_key.get_secret_value()
+    # See app.services.stripe_service for why setattr() is used here.
+    setattr(stripe, "api_version", STRIPE_API_VERSION)
     _stripe_api_key_configured = True
 
 

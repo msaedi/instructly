@@ -111,9 +111,11 @@ def _audit_payout_schedule_for_account(
 ) -> bool:
     _ensure_stripe_api_key()
     acct = api.stripe.Account.retrieve(account.stripe_account_id)
-    current = getattr(acct, "settings", {}).get("payouts", {}).get("schedule", {})
-    interval = current.get("interval")
-    weekly_anchor = current.get("weekly_anchor")
+    account_settings = acct.settings
+    payouts = getattr(account_settings, "payouts", None) if account_settings is not None else None
+    schedule = getattr(payouts, "schedule", None) if payouts is not None else None
+    interval = getattr(schedule, "interval", None)
+    weekly_anchor = getattr(schedule, "weekly_anchor", None)
     if interval == "weekly" and weekly_anchor == "tuesday":
         return False
     stripe_service.set_payout_schedule_for_account(

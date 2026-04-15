@@ -6,13 +6,14 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-import stripe
-
-from app.core.exceptions import ServiceException
 from app.models.booking import PaymentStatus
 import app.services.stripe_service as stripe_service
 from app.services.stripe_service import StripeService
+
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_charge
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_charge
 
 
 @contextmanager
@@ -36,34 +37,6 @@ def _make_service() -> StripeService:
     service.config_service = MagicMock()
     service.pricing_service = MagicMock()
     return service
-
-
-class TestWebhookSignatureAndRouting:
-    def test_handle_webhook_invalid_signature(self, monkeypatch):
-        service = _make_service()
-        secret = SimpleNamespace(get_secret_value=lambda: "whsec_123")
-        monkeypatch.setattr(stripe_service, "settings", SimpleNamespace(stripe_webhook_secret=secret))
-
-        with patch.object(
-            stripe_service.stripe.Webhook,
-            "construct_event",
-            side_effect=stripe.SignatureVerificationError("bad", "sig"),
-        ):
-            with pytest.raises(ServiceException, match="Invalid webhook signature"):
-                StripeService.handle_webhook(service, "payload", "sig")
-
-    def test_handle_webhook_invalid_payload(self, monkeypatch):
-        service = _make_service()
-        secret = SimpleNamespace(get_secret_value=lambda: "whsec_456")
-        monkeypatch.setattr(stripe_service, "settings", SimpleNamespace(stripe_webhook_secret=secret))
-
-        with patch.object(
-            stripe_service.stripe.Webhook,
-            "construct_event",
-            side_effect=Exception("boom"),
-        ):
-            with pytest.raises(ServiceException, match="Invalid webhook payload"):
-                StripeService.handle_webhook(service, "payload", "sig")
 
 
 class TestPaymentIntentWebhooks:
@@ -98,6 +71,19 @@ class TestPaymentIntentWebhooks:
 
 
 class TestChargeAndPayoutWebhooks:
+    def test_resolve_payment_intent_from_charge_uses_real_fixture(self):
+        service = _make_service()
+        service.stripe_configured = True
+
+        with patch.object(
+            stripe_service.stripe.Charge,
+            "retrieve",
+            return_value=make_charge(payment_intent="pi_fixture"),
+        ):
+            result = StripeService._resolve_payment_intent_id_from_charge(service, "ch_fixture")
+
+        assert result == "pi_fixture"
+
     def test_handle_charge_refunded_calls_credit_hooks(self):
         service = _make_service()
         service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(

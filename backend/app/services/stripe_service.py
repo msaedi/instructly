@@ -53,6 +53,8 @@ from .stripe.helpers import (
 )
 from .student_credit_service import StudentCreditService
 
+STRIPE_API_VERSION = "2026-03-25.dahlia"
+
 if TYPE_CHECKING:  # pragma: no cover
     from contextlib import AbstractContextManager
 
@@ -100,7 +102,6 @@ if TYPE_CHECKING:  # pragma: no cover
     class StripeIdentityMixin(BaseService):
         create_identity_verification_session: Callable[..., Any]
         refresh_instructor_identity: Callable[..., Any]
-        get_latest_identity_status: Callable[..., Any]
         _persist_verified_identity: Callable[..., None]
 
     class StripeOnboardingMixin(BaseService):
@@ -144,7 +145,6 @@ if TYPE_CHECKING:  # pragma: no cover
     class StripeWebhookRouterMixin(BaseService):
         verify_webhook_signature: Callable[..., bool]
         handle_webhook_event: Callable[..., dict[str, Any]]
-        handle_webhook: Callable[..., dict[str, Any]]
         handle_payment_intent_webhook: Callable[..., bool]
         _advance_booking_on_capture: Callable[..., None]
         _handle_successful_payment: Callable[..., None]
@@ -278,6 +278,10 @@ class StripeService(
         try:
             if settings.stripe_secret_key:
                 stripe.api_key = settings.stripe_secret_key.get_secret_value()
+                # Stripe's type stubs declare api_version as read-only even though
+                # it's writable at runtime. setattr() avoids a suppression while
+                # still matching the runtime behavior.
+                setattr(stripe, "api_version", STRIPE_API_VERSION)
                 self.logger.info(
                     "Stripe SDK %s, API version %s",
                     getattr(stripe, "VERSION", "unknown"),

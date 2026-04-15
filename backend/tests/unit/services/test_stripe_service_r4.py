@@ -15,6 +15,11 @@ from app.models.booking import PaymentStatus
 import app.services.stripe_service as stripe_service
 from app.services.stripe_service import PRICING_DEFAULTS, ChargeContext, StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.stripe_fixtures import make_charge, make_payment_intent
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.stripe_fixtures import make_charge, make_payment_intent
+
 
 @contextmanager
 def _noop_txn():
@@ -48,10 +53,6 @@ def _make_service(*, stripe_configured: bool = True) -> StripeService:
     return service
 
 
-class AttrDict(dict):
-    __getattr__ = dict.get
-
-
 def _lock_ctx(result: bool):
     @contextmanager
     def _ctx(_booking_id):
@@ -64,15 +65,13 @@ class TestCaptureAndDetailsFallbacks:
     def test_capture_payment_intent_metadata_invalid_fallback_amount(self):
         service = _make_service()
         service.payment_repository.update_payment_status = MagicMock()
-        pi_payload = AttrDict(
-            {
-                "id": "pi_cap",
-                "status": "succeeded",
-                "charges": {"data": [{"id": "ch_1", "amount": None, "transfer": "tr_1"}]},
-                "metadata": {"target_instructor_payout_cents": "bad"},
-                "amount_received": None,
-                "amount": "not-int",
-            }
+        pi_payload = make_payment_intent(
+            id="pi_cap",
+            status="succeeded",
+            latest_charge=make_charge(id="ch_1", amount=None, transfer="tr_1"),
+            metadata={"target_instructor_payout_cents": "bad"},
+            amount_received=None,
+            amount="not-int",
         )
 
         with patch.object(
@@ -96,12 +95,12 @@ class TestCaptureAndDetailsFallbacks:
 
     def test_get_payment_intent_capture_details_metadata_invalid_fallback_amount(self):
         service = _make_service()
-        pi_payload = {
-            "charges": {"data": [{"id": "ch_2", "amount": None, "transfer": "tr_2"}]},
-            "metadata": {"target_instructor_payout_cents": "bad"},
-            "amount_received": None,
-            "amount": "bad-int",
-        }
+        pi_payload = make_payment_intent(
+            latest_charge=make_charge(id="ch_2", amount=None, transfer="tr_2"),
+            metadata={"target_instructor_payout_cents": "bad"},
+            amount_received=None,
+            amount="bad-int",
+        )
 
         with patch.object(
             stripe_service.stripe.PaymentIntent, "retrieve", return_value=pi_payload
@@ -397,15 +396,11 @@ class TestWebhookEdgePaths:
         service = _make_service()
         service.stripe_configured = True
 
-        class Charge:
-            payment_intent = None
-
-            def get(self, key):
-                if key == "payment_intent":
-                    return "pi_123"
-                return None
-
-        with patch.object(stripe_service.stripe.Charge, "retrieve", return_value=Charge()):
+        with patch.object(
+            stripe_service.stripe.Charge,
+            "retrieve",
+            return_value=make_charge(payment_intent="pi_123"),
+        ):
             assert StripeService._resolve_payment_intent_id_from_charge(service, "ch_2") == "pi_123"
 
 
