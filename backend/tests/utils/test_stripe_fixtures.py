@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import stripe
-from stripe._stripe_object import StripeObject
 
 from tests.utils.stripe_fixtures import (
     make_account,
@@ -17,7 +16,6 @@ from tests.utils.stripe_fixtures import (
 
 def _assert_real_stripe_object(obj: object, expected_cls: type[object]) -> None:
     assert isinstance(obj, expected_cls)
-    assert isinstance(obj, StripeObject)
     assert type(obj) is not dict
 
 
@@ -50,15 +48,15 @@ def test_payment_intent_overrides_work() -> None:
     payment_intent = make_payment_intent(amount=10000, metadata={"user_id": "test"})
 
     assert payment_intent.amount == 10000
-    _assert_real_stripe_object(payment_intent.metadata, StripeObject)
+    _assert_real_stripe_object(payment_intent.metadata, stripe.StripeObject)
     assert payment_intent.metadata["user_id"] == "test"
 
 
 def test_account_settings_are_nested_stripe_objects() -> None:
     account = make_account()
 
-    _assert_real_stripe_object(account.settings, StripeObject)
-    _assert_real_stripe_object(account.requirements, StripeObject)
+    _assert_real_stripe_object(account.settings, stripe.StripeObject)
+    _assert_real_stripe_object(account.requirements, stripe.StripeObject)
     assert account.settings["payouts"]["schedule"]["interval"] == "manual"
 
 
@@ -79,7 +77,7 @@ def test_event_and_list_object_convert_nested_resources() -> None:
     event = make_event("payment_intent.succeeded", make_payment_intent())
     list_object = make_list_object([make_verification_session()])
 
-    _assert_real_stripe_object(event.data, StripeObject)
+    _assert_real_stripe_object(event.data, stripe.StripeObject)
     _assert_real_stripe_object(event.data.object, stripe.PaymentIntent)
     assert isinstance(list_object.data, list)
     _assert_real_stripe_object(list_object.data[0], stripe.identity.VerificationSession)

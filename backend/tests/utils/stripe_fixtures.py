@@ -3,11 +3,10 @@ from __future__ import annotations
 from typing import Any, TypeVar
 
 import stripe
-from stripe._stripe_object import StripeObject
 
 _FIXTURE_API_KEY = "sk_test_fixture"
 
-StripeObjectT = TypeVar("StripeObjectT", bound=StripeObject)
+StripeObjectT = TypeVar("StripeObjectT", bound=stripe.StripeObject)
 
 
 def _merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -17,7 +16,7 @@ def _merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
 
 
 def _normalize_payload(value: Any) -> Any:
-    if isinstance(value, StripeObject):
+    if isinstance(value, stripe.StripeObject):
         raw = value.to_dict()
         return {key: _normalize_payload(item) for key, item in raw.items()}
     if isinstance(value, dict):
@@ -34,8 +33,6 @@ def _construct(cls: type[StripeObjectT], payload: dict[str, Any]) -> StripeObjec
 def _assert_constructed(obj: Any, expected_cls: type[StripeObjectT]) -> None:
     if not isinstance(obj, expected_cls):
         raise TypeError(f"Expected {expected_cls.__name__}, got {type(obj).__name__}")
-    if not isinstance(obj, StripeObject):
-        raise TypeError(f"Expected StripeObject instance, got {type(obj).__name__}")
     if type(obj) is dict:
         raise TypeError("Expected constructed Stripe resource, got plain dict")
 
@@ -160,12 +157,12 @@ def make_account(**overrides: Any) -> stripe.Account:
     account = _construct(stripe.Account, payload)
     _assert_constructed(account, stripe.Account)
     if payload.get("settings") is not None:
-        _assert_constructed(account.settings, StripeObject)
+        _assert_constructed(account.settings, stripe.StripeObject)
     return account
 
 
 def make_event(
-    event_type: str, data_object: dict[str, Any] | StripeObject, **overrides: Any
+    event_type: str, data_object: dict[str, Any] | stripe.StripeObject, **overrides: Any
 ) -> stripe.Event:
     payload = _merge(
         {

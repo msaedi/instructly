@@ -351,12 +351,19 @@ class StripeTransferMixin(BaseService):
 
         # Metadata values arrive as strings from Stripe; str() unifies coercion
         # with direct numeric fields that may arrive as int.
+        raw_base = _metadata_value("base_price_cents")
+        raw_platform_fee = _metadata_value("platform_fee_cents")
+        raw_student_fee = _metadata_value("student_fee_cents")
+        raw_applied_credit = _metadata_value("applied_credit_cents")
+        if None in (raw_base, raw_platform_fee, raw_student_fee, raw_applied_credit):
+            return None
+
         try:
-            base_price_cents = int(str(_metadata_value("base_price_cents")))
-            platform_fee_cents = int(str(_metadata_value("platform_fee_cents")))
-            _ = int(str(_metadata_value("student_fee_cents")))
-            applied_credit_cents = int(str(_metadata_value("applied_credit_cents")))
-        except (TypeError, ValueError):  # KeyError unreachable after getattr migration
+            base_price_cents = int(str(raw_base))
+            platform_fee_cents = int(str(raw_platform_fee))
+            _ = int(str(raw_student_fee))
+            applied_credit_cents = int(str(raw_applied_credit))
+        except (TypeError, ValueError):  # Invalid string/non-numeric metadata values.
             return None
 
         if applied_credit_cents < 0:
