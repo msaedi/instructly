@@ -95,6 +95,10 @@ class StripeCaptureRefundMixin(BaseService):
             charge = getattr(payment_intent, "latest_charge", None)
             if charge is None:
                 amount_received = getattr(payment_intent, "amount_received", None)
+            # Defensive fallback: production callers pass expand=["latest_charge"],
+            # so latest_charge should normally be the expanded Charge object.
+            # This branch preserves the charge ID and logs loudly if a future
+            # caller forgets the expand parameter.
             elif isinstance(charge, str):
                 logger.warning(
                     "capture_refund: latest_charge is not expanded for payment intent %s",

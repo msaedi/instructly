@@ -4743,6 +4743,18 @@ class TestStripeService:
 
         assert StripeService._top_up_from_pi_metadata(pi) is None
 
+    def test_top_up_from_pi_metadata_returns_none_when_key_missing(self) -> None:
+        pi = make_payment_intent(
+            amount=5000,
+            metadata={
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "500",
+            },
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
     def test_top_up_from_pi_metadata_returns_none_on_invalid_amount(self) -> None:
         pi = make_payment_intent(
             amount="not-a-number",
