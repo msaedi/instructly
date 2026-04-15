@@ -2380,6 +2380,13 @@ class TestStripeService:
                 amount_cents=1000,
             )
 
+    @pytest.mark.parametrize(
+        "stripe_configured",
+        [
+            pytest.param(True, id="stripe_configured"),
+            pytest.param(False, id="stripe_not_configured"),
+        ],
+    )
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
     @patch("stripe.PaymentIntent.retrieve")
@@ -2388,6 +2395,7 @@ class TestStripeService:
         mock_retrieve,
         mock_capture,
         mock_transfer,
+        stripe_configured: bool,
         stripe_service: StripeService,
         test_booking: Booking,
         test_instructor: tuple,
@@ -2395,6 +2403,7 @@ class TestStripeService:
         """Wrapper should pass through capture and trigger top-up once."""
 
         _, profile, _ = test_instructor
+        stripe_service.stripe_configured = stripe_configured
         stripe_service.payment_repository.create_customer_record(
             test_booking.student_id, "cus_student123"
         )
@@ -2599,6 +2608,7 @@ class TestStripeService:
         payment_intent = make_payment_intent(
             id="pi_fallback_dict",
             amount="1000",
+            amount_received=None,
             metadata={},
         )
         capture_result = {"payment_intent": payment_intent}

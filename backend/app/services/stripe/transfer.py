@@ -343,7 +343,7 @@ class StripeTransferMixin(BaseService):
     def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
         """Compute top-up from PaymentIntent metadata when available."""
         metadata = getattr(pi, "metadata", None)
-        if metadata is None:
+        if not metadata:
             return None
 
         def _metadata_value(key: str) -> Any:
