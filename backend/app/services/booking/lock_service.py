@@ -215,7 +215,7 @@ class BookingLockMixin:
         reverse_failed = False
         reversal_id: Optional[str] = None
         reversal_error: Optional[str] = None
-        if not transfer_id:
+        if transfer_id is None:
             reverse_failed = True
             reversal_error = f"Missing transfer_id for lock booking {booking_id}"
             logger.error("Missing transfer_id for lock booking %s", booking_id)

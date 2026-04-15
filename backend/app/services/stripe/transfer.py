@@ -354,7 +354,7 @@ class StripeTransferMixin(BaseService):
             platform_fee_cents = int(str(_metadata_value("platform_fee_cents")))
             _ = int(str(_metadata_value("student_fee_cents")))
             applied_credit_cents = int(str(_metadata_value("applied_credit_cents")))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # KeyError unreachable after getattr migration
             return None
 
         if applied_credit_cents < 0:
