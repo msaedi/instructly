@@ -83,6 +83,9 @@ class StripeWebhookRouterMixin(BaseService):
             if event_type.startswith("account."):
                 success = self._handle_account_webhook(event)
                 return {"success": success, "event_type": event_type}
+            if event_type.startswith("capability."):
+                success = self._handle_account_webhook(event)
+                return {"success": success, "event_type": event_type}
             if event_type.startswith("transfer."):
                 success = self._handle_transfer_webhook(event)
                 return {"success": success, "event_type": event_type}
@@ -94,6 +97,15 @@ class StripeWebhookRouterMixin(BaseService):
                 return {"success": success, "event_type": event_type}
             if event_type.startswith("identity.verification_session."):
                 success = self._handle_identity_webhook(event)
+                return {"success": success, "event_type": event_type}
+            if event_type.startswith("customer."):
+                success = self._handle_customer_webhook(event)
+                return {"success": success, "event_type": event_type}
+            if event_type.startswith("payment_method."):
+                success = self._handle_payment_method_webhook(event)
+                return {"success": success, "event_type": event_type}
+            if event_type.startswith("review.") or event_type.startswith("radar."):
+                success = self._handle_fraud_webhook(event)
                 return {"success": success, "event_type": event_type}
 
             self.logger.info("Unhandled webhook event type: %s", event_type)
@@ -193,7 +205,13 @@ class StripeWebhookRouterMixin(BaseService):
         try:
             event_type = event.get("type", "")
             account_data = event.get("data", {}).get("object", {})
-            account_id = account_data.get("id")
+            if (
+                event_type.startswith("account.external_account.")
+                or event_type == "capability.updated"
+            ):
+                account_id = event.get("account", "unknown")
+            else:
+                account_id = account_data.get("id")
 
             if event_type == "account.updated":
                 charges_enabled = account_data.get("charges_enabled", False)
@@ -202,9 +220,34 @@ class StripeWebhookRouterMixin(BaseService):
                     self.payment_repository.update_onboarding_status(account_id, True)
                     self.logger.info("Account %s onboarding completed", account_id)
                 return True
-
-            if event_type == "account.application.deauthorized":
-                self.logger.warning("Account %s was deauthorized", account_id)
+            if event_type == "account.external_account.created":
+                self.logger.info(
+                    "External account created for %s: %s",
+                    account_id,
+                    account_data.get("id"),
+                )
+                return True
+            if event_type == "account.external_account.updated":
+                self.logger.info(
+                    "External account updated for %s: %s",
+                    account_id,
+                    account_data.get("id"),
+                )
+                return True
+            if event_type == "account.external_account.deleted":
+                self.logger.warning(
+                    "External account deleted for %s: %s",
+                    account_id,
+                    account_data.get("id"),
+                )
+                return True
+            if event_type == "capability.updated":
+                self.logger.info(
+                    "Capability updated for %s: capability=%s, status=%s",
+                    account_id,
+                    account_data.get("id"),
+                    account_data.get("status"),
+                )
                 return True
 
             return False
@@ -221,12 +264,6 @@ class StripeWebhookRouterMixin(BaseService):
 
             if event_type == "transfer.created":
                 self.logger.info("Transfer %s created", transfer_id)
-                return True
-            if event_type == "transfer.paid":
-                self.logger.info("Transfer %s paid successfully", transfer_id)
-                return True
-            if event_type == "transfer.failed":
-                self.logger.error("Transfer %s failed", transfer_id)
                 return True
             if event_type == "transfer.reversed":
                 try:
@@ -320,4 +357,99 @@ class StripeWebhookRouterMixin(BaseService):
             return True
         except Exception as exc:
             self.logger.error("Error handling identity webhook: %s", exc)
+            return False
+
+    def _handle_customer_webhook(self, event: dict[str, Any]) -> bool:
+        """Handle Stripe customer lifecycle events for observability."""
+        try:
+            event_type = event.get("type", "")
+            customer_data = event.get("data", {}).get("object", {})
+            customer_id = customer_data.get("id")
+
+            if event_type == "customer.created":
+                self.logger.info(
+                    "Customer created: %s, email=%s",
+                    customer_id,
+                    customer_data.get("email"),
+                )
+                return True
+            if event_type == "customer.updated":
+                self.logger.info("Customer updated: %s", customer_id)
+                return True
+            return False
+        except Exception as exc:
+            self.logger.error("Error handling customer webhook: %s", exc)
+            return False
+
+    def _handle_payment_method_webhook(self, event: dict[str, Any]) -> bool:
+        """Handle Stripe payment method events for observability."""
+        try:
+            event_type = event.get("type", "")
+            payment_method_data = event.get("data", {}).get("object", {})
+            payment_method_id = payment_method_data.get("id")
+            payment_method_type = payment_method_data.get("type")
+            customer_id = payment_method_data.get("customer")
+
+            if event_type == "payment_method.attached":
+                self.logger.info(
+                    "Payment method attached: %s, type=%s, customer=%s",
+                    payment_method_id,
+                    payment_method_type,
+                    customer_id,
+                )
+                return True
+            if event_type == "payment_method.detached":
+                self.logger.info(
+                    "Payment method detached: %s, type=%s",
+                    payment_method_id,
+                    payment_method_type,
+                )
+                return True
+            return False
+        except Exception as exc:
+            self.logger.error("Error handling payment method webhook: %s", exc)
+            return False
+
+    def _handle_fraud_webhook(self, event: dict[str, Any]) -> bool:
+        """Handle Stripe Radar fraud warnings and review events for observability."""
+        try:
+            event_type = event.get("type", "")
+            obj = event.get("data", {}).get("object", {})
+            obj_id = obj.get("id")
+
+            if event_type == "radar.early_fraud_warning.created":
+                self.logger.warning(
+                    "Early fraud warning created: %s, charge=%s, fraud_type=%s",
+                    obj_id,
+                    obj.get("charge"),
+                    obj.get("fraud_type"),
+                )
+                return True
+            if event_type == "radar.early_fraud_warning.updated":
+                self.logger.warning(
+                    "Early fraud warning updated: %s, charge=%s",
+                    obj_id,
+                    obj.get("charge"),
+                )
+                return True
+            if event_type == "review.opened":
+                self.logger.warning(
+                    "Payment review opened: %s, charge=%s, reason=%s",
+                    obj_id,
+                    obj.get("charge"),
+                    obj.get("reason"),
+                )
+                return True
+            if event_type == "review.closed":
+                self.logger.info(
+                    "Payment review closed: %s, charge=%s, reason=%s, closed_reason=%s",
+                    obj_id,
+                    obj.get("charge"),
+                    obj.get("reason"),
+                    obj.get("closed_reason"),
+                )
+                return True
+            return False
+        except Exception as exc:
+            self.logger.error("Error handling fraud/review webhook: %s", exc)
             return False

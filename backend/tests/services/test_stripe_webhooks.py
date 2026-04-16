@@ -249,7 +249,14 @@ def test_dispute_created_sets_manual_review_and_freezes_credits(
 
     event = {
         "type": "charge.dispute.created",
-        "data": {"object": {"id": "dp_test", "payment_intent": "pi_dispute", "status": "needs_response", "amount": 10000}},
+        "data": {
+            "object": {
+                "id": "dp_test",
+                "payment_intent": "pi_dispute",
+                "status": "needs_response",
+                "amount": 10000,
+            }
+        },
     }
 
     with patch("app.services.stripe_service.booking_lock_sync", _always_acquire_lock):
@@ -368,10 +375,15 @@ def test_handle_webhook_event_raises_on_handler_error(
     [
         ("payment_intent.succeeded", "handle_payment_intent_webhook"),
         ("account.updated", "_handle_account_webhook"),
-        ("transfer.paid", "_handle_transfer_webhook"),
+        ("capability.updated", "_handle_account_webhook"),
+        ("transfer.created", "_handle_transfer_webhook"),
         ("charge.refunded", "_handle_charge_webhook"),
         ("payout.paid", "_handle_payout_webhook"),
         ("identity.verification_session.verified", "_handle_identity_webhook"),
+        ("customer.created", "_handle_customer_webhook"),
+        ("payment_method.attached", "_handle_payment_method_webhook"),
+        ("review.opened", "_handle_fraud_webhook"),
+        ("radar.early_fraud_warning.created", "_handle_fraud_webhook"),
     ],
 )
 def test_handle_webhook_event_dispatches_handlers(
@@ -390,6 +402,27 @@ def test_handle_webhook_event_unknown_type(stripe_service: StripeService) -> Non
 
     assert result["success"] is True
     assert result["handled"] is False
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "account.application.deauthorized",
+        "transfer.paid",
+        "transfer.failed",
+        "customer.deleted",
+        "payment_method.updated",
+        "review.created",
+        "radar.value_list.created",
+    ],
+)
+def test_handle_webhook_event_known_prefix_unknown_subtype_returns_false(
+    stripe_service: StripeService, event_type: str
+) -> None:
+    result = stripe_service.handle_webhook_event({"type": event_type})
+
+    assert result["success"] is False
+    assert result["event_type"] == event_type
 
 
 def test_handle_payment_intent_webhook_success_updates_booking(
@@ -467,12 +500,12 @@ def test_handle_account_webhook_updates_onboarding(
     )
     event = {
         "type": "account.updated",
-        "data": {"object": {"id": "acct_webhook", "charges_enabled": True, "details_submitted": True}},
+        "data": {
+            "object": {"id": "acct_webhook", "charges_enabled": True, "details_submitted": True}
+        },
     }
 
-    with patch.object(
-        stripe_service.payment_repository, "update_onboarding_status"
-    ) as mock_update:
+    with patch.object(stripe_service.payment_repository, "update_onboarding_status") as mock_update:
         assert stripe_service._handle_account_webhook(event) is True
 
     mock_update.assert_called_once_with("acct_webhook", True)
@@ -485,15 +518,53 @@ def test_handle_account_webhook_update_failure(stripe_service: StripeService) ->
     }
 
     with patch.object(
-        stripe_service.payment_repository, "update_onboarding_status", side_effect=Exception("db down")
+        stripe_service.payment_repository,
+        "update_onboarding_status",
+        side_effect=Exception("db down"),
     ):
         assert stripe_service._handle_account_webhook(event) is False
 
 
-def test_handle_account_webhook_deauthorized(stripe_service: StripeService) -> None:
+@pytest.mark.parametrize(
+    "event_type",
+    ["account.application.deauthorized", "account.deleted"],
+)
+def test_handle_account_webhook_unhandled_subtypes(
+    stripe_service: StripeService, event_type: str
+) -> None:
     event = {
-        "type": "account.application.deauthorized",
+        "type": event_type,
         "data": {"object": {"id": "acct_deauth"}},
+    }
+
+    assert stripe_service._handle_account_webhook(event) is False
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "account.external_account.created",
+        "account.external_account.updated",
+        "account.external_account.deleted",
+    ],
+)
+def test_handle_account_webhook_external_account_events(
+    stripe_service: StripeService, event_type: str
+) -> None:
+    event = {
+        "type": event_type,
+        "account": "acct_platform",
+        "data": {"object": {"id": "ba_123"}},
+    }
+
+    assert stripe_service._handle_account_webhook(event) is True
+
+
+def test_handle_account_webhook_capability_updated(stripe_service: StripeService) -> None:
+    event = {
+        "type": "capability.updated",
+        "account": "acct_platform",
+        "data": {"object": {"id": "transfers", "status": "active"}},
     }
 
     assert stripe_service._handle_account_webhook(event) is True
@@ -501,13 +572,19 @@ def test_handle_account_webhook_deauthorized(stripe_service: StripeService) -> N
 
 @pytest.mark.parametrize(
     "event_type",
-    ["transfer.created", "transfer.paid", "transfer.failed", "transfer.reversed"],
+    ["transfer.created", "transfer.reversed"],
 )
-def test_handle_transfer_webhook_events(
-    stripe_service: StripeService, event_type: str
-) -> None:
+def test_handle_transfer_webhook_events(stripe_service: StripeService, event_type: str) -> None:
     event = {"type": event_type, "data": {"object": {"id": "tr_123", "amount": 100}}}
     assert stripe_service._handle_transfer_webhook(event) is True
+
+
+@pytest.mark.parametrize("event_type", ["transfer.paid", "transfer.failed", "transfer.updated"])
+def test_handle_transfer_webhook_unhandled_subtypes(
+    stripe_service: StripeService, event_type: str
+) -> None:
+    event = {"type": event_type, "data": {"object": {"id": "tr_123"}}}
+    assert stripe_service._handle_transfer_webhook(event) is False
 
 
 def test_handle_transfer_webhook_unhandled(stripe_service: StripeService) -> None:
@@ -521,6 +598,96 @@ def test_handle_transfer_webhook_error_returns_false(stripe_service: StripeServi
             raise Exception("boom")
 
     assert stripe_service._handle_transfer_webhook(BadEvent()) is False
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {
+            "type": "customer.created",
+            "data": {"object": {"id": "cus_123", "email": "student@example.com"}},
+        },
+        {
+            "type": "customer.updated",
+            "data": {"object": {"id": "cus_123"}},
+        },
+    ],
+)
+def test_handle_customer_webhook_events(
+    stripe_service: StripeService, event: dict[str, object]
+) -> None:
+    assert stripe_service._handle_customer_webhook(event) is True
+
+
+def test_handle_customer_webhook_unhandled(stripe_service: StripeService) -> None:
+    event = {"type": "customer.deleted", "data": {"object": {"id": "cus_123"}}}
+    assert stripe_service._handle_customer_webhook(event) is False
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {
+            "type": "payment_method.attached",
+            "data": {"object": {"id": "pm_123", "type": "card", "customer": "cus_123"}},
+        },
+        {
+            "type": "payment_method.detached",
+            "data": {"object": {"id": "pm_123", "type": "card", "customer": "cus_123"}},
+        },
+    ],
+)
+def test_handle_payment_method_webhook_events(
+    stripe_service: StripeService, event: dict[str, object]
+) -> None:
+    assert stripe_service._handle_payment_method_webhook(event) is True
+
+
+def test_handle_payment_method_webhook_unhandled(stripe_service: StripeService) -> None:
+    event = {"type": "payment_method.updated", "data": {"object": {"id": "pm_123"}}}
+    assert stripe_service._handle_payment_method_webhook(event) is False
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {
+            "type": "radar.early_fraud_warning.created",
+            "data": {
+                "object": {"id": "issfr_123", "charge": "ch_123", "fraud_type": "card_not_present"}
+            },
+        },
+        {
+            "type": "radar.early_fraud_warning.updated",
+            "data": {"object": {"id": "issfr_123", "charge": "ch_123"}},
+        },
+        {
+            "type": "review.opened",
+            "data": {"object": {"id": "prv_123", "charge": "ch_123", "reason": "rule"}},
+        },
+        {
+            "type": "review.closed",
+            "data": {
+                "object": {
+                    "id": "prv_123",
+                    "charge": "ch_123",
+                    "reason": "rule",
+                    "closed_reason": "approved",
+                }
+            },
+        },
+    ],
+)
+def test_handle_fraud_webhook_events(
+    stripe_service: StripeService, event: dict[str, object]
+) -> None:
+    assert stripe_service._handle_fraud_webhook(event) is True
+
+
+@pytest.mark.parametrize("event_type", ["review.created", "radar.value_list.created"])
+def test_handle_fraud_webhook_unhandled(stripe_service: StripeService, event_type: str) -> None:
+    event = {"type": event_type, "data": {"object": {"id": "obj_123"}}}
+    assert stripe_service._handle_fraud_webhook(event) is False
 
 
 def test_handle_charge_refunded_updates_payment_and_credits(
@@ -632,7 +799,9 @@ def test_handle_charge_refunded_logs_critical_when_booking_missing(
             "get_payment_by_intent_id",
             return_value=payment_record,
         ) as mock_get,
-        patch.object(stripe_service.booking_repository, "get_by_id", return_value=None) as mock_booking,
+        patch.object(
+            stripe_service.booking_repository, "get_by_id", return_value=None
+        ) as mock_booking,
         patch("app.services.stripe_service.StudentCreditService") as mock_credit_service,
         patch.object(stripe_service.logger, "critical") as mock_critical,
     ):
@@ -643,8 +812,7 @@ def test_handle_charge_refunded_logs_critical_when_booking_missing(
     mock_booking.assert_called_once_with(test_booking.id)
     mock_credit_service.assert_not_called()
     mock_critical.assert_called_once_with(
-        "Stripe refund reconciliation gap: no booking %s for payment_intent %s "
-        "(charge %s)",
+        "Stripe refund reconciliation gap: no booking %s for payment_intent %s (charge %s)",
         test_booking.id,
         "pi_refund_missing_booking",
         "ch_refund_missing_booking",
@@ -658,6 +826,46 @@ def test_handle_charge_webhook_succeeded(stripe_service: StripeService) -> None:
 
 def test_handle_charge_webhook_failed(stripe_service: StripeService) -> None:
     event = {"type": "charge.failed", "data": {"object": {"id": "ch_fail"}}}
+    assert stripe_service._handle_charge_webhook(event) is True
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {
+            "type": "charge.dispute.updated",
+            "data": {
+                "object": {
+                    "id": "dp_123",
+                    "charge": "ch_123",
+                    "status": "needs_response",
+                    "reason": "fraudulent",
+                }
+            },
+        },
+        {
+            "type": "charge.dispute.funds_withdrawn",
+            "data": {"object": {"id": "dp_123", "charge": "ch_123", "amount": 5000}},
+        },
+        {
+            "type": "charge.dispute.funds_reinstated",
+            "data": {"object": {"id": "dp_123", "charge": "ch_123", "amount": 5000}},
+        },
+        {
+            "type": "charge.captured",
+            "data": {
+                "object": {"id": "ch_123", "amount_captured": 5000, "payment_intent": "pi_123"}
+            },
+        },
+        {
+            "type": "charge.expired",
+            "data": {"object": {"id": "ch_123", "payment_intent": "pi_123"}},
+        },
+    ],
+)
+def test_handle_charge_webhook_observability_events(
+    stripe_service: StripeService, event: dict[str, object]
+) -> None:
     assert stripe_service._handle_charge_webhook(event) is True
 
 
@@ -1031,7 +1239,11 @@ def test_identity_webhook_requires_input_preserves_session_id(
     event = {
         "type": "identity.verification_session.requires_input",
         "data": {
-            "object": {"id": "vs_pending", "status": "requires_input", "metadata": {"user_id": user.id}}
+            "object": {
+                "id": "vs_pending",
+                "status": "requires_input",
+                "metadata": {"user_id": user.id},
+            }
         },
     }
 
@@ -1051,12 +1263,16 @@ def test_identity_webhook_missing_user_id(stripe_service: StripeService) -> None
     assert stripe_service._handle_identity_webhook(event) is True
 
 
-def test_identity_webhook_missing_profile(
-    stripe_service: StripeService, test_user: User
-) -> None:
+def test_identity_webhook_missing_profile(stripe_service: StripeService, test_user: User) -> None:
     event = {
         "type": "identity.verification_session.verified",
-        "data": {"object": {"id": "vs_missing", "status": "verified", "metadata": {"user_id": test_user.id}}},
+        "data": {
+            "object": {
+                "id": "vs_missing",
+                "status": "verified",
+                "metadata": {"user_id": test_user.id},
+            }
+        },
     }
 
     assert stripe_service._handle_identity_webhook(event) is True
@@ -1069,11 +1285,17 @@ def test_identity_webhook_requires_input_update_failure(
     event = {
         "type": "identity.verification_session.requires_input",
         "data": {
-            "object": {"id": "vs_requires", "status": "requires_input", "metadata": {"user_id": user.id}}
+            "object": {
+                "id": "vs_requires",
+                "status": "requires_input",
+                "metadata": {"user_id": user.id},
+            }
         },
     }
 
-    with patch.object(stripe_service.instructor_repository, "update", side_effect=Exception("boom")):
+    with patch.object(
+        stripe_service.instructor_repository, "update", side_effect=Exception("boom")
+    ):
         assert stripe_service._handle_identity_webhook(event) is True
 
 
@@ -1094,7 +1316,9 @@ def test_identity_webhook_update_failure_returns_true(
         },
     }
 
-    with patch.object(stripe_service.instructor_repository, "update", side_effect=Exception("boom")):
+    with patch.object(
+        stripe_service.instructor_repository, "update", side_effect=Exception("boom")
+    ):
         assert stripe_service._handle_identity_webhook(event) is True
 
 
@@ -1125,7 +1349,11 @@ def test_identity_webhook_processing_keeps_session_id(
     event = {
         "type": "identity.verification_session.processing",
         "data": {
-            "object": {"id": "vs_processing", "status": "processing", "metadata": {"user_id": user.id}}
+            "object": {
+                "id": "vs_processing",
+                "status": "processing",
+                "metadata": {"user_id": user.id},
+            }
         },
     }
 

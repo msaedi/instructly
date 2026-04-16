@@ -97,8 +97,7 @@ class StripeWebhookDisputesMixin(BaseService):
         booking = self.booking_repository.get_by_id(booking_payment.booking_id)
         if not booking:
             self.logger.critical(
-                "Stripe refund reconciliation gap: no booking %s for "
-                "payment_intent %s (charge %s)",
+                "Stripe refund reconciliation gap: no booking %s for payment_intent %s (charge %s)",
                 booking_payment.booking_id,
                 payment_intent_id,
                 charge_id,
@@ -143,6 +142,46 @@ class StripeWebhookDisputesMixin(BaseService):
                     self._process_charge_refunded(charge_data=charge_data, charge_id=charge_id)
                 except Exception as exc:
                     self.logger.error("Failed to process charge.refunded: %s", exc)
+                return True
+            if event_type == "charge.dispute.updated":
+                self.logger.info(
+                    "Charge dispute updated: dispute=%s, charge=%s, status=%s, reason=%s",
+                    charge_data.get("id"),
+                    charge_data.get("charge"),
+                    charge_data.get("status"),
+                    charge_data.get("reason"),
+                )
+                return True
+            if event_type == "charge.dispute.funds_withdrawn":
+                self.logger.warning(
+                    "Dispute funds withdrawn: dispute=%s, charge=%s, amount=%s",
+                    charge_data.get("id"),
+                    charge_data.get("charge"),
+                    charge_data.get("amount"),
+                )
+                return True
+            if event_type == "charge.dispute.funds_reinstated":
+                self.logger.info(
+                    "Dispute funds reinstated: dispute=%s, charge=%s, amount=%s",
+                    charge_data.get("id"),
+                    charge_data.get("charge"),
+                    charge_data.get("amount"),
+                )
+                return True
+            if event_type == "charge.captured":
+                self.logger.info(
+                    "Charge captured: %s, amount=%s, payment_intent=%s",
+                    charge_id,
+                    charge_data.get("amount_captured"),
+                    charge_data.get("payment_intent"),
+                )
+                return True
+            if event_type == "charge.expired":
+                self.logger.info(
+                    "Uncaptured charge expired: %s, payment_intent=%s",
+                    charge_id,
+                    charge_data.get("payment_intent"),
+                )
                 return True
             return False
         except Exception as exc:

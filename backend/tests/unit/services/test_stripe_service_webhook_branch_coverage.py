@@ -64,7 +64,7 @@ def test_handle_successful_payment_handles_pending_and_missing_bookings():
     service.booking_repository.flush.assert_called()
 
 
-def test_account_and_transfer_webhook_branches():
+def test_account_webhook_branches_use_event_shape_aware_account_ids():
     service = _service()
 
     account_updated = {
@@ -74,11 +74,53 @@ def test_account_and_transfer_webhook_branches():
     assert service._handle_account_webhook(account_updated) is True
     service.payment_repository.update_onboarding_status.assert_called_with("acct_1", True)
 
+    external_account_event = {
+        "type": "account.external_account.deleted",
+        "account": "acct_platform",
+        "data": {"object": {"id": "ba_123"}},
+    }
+    assert service._handle_account_webhook(external_account_event) is True
+    service.logger.warning.assert_called_with(
+        "External account deleted for %s: %s",
+        "acct_platform",
+        "ba_123",
+    )
+
+    capability_event = {
+        "type": "capability.updated",
+        "account": "acct_platform",
+        "data": {"object": {"id": "transfers", "status": "active"}},
+    }
+    assert service._handle_account_webhook(capability_event) is True
+    service.logger.info.assert_any_call(
+        "Capability updated for %s: capability=%s, status=%s",
+        "acct_platform",
+        "transfers",
+        "active",
+    )
+
     account_deauth = {
         "type": "account.application.deauthorized",
         "data": {"object": {"id": "acct_1"}},
     }
-    assert service._handle_account_webhook(account_deauth) is True
+    assert service._handle_account_webhook(account_deauth) is False
+
+
+def test_transfer_webhook_dead_subtypes_return_false_and_reversed_warning_fallback():
+    service = _service()
+
+    assert (
+        service._handle_transfer_webhook(
+            {"type": "transfer.paid", "data": {"object": {"id": "tr_paid"}}}
+        )
+        is False
+    )
+    assert (
+        service._handle_transfer_webhook(
+            {"type": "transfer.failed", "data": {"object": {"id": "tr_failed"}}}
+        )
+        is False
+    )
 
     with patch.object(service.logger, "info", side_effect=RuntimeError("log-boom")):
         with patch.object(stripe_mod.logger, "warning") as warning_log:
@@ -90,12 +132,71 @@ def test_account_and_transfer_webhook_branches():
             warning_log.assert_called()
 
 
+def test_customer_payment_method_and_fraud_webhook_branches():
+    service = _service()
+
+    customer_created = {
+        "type": "customer.created",
+        "data": {"object": {"id": "cus_1", "email": "student@example.com"}},
+    }
+    assert service._handle_customer_webhook(customer_created) is True
+    service.logger.info.assert_any_call(
+        "Customer created: %s, email=%s",
+        "cus_1",
+        "student@example.com",
+    )
+    assert (
+        service._handle_customer_webhook(
+            {"type": "customer.deleted", "data": {"object": {"id": "cus_1"}}}
+        )
+        is False
+    )
+
+    pm_attached = {
+        "type": "payment_method.attached",
+        "data": {"object": {"id": "pm_1", "type": "card", "customer": "cus_1"}},
+    }
+    assert service._handle_payment_method_webhook(pm_attached) is True
+    service.logger.info.assert_any_call(
+        "Payment method attached: %s, type=%s, customer=%s",
+        "pm_1",
+        "card",
+        "cus_1",
+    )
+    assert (
+        service._handle_payment_method_webhook(
+            {"type": "payment_method.updated", "data": {"object": {"id": "pm_1"}}}
+        )
+        is False
+    )
+
+    review_opened = {
+        "type": "review.opened",
+        "data": {"object": {"id": "prv_1", "charge": "ch_1", "reason": "rule"}},
+    }
+    assert service._handle_fraud_webhook(review_opened) is True
+    service.logger.warning.assert_any_call(
+        "Payment review opened: %s, charge=%s, reason=%s",
+        "prv_1",
+        "ch_1",
+        "rule",
+    )
+    assert (
+        service._handle_fraud_webhook(
+            {"type": "radar.value_list.created", "data": {"object": {"id": "rvl_1"}}}
+        )
+        is False
+    )
+
+
 def test_payout_webhook_created_paid_and_failed_paths():
     service = _service()
 
     acct = SimpleNamespace(instructor_profile_id="profile-1")
     service.payment_repository.get_connected_account_by_stripe_id.return_value = acct
-    service.instructor_repository.get_by_id_join_user.return_value = SimpleNamespace(user_id="user-1")
+    service.instructor_repository.get_by_id_join_user.return_value = SimpleNamespace(
+        user_id="user-1"
+    )
 
     created_evt = {
         "type": "payout.created",
@@ -273,7 +374,9 @@ def test_handle_dispute_closed_won_handles_event_fetch_failure():
     )
     booking = SimpleNamespace(id="booking-1", student_id="student-1")
     service.booking_repository.get_by_id.side_effect = [booking, booking]
-    service.payment_repository.get_payment_events_for_booking.side_effect = RuntimeError("events failed")
+    service.payment_repository.get_payment_events_for_booking.side_effect = RuntimeError(
+        "events failed"
+    )
 
     @contextmanager
     def _lock_ctx():
@@ -282,11 +385,7 @@ def test_handle_dispute_closed_won_handles_event_fetch_failure():
     with patch("app.services.stripe_service.booking_lock_sync", return_value=_lock_ctx()):
         with patch("app.services.credit_service.CreditService") as credit_cls:
             result = service._handle_dispute_closed(
-                {
-                    "data": {
-                        "object": {"id": "dp_1", "payment_intent": "pi_1", "status": "won"}
-                    }
-                }
+                {"data": {"object": {"id": "dp_1", "payment_intent": "pi_1", "status": "won"}}}
             )
 
     assert result is True
