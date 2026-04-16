@@ -136,3 +136,9 @@ mcp-server/src/*.egg-info/
 graphify-out/
 **/graphify-out/
 **/graphify-out
+
+# Claude Code auto-generated skills
+.agents/
+.claude/skills/*
+!.claude/skills/instainstru-verify/
+skills-lock.json
