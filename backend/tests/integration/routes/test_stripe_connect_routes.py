@@ -22,10 +22,12 @@ class TestStripeConnectOnboardRoute:
 
     @patch("app.services.stripe_service.stripe.Account.retrieve")
     @patch("app.services.stripe_service.stripe.AccountLink.create")
+    @patch("app.services.stripe_service.stripe.Account.modify", return_value=MagicMock())
     @patch("app.services.stripe_service.stripe.Account.create")
     def test_onboard_endpoint_is_idempotent(
         self,
         mock_account_create: MagicMock,
+        mock_account_modify: MagicMock,
         mock_account_link: MagicMock,
         mock_account_retrieve: MagicMock,
         client: TestClient,
@@ -72,10 +74,12 @@ class TestStripeConnectOnboardRoute:
         assert len(records) == 1
 
     @patch("app.services.stripe_service.stripe.AccountLink.create")
+    @patch("app.services.stripe_service.stripe.Account.modify", return_value=MagicMock())
     @patch("app.services.stripe_service.stripe.Account.create")
     def test_onboard_endpoint_returns_correct_redirect(
         self,
         mock_account_create: MagicMock,
+        mock_account_modify: MagicMock,
         mock_account_link: MagicMock,
         client: TestClient,
         auth_headers_instructor: dict,

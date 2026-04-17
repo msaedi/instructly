@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import ulid
@@ -297,6 +297,7 @@ class TestBookingPaymentService:
             user_id=instructor.id,
             bio="Test instructor",
             years_experience=5,
+            identity_verified_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

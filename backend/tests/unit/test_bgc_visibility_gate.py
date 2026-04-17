@@ -35,6 +35,9 @@ def _create_instructor(db, *, email: str, status: str, is_live: bool | None = No
     profile.bgc_completed_at = (
         datetime.now(timezone.utc) if status == "passed" else None
     )
+    # Identity verification gate is orthogonal to BGC — set it so these tests
+    # continue to exercise the BGC-gate code path specifically.
+    profile.identity_verified_at = datetime.now(timezone.utc)
     db.add(profile)
     db.flush()
 

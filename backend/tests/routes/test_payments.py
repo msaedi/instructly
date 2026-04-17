@@ -371,6 +371,94 @@ class TestPaymentRoutes:
         assert response_data["event_type"] == "unknown"
         assert "error" in response_data["message"].lower()
 
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_retryable_error_returns_503(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """H2: WebhookRetryableError propagates → endpoint returns 503 so Stripe retries."""
+        from app.services.stripe.exceptions import WebhookRetryableError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_retry", "object": "payment_intent"},
+        )
+        mock_handle_event.side_effect = WebhookRetryableError("network blip")
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_permanent_error_returns_200(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """H2: WebhookPermanentError returns 200 so Stripe stops retrying."""
+        from app.services.stripe.exceptions import WebhookPermanentError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_perm", "object": "payment_intent"},
+        )
+        mock_handle_event.side_effect = WebhookPermanentError("bad request")
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_success_false_returns_503(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """C2: handler returning success=False must NOT mark processed — return 503 so Stripe retries."""
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_noop", "object": "payment_intent"},
+        )
+        mock_handle_event.return_value = {
+            "success": False,
+            "event_type": "payment_intent.succeeded",
+        }
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
     # ========== Response Format Tests ==========
 
     @patch("app.services.stripe_service.StripeService.check_account_status")

@@ -441,6 +441,9 @@ def test_create_connected_account_conflict_paths_raise_service_exception():
         with pytest.raises(ServiceException, match="Failed to create connected account due to conflict"):
             StripeService.create_connected_account(service, "profile_1", "p1@example.com")
 
+    # H6: the mock-account fallback for stripe_configured=False was removed.
+    # A RuntimeError from Account.create now propagates as a ServiceException
+    # carrying the underlying error message — no silent mock-account creation.
     service = _make_service()
     service.stripe_configured = False
     service.payment_repository.get_connected_account_by_instructor_id.return_value = None
@@ -449,7 +452,7 @@ def test_create_connected_account_conflict_paths_raise_service_exception():
     )
     service.payment_repository.transaction.return_value = cm
     with patch.object(stripe.Account, "create", side_effect=RuntimeError("stripe down")):
-        with pytest.raises(ServiceException, match="Failed to create connected account due to conflict"):
+        with pytest.raises(ServiceException, match="stripe down"):
             StripeService.create_connected_account(service, "profile_2", "p2@example.com")
 
 

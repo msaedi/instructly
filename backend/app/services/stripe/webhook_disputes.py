@@ -22,6 +22,26 @@ def _stripe_service_module() -> StripeServiceModuleProtocol:
     return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
+_ALREADY_REVERSED_MARKERS = (
+    "already been reversed",
+    "transfer_reversal_amount_exceeded",
+    "no such transfer reversal",
+)
+
+
+def _is_already_reversed_error(exc: BaseException) -> bool:
+    """Detect a Stripe error that indicates the transfer is already fully reversed.
+
+    Matches by error code (structured) or by message substring (fallback for
+    wrapped/legacy error shapes).
+    """
+    code = getattr(exc, "code", None)
+    if isinstance(code, str) and code == "transfer_reversal_amount_exceeded":
+        return True
+    text = str(exc).lower()
+    return any(marker in text for marker in _ALREADY_REVERSED_MARKERS)
+
+
 @dataclass(slots=True)
 class _DisputeContext:
     dispute: dict[str, Any]
@@ -83,7 +103,8 @@ class StripeWebhookDisputesMixin(BaseService):
         payment_intent_id = charge_data.get("payment_intent")
         if not payment_intent_id:
             return
-        self.payment_repository.update_payment_status(payment_intent_id, "refunded")
+        # H4: use row-level lock to serialize with concurrent refund flow updates.
+        self.payment_repository.update_payment_status_for_update(payment_intent_id, "refunded")
         booking_payment = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
         if not booking_payment:
             self.logger.critical(
@@ -258,6 +279,16 @@ class StripeWebhookDisputesMixin(BaseService):
             )
             return cast(Optional[str], reversal_id), None
         except Exception as exc:
+            # H1: if Stripe reports the transfer was already reversed (e.g. by a
+            # prior refund with reverse_transfer=True), treat as a success no-op
+            # rather than as a dispute-handler failure.
+            if _is_already_reversed_error(exc):
+                self.logger.info(
+                    "Transfer already reversed for booking %s; treating dispute reversal "
+                    "as no-op",
+                    booking_id,
+                )
+                return None, None
             self.logger.warning(
                 "Failed to reverse transfer for dispute context on booking %s: %s",
                 booking_id,

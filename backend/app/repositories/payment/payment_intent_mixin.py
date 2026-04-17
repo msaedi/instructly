@@ -88,6 +88,30 @@ class PaymentPaymentIntentMixin(PaymentRepositoryMixinBase):
             self.logger.error("Failed to update payment status: %s", str(e))
             raise RepositoryException(f"Failed to update payment status: {str(e)}")
 
+    def update_payment_status_for_update(
+        self, payment_intent_id: str, status: str
+    ) -> Optional[PaymentIntent]:
+        """Variant of :meth:`update_payment_status` that takes a row-level lock.
+
+        H4: used by the ``charge.refunded`` webhook handler to serialize
+        concurrent writers (webhook vs. local refund flow) so the final
+        ``payment_status`` is not subject to last-write-wins.
+        """
+        try:
+            payment = (
+                self.db.query(PaymentIntent)
+                .filter(PaymentIntent.stripe_payment_intent_id == payment_intent_id)
+                .with_for_update()
+                .first()
+            )
+            if payment:
+                payment.status = status
+                self.db.flush()
+            return cast(Optional[PaymentIntent], payment)
+        except Exception as e:
+            self.logger.error("Failed to update payment status (locked): %s", str(e))
+            raise RepositoryException(f"Failed to update payment status (locked): {str(e)}")
+
     def get_payment_by_intent_id(self, payment_intent_id: str) -> Optional[PaymentIntent]:
         """
         Get payment record by Stripe payment intent ID.

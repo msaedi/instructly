@@ -30,7 +30,10 @@ from ...models.webhook_event import WebhookEvent
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...repositories.booking_repository import BookingRepository
 from ...schemas.webhook_responses import WebhookAckResponse
-from ...services.webhook_ledger_service import WebhookLedgerService
+from ...services.webhook_ledger_service import (
+    WebhookAlreadyClaimedError,
+    WebhookLedgerService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -729,15 +732,23 @@ async def handle_hundredms_webhook(
 
     # 7. Persistent dedup via webhook ledger (source of truth)
     ledger_service = WebhookLedgerService(db)
-    ledger_event: WebhookEvent = await asyncio.to_thread(
-        ledger_service.log_received,
-        source="hundredms",
-        event_type=event_type,
-        payload=payload,
-        headers=dict(request.headers),
-        event_id=event_id,
-        idempotency_key=idempotency_key,
-    )
+    try:
+        ledger_event: WebhookEvent = await asyncio.to_thread(
+            ledger_service.log_received,
+            source="hundredms",
+            event_type=event_type,
+            payload=payload,
+            headers=dict(request.headers),
+            event_id=event_id,
+            idempotency_key=idempotency_key,
+        )
+    except WebhookAlreadyClaimedError:
+        logger.info(
+            "100ms webhook duplicate ignored (already claimed): event_id=%s delivery_key=%s",
+            event_id,
+            delivery_key,
+        )
+        return WebhookAckResponse(ok=True)
 
     if ledger_event.status == "processed":
         logger.info(

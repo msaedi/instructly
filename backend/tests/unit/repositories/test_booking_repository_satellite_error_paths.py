@@ -254,6 +254,55 @@ def test_atomic_confirm_if_pending_marks_confirmed() -> None:
     booking.mark_confirmed.assert_called_once_with(confirmed_at=confirmed_at)
 
 
+def test_atomic_confirm_if_pending_uses_nowait_lock() -> None:
+    """H5: the row-level lock must be non-blocking so concurrent webhooks don't deadlock."""
+    repo, mock_db = _make_repo()
+    booking = MagicMock()
+    query = mock_db.query.return_value.filter.return_value.with_for_update.return_value
+    query.one_or_none.return_value = booking
+
+    repo.atomic_confirm_if_pending("bk_1", datetime.now(timezone.utc))
+
+    mock_db.query.return_value.filter.return_value.with_for_update.assert_called_once_with(
+        nowait=True
+    )
+
+
+def test_atomic_confirm_if_pending_returns_zero_on_lock_contention() -> None:
+    """H5: if another worker holds the row lock, return 0 without raising."""
+    from sqlalchemy.exc import OperationalError
+
+    repo, mock_db = _make_repo()
+
+    class _Orig:
+        pgcode = "55P03"  # lock_not_available
+
+    mock_db.query.return_value.filter.return_value.with_for_update.return_value.one_or_none.side_effect = (
+        OperationalError("SELECT ... FOR UPDATE NOWAIT", {}, _Orig())
+    )
+
+    result = repo.atomic_confirm_if_pending("bk_1", datetime.now(timezone.utc))
+
+    assert result == 0
+
+
+def test_atomic_confirm_if_pending_reraises_non_lock_operational_error() -> None:
+    """H5: an OperationalError without pgcode 55P03 must propagate."""
+    from sqlalchemy.exc import OperationalError
+
+    repo, mock_db = _make_repo()
+
+    class _Orig:
+        pgcode = "57P01"  # admin_shutdown — not a lock error
+
+    mock_db.query.return_value.filter.return_value.with_for_update.return_value.one_or_none.side_effect = (
+        OperationalError("shutdown", {}, _Orig())
+    )
+
+    with pytest.raises(OperationalError):
+        repo.atomic_confirm_if_pending("bk_1", datetime.now(timezone.utc))
+
+
 @pytest.mark.parametrize(
     ("method_name", "args", "message"),
     (

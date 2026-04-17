@@ -87,6 +87,78 @@ def test_webhook_secrets_property():
     assert cfg.webhook_secrets == ["whsec_1", "whsec_2", "whsec_3"]
 
 
+def test_webhook_secrets_filters_whitespace_only():
+    cfg = Settings()
+    cfg.stripe_webhook_secret = SecretStr("")
+    cfg.stripe_webhook_secret_platform = SecretStr("   ")
+    cfg.stripe_webhook_secret_connect = SecretStr("whsec_real")
+
+    assert cfg.webhook_secrets == ["whsec_real"]
+
+
+def test_webhook_secrets_filters_tab_and_newline():
+    cfg = Settings()
+    cfg.stripe_webhook_secret = SecretStr("\t")
+    cfg.stripe_webhook_secret_platform = SecretStr("\n")
+    cfg.stripe_webhook_secret_connect = SecretStr("whsec_real")
+
+    assert cfg.webhook_secrets == ["whsec_real"]
+
+
+def test_require_stripe_secrets_in_prod_fails_when_empty(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "prod")
+    with pytest.raises(ValueError, match="STRIPE_SECRET_KEY"):
+        Settings.model_validate(
+            {
+                "secret_key": "test-secret",
+                "bgc_encryption_key": "bgc-key",
+                "stripe_secret_key": "",
+                "stripe_webhook_secret_platform": "whsec_p",
+                "stripe_webhook_secret_connect": "whsec_c",
+            }
+        )
+
+
+def test_require_stripe_secrets_in_prod_fails_when_webhook_secret_empty(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "prod")
+    with pytest.raises(ValueError, match="STRIPE_WEBHOOK_SECRET"):
+        Settings.model_validate(
+            {
+                "secret_key": "test-secret",
+                "bgc_encryption_key": "bgc-key",
+                "stripe_secret_key": "sk_live_x",
+                "stripe_webhook_secret_platform": "",
+                "stripe_webhook_secret_connect": "whsec_c",
+            }
+        )
+
+
+def test_require_stripe_secrets_in_prod_passes_when_all_set(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "prod")
+    cfg = Settings.model_validate(
+        {
+            "secret_key": "test-secret",
+            "bgc_encryption_key": "bgc-key",
+            "stripe_secret_key": "sk_live_x",
+            "stripe_webhook_secret_platform": "whsec_p",
+            "stripe_webhook_secret_connect": "whsec_c",
+        }
+    )
+    assert cfg.stripe_secret_key.get_secret_value() == "sk_live_x"
+
+
+def test_require_stripe_secrets_allows_empty_in_non_prod(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    cfg = Settings.model_validate(
+        {
+            "secret_key": "test-secret",
+            "stripe_secret_key": "",
+            "stripe_webhook_secret_platform": "",
+        }
+    )
+    assert cfg.stripe_secret_key.get_secret_value() == ""
+
+
 def test_validate_test_database_indicator():
     with pytest.raises(ValueError, match="production indicator 'prod'"):
         Settings.model_validate(

@@ -3,7 +3,10 @@
 from datetime import datetime
 from typing import Any, Optional, cast
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
+
+# PostgreSQL SQLSTATE for a non-blocking lock acquisition that could not be granted.
+_LOCK_NOT_AVAILABLE_PGCODE = "55P03"
 
 from ...core.exceptions import RepositoryException
 from ...models.booking import Booking, BookingStatus
@@ -244,16 +247,27 @@ class BookingSatelliteMixin(BookingRepositoryMixinBase):
             raise RepositoryException(f"Failed to get booking payment: {str(e)}")
 
     def atomic_confirm_if_pending(self, booking_id: str, confirmed_at: datetime) -> int:
-        """Atomically confirm a booking only if it is currently PENDING."""
-        booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.id == booking_id,
-                Booking.status == BookingStatus.PENDING.value,
+        """Atomically confirm a booking only if it is currently PENDING.
+
+        Uses ``FOR UPDATE NOWAIT`` so concurrent webhook workers return fast
+        (0 rows affected) instead of blocking on a lock held by a peer. This
+        prevents thread-pool exhaustion when Stripe bursts duplicate deliveries.
+        """
+        try:
+            booking = (
+                self.db.query(Booking)
+                .filter(
+                    Booking.id == booking_id,
+                    Booking.status == BookingStatus.PENDING.value,
+                )
+                .with_for_update(nowait=True)
+                .one_or_none()
             )
-            .with_for_update()
-            .one_or_none()
-        )
+        except OperationalError as exc:
+            pgcode = getattr(getattr(exc, "orig", None), "pgcode", None)
+            if pgcode == _LOCK_NOT_AVAILABLE_PGCODE:
+                return 0
+            raise
         if booking is None:
             return 0
         booking.mark_confirmed(confirmed_at=confirmed_at)

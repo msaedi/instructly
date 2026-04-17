@@ -430,9 +430,14 @@ class TestStripeService:
 
     # ========== Connected Account Management Tests ==========
 
+    @patch("stripe.Account.modify")
     @patch("stripe.Account.create")
     def test_create_connected_account_success(
-        self, mock_stripe_create, stripe_service: StripeService, test_instructor: tuple
+        self,
+        mock_stripe_create,
+        mock_stripe_modify,
+        stripe_service: StripeService,
+        test_instructor: tuple,
     ):
         """Test successful connected account creation."""
         instructor_user, profile, _ = test_instructor
@@ -441,6 +446,7 @@ class TestStripeService:
         mock_account = MagicMock()
         mock_account.id = "acct_test123"
         mock_stripe_create.return_value = mock_account
+        mock_stripe_modify.return_value = MagicMock()
 
         # Create connected account
         account = stripe_service.create_connected_account(instructor_profile_id=profile.id, email=instructor_user.email)
@@ -461,17 +467,21 @@ class TestStripeService:
         assert account.onboarding_completed is False
 
     @patch("stripe.Account.create")
-    def test_create_connected_account_fallback_when_unconfigured(
+    def test_create_connected_account_unconfigured_propagates(
         self, mock_stripe_create, stripe_service: StripeService, test_instructor: tuple
     ):
-        """Fallback to mock account when Stripe isn't configured."""
+        """H6: No silent mock-account fallback — even unconfigured mode must raise.
+
+        Previously the service generated ``mock_acct_<profile>`` records which
+        later caused transfers to fail catastrophically. Now Stripe errors
+        propagate in all environments.
+        """
         instructor_user, profile, _ = test_instructor
         stripe_service.stripe_configured = False
         mock_stripe_create.side_effect = Exception("stripe unavailable")
 
-        account = stripe_service.create_connected_account(profile.id, instructor_user.email)
-
-        assert account.stripe_account_id == f"mock_acct_{profile.id}"
+        with pytest.raises(ServiceException, match="Failed to create connected account"):
+            stripe_service.create_connected_account(profile.id, instructor_user.email)
 
     @patch("stripe.Account.create")
     def test_create_connected_account_unexpected_error(
@@ -587,10 +597,14 @@ class TestStripeService:
         assert status["requirements"] == []
 
     @patch("stripe.Account.retrieve")
-    def test_check_account_status_updates_onboarding_status(
+    def test_check_account_status_is_read_only(
         self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
     ):
-        """Update onboarding status when Stripe reports completion."""
+        """H8: check_account_status returns computed status but does not persist.
+
+        Onboarding state is updated exclusively via the ``account.updated`` webhook.
+        Doing a read-path write created race conditions when two GETs drifted.
+        """
         _, profile, _ = test_instructor
 
         stripe_service.payment_repository.create_connected_account_record(
@@ -613,7 +627,8 @@ class TestStripeService:
         ) as mock_update:
             status = stripe_service.check_account_status(profile.id)
 
-        mock_update.assert_called_once_with("acct_test123", True)
+        mock_update.assert_not_called()
+        assert status["onboarding_completed"] is True
         assert "legal_entity.verification.document" in status["requirements"]
 
     def test_check_account_status_no_account(self, stripe_service: StripeService, test_instructor: tuple):

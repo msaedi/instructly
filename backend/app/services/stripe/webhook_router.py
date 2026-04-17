@@ -5,6 +5,8 @@ from importlib import import_module
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+import stripe
+
 from ...core.exceptions import ServiceException
 from ...models.booking import BookingStatus, PaymentStatus
 from ...models.payment import PaymentIntent
@@ -12,6 +14,7 @@ from ...repositories.booking_repository import BookingRepository
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...repositories.payment_repository import PaymentRepository
 from ..base import BaseService
+from .exceptions import WebhookPermanentError, WebhookRetryableError
 
 if TYPE_CHECKING:
     from ..stripe_service import StripeServiceModuleProtocol
@@ -72,7 +75,14 @@ class StripeWebhookRouterMixin(BaseService):
 
     @BaseService.measure_operation("stripe_handle_webhook_event")
     def handle_webhook_event(self, event: dict[str, Any]) -> dict[str, Any]:
-        """Process an already-verified Stripe webhook event."""
+        """Process an already-verified Stripe webhook event.
+
+        Transient Stripe errors (APIConnectionError, RateLimitError, APIError) are
+        re-raised as :class:`WebhookRetryableError` so the endpoint returns 503 and
+        Stripe retries. Permanent errors (InvalidRequestError, CardError,
+        AuthenticationError) become :class:`WebhookPermanentError` so the endpoint
+        returns 200 and Stripe stops retrying.
+        """
         try:
             event_type = event.get("type", "")
             self.logger.info("Processing webhook event: %s", event_type)
@@ -110,6 +120,20 @@ class StripeWebhookRouterMixin(BaseService):
 
             self.logger.info("Unhandled webhook event type: %s", event_type)
             return {"success": True, "event_type": event_type, "handled": False}
+        except (
+            stripe.APIConnectionError,
+            stripe.RateLimitError,
+            stripe.APIError,
+        ) as exc:
+            self.logger.warning("Transient Stripe error while processing webhook: %s", exc)
+            raise WebhookRetryableError(f"Transient Stripe error: {str(exc)}") from exc
+        except (
+            stripe.InvalidRequestError,
+            stripe.CardError,
+            stripe.AuthenticationError,
+        ) as exc:
+            self.logger.error("Permanent Stripe error while processing webhook: %s", exc)
+            raise WebhookPermanentError(f"Permanent Stripe error: {str(exc)}") from exc
         except Exception as exc:
             self.logger.error("Error processing webhook event: %s", exc)
             raise ServiceException(f"Failed to process webhook event: {str(exc)}")
@@ -171,34 +195,36 @@ class StripeWebhookRouterMixin(BaseService):
         )
 
     def _handle_successful_payment(self, payment_record: PaymentIntent) -> None:
-        """Handle successful payment processing."""
-        try:
-            booking = self.booking_repository.get_by_id(payment_record.booking_id)
-            if not booking:
-                self.logger.warning(
-                    "Successful payment received for missing booking %s",
-                    payment_record.booking_id,
-                )
-                return
+        """Handle successful payment processing.
 
-            if booking.status == BookingStatus.PENDING.value:
-                booking.mark_confirmed()
-                self.booking_repository.flush()
-
-            from ..booking_service import BookingService
-
-            booking_service = BookingService(self.db, cache_service=self.cache_service)
-            try:
-                booking_service.invalidate_booking_cache(booking)
-            except Exception as cache_err:
-                self.logger.warning("Failed to invalidate booking caches: %s", cache_err)
-
-            self.logger.info(
-                "Processed successful payment for booking %s",
+        Booking and transfer errors are allowed to propagate so the webhook endpoint
+        can distinguish transient failures (retry via 503) from permanent ones.
+        Only cache invalidation is non-critical and its errors are swallowed.
+        """
+        booking = self.booking_repository.get_by_id(payment_record.booking_id)
+        if not booking:
+            self.logger.warning(
+                "Successful payment received for missing booking %s",
                 payment_record.booking_id,
             )
-        except Exception as exc:
-            self.logger.error("Error handling successful payment: %s", exc)
+            return
+
+        if booking.status == BookingStatus.PENDING.value:
+            booking.mark_confirmed()
+            self.booking_repository.flush()
+
+        from ..booking_service import BookingService
+
+        booking_service = BookingService(self.db, cache_service=self.cache_service)
+        try:
+            booking_service.invalidate_booking_cache(booking)
+        except Exception as cache_err:
+            self.logger.warning("Failed to invalidate booking caches: %s", cache_err)
+
+        self.logger.info(
+            "Processed successful payment for booking %s",
+            payment_record.booking_id,
+        )
 
     def _handle_account_webhook(self, event: dict[str, Any]) -> bool:
         """Handle Stripe Connect account events."""
@@ -216,9 +242,23 @@ class StripeWebhookRouterMixin(BaseService):
             if event_type == "account.updated":
                 charges_enabled = account_data.get("charges_enabled", False)
                 details_submitted = account_data.get("details_submitted", False)
-                if charges_enabled and details_submitted:
-                    self.payment_repository.update_onboarding_status(account_id, True)
+                requirements = account_data.get("requirements") or {}
+                disabled_reason = requirements.get("disabled_reason")
+                should_complete = bool(
+                    charges_enabled and details_submitted and not disabled_reason
+                )
+                self.payment_repository.update_onboarding_status(account_id, should_complete)
+                if should_complete:
                     self.logger.info("Account %s onboarding completed", account_id)
+                else:
+                    self.logger.warning(
+                        "Account %s onboarding marked incomplete "
+                        "(charges_enabled=%s details_submitted=%s disabled_reason=%s)",
+                        account_id,
+                        charges_enabled,
+                        details_submitted,
+                        disabled_reason,
+                    )
                 return True
             if event_type == "account.external_account.created":
                 self.logger.info(

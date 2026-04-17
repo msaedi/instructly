@@ -314,13 +314,18 @@ class TestCreateRetryAndProcessErrors:
 
 
 class TestWebhookEdgePaths:
-    def test_handle_successful_payment_exception_logged(self):
+    def test_handle_successful_payment_propagates_exception(self):
+        """C3: booking/transfer errors propagate so the webhook endpoint can route
+        them to 503 (retry) vs 200 (permanent). The previous broad
+        ``except Exception`` silently swallowed transfer failures and left funds
+        stuck on the platform balance."""
         service = _make_service()
         service.booking_repository.get_by_id.side_effect = Exception("boom")
 
-        StripeService._handle_successful_payment(
-            service, payment_record=SimpleNamespace(booking_id="booking_1")
-        )
+        with pytest.raises(Exception, match="boom"):
+            StripeService._handle_successful_payment(
+                service, payment_record=SimpleNamespace(booking_id="booking_1")
+            )
 
     def test_handle_account_webhook_updates_onboarding(self):
         service = _make_service()

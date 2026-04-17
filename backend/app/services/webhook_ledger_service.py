@@ -21,6 +21,22 @@ _SENSITIVE_HEADERS = {
     "x-hundredms-secret",
 }
 
+_ALREADY_CLAIMED_STATUSES = {"processing", "processed"}
+
+
+class WebhookAlreadyClaimedError(Exception):
+    """Raised when a duplicate webhook is received for an event that is already
+    being processed or has completed. Callers should respond with a duplicate-ignored
+    success rather than re-running business logic.
+    """
+
+    def __init__(self, event: "WebhookEvent") -> None:
+        super().__init__(
+            f"Webhook event {event.id} ({event.source}:{event.event_id}) "
+            f"is already {event.status}"
+        )
+        self.event = event
+
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -73,6 +89,8 @@ class WebhookLedgerService(BaseService):
         )
 
         if existing:
+            if existing.status in _ALREADY_CLAIMED_STATUSES:
+                raise WebhookAlreadyClaimedError(existing)
             existing.retry_count = (existing.retry_count or 0) + 1
             existing.last_retry_at = now
             if safe_headers is not None:
@@ -101,6 +119,8 @@ class WebhookLedgerService(BaseService):
                     idempotency_key=idempotency_key,
                 )
                 if existing is not None:
+                    if existing.status in _ALREADY_CLAIMED_STATUSES:
+                        raise WebhookAlreadyClaimedError(existing) from exc
                     existing.retry_count = (existing.retry_count or 0) + 1
                     existing.last_retry_at = now
                     if safe_headers is not None:

@@ -5,7 +5,7 @@ Tests with real database to ensure the feature works end-to-end.
 """
 
 import asyncio
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -113,6 +113,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
+            identity_verified_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()
@@ -199,6 +200,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
+            identity_verified_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

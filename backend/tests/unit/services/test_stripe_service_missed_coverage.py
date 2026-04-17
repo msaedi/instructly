@@ -1393,9 +1393,13 @@ class TestHandlePaymentIntentWebhookSucceeded:
 
 @pytest.mark.unit
 class TestHandleAccountWebhookNotOnboarded:
-    """Cover line 3669->3673: account.updated but charges_enabled=False."""
+    """C6: account.updated must flip onboarding_completed to False on regression."""
 
-    def test_account_not_fully_onboarded(self):
+    def test_account_not_fully_onboarded_flips_to_false(self):
+        """Per C6, the handler now persists ``onboarding_completed=False`` when
+        Stripe reports the account is no longer fully onboarded — previously the
+        handler only set True and silently ignored regressions, allowing bookings
+        to continue routing to instructors whose payouts would fail."""
         svc = _make_stripe_service()
         svc.payment_repository.update_onboarding_status = MagicMock()
         event = {
@@ -1410,7 +1414,9 @@ class TestHandleAccountWebhookNotOnboarded:
         }
         result = svc._handle_account_webhook(event)
         assert result is True
-        svc.payment_repository.update_onboarding_status.assert_not_called()
+        svc.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", False
+        )
 
 
 @pytest.mark.unit

@@ -169,6 +169,7 @@ class TestPaymentIntegration:
         return booking
 
     @patch("stripe.Customer.create")
+    @patch("stripe.Account.modify", return_value=MagicMock())
     @patch("stripe.Account.create")
     @patch("stripe.AccountLink.create")
     @patch("stripe.PaymentIntent.create")
@@ -179,6 +180,7 @@ class TestPaymentIntegration:
         mock_intent_create,
         mock_link_create,
         mock_account_create,
+        mock_account_modify,
         mock_customer_create,
         db: Session,
         student_user: User,

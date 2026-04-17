@@ -333,6 +333,63 @@ def test_claim_for_processing_claims_received_and_failed_only(db):
     assert processed.status == "processed"
 
 
+def test_claim_for_processing_increments_attempt_count(db):
+    """M1: each successful claim bumps attempt_count."""
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_attempts"},
+        status="received",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    assert event.attempt_count == 0
+    assert repo.claim_for_processing(event.id) is True
+    db.refresh(event)
+    assert event.attempt_count == 1
+
+
+def test_claim_for_processing_transitions_to_dead_letter_after_max(db):
+    """M1: failed events that exceed MAX_PROCESSING_ATTEMPTS become dead_letter."""
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_dlq"},
+        status="failed",
+        processing_error="repeated failure",
+        received_at=datetime.now(timezone.utc),
+    )
+    event.attempt_count = repo.MAX_PROCESSING_ATTEMPTS
+    db.flush()
+
+    assert repo.claim_for_processing(event.id) is False
+
+    db.refresh(event)
+    assert event.status == "dead_letter"
+
+
+def test_claim_for_processing_rejects_dead_letter(db):
+    """M1: once dead_letter, never re-claimed."""
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_is_dlq"},
+        status="received",
+        received_at=datetime.now(timezone.utc),
+    )
+    event.status = "dead_letter"
+    db.flush()
+
+    assert repo.claim_for_processing(event.id) is False
+
+    db.refresh(event)
+    assert event.status == "dead_letter"
+    assert event.attempt_count == 0
+
+
 def test_get_event_returns_none(db):
     repo = WebhookEventRepository(db)
     assert repo.get_event("01HZZZZZZZZZZZZZZZZZZZZZZ") is None

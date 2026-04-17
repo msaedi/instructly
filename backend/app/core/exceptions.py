@@ -115,6 +115,22 @@ class BusinessRuleException(DomainException):
         )
 
 
+class InstructorNotVerifiedError(BusinessRuleException):
+    """Raised when a booking targets an instructor who has not completed
+    Stripe Identity verification. Prevents KYC-bypass by blocking booking
+    acceptance until ``InstructorProfile.identity_verified_at`` is set
+    (normally via the ``identity.verification_session.verified`` webhook).
+    """
+
+    def __init__(
+        self,
+        message: str = "Instructor has not completed identity verification",
+        code: str = "instructor_not_verified",
+        details: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(message=message, code=code, details=details)
+
+
 class UnauthorizedException(DomainException):
     """Raised when user is not authenticated."""
 

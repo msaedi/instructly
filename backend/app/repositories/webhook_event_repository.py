@@ -157,9 +157,34 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         )
         return cast(WebhookEvent | None, result)
 
+    MAX_PROCESSING_ATTEMPTS = 3
+
     def claim_for_processing(self, event_id: str) -> bool:
-        """Atomically claim an event for processing."""
+        """Atomically claim an event for processing.
+
+        M1: events that have already failed ``MAX_PROCESSING_ATTEMPTS`` times are
+        transitioned to ``dead_letter`` and not re-claimed, preventing an
+        infinite retry loop on a poison-message handler. Events already in
+        ``dead_letter`` are never claimed.
+        """
         try:
+            current = self.db.query(WebhookEvent).filter(WebhookEvent.id == event_id).one_or_none()
+            if current is None:
+                return False
+            if current.status == "dead_letter":
+                return False
+            if (
+                current.status == "failed"
+                and (current.attempt_count or 0) >= self.MAX_PROCESSING_ATTEMPTS
+            ):
+                self.db.execute(
+                    sa_update(WebhookEvent)
+                    .where(WebhookEvent.id == event_id)
+                    .values(status="dead_letter")
+                )
+                self.db.flush()
+                return False
+
             stmt = (
                 sa_update(WebhookEvent)
                 .where(
@@ -170,6 +195,7 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
                     status="processing",
                     processing_error=None,
                     processed_at=None,
+                    attempt_count=(WebhookEvent.attempt_count + 1),
                 )
                 .returning(WebhookEvent.id)
             )
