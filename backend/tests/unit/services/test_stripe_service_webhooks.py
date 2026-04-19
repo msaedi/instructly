@@ -482,8 +482,10 @@ class TestAccountUpdatedFlipBack:
         assert result is True
         service.payment_repository.update_onboarding_status.assert_not_called()
 
-    def test_account_updated_writes_when_record_missing(self):
-        """QF1: unknown account_id falls through and the repository handles absence."""
+    def test_account_updated_skips_when_record_missing(self):
+        """Fix 4: an unknown account_id must not trigger a misleading
+        ``onboarding_completed=<x>`` log for a write that didn't happen.
+        Skip the write and log a clear "not found in DB" message instead."""
         service = _make_service()
         service.payment_repository.get_connected_account_by_stripe_id.return_value = None
         event = self._base_event()
@@ -491,9 +493,7 @@ class TestAccountUpdatedFlipBack:
         result = service._handle_account_webhook(event)
 
         assert result is True
-        service.payment_repository.update_onboarding_status.assert_called_once_with(
-            "acct_test", True
-        )
+        service.payment_repository.update_onboarding_status.assert_not_called()
 
     def test_details_not_submitted_flips_to_false(self):
         service = _make_service()
@@ -522,6 +522,35 @@ class TestAccountUpdatedFlipBack:
         service.payment_repository.update_onboarding_status.assert_called_once_with(
             "acct_test", False
         )
+
+    def test_account_handler_reraises_operational_error(self):
+        """Fix 1: OperationalError inside a sub-handler must propagate so the
+        outer handle_webhook_event can map it to WebhookRetryableError → 503.
+        Previously the broad ``except Exception: return False`` swallowed it
+        and the endpoint silently returned 200 on transient DB failures."""
+        from sqlalchemy.exc import OperationalError
+
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_stripe_id.side_effect = (
+            OperationalError("SELECT", {}, Exception("lock not available"))
+        )
+        event = self._base_event()
+
+        with pytest.raises(OperationalError):
+            service._handle_account_webhook(event)
+
+    def test_unhandled_account_subtype_returns_true(self):
+        """Fix 2: an unrecognized account.* subtype must ack (True) so Stripe
+        stops retrying an event we deterministically don't handle."""
+        service = _make_service()
+        event = {
+            "type": "account.application.authorized",
+            "data": {"object": {"id": "acct_unhandled"}},
+        }
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
 
     def test_fully_onboarded_sets_true(self):
         service = _make_service()

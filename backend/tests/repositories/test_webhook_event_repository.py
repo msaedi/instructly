@@ -398,7 +398,7 @@ def test_dead_letter_transition_expires_stale_status_attribute(db):
     an explicit ``db.refresh``. This matters for the webhook route, which
     re-fetches the event after ``mark_processing`` returns False and would
     otherwise see a stale ``failed`` status, failing the ``dead_letter``
-    short-circuit guard at the endpoint layer (C1).
+    short-circuit guard at the endpoint layer (M1).
     """
     repo = WebhookEventRepository(db)
     event = repo.create(

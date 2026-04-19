@@ -105,8 +105,9 @@ def test_webhook_secrets_filters_tab_and_newline():
     assert cfg.webhook_secrets == ["whsec_real"]
 
 
-def test_require_stripe_secrets_in_prod_fails_when_empty(monkeypatch):
-    monkeypatch.setenv("SITE_MODE", "prod")
+def test_require_stripe_secrets_fails_when_opt_in_set_and_empty(monkeypatch):
+    """Validator fires when REQUIRE_STRIPE_SECRETS=1 (web server opt-in)."""
+    monkeypatch.setenv("REQUIRE_STRIPE_SECRETS", "1")
     with pytest.raises(ValueError, match="STRIPE_SECRET_KEY"):
         Settings.model_validate(
             {
@@ -119,8 +120,8 @@ def test_require_stripe_secrets_in_prod_fails_when_empty(monkeypatch):
         )
 
 
-def test_require_stripe_secrets_in_prod_fails_when_webhook_secret_empty(monkeypatch):
-    monkeypatch.setenv("SITE_MODE", "prod")
+def test_require_stripe_secrets_fails_when_opt_in_set_and_webhook_empty(monkeypatch):
+    monkeypatch.setenv("REQUIRE_STRIPE_SECRETS", "true")
     with pytest.raises(ValueError, match="STRIPE_WEBHOOK_SECRET"):
         Settings.model_validate(
             {
@@ -133,8 +134,8 @@ def test_require_stripe_secrets_in_prod_fails_when_webhook_secret_empty(monkeypa
         )
 
 
-def test_require_stripe_secrets_in_prod_passes_when_all_set(monkeypatch):
-    monkeypatch.setenv("SITE_MODE", "prod")
+def test_require_stripe_secrets_passes_when_opt_in_and_all_set(monkeypatch):
+    monkeypatch.setenv("REQUIRE_STRIPE_SECRETS", "1")
     cfg = Settings.model_validate(
         {
             "secret_key": "test-secret",
@@ -145,6 +146,36 @@ def test_require_stripe_secrets_in_prod_passes_when_all_set(monkeypatch):
         }
     )
     assert cfg.stripe_secret_key.get_secret_value() == "sk_live_x"
+
+
+def test_require_stripe_secrets_skipped_when_opt_in_missing_even_in_prod(monkeypatch):
+    """M3 fix: management scripts / CI / alembic run with SITE_MODE=prod but
+    must NOT trigger the Stripe validator. The validator is opt-in via
+    REQUIRE_STRIPE_SECRETS=1; absence means "don't enforce"."""
+    monkeypatch.setenv("SITE_MODE", "prod")
+    monkeypatch.delenv("REQUIRE_STRIPE_SECRETS", raising=False)
+    cfg = Settings.model_validate(
+        {
+            "secret_key": "test-secret",
+            "bgc_encryption_key": "bgc-key",
+            "stripe_secret_key": "",
+            "stripe_webhook_secret_platform": "",
+            "stripe_webhook_secret_connect": "",
+        }
+    )
+    assert cfg.stripe_secret_key.get_secret_value() == ""
+
+
+def test_require_stripe_secrets_opt_in_false_value_does_not_enforce(monkeypatch):
+    """REQUIRE_STRIPE_SECRETS=0 / false / empty must not enforce."""
+    monkeypatch.setenv("REQUIRE_STRIPE_SECRETS", "0")
+    cfg = Settings.model_validate(
+        {
+            "secret_key": "test-secret",
+            "stripe_secret_key": "",
+        }
+    )
+    assert cfg.stripe_secret_key.get_secret_value() == ""
 
 
 def test_require_stripe_secrets_allows_empty_in_non_prod(monkeypatch):

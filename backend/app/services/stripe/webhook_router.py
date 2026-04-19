@@ -262,16 +262,21 @@ class StripeWebhookRouterMixin(BaseService):
                 )
                 # QF1: Stripe resends account.updated frequently (heartbeats on
                 # every KYC re-check). Skip the write when state is unchanged to
-                # avoid DB churn on every heartbeat; account_record may be None
-                # (unknown account) in which case we fall through and attempt
-                # the write so the repository-layer handles persistence/logging.
+                # avoid DB churn. Fix 4: if the record is absent, log and skip
+                # rather than attempting an update_onboarding_status write that
+                # will silently no-op inside the repository — the previous log
+                # line "Account X onboarding completed/incomplete" would be
+                # misleading when no row actually changed.
                 current_record = self.payment_repository.get_connected_account_by_stripe_id(
                     account_id
                 )
-                if (
-                    current_record is not None
-                    and bool(current_record.onboarding_completed) == should_complete
-                ):
+                if current_record is None:
+                    self.logger.info(
+                        "Account %s not found in DB, skipping onboarding update",
+                        account_id,
+                    )
+                    return True
+                if bool(current_record.onboarding_completed) == should_complete:
                     self.logger.debug(
                         "Account %s onboarding unchanged (completed=%s); skipping write",
                         account_id,
@@ -321,7 +326,14 @@ class StripeWebhookRouterMixin(BaseService):
                 )
                 return True
 
-            return False
+            # Fix 2: unrecognized account-family subtype. Return True so Stripe
+            # stops retrying something we deterministically don't handle.
+            self.logger.info("Unhandled account subtype: %s", event_type)
+            return True
+        except OperationalError:
+            # Transient DB error — let it propagate so handle_webhook_event can
+            # map it to WebhookRetryableError → HTTP 503.
+            raise
         except Exception as exc:
             self.logger.error("Error handling account webhook: %s", exc)
             return False
@@ -347,7 +359,11 @@ class StripeWebhookRouterMixin(BaseService):
                         exc_info=True,
                     )
                 return True
-            return False
+            # Fix 2: unrecognized transfer subtype — ack so Stripe doesn't retry.
+            self.logger.info("Unhandled transfer subtype: %s", event_type)
+            return True
+        except OperationalError:
+            raise
         except Exception as exc:
             self.logger.error("Error handling transfer webhook: %s", exc)
             return False
@@ -447,7 +463,11 @@ class StripeWebhookRouterMixin(BaseService):
             if event_type == "customer.updated":
                 self.logger.info("Customer updated: %s", customer_id)
                 return True
-            return False
+            # Fix 2: unrecognized customer subtype — ack to stop retries.
+            self.logger.info("Unhandled customer subtype: %s", event_type)
+            return True
+        except OperationalError:
+            raise
         except Exception as exc:
             self.logger.error("Error handling customer webhook: %s", exc)
             return False
@@ -476,7 +496,11 @@ class StripeWebhookRouterMixin(BaseService):
                     payment_method_type,
                 )
                 return True
-            return False
+            # Fix 2: unrecognized payment_method subtype — ack to stop retries.
+            self.logger.info("Unhandled payment_method subtype: %s", event_type)
+            return True
+        except OperationalError:
+            raise
         except Exception as exc:
             self.logger.error("Error handling payment method webhook: %s", exc)
             return False
@@ -520,7 +544,11 @@ class StripeWebhookRouterMixin(BaseService):
                     obj.get("closed_reason"),
                 )
                 return True
-            return False
+            # Fix 2: unrecognized radar/review subtype — ack to stop retries.
+            self.logger.info("Unhandled fraud/review subtype: %s", event_type)
+            return True
+        except OperationalError:
+            raise
         except Exception as exc:
             self.logger.error("Error handling fraud/review webhook: %s", exc)
             return False

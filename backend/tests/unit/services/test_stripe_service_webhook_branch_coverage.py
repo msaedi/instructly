@@ -107,23 +107,25 @@ def test_account_webhook_branches_use_event_shape_aware_account_ids():
         "type": "account.application.deauthorized",
         "data": {"object": {"id": "acct_1"}},
     }
-    assert service._handle_account_webhook(account_deauth) is False
+    # Fix 2: unrecognized subtype acks (True) so Stripe stops retrying.
+    assert service._handle_account_webhook(account_deauth) is True
 
 
-def test_transfer_webhook_dead_subtypes_return_false_and_reversed_warning_fallback():
+def test_transfer_webhook_unhandled_subtypes_return_true_and_reversed_warning_fallback():
     service = _service()
 
+    # Fix 2: unrecognized transfer subtypes ack (True) so Stripe stops retrying.
     assert (
         service._handle_transfer_webhook(
             {"type": "transfer.paid", "data": {"object": {"id": "tr_paid"}}}
         )
-        is False
+        is True
     )
     assert (
         service._handle_transfer_webhook(
             {"type": "transfer.failed", "data": {"object": {"id": "tr_failed"}}}
         )
-        is False
+        is True
     )
 
     with patch.object(service.logger, "info", side_effect=RuntimeError("log-boom")):
@@ -149,11 +151,12 @@ def test_customer_payment_method_and_fraud_webhook_branches():
         "cus_1",
         "student@example.com",
     )
+    # Fix 2: unrecognized customer subtype acks (True) to stop Stripe retries.
     assert (
         service._handle_customer_webhook(
             {"type": "customer.deleted", "data": {"object": {"id": "cus_1"}}}
         )
-        is False
+        is True
     )
 
     pm_attached = {
@@ -167,11 +170,12 @@ def test_customer_payment_method_and_fraud_webhook_branches():
         "card",
         "cus_1",
     )
+    # Fix 2: unrecognized payment_method subtype acks (True) to stop retries.
     assert (
         service._handle_payment_method_webhook(
             {"type": "payment_method.updated", "data": {"object": {"id": "pm_1"}}}
         )
-        is False
+        is True
     )
 
     review_opened = {
@@ -185,11 +189,12 @@ def test_customer_payment_method_and_fraud_webhook_branches():
         "ch_1",
         "rule",
     )
+    # Fix 2: unrecognized radar subtype acks (True) to stop retries.
     assert (
         service._handle_fraud_webhook(
             {"type": "radar.value_list.created", "data": {"object": {"id": "rvl_1"}}}
         )
-        is False
+        is True
     )
 
 

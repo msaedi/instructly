@@ -4,6 +4,7 @@ Webhook handler tests for StripeService.
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -416,12 +417,13 @@ def test_handle_webhook_event_unknown_type(stripe_service: StripeService) -> Non
         "radar.value_list.created",
     ],
 )
-def test_handle_webhook_event_known_prefix_unknown_subtype_returns_false(
+def test_handle_webhook_event_known_prefix_unknown_subtype_returns_true(
     stripe_service: StripeService, event_type: str
 ) -> None:
+    """Fix 2: unrecognized subtypes ack (True) so Stripe stops retrying."""
     result = stripe_service.handle_webhook_event({"type": event_type})
 
-    assert result["success"] is False
+    assert result["success"] is True
     assert result["event_type"] == event_type
 
 
@@ -512,12 +514,21 @@ def test_handle_account_webhook_updates_onboarding(
 
 
 def test_handle_account_webhook_update_failure(stripe_service: StripeService) -> None:
+    """A generic Exception from update_onboarding_status falls into the broad
+    except branch and returns False. (Note: a record must exist for the handler
+    to reach the update — Fix 4 short-circuits absent records.)"""
     event = {
         "type": "account.updated",
         "data": {"object": {"id": "acct_fail", "charges_enabled": True, "details_submitted": True}},
     }
 
     with patch.object(
+        stripe_service.payment_repository,
+        "get_connected_account_by_stripe_id",
+        return_value=SimpleNamespace(
+            stripe_account_id="acct_fail", onboarding_completed=False
+        ),
+    ), patch.object(
         stripe_service.payment_repository,
         "update_onboarding_status",
         side_effect=Exception("db down"),
@@ -532,12 +543,13 @@ def test_handle_account_webhook_update_failure(stripe_service: StripeService) ->
 def test_handle_account_webhook_unhandled_subtypes(
     stripe_service: StripeService, event_type: str
 ) -> None:
+    """Fix 2: unrecognized account subtypes ack (True) to stop Stripe retries."""
     event = {
         "type": event_type,
         "data": {"object": {"id": "acct_deauth"}},
     }
 
-    assert stripe_service._handle_account_webhook(event) is False
+    assert stripe_service._handle_account_webhook(event) is True
 
 
 @pytest.mark.parametrize(
@@ -583,13 +595,15 @@ def test_handle_transfer_webhook_events(stripe_service: StripeService, event_typ
 def test_handle_transfer_webhook_unhandled_subtypes(
     stripe_service: StripeService, event_type: str
 ) -> None:
+    """Fix 2: unrecognized transfer subtypes ack (True) to stop Stripe retries."""
     event = {"type": event_type, "data": {"object": {"id": "tr_123"}}}
-    assert stripe_service._handle_transfer_webhook(event) is False
+    assert stripe_service._handle_transfer_webhook(event) is True
 
 
 def test_handle_transfer_webhook_unhandled(stripe_service: StripeService) -> None:
+    """Fix 2: unrecognized transfer subtype acks (True)."""
     event = {"type": "transfer.updated", "data": {"object": {"id": "tr_123"}}}
-    assert stripe_service._handle_transfer_webhook(event) is False
+    assert stripe_service._handle_transfer_webhook(event) is True
 
 
 def test_handle_transfer_webhook_error_returns_false(stripe_service: StripeService) -> None:
@@ -620,8 +634,9 @@ def test_handle_customer_webhook_events(
 
 
 def test_handle_customer_webhook_unhandled(stripe_service: StripeService) -> None:
+    """Fix 2: unrecognized customer subtype acks (True)."""
     event = {"type": "customer.deleted", "data": {"object": {"id": "cus_123"}}}
-    assert stripe_service._handle_customer_webhook(event) is False
+    assert stripe_service._handle_customer_webhook(event) is True
 
 
 @pytest.mark.parametrize(
@@ -644,8 +659,9 @@ def test_handle_payment_method_webhook_events(
 
 
 def test_handle_payment_method_webhook_unhandled(stripe_service: StripeService) -> None:
+    """Fix 2: unrecognized payment_method subtype acks (True)."""
     event = {"type": "payment_method.updated", "data": {"object": {"id": "pm_123"}}}
-    assert stripe_service._handle_payment_method_webhook(event) is False
+    assert stripe_service._handle_payment_method_webhook(event) is True
 
 
 @pytest.mark.parametrize(
@@ -686,8 +702,9 @@ def test_handle_fraud_webhook_events(
 
 @pytest.mark.parametrize("event_type", ["review.created", "radar.value_list.created"])
 def test_handle_fraud_webhook_unhandled(stripe_service: StripeService, event_type: str) -> None:
+    """Fix 2: unrecognized radar/review subtypes ack (True)."""
     event = {"type": event_type, "data": {"object": {"id": "obj_123"}}}
-    assert stripe_service._handle_fraud_webhook(event) is False
+    assert stripe_service._handle_fraud_webhook(event) is True
 
 
 def test_handle_charge_refunded_updates_payment_and_credits(

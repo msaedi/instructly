@@ -345,9 +345,10 @@ class TestWebhookEdgePaths:
         service.payment_repository.update_onboarding_status.assert_called_once_with("acct_1", True)
 
     def test_handle_account_webhook_unknown_event(self):
+        """Fix 2: unrecognized subtype acks (True) so Stripe stops retrying."""
         service = _make_service()
         event = {"type": "account.unknown", "data": {"object": {"id": "acct_1"}}}
-        assert StripeService._handle_account_webhook(service, event) is False
+        assert StripeService._handle_account_webhook(service, event) is True
 
     def test_handle_transfer_webhook_reversed_with_error(self):
         service = _make_service()

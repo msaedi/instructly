@@ -3,7 +3,7 @@ fastapi==0.135.2
 starlette==0.50.0
 uvicorn==0.42.0
 gunicorn==25.3.0
-python-multipart==0.0.22
+python-multipart==0.0.26
 sse-starlette==3.3.4
 
 # Database

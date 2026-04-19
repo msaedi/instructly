@@ -165,13 +165,23 @@ class Settings(
 
     @model_validator(mode="after")
     def require_stripe_secrets_in_prod(self) -> "Settings":
-        """Ensure Stripe API and webhook secrets are configured in production.
+        """Ensure Stripe API and webhook secrets are configured when the app is
+        actually serving HTTP traffic in production.
 
-        Without this guard the app boots green with empty secrets and silently
-        fails at the first webhook or PaymentIntent call.
+        The validator is opt-in via ``REQUIRE_STRIPE_SECRETS=1`` (or ``true``/``yes``),
+        which the web server entrypoint sets. This keeps management scripts
+        (``prep_db.py``), tests (``pytest``), CI import checks, and Alembic
+        migrations from failing when they only need the DB — they don't touch
+        Stripe and shouldn't force ops to set unrelated secrets.
+
+        When ``REQUIRE_STRIPE_SECRETS`` is not set, the validator is silent.
+        Without this guard the app would boot green with empty secrets and
+        silently fail at the first webhook or PaymentIntent call, so the web
+        server's start command MUST set it.
         """
 
-        if not _classify_site_mode(os.getenv("SITE_MODE"))[1]:
+        require_raw = os.getenv("REQUIRE_STRIPE_SECRETS", "").strip().lower()
+        if require_raw not in {"1", "true", "yes", "on"}:
             return self
 
         if not secret_or_plain(self.stripe_secret_key).strip():
