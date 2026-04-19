@@ -30,7 +30,10 @@ from ...models.webhook_event import WebhookEvent
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...repositories.booking_repository import BookingRepository
 from ...schemas.webhook_responses import WebhookAckResponse
-from ...services.webhook_ledger_service import WebhookLedgerService
+from ...services.webhook_ledger_service import (
+    WebhookAlreadyClaimedError,
+    WebhookLedgerService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -729,15 +732,40 @@ async def handle_hundredms_webhook(
 
     # 7. Persistent dedup via webhook ledger (source of truth)
     ledger_service = WebhookLedgerService(db)
-    ledger_event: WebhookEvent = await asyncio.to_thread(
-        ledger_service.log_received,
-        source="hundredms",
-        event_type=event_type,
-        payload=payload,
-        headers=dict(request.headers),
-        event_id=event_id,
-        idempotency_key=idempotency_key,
-    )
+    try:
+        ledger_event: WebhookEvent = await asyncio.to_thread(
+            ledger_service.log_received,
+            source="hundredms",
+            event_type=event_type,
+            payload=payload,
+            headers=dict(request.headers),
+            event_id=event_id,
+            idempotency_key=idempotency_key,
+        )
+    except WebhookAlreadyClaimedError as exc:
+        # Status-aware duplicate handling: only ack (200) when the original
+        # attempt has reached a terminal state. If it's still "processing" the
+        # original worker might fail, and returning 200 would tell the provider
+        # to stop retrying — losing the event.
+        existing_status = exc.event.status if exc.event is not None else "unknown"
+        if existing_status == "processing":
+            logger.info(
+                "100ms webhook duplicate still processing: event_id=%s delivery_key=%s, returning 503",
+                event_id,
+                delivery_key,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Event still processing",
+                headers={"Retry-After": _PROCESSING_RETRY_AFTER_SECONDS},
+            )
+        logger.info(
+            "100ms webhook duplicate ignored (status=%s): event_id=%s delivery_key=%s",
+            existing_status,
+            event_id,
+            delivery_key,
+        )
+        return WebhookAckResponse(ok=True)
 
     if ledger_event.status == "processed":
         logger.info(
@@ -751,9 +779,13 @@ async def handle_hundredms_webhook(
     if not claimed:
         latest = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
         latest_status = latest.status if latest is not None else ledger_event.status
-        if latest_status == "processed":
+        # dead_letter events are quarantined by the ledger after MAX_PROCESSING_ATTEMPTS
+        # failures. Return 200 so 100ms stops retrying — retrying is guaranteed to
+        # re-hit the same poison message.
+        if latest_status in {"processed", "dead_letter"}:
             logger.info(
-                "100ms webhook already processed while duplicate was in flight: %s",
+                "100ms webhook no-op (status=%s): event_id=%s",
+                latest_status,
                 ledger_event.id,
             )
             return WebhookAckResponse(ok=True)

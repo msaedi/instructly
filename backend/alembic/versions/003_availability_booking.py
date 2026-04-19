@@ -465,6 +465,17 @@ def upgrade() -> None:
         sa.Column("instructor_profile_id", sa.String(26), nullable=False),
         sa.Column("stripe_account_id", sa.String(255), nullable=False),
         sa.Column("onboarding_completed", sa.Boolean(), nullable=False, server_default="false"),
+        # M7: tracks whether _apply_default_payout_schedule succeeded. Before
+        # this column a partial-state trap existed: Stripe account created +
+        # DB record committed, but payout-schedule Account.modify raised, and
+        # the next create_connected_account call short-circuited at the
+        # existing-account check — never retrying the missing payout schedule.
+        sa.Column(
+            "payout_schedule_applied",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("FALSE"),
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

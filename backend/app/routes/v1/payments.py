@@ -77,8 +77,15 @@ from ...services.cache_service import CacheService, get_cache_service
 from ...services.config_service import ConfigService
 from ...services.dependencies import get_booking_service
 from ...services.pricing_service import PricingService
+from ...services.stripe.exceptions import (
+    WebhookPermanentError,
+    WebhookRetryableError,
+)
 from ...services.stripe_service import StripeService
-from ...services.webhook_ledger_service import WebhookLedgerService
+from ...services.webhook_ledger_service import (
+    WebhookAlreadyClaimedError,
+    WebhookLedgerService,
+)
 from ...utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
@@ -860,20 +867,56 @@ async def handle_stripe_webhook(
             logger.info("Event from platform account")
 
         ledger_service = WebhookLedgerService(stripe_service.db)
-        ledger_event = await asyncio.to_thread(
-            ledger_service.log_received,
-            source="stripe",
-            event_type=event_payload.get("type", "unknown"),
-            payload=event_payload,
-            headers=dict(request.headers),
-            event_id=event_payload.get("id"),
-        )
+        try:
+            ledger_event = await asyncio.to_thread(
+                ledger_service.log_received,
+                source="stripe",
+                event_type=event_payload.get("type", "unknown"),
+                payload=event_payload,
+                headers=dict(request.headers),
+                event_id=event_payload.get("id"),
+            )
+        except WebhookAlreadyClaimedError as exc:
+            # Status-aware duplicate handling: only ack (200) when the original
+            # attempt has reached a terminal state. "processing" means the
+            # original worker is still in flight and may yet fail — returning
+            # 503 asks Stripe to retry later rather than dropping the event.
+            existing_status = exc.event.status if exc.event is not None else "unknown"
+            if existing_status == "processing":
+                logger.info(
+                    "Webhook duplicate still processing: %s, returning 503 for retry",
+                    event_payload.get("id"),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Event still processing",
+                )
+            logger.info(
+                "Webhook duplicate ignored (status=%s): %s",
+                existing_status,
+                event_payload.get("id"),
+            )
+            return WebhookResponse(
+                **model_filter(
+                    WebhookResponse,
+                    {
+                        "status": "success",
+                        "event_type": event_payload.get("type", "unknown"),
+                        "message": "Duplicate event ignored",
+                    },
+                )
+            )
 
         claimed = await asyncio.to_thread(ledger_service.mark_processing, ledger_event)
         if not claimed:
             current_event = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
             current_status = current_event.status if current_event else ledger_event.status
-            if current_status in {"processed", "processing"}:
+            # dead_letter events are quarantined at the ledger layer after
+            # MAX_PROCESSING_ATTEMPTS failures. The handler MUST NOT run again;
+            # returning 200 tells Stripe to stop retrying. Without this guard
+            # a dead_letter event would fall through to handle_webhook_event
+            # and re-trigger the exact poison-message loop M1 was built to stop.
+            if current_status in {"processed", "processing", "dead_letter"}:
                 return WebhookResponse(
                     **model_filter(
                         WebhookResponse,
@@ -891,12 +934,56 @@ async def handle_stripe_webhook(
                 stripe_service.handle_webhook_event, event_payload
             )  # Pass parsed event directly
             duration_ms = int((time.monotonic() - start_time) * 1000)
+            if not _result.get("success", True):
+                # C2: handler signaled semantic failure — mark failed and ask Stripe to retry
+                await asyncio.to_thread(
+                    ledger_service.mark_failed,
+                    ledger_event,
+                    error=_result.get("error", "handler returned success=False"),
+                    duration_ms=duration_ms,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Webhook handler failed; retry requested",
+                )
             await asyncio.to_thread(
                 ledger_service.mark_processed,
                 ledger_event,
                 duration_ms=duration_ms,
                 related_entity_type=_result.get("entity_type"),
                 related_entity_id=_result.get("entity_id"),
+            )
+        except WebhookRetryableError as exc:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            await asyncio.to_thread(
+                ledger_service.mark_failed,
+                ledger_event,
+                error=str(exc),
+                duration_ms=duration_ms,
+            )
+            logger.warning("Webhook transient failure (Stripe will retry): %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Temporary webhook failure; retry requested",
+            )
+        except WebhookPermanentError as exc:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            await asyncio.to_thread(
+                ledger_service.mark_failed,
+                ledger_event,
+                error=str(exc),
+                duration_ms=duration_ms,
+            )
+            logger.error("Webhook permanent failure (no retry): %s", exc)
+            return WebhookResponse(
+                **model_filter(
+                    WebhookResponse,
+                    {
+                        "status": "error",
+                        "event_type": event_payload.get("type", "unknown"),
+                        "message": "Event failed with permanent error",
+                    },
+                )
             )
         except Exception as exc:
             duration_ms = int((time.monotonic() - start_time) * 1000)

@@ -140,10 +140,20 @@ class BaseService:
                 self.db.add(entity)
                 # Note: commit is handled automatically
         """
+        from sqlalchemy.exc import OperationalError
+
         try:
             yield self.db
             self.db.commit()
             self.logger.debug("Transaction committed successfully")
+        except OperationalError:
+            # C2 support: OperationalError (lock contention, pgbouncer timeout,
+            # disconnect) is transient by definition — re-raise as-is so webhook
+            # handlers can map it to HTTP 503 / retry semantics. Wrapping it as
+            # ServiceException would misclassify it as a permanent failure.
+            self.logger.warning("Transient database error in transaction; rolling back")
+            self.db.rollback()
+            raise
         except SQLAlchemyError as e:
             self.logger.error("Transaction failed: %s", str(e))
             self.db.rollback()

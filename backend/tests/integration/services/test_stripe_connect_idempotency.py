@@ -28,9 +28,11 @@ def _get_profile(db: Session, user_id: str) -> InstructorProfile:
 
 @patch("app.services.stripe_service.StripeService.check_account_status")
 @patch("stripe.AccountLink.create")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_connect_onboard_twice_does_not_fail(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_account_link: MagicMock,
     mock_check_status: MagicMock,
     db: Session,
@@ -76,9 +78,11 @@ def test_connect_onboard_twice_does_not_fail(
 
 
 @patch("stripe.AccountLink.create")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_stripe_account_id_is_stripe_format(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_account_link: MagicMock,
     db: Session,
     test_instructor,
@@ -111,9 +115,11 @@ def test_stripe_account_id_is_stripe_format(
 
 
 @patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_payment_setup_return_url(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_create_link: MagicMock,
     db: Session,
     test_instructor,
@@ -148,9 +154,11 @@ def test_payment_setup_return_url(
     ],
 )
 @patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_return_url_uses_allowed_origin(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_create_link: MagicMock,
     db: Session,
     test_instructor,
@@ -181,9 +189,11 @@ def test_return_url_uses_allowed_origin(
 
 
 @patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_return_url_falls_back_to_settings_when_no_origin(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_create_link: MagicMock,
     db: Session,
     test_instructor,
@@ -216,9 +226,11 @@ def test_return_url_falls_back_to_settings_when_no_origin(
 
 
 @patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_return_url_rejects_disallowed_origin(
     mock_account_create: MagicMock,
+    mock_account_modify: MagicMock,
     mock_create_link: MagicMock,
     db: Session,
     test_instructor,
@@ -251,7 +263,7 @@ def test_return_url_rejects_disallowed_origin(
     assert return_url.startswith("https://frontend.example.test")
 
 
-@patch("stripe.Account.modify")
+@patch("stripe.Account.modify", return_value=MagicMock())
 @patch("stripe.Account.create")
 def test_create_connected_account_concurrent_requests_do_not_duplicate(
     mock_account_create: MagicMock,

@@ -66,6 +66,10 @@ def test_handle_successful_payment_handles_pending_and_missing_bookings():
 
 def test_account_webhook_branches_use_event_shape_aware_account_ids():
     service = _service()
+    # QF1: no-op guard needs a stale False record for the write to fire.
+    service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+        SimpleNamespace(stripe_account_id="acct_1", onboarding_completed=False)
+    )
 
     account_updated = {
         "type": "account.updated",

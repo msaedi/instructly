@@ -6,7 +6,14 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+import stripe
+
 from app.models.booking import PaymentStatus
+from app.services.stripe.exceptions import (
+    WebhookPermanentError,
+    WebhookRetryableError,
+)
 import app.services.stripe_service as stripe_service
 from app.services.stripe_service import StripeService
 
@@ -102,7 +109,9 @@ class TestChargeAndPayoutWebhooks:
             result = StripeService._handle_charge_webhook(service, event)
 
         assert result is True
-        service.payment_repository.update_payment_status.assert_called_once_with("pi_3", "refunded")
+        service.payment_repository.update_payment_status_for_update.assert_called_once_with(
+            "pi_3", "refunded"
+        )
         credit_service.process_refund_hooks.assert_called_once()
 
     def test_handle_charge_refunded_credit_hook_error(self):
@@ -225,3 +234,306 @@ class TestIdentityAndDisputes:
         assert result is True
         credit_service.apply_negative_balance.assert_called_once()
         service.payment_repository.create_payment_event.assert_called()
+
+
+class TestHandleWebhookEventTypedExceptionReraise:
+    """C2: typed exceptions (WebhookRetryableError, WebhookPermanentError,
+    OperationalError) must propagate through both handle_webhook_event and
+    handle_payment_intent_webhook unchanged — wrapping them in ServiceException
+    collapses them to the generic Exception branch and defeats H2."""
+
+    def test_operational_error_propagates_from_payment_intent_handler(self):
+        from sqlalchemy.exc import OperationalError
+
+        service = _make_service()
+        service.payment_repository.update_payment_status.side_effect = OperationalError(
+            "SELECT FOR UPDATE", {}, Exception("lock not available")
+        )
+        event = {
+            "type": "payment_intent.succeeded",
+            "data": {"object": {"id": "pi_op", "status": "succeeded"}},
+        }
+
+        with pytest.raises(OperationalError):
+            StripeService.handle_webhook_event(service, event)
+
+    def test_webhook_retryable_error_propagates_through_outer_handler(self):
+        """Inner handlers that raise a typed error must not be re-wrapped."""
+        service = _make_service()
+        service.handle_payment_intent_webhook = MagicMock(
+            side_effect=WebhookRetryableError("inner transient")
+        )
+        event = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_r"}}}
+
+        with pytest.raises(WebhookRetryableError):
+            service.handle_webhook_event(event)
+
+
+class TestHandleWebhookEventErrorMapping:
+    """H2: transient Stripe errors must be re-raised as WebhookRetryableError;
+    permanent ones as WebhookPermanentError."""
+
+    def test_api_connection_error_becomes_retryable(self):
+        service = _make_service()
+        service.handle_payment_intent_webhook = MagicMock(
+            side_effect=stripe.error.APIConnectionError("network down")
+        )
+        event = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_x"}}}
+
+        with pytest.raises(WebhookRetryableError):
+            service.handle_webhook_event(event)
+
+    def test_rate_limit_error_becomes_retryable(self):
+        service = _make_service()
+        service.handle_payment_intent_webhook = MagicMock(
+            side_effect=stripe.error.RateLimitError("too many requests")
+        )
+        event = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_x"}}}
+
+        with pytest.raises(WebhookRetryableError):
+            service.handle_webhook_event(event)
+
+    def test_invalid_request_error_becomes_permanent(self):
+        service = _make_service()
+        service.handle_payment_intent_webhook = MagicMock(
+            side_effect=stripe.error.InvalidRequestError("bad param", param="x")
+        )
+        event = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_x"}}}
+
+        with pytest.raises(WebhookPermanentError):
+            service.handle_webhook_event(event)
+
+
+class TestHandleSuccessfulPaymentPropagates:
+    """C3: transfer or side-effect failures must propagate (not be swallowed)."""
+
+    def test_booking_repo_error_propagates(self):
+        service = _make_service()
+        service.booking_repository.get_by_id.side_effect = stripe.error.APIConnectionError(
+            "network"
+        )
+        payment_record = SimpleNamespace(booking_id="booking_1")
+
+        with pytest.raises(stripe.error.APIConnectionError):
+            service._handle_successful_payment(payment_record)
+
+
+class TestDisputeAlreadyReversed:
+    """H1: if a transfer was already reversed (e.g. by a refund), the dispute
+    handler must treat the InvalidRequestError as a success no-op."""
+
+    def _make_transfer_stub(self):
+        return SimpleNamespace(
+            stripe_transfer_id="tr_test",
+            transfer_reversed=False,
+        )
+
+    def test_transfer_reversal_amount_exceeded_returns_noop(self):
+        service = _make_service()
+        service.booking_repository.get_transfer_by_booking_id.return_value = (
+            self._make_transfer_stub()
+        )
+        err = stripe.error.InvalidRequestError(
+            "Transfer has already been reversed",
+            param=None,
+            code="transfer_reversal_amount_exceeded",
+        )
+        service.reverse_transfer = MagicMock(side_effect=err)
+
+        reversal_id, reversal_error = service._attempt_dispute_transfer_reversal(
+            booking_id="bk_1", dispute_id="dp_1"
+        )
+
+        assert reversal_id is None
+        assert reversal_error is None
+
+    def test_message_already_fully_reversed_returns_noop(self):
+        """QF2: only the exact 'already been fully reversed' phrase no-ops."""
+        service = _make_service()
+        service.booking_repository.get_transfer_by_booking_id.return_value = (
+            self._make_transfer_stub()
+        )
+        service.reverse_transfer = MagicMock(
+            side_effect=Exception(
+                "This transfer has already been fully reversed"
+            )
+        )
+
+        reversal_id, reversal_error = service._attempt_dispute_transfer_reversal(
+            booking_id="bk_2", dispute_id="dp_2"
+        )
+
+        assert reversal_id is None
+        assert reversal_error is None
+
+    def test_partial_reversal_message_propagates(self):
+        """QF2: 'already been reversed' without 'fully' must no longer no-op.
+
+        Previously the loose marker matched partial-reversal-in-flight errors,
+        hiding a real integration bug where the dispute handler tried to reverse
+        an already-partially-reversed transfer.
+        """
+        service = _make_service()
+        service.booking_repository.get_transfer_by_booking_id.return_value = (
+            self._make_transfer_stub()
+        )
+        service.reverse_transfer = MagicMock(
+            side_effect=Exception(
+                "Transfer has already been reversed partially; reversal in flight"
+            )
+        )
+
+        reversal_id, reversal_error = service._attempt_dispute_transfer_reversal(
+            booking_id="bk_partial", dispute_id="dp_partial"
+        )
+
+        assert reversal_id is None
+        assert reversal_error is not None
+        assert "partially" in reversal_error
+
+    def test_no_such_transfer_reversal_propagates(self):
+        """QF2: 'No such transfer reversal' now surfaces as a failure.
+
+        Previously the loose message marker silently swallowed ``resource_missing``
+        errors raised for a bogus reversal ID, masking a real integration bug.
+        """
+        service = _make_service()
+        service.booking_repository.get_transfer_by_booking_id.return_value = (
+            self._make_transfer_stub()
+        )
+        err = stripe.error.InvalidRequestError(
+            "No such transfer reversal: trr_missing",
+            param=None,
+            code="resource_missing",
+        )
+        service.reverse_transfer = MagicMock(side_effect=err)
+
+        reversal_id, reversal_error = service._attempt_dispute_transfer_reversal(
+            booking_id="bk_missing", dispute_id="dp_missing"
+        )
+
+        assert reversal_id is None
+        assert reversal_error is not None
+        assert "trr_missing" in reversal_error
+
+    def test_unrelated_invalid_request_preserves_failure(self):
+        service = _make_service()
+        service.booking_repository.get_transfer_by_booking_id.return_value = (
+            self._make_transfer_stub()
+        )
+        err = stripe.error.InvalidRequestError(
+            "No such transfer: tr_bogus",
+            param=None,
+            code="resource_missing",
+        )
+        service.reverse_transfer = MagicMock(side_effect=err)
+
+        reversal_id, reversal_error = service._attempt_dispute_transfer_reversal(
+            booking_id="bk_3", dispute_id="dp_3"
+        )
+
+        assert reversal_id is None
+        assert reversal_error is not None
+        assert "tr_bogus" in reversal_error
+
+
+class TestAccountUpdatedFlipBack:
+    """C6: account.updated must flip onboarding_completed back to False on regression."""
+
+    def _base_event(self, **overrides):
+        obj = {
+            "id": "acct_test",
+            "charges_enabled": True,
+            "details_submitted": True,
+            "requirements": {},
+        }
+        obj.update(overrides)
+        return {
+            "type": "account.updated",
+            "account": "acct_test",
+            "data": {"object": obj},
+        }
+
+    def test_charges_disabled_flips_to_false(self):
+        service = _make_service()
+        # QF1: ensure the no-op guard sees a stale-True record so the write still fires.
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_test", onboarding_completed=True)
+        )
+        event = self._base_event(charges_enabled=False)
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", False
+        )
+
+    def test_account_updated_skips_write_when_status_unchanged(self):
+        """QF1: a heartbeat event carrying the same state should not touch the DB."""
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_test", onboarding_completed=True)
+        )
+        event = self._base_event()  # fully onboarded
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_not_called()
+
+    def test_account_updated_writes_when_record_missing(self):
+        """QF1: unknown account_id falls through and the repository handles absence."""
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = None
+        event = self._base_event()
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", True
+        )
+
+    def test_details_not_submitted_flips_to_false(self):
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_test", onboarding_completed=True)
+        )
+        event = self._base_event(details_submitted=False)
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", False
+        )
+
+    def test_disabled_reason_flips_to_false(self):
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_test", onboarding_completed=True)
+        )
+        event = self._base_event(requirements={"disabled_reason": "listed_as_high_risk"})
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", False
+        )
+
+    def test_fully_onboarded_sets_true(self):
+        service = _make_service()
+        # Stub a stale False record so the no-op guard does not short-circuit.
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_test", onboarding_completed=False)
+        )
+        event = self._base_event()
+
+        result = service._handle_account_webhook(event)
+
+        assert result is True
+        service.payment_repository.update_onboarding_status.assert_called_once_with(
+            "acct_test", True
+        )

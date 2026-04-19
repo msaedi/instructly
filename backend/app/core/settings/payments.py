@@ -50,6 +50,6 @@ class PaymentsSettingsMixin:
             secret_str = (
                 value.get_secret_value() if hasattr(value, "get_secret_value") else str(value)
             )
-            if secret_str:
+            if secret_str and secret_str.strip():
                 secrets.append(secret_str)
         return secrets

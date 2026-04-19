@@ -5,7 +5,7 @@ Tests the API endpoints for:
 - Creating bookings with SetupIntent
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -90,6 +90,7 @@ class TestBookingPaymentRoutes:
             user_id=instructor.id,
             bio="Test instructor",
             years_experience=5,
+            identity_verified_at=datetime.now(timezone.utc),
         )
         db.add(profile)
         db.flush()

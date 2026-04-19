@@ -1965,6 +1965,10 @@ def _public_profile_kwargs(**profile_kwargs):
         "non_travel_buffer_minutes": 15,
         "travel_buffer_minutes": 60,
         "overnight_protection_enabled": True,
+        # H7: test instructors are identity-verified by default so existing booking
+        # suites exercise the happy path. Override with identity_verified_at=None
+        # to test the KYC gate.
+        "identity_verified_at": datetime.now(timezone.utc),
     }
     defaults.update(profile_kwargs)
     return defaults

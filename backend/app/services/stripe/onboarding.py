@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from importlib import import_module
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Dict, cast
 from urllib.parse import ParseResult, urljoin, urlparse
 
@@ -274,48 +273,17 @@ class StripeOnboardingMixin(BaseService):
         )
 
     def _apply_default_payout_schedule(self, stripe_account_id: str) -> None:
-        stripe_sdk = _stripe_service_module().stripe
-        try:
-            stripe_sdk.Account.modify(
-                stripe_account_id,
-                settings={
-                    "payouts": {"schedule": {"interval": "weekly", "weekly_anchor": "tuesday"}}
-                },
-            )
-        except Exception:
-            logger.warning("Non-fatal error ignored", exc_info=True)
+        """Apply the platform's default payout schedule.
 
-    def _create_mock_connected_account(
-        self, *, instructor_profile_id: str, error: Exception
-    ) -> StripeConnectedAccount:
-        if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
-            raise ServiceException(
-                "Stripe not configured in production mode", code="configuration_error"
-            )
-        self.logger.warning(
-            "Stripe not configured or call failed (%s); using mock connected account for instructor %s",
-            str(error),
-            instructor_profile_id,
+        Failures propagate: a Stripe error here means onboarding is in a partial
+        state that operators must see and remediate. Silently swallowing hides
+        rate-limit and account-restriction signals that matter for payout timing.
+        """
+        stripe_sdk = _stripe_service_module().stripe
+        stripe_sdk.Account.modify(
+            stripe_account_id,
+            settings={"payouts": {"schedule": {"interval": "weekly", "weekly_anchor": "tuesday"}}},
         )
-        try:
-            return self._persist_connected_account_record(
-                instructor_profile_id=instructor_profile_id,
-                stripe_account_id=f"mock_acct_{instructor_profile_id}",
-            )
-        except IntegrityError as conflict:
-            self.logger.warning(
-                "Race detected creating mock account for instructor %s: %s",
-                instructor_profile_id,
-                str(conflict),
-            )
-            existing_record = self.payment_repository.get_connected_account_by_instructor_id(
-                instructor_profile_id
-            )
-            if existing_record:
-                return existing_record
-            raise ServiceException(
-                "Failed to create connected account due to conflict"
-            ) from conflict
 
     @BaseService.measure_operation("stripe_create_connected_account")
     def create_connected_account(
@@ -325,6 +293,23 @@ class StripeOnboardingMixin(BaseService):
             instructor_profile_id
         )
         if existing:
+            # M7 partial-state recovery: if a prior attempt created the Stripe
+            # account + DB record but failed at _apply_default_payout_schedule,
+            # payout_schedule_applied is False. Re-apply the schedule before
+            # returning so the account ends up fully configured rather than
+            # defaulting to Stripe's daily payouts (which breaks dispute-window
+            # protection for the marketplace).
+            if not getattr(existing, "payout_schedule_applied", False):
+                try:
+                    self._apply_default_payout_schedule(existing.stripe_account_id)
+                    self.payment_repository.mark_payout_schedule_applied(existing.stripe_account_id)
+                except stripe.StripeError as exc:
+                    self.logger.error(
+                        "Stripe error reapplying payout schedule for %s: %s",
+                        existing.stripe_account_id,
+                        exc,
+                    )
+                    raise ServiceException(f"Failed to apply payout schedule on retry: {exc}")
             return existing
         try:
             stripe_account = self._create_stripe_connect_account(
@@ -336,6 +321,7 @@ class StripeOnboardingMixin(BaseService):
                 stripe_account_id=stripe_account.id,
             )
             self._apply_default_payout_schedule(stripe_account.id)
+            self.payment_repository.mark_payout_schedule_applied(stripe_account.id)
             self.logger.info(
                 "Created Stripe Express account %s...%s for instructor %s",
                 stripe_account.id[:8],
@@ -359,11 +345,6 @@ class StripeOnboardingMixin(BaseService):
             self.logger.error("Stripe error creating connected account: %s", exc)
             raise ServiceException(f"Failed to create connected account: {exc}")
         except Exception as exc:
-            if not self.stripe_configured:
-                return self._create_mock_connected_account(
-                    instructor_profile_id=instructor_profile_id,
-                    error=exc,
-                )
             self.logger.error("Error creating connected account: %s", exc)
             raise ServiceException(f"Failed to create connected account: {str(exc)}")
 
@@ -440,20 +421,7 @@ class StripeOnboardingMixin(BaseService):
                 requirements = []
 
             computed_completed = bool(charges_enabled and details_submitted)
-            if account_record.onboarding_completed != computed_completed:
-                try:
-                    self.payment_repository.update_onboarding_status(
-                        account_record.stripe_account_id,
-                        computed_completed,
-                    )
-                    account_record.onboarding_completed = computed_completed
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to persist onboarding status for %s: %s",
-                        account_record.stripe_account_id,
-                        str(exc),
-                        exc_info=True,
-                    )
+            # H8: read-only — persistence happens exclusively via account.updated webhook.
             return {
                 "has_account": True,
                 "onboarding_completed": computed_completed,

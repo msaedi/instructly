@@ -164,6 +164,29 @@ class Settings(
         return self
 
     @model_validator(mode="after")
+    def require_stripe_secrets_in_prod(self) -> "Settings":
+        """Ensure Stripe API and webhook secrets are configured in production.
+
+        Without this guard the app boots green with empty secrets and silently
+        fails at the first webhook or PaymentIntent call.
+        """
+
+        if not _classify_site_mode(os.getenv("SITE_MODE"))[1]:
+            return self
+
+        if not secret_or_plain(self.stripe_secret_key).strip():
+            raise ValueError("STRIPE_SECRET_KEY must be set in production environments.")
+        if not secret_or_plain(self.stripe_webhook_secret_platform).strip():
+            raise ValueError(
+                "STRIPE_WEBHOOK_SECRET_PLATFORM must be set in production environments."
+            )
+        if not secret_or_plain(self.stripe_webhook_secret_connect).strip():
+            raise ValueError(
+                "STRIPE_WEBHOOK_SECRET_CONNECT must be set in production environments."
+            )
+        return self
+
+    @model_validator(mode="after")
     def validate_test_database(self) -> "Settings":
         """Ensure test database is not a production database."""
 

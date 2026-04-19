@@ -17,11 +17,20 @@ class CardError(StripeError):
 
 class InvalidRequestError(StripeError): ...
 
+class APIConnectionError(StripeError): ...
+
+class APIError(StripeError): ...
+
+class RateLimitError(StripeError): ...
+
 class error:
     AuthenticationError = AuthenticationError
     CardError = CardError
     SignatureVerificationError = SignatureVerificationError
     InvalidRequestError = InvalidRequestError
+    APIConnectionError = APIConnectionError
+    APIError = APIError
+    RateLimitError = RateLimitError
 
 class _IdentitySession:
     id: Optional[str]

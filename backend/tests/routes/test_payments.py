@@ -371,6 +371,280 @@ class TestPaymentRoutes:
         assert response_data["event_type"] == "unknown"
         assert "error" in response_data["message"].lower()
 
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_retryable_error_returns_503(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """H2: WebhookRetryableError propagates → endpoint returns 503 so Stripe retries."""
+        from app.services.stripe.exceptions import WebhookRetryableError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_retry", "object": "payment_intent"},
+        )
+        mock_handle_event.side_effect = WebhookRetryableError("network blip")
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_permanent_error_returns_200(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """H2: WebhookPermanentError returns 200 so Stripe stops retrying."""
+        from app.services.stripe.exceptions import WebhookPermanentError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_perm", "object": "payment_intent"},
+        )
+        mock_handle_event.side_effect = WebhookPermanentError("bad request")
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_success_false_returns_503(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """C2: handler returning success=False must NOT mark processed — return 503 so Stripe retries."""
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_noop", "object": "payment_intent"},
+        )
+        mock_handle_event.return_value = {
+            "success": False,
+            "event_type": "payment_intent.succeeded",
+        }
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_operational_error_returns_503(
+        self,
+        mock_settings,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """C2 end-to-end: an OperationalError from inside the handler must reach the
+        endpoint unwrapped so the WebhookRetryableError branch maps it to HTTP 503."""
+        from sqlalchemy.exc import OperationalError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_op", "object": "payment_intent"},
+        )
+        # OperationalError is mapped to WebhookRetryableError by the outer
+        # handler's explicit re-raise → endpoint converts to 503.
+        mock_handle_event.side_effect = OperationalError(
+            "SELECT FOR UPDATE", {}, Exception("lock not available")
+        )
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.log_received")
+    @patch("app.routes.v1.payments.settings")
+    def test_duplicate_while_processing_returns_503(
+        self,
+        mock_settings,
+        mock_log_received,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """Status-aware duplicate handling: if the original attempt is still
+        processing, the route must return 503 so Stripe retries later."""
+        from unittest.mock import MagicMock as _MM
+
+        from app.services.webhook_ledger_service import WebhookAlreadyClaimedError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_dup_proc", "object": "payment_intent"},
+        )
+        existing = _MM(id="evt_dup_proc", status="processing")
+        mock_log_received.side_effect = WebhookAlreadyClaimedError(existing)
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        mock_handle_event.assert_not_called()
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.log_received")
+    @patch("app.routes.v1.payments.settings")
+    def test_duplicate_after_processed_returns_200(
+        self,
+        mock_settings,
+        mock_log_received,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """Duplicate after original is processed: ack 200, skip handler."""
+        from unittest.mock import MagicMock as _MM
+
+        from app.services.webhook_ledger_service import WebhookAlreadyClaimedError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_dup_done", "object": "payment_intent"},
+        )
+        mock_log_received.side_effect = WebhookAlreadyClaimedError(
+            _MM(id="evt_dup_done", status="processed")
+        )
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_handle_event.assert_not_called()
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.log_received")
+    @patch("app.routes.v1.payments.settings")
+    def test_duplicate_after_dead_letter_returns_200(
+        self,
+        mock_settings,
+        mock_log_received,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """Duplicate after original is dead_letter (quarantined): ack 200 so
+        Stripe stops retrying."""
+        from unittest.mock import MagicMock as _MM
+
+        from app.services.webhook_ledger_service import WebhookAlreadyClaimedError
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_dup_dlq", "object": "payment_intent"},
+        )
+        mock_log_received.side_effect = WebhookAlreadyClaimedError(
+            _MM(id="evt_dup_dlq", status="dead_letter")
+        )
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_handle_event.assert_not_called()
+
+    @patch("stripe.Webhook.construct_event")
+    @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.mark_processing")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.get_event")
+    @patch("app.services.webhook_ledger_service.WebhookLedgerService.log_received")
+    @patch("app.routes.v1.payments.settings")
+    def test_webhook_dead_letter_returns_200_without_invoking_handler(
+        self,
+        mock_settings,
+        mock_log_received,
+        mock_get_event,
+        mock_mark_processing,
+        mock_handle_event,
+        mock_construct_event,
+        client: TestClient,
+        db: Session,
+    ):
+        """C1: a dead_letter event must short-circuit at the route level.
+
+        Without the early-return guard expansion, a quarantined event would fall
+        through to ``handle_webhook_event``, reviving the poison-message retry
+        loop that M1 was built to stop.
+        """
+        from unittest.mock import MagicMock as _MM
+
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+        mock_construct_event.return_value = make_event(
+            "payment_intent.succeeded",
+            {"id": "pi_dlq", "object": "payment_intent"},
+        )
+        mock_log_received.return_value = _MM(id="evt_dlq", status="dead_letter")
+        mock_mark_processing.return_value = False
+        mock_get_event.return_value = _MM(id="evt_dlq", status="dead_letter")
+
+        response = client.post(
+            "/api/v1/payments/webhooks/stripe",
+            content='{"type": "payment_intent.succeeded"}',
+            headers={"Content-Type": "application/json", "stripe-signature": "t"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_handle_event.assert_not_called()
+
     # ========== Response Format Tests ==========
 
     @patch("app.services.stripe_service.StripeService.check_account_status")

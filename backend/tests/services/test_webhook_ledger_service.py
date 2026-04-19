@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import RepositoryException
 from app.models.webhook_event import WebhookEvent
-from app.services.webhook_ledger_service import WebhookLedgerService
+from app.services.webhook_ledger_service import (
+    WebhookAlreadyClaimedError,
+    WebhookLedgerService,
+)
 
 
 def test_log_received_creates_event(db):
@@ -124,6 +128,93 @@ def test_log_received_recovers_from_integrity_error_race(db, monkeypatch):
     assert recovered.id == existing.id
     assert recovered.retry_count == 1
     assert recovered.last_retry_at is not None
+
+
+def test_log_received_raises_when_existing_event_is_already_processing(db):
+    """Defense-in-depth: if a duplicate lands while the original is being processed,
+    surface an explicit signal rather than letting the caller proceed."""
+    service = WebhookLedgerService(db)
+    existing = service.log_received(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_claim"},
+        event_id="evt_claim",
+    )
+    existing.status = "processing"
+    db.flush()
+
+    with pytest.raises(WebhookAlreadyClaimedError):
+        service.log_received(
+            source="stripe",
+            event_type="payment_intent.succeeded",
+            payload={"id": "evt_claim"},
+            event_id="evt_claim",
+        )
+
+
+def test_log_received_raises_when_existing_event_is_already_processed(db):
+    service = WebhookLedgerService(db)
+    existing = service.log_received(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_done"},
+        event_id="evt_done",
+    )
+    existing.status = "processed"
+    db.flush()
+
+    with pytest.raises(WebhookAlreadyClaimedError):
+        service.log_received(
+            source="stripe",
+            event_type="payment_intent.succeeded",
+            payload={"id": "evt_done"},
+            event_id="evt_done",
+        )
+
+
+def test_log_received_integrity_race_raises_when_existing_is_processing(db, monkeypatch):
+    """IntegrityError fallback must also refuse to hand the event back once it is claimed."""
+    service = WebhookLedgerService(db)
+    existing = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_2:session_2:peer_2",
+    )
+    existing.status = "processing"
+    db.flush()
+
+    lookup_calls = {"count": 0}
+
+    def _find_existing(source: str, idempotency_key: str):
+        lookup_calls["count"] += 1
+        if lookup_calls["count"] == 1:
+            return None
+        return existing
+
+    def _raise_integrity(**kwargs):
+        raise RepositoryException("Integrity constraint violated") from IntegrityError(
+            statement="INSERT INTO webhook_events ...",
+            params=kwargs,
+            orig=Exception("duplicate key value violates unique constraint"),
+        )
+
+    monkeypatch.setattr(
+        service.repository,
+        "find_by_source_and_idempotency_key",
+        _find_existing,
+    )
+    monkeypatch.setattr(service.repository, "create", _raise_integrity)
+
+    with pytest.raises(WebhookAlreadyClaimedError):
+        service.log_received(
+            source="hundredms",
+            event_type="peer.join.success",
+            payload={"type": "peer.join.success"},
+            event_id=None,
+            idempotency_key="peer.join.success:room_2:session_2:peer_2",
+        )
 
 
 def test_log_received_different_event_ids_create_separate_records(db):

@@ -671,6 +671,7 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
+                identity_verified_at=datetime.now(timezone.utc),
                 )
             db.add(profile2)
             db.flush()
@@ -848,6 +849,7 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
+                identity_verified_at=datetime.now(timezone.utc),
                 )
             db.add(profile2)
             db.flush()

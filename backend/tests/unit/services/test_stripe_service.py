@@ -1005,25 +1005,27 @@ class TestConnectedAccountEdgeCases:
 
         assert result is existing_record
 
-    def test_create_connected_account_unconfigured_integrity_error_returns_existing(self):
+    def test_create_connected_account_unconfigured_propagates_stripe_error(self):
+        """H6: the mock-account fallback was removed — Stripe errors propagate.
+
+        Previously this path would create a ``mock_acct_<id>`` record when
+        Stripe was unreachable AND the app wasn't in production mode. That
+        fallback caused silent transfer failures at runtime and was deleted.
+        """
+        from app.core.exceptions import ServiceException
+
         service = _make_service(stripe_configured=False)
-        existing_record = SimpleNamespace(stripe_account_id="acct_existing")
-        service.payment_repository.get_connected_account_by_instructor_id.side_effect = [
-            None,
-            None,
-            existing_record,
-        ]
-        integrity_error = IntegrityError("stmt", "params", Exception("orig"))
-        service.payment_repository.create_connected_account_record.side_effect = integrity_error
+        service.payment_repository.get_connected_account_by_instructor_id.return_value = None
 
         with patch.object(
             stripe_service.stripe.Account, "create", side_effect=Exception("boom")
         ):
-            result = StripeService.create_connected_account(
-                service, instructor_profile_id="prof_2", email="test@example.com"
-            )
+            with pytest.raises(ServiceException):
+                StripeService.create_connected_account(
+                    service, instructor_profile_id="prof_2", email="test@example.com"
+                )
 
-        assert result is existing_record
+        service.payment_repository.create_connected_account_record.assert_not_called()
 
     def test_check_account_status_collects_requirements(self):
         service = _make_service()
@@ -1048,9 +1050,9 @@ class TestConnectedAccountEdgeCases:
             result = StripeService.check_account_status(service, "prof_req")
 
         assert sorted(result["requirements"]) == ["field_a", "field_b", "field_c"]
-        service.payment_repository.update_onboarding_status.assert_called_once_with(
-            "acct_req", True
-        )
+        # H8: check_account_status is read-only — account.updated webhook is the
+        # sole source of truth for onboarding_completed.
+        service.payment_repository.update_onboarding_status.assert_not_called()
 
 
 class TestCreatePaymentIntentPreviewParity:

@@ -703,7 +703,7 @@ def test_handle_charge_refunded_updates_payment_and_credits(
     }
 
     with (
-        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(stripe_service.payment_repository, "update_payment_status_for_update") as mock_update,
         patch.object(
             stripe_service.payment_repository,
             "get_payment_by_intent_id",
@@ -731,7 +731,7 @@ def test_handle_charge_refunded_handles_credit_error(
     }
 
     with (
-        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(stripe_service.payment_repository, "update_payment_status_for_update") as mock_update,
         patch.object(
             stripe_service.payment_repository,
             "get_payment_by_intent_id",
@@ -755,7 +755,7 @@ def test_handle_charge_refunded_logs_critical_when_payment_missing(
     }
 
     with (
-        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(stripe_service.payment_repository, "update_payment_status_for_update") as mock_update,
         patch.object(
             stripe_service.payment_repository,
             "get_payment_by_intent_id",
@@ -793,7 +793,7 @@ def test_handle_charge_refunded_logs_critical_when_booking_missing(
     }
 
     with (
-        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(stripe_service.payment_repository, "update_payment_status_for_update") as mock_update,
         patch.object(
             stripe_service.payment_repository,
             "get_payment_by_intent_id",

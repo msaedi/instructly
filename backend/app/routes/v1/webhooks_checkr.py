@@ -42,7 +42,10 @@ from ...services.background_check_service import BackgroundCheckService
 from ...services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
 )
-from ...services.webhook_ledger_service import WebhookLedgerService
+from ...services.webhook_ledger_service import (
+    WebhookAlreadyClaimedError,
+    WebhookLedgerService,
+)
 from ...utils.identity import clean_identity_value, normalize_name, redact_name
 
 logger = logging.getLogger(__name__)
@@ -965,15 +968,22 @@ async def handle_checkr_webhook(
     ledger_service = WebhookLedgerService(ledger_db) if ledger_db is not None else None
     ledger_event: WebhookEvent | None = None
     if ledger_service is not None:
-        ledger_event = await asyncio.to_thread(
-            ledger_service.log_received,
-            source="checkr",
-            event_type=event_type or "unknown",
-            payload=payload,
-            headers=dict(request.headers),
-            event_id=payload.get("id"),
-            idempotency_key=request.headers.get("X-Checkr-Delivery-Id"),
-        )
+        try:
+            ledger_event = await asyncio.to_thread(
+                ledger_service.log_received,
+                source="checkr",
+                event_type=event_type or "unknown",
+                payload=payload,
+                headers=dict(request.headers),
+                event_id=payload.get("id"),
+                idempotency_key=request.headers.get("X-Checkr-Delivery-Id"),
+            )
+        except WebhookAlreadyClaimedError:
+            logger.info(
+                "Checkr webhook duplicate ignored (already claimed): %s",
+                payload.get("id"),
+            )
+            return WebhookAckResponse(ok=True)
     if ledger_event is not None and ledger_event.status == "processed":
         logger.info(
             "Checkr webhook retry for already-processed event %s (retry_count=%s)",

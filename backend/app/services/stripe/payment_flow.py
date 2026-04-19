@@ -322,7 +322,8 @@ class StripePaymentFlowMixin(BaseService):
             return refreshed_payment_intent
         try:
             refreshed_payment_intent = _stripe_service_module().stripe.PaymentIntent.retrieve(
-                payment_intent_id
+                payment_intent_id,
+                expand=["latest_charge"],
             )
         except Exception as exc:
             self.logger.warning(

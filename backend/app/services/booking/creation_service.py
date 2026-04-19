@@ -10,6 +10,7 @@ from ...core.enums import RoleName
 from ...core.exceptions import (
     BookingConflictException,
     BusinessRuleException,
+    InstructorNotVerifiedError,
     NotFoundException,
     RepositoryException,
     ValidationException,
@@ -299,6 +300,14 @@ class BookingCreationMixin:
         ):
             raise BusinessRuleException(
                 "This instructor is pending verification and cannot be booked at this time"
+            )
+
+        # H7: KYC gate — reject bookings for instructors that have not completed
+        # Stripe Identity verification. identity_verified_at is populated by the
+        # identity.verification_session.verified webhook handler.
+        if getattr(instructor_profile, "identity_verified_at", None) is None:
+            raise InstructorNotVerifiedError(
+                details={"instructor_id": booking_data.instructor_id},
             )
 
         return service, instructor_profile

@@ -157,9 +157,52 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         )
         return cast(WebhookEvent | None, result)
 
+    MAX_PROCESSING_ATTEMPTS = 3
+
     def claim_for_processing(self, event_id: str) -> bool:
-        """Atomically claim an event for processing."""
+        """Atomically claim an event for processing.
+
+        M1: events that have already failed ``MAX_PROCESSING_ATTEMPTS`` times are
+        transitioned to ``dead_letter`` and not re-claimed, preventing an
+        infinite retry loop on a poison-message handler. Events already in
+        ``dead_letter`` are never claimed.
+        """
         try:
+            # Advisory pre-check: the authoritative guard is the atomic UPDATE below,
+            # which uses WHERE status IN ('received', 'failed') to prevent claiming
+            # dead_letter or already-processing events. This pre-check exists only to
+            # provide a clear log message and avoid the UPDATE round-trip when the
+            # outcome is already known.
+            current = self.db.query(WebhookEvent).filter(WebhookEvent.id == event_id).one_or_none()
+            if current is None:
+                return False
+            if current.status == "dead_letter":
+                return False
+            if (
+                current.status == "failed"
+                and (current.attempt_count or 0) >= self.MAX_PROCESSING_ATTEMPTS
+            ):
+                # Single-writer guard: if two workers both read status='failed' with
+                # attempt_count >= MAX, both will try to transition to dead_letter.
+                # The WHERE status='failed' clause ensures exactly one UPDATE writes;
+                # the second worker's UPDATE finds status='dead_letter' and is a
+                # no-op (rowcount=0).
+                self.db.execute(
+                    sa_update(WebhookEvent)
+                    .where(WebhookEvent.id == event_id)
+                    .where(WebhookEvent.status == "failed")
+                    .values(status="dead_letter")
+                )
+                self.db.flush()
+                # Expire the ORM attribute so any later ``get_event`` (e.g. the
+                # route's re-fetch after ``mark_processing`` returns False) sees
+                # ``status="dead_letter"`` without an explicit ``db.refresh``.
+                # SQLAlchemy's session doesn't auto-expire identity-map objects
+                # after a core-level UPDATE on the same row.
+                if current is not None:
+                    self.db.expire(current, ["status"])
+                return False
+
             stmt = (
                 sa_update(WebhookEvent)
                 .where(
@@ -170,6 +213,7 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
                     status="processing",
                     processing_error=None,
                     processed_at=None,
+                    attempt_count=(WebhookEvent.attempt_count + 1),
                 )
                 .returning(WebhookEvent.id)
             )
