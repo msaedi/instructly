@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.exceptions import RepositoryException
+from app.models.webhook_event import WebhookEvent
 from app.repositories.webhook_event_repository import WebhookEventRepository
 
 
@@ -388,6 +390,75 @@ def test_claim_for_processing_rejects_dead_letter(db):
     db.refresh(event)
     assert event.status == "dead_letter"
     assert event.attempt_count == 0
+
+
+def test_dead_letter_transition_expires_stale_status_attribute(db):
+    """M1: after the dead_letter UPDATE, the passed-in ORM instance must reflect
+    the new status on the next attribute read — without callers having to issue
+    an explicit ``db.refresh``. This matters for the webhook route, which
+    re-fetches the event after ``mark_processing`` returns False and would
+    otherwise see a stale ``failed`` status, failing the ``dead_letter``
+    short-circuit guard at the endpoint layer (C1).
+    """
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_expire"},
+        status="failed",
+        processing_error="repeated failure",
+        received_at=datetime.now(timezone.utc),
+    )
+    event.attempt_count = repo.MAX_PROCESSING_ATTEMPTS
+    db.flush()
+
+    assert repo.claim_for_processing(event.id) is False
+
+    # No explicit db.refresh — the repo should have expired the status attribute.
+    assert event.status == "dead_letter"
+
+
+def test_concurrent_claims_at_max_attempts_single_dead_letter_writer(db, monkeypatch):
+    """M1: when two workers both see status=failed with attempt_count >= MAX and
+    both issue the dead_letter UPDATE, the WHERE status='failed' guard ensures
+    exactly one write lands. The second worker's UPDATE is a no-op.
+
+    The race is simulated by flipping the row to dead_letter between the
+    repository's pre-check and the UPDATE, mimicking another worker winning.
+    """
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_race_dlq"},
+        status="failed",
+        processing_error="repeated failure",
+        received_at=datetime.now(timezone.utc),
+    )
+    event.attempt_count = repo.MAX_PROCESSING_ATTEMPTS
+    db.flush()
+
+    original_execute = repo.db.execute
+    flipped = {"done": False}
+
+    def _execute_with_race(*args, **kwargs):
+        """Before the dead_letter UPDATE runs, a concurrent worker flips the row."""
+        if not flipped["done"]:
+            flipped["done"] = True
+            original_execute(
+                sa_update(WebhookEvent)
+                .where(WebhookEvent.id == event.id)
+                .values(status="dead_letter")
+            )
+        return original_execute(*args, **kwargs)
+
+    monkeypatch.setattr(repo.db, "execute", _execute_with_race)
+
+    assert repo.claim_for_processing(event.id) is False
+
+    db.refresh(event)
+    assert event.status == "dead_letter"
+    # Only the first "concurrent" write took effect; the guarded UPDATE was a no-op.
 
 
 def test_get_event_returns_none(db):

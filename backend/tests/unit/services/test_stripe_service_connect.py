@@ -40,7 +40,9 @@ def _make_service(*, stripe_configured: bool = True) -> StripeService:
 class TestConnectAccounts:
     def test_create_connected_account_returns_existing(self):
         service = _make_service()
-        existing = SimpleNamespace(stripe_account_id="acct_existing")
+        existing = SimpleNamespace(
+            stripe_account_id="acct_existing", payout_schedule_applied=True
+        )
         service.payment_repository.get_connected_account_by_instructor_id.return_value = existing
 
         with patch.object(stripe_service.stripe.Account, "create") as create_mock:
@@ -50,6 +52,117 @@ class TestConnectAccounts:
 
         assert result is existing
         create_mock.assert_not_called()
+
+    def test_payout_schedule_failure_leaves_flag_false(self):
+        """M7: if Account.modify fails, the account record persists but
+        payout_schedule_applied stays False so a retry can fix it."""
+        import stripe as stripe_sdk
+
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_instructor_id.return_value = None
+        created_record = SimpleNamespace(
+            stripe_account_id="acct_m7_fail",
+            payout_schedule_applied=False,
+        )
+        service.payment_repository.create_connected_account_record.return_value = (
+            created_record
+        )
+
+        with patch.object(
+            stripe_service.stripe.Account,
+            "create",
+            return_value=SimpleNamespace(id="acct_m7_fail"),
+        ), patch.object(
+            stripe_service.stripe.Account,
+            "modify",
+            side_effect=stripe_sdk.error.APIConnectionError("network"),
+        ):
+            with pytest.raises(ServiceException):
+                StripeService.create_connected_account(
+                    service, "profile_m7_fail", "m7@example.com"
+                )
+
+        service.payment_repository.mark_payout_schedule_applied.assert_not_called()
+
+    def test_retry_reapplies_payout_schedule_when_flag_false(self):
+        """M7: a second create_connected_account call where the existing record
+        has payout_schedule_applied=False must re-run _apply_default_payout_schedule."""
+        service = _make_service()
+        existing = SimpleNamespace(
+            stripe_account_id="acct_m7_retry",
+            payout_schedule_applied=False,
+        )
+        service.payment_repository.get_connected_account_by_instructor_id.return_value = (
+            existing
+        )
+
+        with patch.object(
+            stripe_service.stripe.Account, "modify", return_value=SimpleNamespace()
+        ) as modify_mock:
+            result = StripeService.create_connected_account(
+                service, "profile_m7_retry", "m7r@example.com"
+            )
+
+        assert result is existing
+        modify_mock.assert_called_once()
+        service.payment_repository.mark_payout_schedule_applied.assert_called_once_with(
+            "acct_m7_retry"
+        )
+
+    def test_retry_stripe_error_wraps_as_service_exception(self):
+        """M7: on the retry path, a Stripe API failure must surface as a
+        ServiceException so the caller sees a uniform error shape rather than
+        a raw stripe.StripeError bubbling out."""
+        import stripe as stripe_sdk
+
+        service = _make_service()
+        existing = SimpleNamespace(
+            stripe_account_id="acct_m7_retry_err",
+            payout_schedule_applied=False,
+        )
+        service.payment_repository.get_connected_account_by_instructor_id.return_value = (
+            existing
+        )
+
+        with patch.object(
+            stripe_service.stripe.Account,
+            "modify",
+            side_effect=stripe_sdk.error.APIConnectionError("network"),
+        ):
+            with pytest.raises(ServiceException, match="Failed to apply payout schedule on retry"):
+                StripeService.create_connected_account(
+                    service, "profile_m7_retry_err", "m7e@example.com"
+                )
+
+        service.payment_repository.mark_payout_schedule_applied.assert_not_called()
+
+    def test_happy_path_sets_flag_true_on_first_attempt(self):
+        """M7: the normal create path flips the flag to True after Account.modify."""
+        service = _make_service()
+        service.payment_repository.get_connected_account_by_instructor_id.return_value = None
+        created_record = SimpleNamespace(
+            stripe_account_id="acct_m7_happy",
+            payout_schedule_applied=False,
+        )
+        service.payment_repository.create_connected_account_record.return_value = (
+            created_record
+        )
+
+        with patch.object(
+            stripe_service.stripe.Account,
+            "create",
+            return_value=SimpleNamespace(id="acct_m7_happy"),
+        ), patch.object(
+            stripe_service.stripe.Account, "modify", return_value=SimpleNamespace()
+        ):
+            result = StripeService.create_connected_account(
+                service, "profile_m7_happy", "m7h@example.com"
+            )
+
+        assert result is created_record
+        service.payment_repository.mark_payout_schedule_applied.assert_called_once_with(
+            "acct_m7_happy"
+        )
 
     def test_create_connected_account_propagates_stripe_error(self):
         """H6: Stripe errors must propagate — no silent mock-account fallback.

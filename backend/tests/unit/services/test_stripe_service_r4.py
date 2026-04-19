@@ -329,6 +329,11 @@ class TestWebhookEdgePaths:
 
     def test_handle_account_webhook_updates_onboarding(self):
         service = _make_service()
+        # QF1: no-op guard reads the current record before writing. Stub a stale
+        # False record so the write actually fires.
+        service.payment_repository.get_connected_account_by_stripe_id.return_value = (
+            SimpleNamespace(stripe_account_id="acct_1", onboarding_completed=False)
+        )
         event = {
             "type": "account.updated",
             "data": {"object": {"id": "acct_1", "charges_enabled": True, "details_submitted": True}},

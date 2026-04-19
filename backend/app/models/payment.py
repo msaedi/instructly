@@ -73,6 +73,14 @@ class StripeConnectedAccount(Base):
     )
     stripe_account_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # M7: tracks whether the platform's default payout schedule
+    # (Account.modify → settings.payouts) has been applied for this account.
+    # Flipped True after _apply_default_payout_schedule succeeds; a False value
+    # on a retry path tells create_connected_account to re-apply the schedule
+    # rather than assume the account is fully set up.
+    payout_schedule_applied: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

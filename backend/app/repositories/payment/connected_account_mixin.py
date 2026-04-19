@@ -70,6 +70,29 @@ class PaymentConnectedAccountMixin(PaymentRepositoryMixinBase):
             self.logger.error("Failed to get connected account: %s", str(e))
             raise RepositoryException(f"Failed to get connected account: {str(e)}")
 
+    def mark_payout_schedule_applied(
+        self, stripe_account_id: str
+    ) -> Optional[StripeConnectedAccount]:
+        """M7: set ``payout_schedule_applied=True`` so subsequent retries of
+        ``create_connected_account`` skip the redundant ``Account.modify`` call.
+
+        Idempotent: if the record does not exist or the flag is already True,
+        returns the current record (or None) without erroring.
+        """
+        try:
+            account = (
+                self.db.query(StripeConnectedAccount)
+                .filter(StripeConnectedAccount.stripe_account_id == stripe_account_id)
+                .first()
+            )
+            if account is not None and not account.payout_schedule_applied:
+                account.payout_schedule_applied = True
+                self.db.flush()
+            return cast(Optional[StripeConnectedAccount], account)
+        except Exception as e:
+            self.logger.error("Failed to mark payout schedule applied: %s", str(e))
+            raise RepositoryException(f"Failed to mark payout schedule applied: {str(e)}")
+
     def update_onboarding_status(
         self, stripe_account_id: str, completed: bool
     ) -> Optional[StripeConnectedAccount]:

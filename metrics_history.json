@@ -51770,5 +51770,213 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-17",
     "branch": "stripe-audit-fixes"
+  },
+  {
+    "timestamp": "2026-04-19T14:38:00.464218+00:00",
+    "total_lines": 813133,
+    "total_files": 3238,
+    "backend_lines": 463510,
+    "frontend_lines": 349623,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10427
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46171
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 60533
+        },
+        "Services": {
+          "files": 535,
+          "lines": 183671
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21988
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28281
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 42874
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2083,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-17",
+    "branch": "stripe-audit-fixes"
+  },
+  {
+    "timestamp": "2026-04-19T15:17:32.620257+00:00",
+    "total_lines": 813193,
+    "total_files": 3238,
+    "backend_lines": 463570,
+    "frontend_lines": 349623,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10427
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 60533
+        },
+        "Services": {
+          "files": 535,
+          "lines": 183702
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 21988
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28281
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 42874
+        },
+        "Components": {
+          "files": 427,
+          "lines": 142894
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 35673
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2083,
+    "frontend_files": 1155,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-19",
+    "branch": "stripe-audit-fixes"
   }
 ]

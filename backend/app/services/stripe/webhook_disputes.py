@@ -22,18 +22,18 @@ def _stripe_service_module() -> StripeServiceModuleProtocol:
     return cast("StripeServiceModuleProtocol", import_module("app.services.stripe_service"))
 
 
-_ALREADY_REVERSED_MARKERS = (
-    "already been reversed",
-    "transfer_reversal_amount_exceeded",
-    "no such transfer reversal",
-)
+_ALREADY_REVERSED_MARKERS = ("already been fully reversed",)
 
 
 def _is_already_reversed_error(exc: BaseException) -> bool:
     """Detect a Stripe error that indicates the transfer is already fully reversed.
 
-    Matches by error code (structured) or by message substring (fallback for
-    wrapped/legacy error shapes).
+    Matches strictly: the structured ``transfer_reversal_amount_exceeded`` code or
+    the exact ``"already been fully reversed"`` message. A looser match (e.g.
+    ``"no such transfer reversal"``) would incorrectly swallow ``resource_missing``
+    errors raised for a bogus transfer ID, and a partial-match like
+    ``"already been reversed"`` would erroneously suppress partial-reversal-in-flight
+    errors — both of which signal real integration bugs the caller needs to see.
     """
     code = getattr(exc, "code", None)
     if isinstance(code, str) and code == "transfer_reversal_amount_exceeded":

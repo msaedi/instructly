@@ -5,9 +5,6 @@ from typing import Any, Optional, cast
 
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-# PostgreSQL SQLSTATE for a non-blocking lock acquisition that could not be granted.
-_LOCK_NOT_AVAILABLE_PGCODE = "55P03"
-
 from ...core.exceptions import RepositoryException
 from ...models.booking import Booking, BookingStatus
 from ...models.booking_dispute import BookingDispute
@@ -18,6 +15,9 @@ from ...models.booking_reschedule import BookingReschedule
 from ...models.booking_transfer import BookingTransfer
 from ...models.booking_video_session import BookingVideoSession
 from .mixin_base import BookingRepositoryMixinBase
+
+# PostgreSQL SQLSTATE for a non-blocking lock acquisition that could not be granted.
+_LOCK_NOT_AVAILABLE_PGCODE = "55P03"
 
 
 class BookingSatelliteMixin(BookingRepositoryMixinBase):

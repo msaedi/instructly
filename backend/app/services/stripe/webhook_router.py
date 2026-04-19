@@ -5,6 +5,7 @@ from importlib import import_module
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from sqlalchemy.exc import OperationalError
 import stripe
 
 from ...core.exceptions import ServiceException
@@ -134,6 +135,12 @@ class StripeWebhookRouterMixin(BaseService):
         ) as exc:
             self.logger.error("Permanent Stripe error while processing webhook: %s", exc)
             raise WebhookPermanentError(f"Permanent Stripe error: {str(exc)}") from exc
+        except (WebhookRetryableError, WebhookPermanentError, OperationalError):
+            # C2: inner handlers already classify retryable vs permanent; the
+            # outer endpoint needs them verbatim to map to 503 vs 200. Wrapping
+            # them in ServiceException here collapses both to the generic
+            # Exception branch, which defeats H2.
+            raise
         except Exception as exc:
             self.logger.error("Error processing webhook event: %s", exc)
             raise ServiceException(f"Failed to process webhook event: {str(exc)}")
@@ -163,6 +170,12 @@ class StripeWebhookRouterMixin(BaseService):
                 if new_status == "requires_capture":
                     self._advance_booking_on_capture(payment_record)
                 return True
+        except (WebhookRetryableError, WebhookPermanentError, OperationalError):
+            # C2: let typed exceptions bubble to the outer handler unchanged so
+            # the endpoint's 503-vs-200 mapping still applies. OperationalError
+            # specifically covers pgbouncer hiccups and lock contention — both
+            # transient by nature.
+            raise
         except Exception as exc:
             self.logger.error("Error handling payment intent webhook: %s", exc)
             raise ServiceException(f"Failed to handle payment webhook: {str(exc)}")
@@ -247,6 +260,24 @@ class StripeWebhookRouterMixin(BaseService):
                 should_complete = bool(
                     charges_enabled and details_submitted and not disabled_reason
                 )
+                # QF1: Stripe resends account.updated frequently (heartbeats on
+                # every KYC re-check). Skip the write when state is unchanged to
+                # avoid DB churn on every heartbeat; account_record may be None
+                # (unknown account) in which case we fall through and attempt
+                # the write so the repository-layer handles persistence/logging.
+                current_record = self.payment_repository.get_connected_account_by_stripe_id(
+                    account_id
+                )
+                if (
+                    current_record is not None
+                    and bool(current_record.onboarding_completed) == should_complete
+                ):
+                    self.logger.debug(
+                        "Account %s onboarding unchanged (completed=%s); skipping write",
+                        account_id,
+                        should_complete,
+                    )
+                    return True
                 self.payment_repository.update_onboarding_status(account_id, should_complete)
                 if should_complete:
                     self.logger.info("Account %s onboarding completed", account_id)

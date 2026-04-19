@@ -876,9 +876,24 @@ async def handle_stripe_webhook(
                 headers=dict(request.headers),
                 event_id=event_payload.get("id"),
             )
-        except WebhookAlreadyClaimedError:
+        except WebhookAlreadyClaimedError as exc:
+            # Status-aware duplicate handling: only ack (200) when the original
+            # attempt has reached a terminal state. "processing" means the
+            # original worker is still in flight and may yet fail — returning
+            # 503 asks Stripe to retry later rather than dropping the event.
+            existing_status = exc.event.status if exc.event is not None else "unknown"
+            if existing_status == "processing":
+                logger.info(
+                    "Webhook duplicate still processing: %s, returning 503 for retry",
+                    event_payload.get("id"),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Event still processing",
+                )
             logger.info(
-                "Webhook duplicate ignored (already claimed): %s",
+                "Webhook duplicate ignored (status=%s): %s",
+                existing_status,
                 event_payload.get("id"),
             )
             return WebhookResponse(
@@ -896,7 +911,12 @@ async def handle_stripe_webhook(
         if not claimed:
             current_event = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
             current_status = current_event.status if current_event else ledger_event.status
-            if current_status in {"processed", "processing"}:
+            # dead_letter events are quarantined at the ledger layer after
+            # MAX_PROCESSING_ATTEMPTS failures. The handler MUST NOT run again;
+            # returning 200 tells Stripe to stop retrying. Without this guard
+            # a dead_letter event would fall through to handle_webhook_event
+            # and re-trigger the exact poison-message loop M1 was built to stop.
+            if current_status in {"processed", "processing", "dead_letter"}:
                 return WebhookResponse(
                     **model_filter(
                         WebhookResponse,
