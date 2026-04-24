@@ -619,6 +619,7 @@ export default function NLSearchAdminPage() {
                     <button
                       onClick={clearTestLocation}
                       className="p-2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-300"
+                      aria-label="Clear test location"
                       title="Clear test location"
                     >
                       <X className="w-5 h-5" />

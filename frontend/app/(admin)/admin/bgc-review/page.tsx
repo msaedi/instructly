@@ -616,6 +616,7 @@ export default function AdminBGCReviewPage() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleCopyId(item.instructor_id)}
+                                  aria-label="Copy instructor ID"
                                   className="flex-shrink-0"
                                 >
                                   <Copy className="h-4 w-4" />

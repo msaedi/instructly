@@ -48,6 +48,7 @@ export default function DatabaseOpsPage() {
                 onClick={refetch}
                 disabled={loading}
                 className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none   disabled:opacity-50"
+                aria-label="Refresh data"
                 title="Refresh data"
               >
                 <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />

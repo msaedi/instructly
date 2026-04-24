@@ -259,6 +259,7 @@ export default function PaymentsAdminClient() {
               <button
                 type="button"
                 onClick={handleRefresh}
+                aria-label="Refresh payments"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 hover:bg-indigo-600 hover:text-white"
               >
                 <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />

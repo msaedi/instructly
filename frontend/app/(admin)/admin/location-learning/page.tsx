@@ -148,6 +148,7 @@ export default function LocationLearningPage() {
                   void pendingQuery.refetch();
                 }}
                 className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none  "
+                aria-label="Refresh location learning data"
                 title="Refresh"
               >
                 <RefreshCw className="h-5 w-5" />
