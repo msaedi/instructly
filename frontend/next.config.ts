@@ -193,7 +193,7 @@ const nextConfig: NextConfig = {
       );
     }
 
-    const immutableCacheHeaders = ['/_next/static/:path*', '/_next/image/:path*', '/fonts/:path*', '/images/:path*'].map(
+    const immutableCacheHeaders = ['/fonts/:path*', '/images/:path*'].map(
       (source) => ({
         source,
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
