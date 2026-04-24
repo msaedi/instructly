@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "//pinned-next": "Pinned to 16.1.7 due to Vercel @vercel/next adapter incompatibility with Next 16.2.x output shape (routes-manifest-deterministic.json ENOENT during onBuildComplete). Reproducible from Apr 11 2026. Unpin once Vercel ships a fixed adapter for Next 16.2.x.",
+  "//pinned-next": "Previously pinned to 16.1.7 due to @vercel/next adapter incompatibility with 16.2.x (commit 7b21985e3). Bumped to 16.2.4 for the Server Components DoS fix (GHSA-q4gf-8mx6-v5v3). Adapter is now at @next-community/adapter-vercel beta and under active weekly patching. Verified via Vercel preview deploy on branch chore/deps-audit-fixes.",
   "types": "types/index.d.ts",
   "engines": {
     "node": ">=22",
@@ -73,7 +73,7 @@
     "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
   "dependencies": {
-    "@100mslive/roomkit-react": "^0.4.2",
+    "@100mslive/roomkit-react": "0.4.4",
     "@marsidev/react-turnstile": "^1.4.0",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -100,7 +100,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.576.0",
     "motion": "^12.34.4",
-    "next": "16.1.7",
+    "next": "16.2.4",
     "next-axiom": "^1.10.0",
     "react": "^19.1.1",
     "react-dom": "^19.2.4",
@@ -133,7 +133,7 @@
     "cross-env": "^10.0.0",
     "dependency-cruiser": "^17.3.9",
     "eslint": "^9",
-    "eslint-config-next": "16.1.7",
+    "eslint-config-next": "16.2.4",
     "eslint-plugin-no-only-tests": "^3.3.0",
     "eslint-plugin-react-refresh": "^0.5.2",
     "husky": "^9.1.7",
@@ -193,6 +193,7 @@
     ],
     "!types/generated/**": []
   },
+  "//audit-exceptions": "GHSA-w5hq-g745-h8pq (uuid <14, buffer bounds in v3/v5/v6) accepted. All call sites use uuid.v4() only; the v3/v5/v6 buf path is unreachable. Cannot override to uuid@14 because it is ESM-only and Vercel serverless disables require(esm), breaking the @100mslive/hms-video-store CJS bundle. Revisit when 100ms ships a uuid@14-compatible release.",
   "overrides": {
     "picomatch": "4.0.4",
     "serialize-javascript": "7.0.3",
@@ -202,12 +203,11 @@
     "tmp": "0.2.5",
     "glob": "11.1.0",
     "minimatch": "10.2.4",
+    "basic-ftp": "5.3.0",
+    "babel-plugin-istanbul": "8.0.0",
     "rimraf": "6.1.3",
     "nanoid": "5.1.6",
-    "test-exclude": {
-      "glob": "7.2.3",
-      "minimatch": "3.1.2"
-    },
+    "test-exclude": "8.0.0",
     "@radix-ui/react-slot": "1.2.3",
     "@radix-ui/react-compose-refs": "1.1.2",
     "@100mslive/roomkit-react": {
