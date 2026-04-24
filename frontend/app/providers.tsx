@@ -10,7 +10,11 @@ import { ensureGuestOnce } from '@/lib/searchTracking';
 import { initializeSessionTracking, cleanupSessionTracking } from '@/lib/sessionTracking';
 import { queryClient } from '@/lib/react-query/queryClient';
 import { AlertTriangle, Check, Info, LoaderCircle, X } from 'lucide-react';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
+import {
+  ACCOUNT_DELETED_TOAST_KEY,
+  ACCOUNT_DELETED_TOAST_MESSAGE,
+} from '@/lib/accountDeletedToast';
 // Reverted: Analytics now handled in layout or removed by user preference
 
 function ToastIcon({ children }: { children: ReactNode }) {
@@ -36,6 +40,23 @@ function AppInitializer({ children }: { children: ReactNode }) {
     return () => {
       cleanupSessionTracking();
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.location.pathname !== '/') {
+      return;
+    }
+
+    try {
+      const hasDeletedToast = window.sessionStorage.getItem(ACCOUNT_DELETED_TOAST_KEY);
+      if (!hasDeletedToast) {
+        return;
+      }
+      window.sessionStorage.removeItem(ACCOUNT_DELETED_TOAST_KEY);
+      toast.success(ACCOUNT_DELETED_TOAST_MESSAGE);
+    } catch {
+      // Ignore storage access errors.
+    }
   }, []);
 
   return <>{children}</>;

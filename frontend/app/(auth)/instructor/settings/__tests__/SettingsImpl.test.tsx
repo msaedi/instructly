@@ -1,8 +1,12 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsImpl } from '../SettingsImpl';
 import { fetchWithAuth } from '@/lib/api';
+import {
+  ACCOUNT_DELETED_TOAST_KEY,
+  ACCOUNT_DELETED_TOAST_MESSAGE,
+} from '@/lib/accountDeletedToast';
 import { notificationPreferencesApi } from '@/features/shared/api/notificationPreferences';
 import { useSession } from '@/src/api/hooks/useSession';
 import { queryKeys } from '@/src/api/queryKeys';
@@ -39,8 +43,10 @@ jest.mock('@/features/shared/api/notificationPreferences', () => ({
   },
 }));
 
+const mockLogout = jest.fn();
+
 jest.mock('@/features/shared/hooks/useAuth', () => ({
-  useAuth: () => ({ isAuthenticated: true }),
+  useAuth: () => ({ isAuthenticated: true, logout: mockLogout }),
 }));
 
 jest.mock('@/src/api/hooks/useSession', () => ({
@@ -135,10 +141,12 @@ describe('SettingsImpl', () => {
   let revokeTrustedDeviceMutationMock: jest.Mock;
   let revokeAllTrustedDevicesMutationMock: jest.Mock;
   let invalidateAddressesMock: jest.Mock;
+  let currentAccountStatus: 'active' | 'suspended';
 
   beforeEach(() => {
     jest.clearAllMocks();
     currentTfaEnabled = true;
+    currentAccountStatus = 'active';
     phoneState = {
       phoneNumber: '+12125551001',
       isVerified: true,
@@ -248,6 +256,62 @@ describe('SettingsImpl', () => {
         return {
           ok: true,
           json: async () => ({ enabled: currentTfaEnabled }),
+        };
+      }
+
+      if (url === '/api/v1/account/status') {
+        return {
+          ok: true,
+          json: async () => ({
+            user_id: 'user-1',
+            role: 'instructor',
+            account_status: currentAccountStatus,
+            can_login: true,
+            can_receive_bookings: currentAccountStatus === 'active',
+            is_active: currentAccountStatus === 'active',
+            is_suspended: currentAccountStatus === 'suspended',
+            is_deactivated: false,
+            can_suspend: currentAccountStatus === 'active',
+            can_reactivate: currentAccountStatus === 'suspended',
+          }),
+        };
+      }
+
+      if (url === '/api/v1/account/suspend') {
+        currentAccountStatus = 'suspended';
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            message: 'Account suspended successfully',
+            previous_status: 'active',
+            new_status: 'suspended',
+          }),
+        };
+      }
+
+      if (url === '/api/v1/account/reactivate') {
+        currentAccountStatus = 'active';
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            message: 'Account reactivated successfully',
+            previous_status: 'suspended',
+            new_status: 'active',
+          }),
+        };
+      }
+
+      if (url === '/api/v1/privacy/delete/me') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            message: 'Account and all associated data deleted',
+            deletion_stats: {},
+            account_deleted: true,
+          }),
         };
       }
 
@@ -705,6 +769,155 @@ describe('SettingsImpl', () => {
     expect(screen.getByText('Account Status')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pause account' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
+  });
+
+  it('shows the resume label from live account status without duplicating the paused banner', async () => {
+    currentAccountStatus = 'suspended';
+
+    renderSettings(false);
+
+    expect(await screen.findByRole('button', { name: 'Resume account' })).toBeInTheDocument();
+    expect(screen.queryByText(/Your account is paused/i)).not.toBeInTheDocument();
+  });
+
+  it('pauses the account with confirmation feedback and refetches status', async () => {
+    const user = userEvent.setup();
+
+    renderSettings(false);
+
+    await user.click(screen.getByRole('button', { name: 'Pause account' }));
+    const dialog = screen.getByRole('dialog', { name: 'Pause your account?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Pause account' }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        'Account paused. Check your email for confirmation.'
+      );
+    });
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/account/suspend', { method: 'POST' });
+    expect(await screen.findByRole('button', { name: 'Resume account' })).toBeInTheDocument();
+    expect(screen.queryByText(/Your account is paused/i)).not.toBeInTheDocument();
+  });
+
+  it('resumes the account from the account status action row', async () => {
+    const user = userEvent.setup();
+    currentAccountStatus = 'suspended';
+
+    renderSettings(false);
+
+    await user.click(await screen.findByRole('button', { name: 'Resume account' }));
+    const dialog = screen.getByRole('dialog', { name: 'Resume your account?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Resume account' }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        'Account resumed. Check your email for confirmation.'
+      );
+    });
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/account/reactivate', {
+      method: 'POST',
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Pause account' })).toBeInTheDocument();
+    });
+  });
+
+  it('deletes the account with email confirmation, clears cache, stores homepage toast, and logs out', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderSettings(false);
+    const order: string[] = [];
+    let resolveCancelQueries: (() => void) | undefined;
+    const clearSpy = jest.spyOn(queryClient, 'clear').mockImplementation(() => {
+      order.push('clear');
+    });
+    const cancelQueriesSpy = jest.spyOn(queryClient, 'cancelQueries').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('cancel-start');
+          resolveCancelQueries = () => {
+            order.push('cancel-resolved');
+            resolve();
+          };
+        })
+    );
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      order.push('setItem');
+    });
+    mockLogout.mockImplementation(() => {
+      order.push('logout');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Delete account' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete your account?' });
+    const deleteButton = within(dialog).getByRole('button', { name: 'Delete account' });
+    expect(deleteButton).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText('Type your email to confirm'), 'ALEX@EXAMPLE.COM');
+    expect(deleteButton).not.toBeDisabled();
+    await user.click(deleteButton);
+
+    await waitFor(() => {
+      expect(order).toEqual(['setItem', 'cancel-start']);
+    });
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(mockLogout).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveCancelQueries?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(order).toEqual(['setItem', 'cancel-start', 'cancel-resolved', 'clear', 'logout']);
+    });
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/privacy/delete/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete_account: true }),
+    });
+    expect(cancelQueriesSpy).toHaveBeenCalledTimes(1);
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+    expect(setItemSpy).toHaveBeenCalledWith(
+      ACCOUNT_DELETED_TOAST_KEY,
+      ACCOUNT_DELETED_TOAST_MESSAGE
+    );
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+
+    cancelQueriesSpy.mockRestore();
+    clearSpy.mockRestore();
+    setItemSpy.mockRestore();
+  });
+
+  it('shows the backend delete error message when account deletion fails', async () => {
+    const user = userEvent.setup();
+    const defaultFetchImplementation = fetchWithAuthMock.getMockImplementation();
+    fetchWithAuthMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/v1/privacy/delete/me') {
+        return {
+          ok: false,
+          json: async () => ({ detail: 'Cancel upcoming bookings first.' }),
+        };
+      }
+      return defaultFetchImplementation?.(url, init);
+    });
+
+    renderSettings(false);
+
+    await user.click(screen.getByRole('button', { name: 'Delete account' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete your account?' });
+    await user.type(within(dialog).getByLabelText('Type your email to confirm'), 'alex@example.com');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete account' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Cancel upcoming bookings first.');
+    });
+    const retryDialog = screen.getByRole('dialog', { name: 'Delete your account?' });
+    expect(retryDialog).toBeInTheDocument();
+    expect(within(retryDialog).getByLabelText('Type your email to confirm')).toHaveValue(
+      'alex@example.com'
+    );
+    expect(within(retryDialog).getByRole('button', { name: 'Delete account' })).toBeEnabled();
+    expect(mockLogout).not.toHaveBeenCalled();
   });
 
   it('only disables the toggled notification preference while an update is pending', async () => {

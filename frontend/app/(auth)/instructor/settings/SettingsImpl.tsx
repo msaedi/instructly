@@ -10,15 +10,28 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import {
+  ACCOUNT_DELETED_TOAST_KEY,
+  ACCOUNT_DELETED_TOAST_MESSAGE,
+} from '@/lib/accountDeletedToast';
 import type { AddressListResponse, ApiErrorResponse } from '@/features/shared/api/types';
 import TfaModal from '@/components/security/TfaModal';
 import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
+import ResumeAccountModal from '@/components/security/ResumeAccountModal';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { useSession } from '@/src/api/hooks/useSession';
 import { queryKeys } from '@/src/api/queryKeys';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { isPaused } from '@/lib/accountStatus';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
+import {
+  accountStatusQueryKey,
+  useAccountStatus,
+  useReactivateAccount,
+  useSuspendAccount,
+} from '@/hooks/queries/useAccountStatus';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import {
   useInvalidateTrustedDevices,
@@ -201,6 +214,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [showTfaModal, setShowTfaModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [firstNameDraft, setFirstNameDraft] = useState<string | null>(null);
   const [zipDraft, setZipDraft] = useState<string | null>(null);
@@ -213,13 +227,17 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const { data: trustedDevicesData, isLoading: trustedDevicesLoading } =
     useTrustedDevices(shouldLoadTrustedDevices);
   const { data: userData, isLoading: userLoading } = useSession();
+  const { data: accountStatusData } = useAccountStatus(true);
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const queryClient = useQueryClient();
+  const { logout } = useAuth();
   const invalidateTfaStatus = useInvalidateTfaStatus();
   const invalidateTrustedDevices = useInvalidateTrustedDevices();
   const invalidateAddresses = useInvalidateUserAddresses();
   const revokeTrustedDevice = useRevokeTrustedDevice();
   const revokeAllTrustedDevices = useRevokeAllTrustedDevices();
+  const suspendAccount = useSuspendAccount();
+  const reactivateAccount = useReactivateAccount();
   const {
     isSupported: pushSupported,
     permission: pushPermission,
@@ -264,6 +282,74 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         ? (addressData.items.find((address) => address.is_default) || addressData.items[0] || null)?.postal_code
         : null) || userData?.zip_code || ''
     ).toString(),
+  };
+  const fallbackAccountStatus = (userData as { account_status?: string } | undefined)?.account_status;
+  const accountStatus = accountStatusData?.account_status ?? fallbackAccountStatus ?? 'active';
+  const isAccountPaused = isPaused(accountStatus);
+  const accountStatusButtonLabel = isAccountPaused ? 'Resume account' : 'Pause account';
+
+  const refreshAccountLifecycleQueries = useCallback(async () => {
+    await Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: accountStatusQueryKey }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
+    ]);
+  }, [queryClient]);
+
+  const handlePauseConfirm = async () => {
+    try {
+      await suspendAccount.mutateAsync();
+      await refreshAccountLifecycleQueries();
+      setShowPauseModal(false);
+      toast.success('Account paused. Check your email for confirmation.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to pause account.');
+    }
+  };
+
+  const handleResumeConfirm = async () => {
+    try {
+      await reactivateAccount.mutateAsync();
+      await refreshAccountLifecycleQueries();
+      setShowResumeModal(false);
+      toast.success('Account resumed. Check your email for confirmation.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to resume account.');
+    }
+  };
+
+  const deleteAccountMutation = useMutation<void, Error>({
+    mutationFn: async () => {
+      const response = await fetchWithAuth('/api/v1/privacy/delete/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_account: true }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(extractApiErrorMessage(body, 'Failed to delete account.'));
+      }
+    },
+  });
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteAccountMutation.mutateAsync();
+      try {
+        window.sessionStorage.setItem(ACCOUNT_DELETED_TOAST_KEY, ACCOUNT_DELETED_TOAST_MESSAGE);
+      } catch {
+        // Ignore storage failures; logout still returns the user home.
+      }
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      logout();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Couldn't delete account. Please try again or contact support."
+      );
+    }
   };
   const firstName = firstNameDraft ?? accountDefaults.firstName;
   const lastName = accountDefaults.lastName;
@@ -527,10 +613,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
       <button
         type="button"
-        onClick={() => setShowPauseModal(true)}
+        onClick={() => (isAccountPaused ? setShowResumeModal(true) : setShowPauseModal(true))}
         className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none  insta-secondary-btn"
       >
-        Pause account
+        {accountStatusButtonLabel}
       </button>
       <button
         type="button"
@@ -692,7 +778,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           title="Account settings"
           subtitle="Manage your personal details, security options, and platform preferences from one place."
         />
-
         <div className="insta-dashboard-accordion-stack">
         <div className="p-6 insta-surface-card">
           {embedded ? (
@@ -1022,18 +1107,23 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         {showPauseModal && (
           <PauseAccountModal
             onClose={() => setShowPauseModal(false)}
-            onPaused={() => {
-              setShowPauseModal(false);
-            }}
+            onConfirm={() => void handlePauseConfirm()}
+            isSubmitting={suspendAccount.isPending}
+          />
+        )}
+        {showResumeModal && (
+          <ResumeAccountModal
+            onClose={() => setShowResumeModal(false)}
+            onConfirm={() => void handleResumeConfirm()}
+            isSubmitting={reactivateAccount.isPending}
           />
         )}
         {showDeleteModal && (
           <DeleteAccountModal
             email={email}
             onClose={() => setShowDeleteModal(false)}
-            onDeleted={() => {
-              setShowDeleteModal(false);
-            }}
+            onConfirm={() => void handleDeleteConfirm()}
+            isSubmitting={deleteAccountMutation.isPending}
           />
         )}
         {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}

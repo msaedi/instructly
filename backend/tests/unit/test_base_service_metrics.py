@@ -6,7 +6,7 @@ Run with: pytest backend/tests/unit/test_base_service_metrics.py -v
 """
 
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -175,17 +175,32 @@ class TestBaseServiceMetrics:
 
     def test_metrics_precision(self, test_service):
         """Test that metrics maintain proper precision."""
-        # Run operation with varying times
-        for i in range(5):
-            with test_service.measure_operation_context("timed_operation"):
-                time.sleep(0.01 * (i + 1))  # 10ms, 20ms, 30ms, 40ms, 50ms
+        # Run operation with deterministic timings. Real sleep-based timing is
+        # scheduler-sensitive and flakes under load.
+        perf_counter_values = iter(
+            [
+                0.00,
+                0.01,
+                1.00,
+                1.02,
+                2.00,
+                2.03,
+                3.00,
+                3.04,
+                4.00,
+                4.05,
+            ]
+        )
+        with patch("app.services.base.time.perf_counter", side_effect=lambda: next(perf_counter_values)):
+            for _ in range(5):
+                with test_service.measure_operation_context("timed_operation"):
+                    pass
 
         metrics = test_service.get_metrics()["timed_operation"]
         assert metrics["count"] == 5
-        # More relaxed timing assertions to account for system scheduling variations
-        assert abs(metrics["min_time"] - 0.01) < 0.015  # ~10ms with more tolerance
-        assert abs(metrics["max_time"] - 0.05) < 0.02  # ~50ms with more tolerance
-        assert abs(metrics["avg_time"] - 0.03) < 0.02  # ~30ms average with more tolerance
+        assert metrics["min_time"] == pytest.approx(0.01)
+        assert metrics["max_time"] == pytest.approx(0.05)
+        assert metrics["avg_time"] == pytest.approx(0.03)
 
     def test_concurrent_operations(self, test_service):
         """Test that metrics handle concurrent operations correctly."""

@@ -17,6 +17,11 @@ class TemplateRegistry(str, Enum):
     SECURITY_NEW_DEVICE_LOGIN = "email/security/new_device_login.html"
     SECURITY_PW_CHANGED = "email/security/password_changed.html"
     SECURITY_2FA_CHANGED = "email/security/2fa_changed.html"
+    ACCOUNT_PAUSED = "email/account/paused.html"
+    ACCOUNT_RESUMED = "email/account/resumed.html"
+    ACCOUNT_DELETED = "email/account/deleted.html"
+    ACCOUNT_ANONYMIZED = "email/account/anonymized.html"
+    ACCOUNT_DEACTIVATED = "email/account/deactivated.html"
 
     # Referrals
     REFERRALS_INVITE = "email/referrals/invite.html"
@@ -60,6 +65,11 @@ _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN: "account",
     TemplateRegistry.SECURITY_PW_CHANGED: "account",
     TemplateRegistry.SECURITY_2FA_CHANGED: "account",
+    TemplateRegistry.ACCOUNT_PAUSED: "account",
+    TemplateRegistry.ACCOUNT_RESUMED: "account",
+    TemplateRegistry.ACCOUNT_DELETED: "account",
+    TemplateRegistry.ACCOUNT_ANONYMIZED: "account",
+    TemplateRegistry.ACCOUNT_DEACTIVATED: "account",
     TemplateRegistry.BETA_INVITE: "account",
     TemplateRegistry.REFERRALS_INVITE: "referrals",
     TemplateRegistry.REFERRALS_INVITE_STANDALONE: "referrals",

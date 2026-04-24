@@ -21,6 +21,24 @@ def _dummy_request():
     return SimpleNamespace(headers={}, client=None)
 
 
+def _dummy_user():
+    return SimpleNamespace(id="user-1", email="user@example.com", first_name="Alex")
+
+
+class _NotificationStub:
+    def __init__(self):
+        self.deleted_confirmations: list[dict[str, str | None]] = []
+        self.anonymized_confirmations: list[dict[str, str | None]] = []
+
+    def send_account_deleted_confirmation(self, *, to_email: str, first_name: str | None):
+        self.deleted_confirmations.append({"to_email": to_email, "first_name": first_name})
+        return True
+
+    def send_account_anonymized_confirmation(self, *, to_email: str, first_name: str | None):
+        self.anonymized_confirmations.append({"to_email": to_email, "first_name": first_name})
+        return True
+
+
 @pytest.mark.asyncio
 async def test_get_current_user_raises_not_found():
     with pytest.raises(HTTPException) as exc:
@@ -42,16 +60,19 @@ async def test_delete_my_data_value_error(monkeypatch):
             raise ValueError("nope")
 
     monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+    notification_service = _NotificationStub()
 
     with pytest.raises(HTTPException) as exc:
         await routes.delete_my_data(
             request=UserDataDeletionRequest(delete_account=True),
             http_request=_dummy_request(),
-            current_user=SimpleNamespace(id="user-1"),
+            current_user=_dummy_user(),
             db=None,
+            notification_service=notification_service,
         )
 
     assert exc.value.status_code == 400
+    assert notification_service.deleted_confirmations == []
 
 
 @pytest.mark.asyncio
@@ -69,8 +90,9 @@ async def test_delete_my_data_anonymize_failure(monkeypatch):
         await routes.delete_my_data(
             request=UserDataDeletionRequest(delete_account=False),
             http_request=_dummy_request(),
-            current_user=SimpleNamespace(id="user-1"),
+            current_user=_dummy_user(),
             db=None,
+            notification_service=_NotificationStub(),
         )
 
     assert exc.value.status_code == 500
@@ -164,6 +186,11 @@ async def test_delete_my_data_audit_failure_delete_account(monkeypatch):
             return {"ok": True}
 
     monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: SimpleNamespace(invalidate_all_tokens=lambda *_args, **_kwargs: True),
+    )
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("audit failed")
@@ -173,8 +200,9 @@ async def test_delete_my_data_audit_failure_delete_account(monkeypatch):
     response = await routes.delete_my_data(
         request=UserDataDeletionRequest(delete_account=True),
         http_request=_dummy_request(),
-        current_user=SimpleNamespace(id="user-1"),
+        current_user=_dummy_user(),
         db=None,
+        notification_service=_NotificationStub(),
     )
 
     assert response.account_deleted is True
@@ -190,6 +218,11 @@ async def test_delete_my_data_audit_failure_anonymize(monkeypatch):
             return True
 
     monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: SimpleNamespace(invalidate_all_tokens=lambda *_args, **_kwargs: True),
+    )
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("audit failed")
@@ -199,8 +232,9 @@ async def test_delete_my_data_audit_failure_anonymize(monkeypatch):
     response = await routes.delete_my_data(
         request=UserDataDeletionRequest(delete_account=False),
         http_request=_dummy_request(),
-        current_user=SimpleNamespace(id="user-1"),
+        current_user=_dummy_user(),
         db=None,
+        notification_service=_NotificationStub(),
     )
 
     assert response.account_deleted is False
@@ -216,6 +250,16 @@ async def test_delete_user_data_admin_audit_failure(monkeypatch):
             return {"ok": True}
 
     monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: SimpleNamespace(invalidate_all_tokens=lambda *_args, **_kwargs: True),
+    )
+    monkeypatch.setattr(
+        routes,
+        "capture_sentry_exception",
+        lambda *_args, **_kwargs: None,
+    )
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("audit failed")
@@ -226,7 +270,7 @@ async def test_delete_user_data_admin_audit_failure(monkeypatch):
         user_id="user-1",
         request=UserDataDeletionRequest(delete_account=True),
         http_request=_dummy_request(),
-        current_user=SimpleNamespace(),
+        current_user=SimpleNamespace(id="admin-1"),
         db=None,
     )
 

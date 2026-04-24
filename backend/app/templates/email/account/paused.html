@@ -1,0 +1,14 @@
+<!-- backend/app/templates/email/account/paused.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Your account is paused{% endblock %}
+{% block preheader %}Your {{ brand_name }} instructor account is now paused.{% endblock %}
+
+{% block content %}
+  <h2 style="color:#111827; margin:0 0 16px; font-size:20px;">Your account is paused</h2>
+  <p style="margin:0 0 16px;">Hi {{ user_name or 'there' }},</p>
+  <p style="margin:0 0 16px;">Your {{ brand_name }} instructor account is now paused. You won't appear in search and can't receive new bookings while paused.</p>
+  <p style="margin:0 0 16px;"><strong>Your existing bookings are not affected.</strong> If you can't honor any upcoming lessons, please cancel them directly from your bookings dashboard.</p>
+  <p style="margin:0 0 16px;">Resume anytime from your account settings.</p>
+  <p style="margin:16px 0 0; color:#6B7280; font-size:14px;">Best,<br>The {{ brand_name }} team</p>
+{% endblock %}

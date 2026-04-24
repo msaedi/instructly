@@ -1,135 +1,104 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
-import { fetchAPI, fetchWithAuth } from '@/lib/api';
-import type { ApiErrorResponse } from '@/features/shared/api/types';
-import { extractApiErrorMessage } from '@/lib/apiErrors';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useId, useState } from 'react';
+import type { FormEvent } from 'react';
+import { LoaderCircle } from 'lucide-react';
+import Modal from '@/components/Modal';
 
 type Props = {
   email: string;
   onClose: () => void;
-  onDeleted: () => void;
+  onConfirm: () => void;
+  isSubmitting?: boolean;
 };
 
-export default function DeleteAccountModal({ email, onClose, onDeleted }: Props) {
-  const [password, setPassword] = useState('');
-  const [confirmText, setConfirmText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const modalRef = useRef<HTMLDivElement | null>(null);
-  const titleId = useId();
+export default function DeleteAccountModal({
+  email,
+  onClose,
+  onConfirm,
+  isSubmitting = false,
+}: Props) {
+  const [confirmEmail, setConfirmEmail] = useState('');
   const confirmId = useId();
-  const passwordId = useId();
+  const normalizedExpectedEmail = email.trim().toLowerCase();
+  const normalizedTypedEmail = confirmEmail.trim().toLowerCase();
+  const canSubmit =
+    normalizedExpectedEmail.length > 0 &&
+    normalizedTypedEmail === normalizedExpectedEmail &&
+    !isSubmitting;
 
-  const canSubmit = confirmText.trim().toUpperCase() === 'DELETE' && password.length >= 6 && !submitting;
-
-  useFocusTrap({
-    isOpen: true,
-    containerRef: modalRef,
-    onEscape: onClose,
-  });
-
-  const handleSubmit = async () => {
-    setError(null);
-    setSubmitting(true);
-    try {
-      // Verify password silently (backend expects form-encoded OAuth2 fields)
-      const loginRes = await fetchAPI('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ username: email, password }).toString(),
-      });
-      if (!loginRes.ok) {
-        setError('Incorrect password.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Soft delete account
-      const delRes = await fetchWithAuth('/api/v1/privacy/delete/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delete_account: true }),
-      });
-      if (!delRes.ok) {
-        try {
-          const body = (await delRes.json()) as ApiErrorResponse;
-          if (delRes.status === 400 && body?.detail) {
-            setError(extractApiErrorMessage(body));
-          } else {
-            setError('Failed to delete account. Please try again later.');
-          }
-        } catch {
-          setError('Failed to delete account. Please try again later.');
-        }
-        setSubmitting(false);
-        return;
-      }
-      onDeleted();
-    } catch {
-      setError('Unexpected error. Please try again.');
-      setSubmitting(false);
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSubmit) {
+      return;
     }
+    onConfirm();
   };
 
   return (
-    <div className="insta-dialog-backdrop z-50 flex items-center justify-center p-4">
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="insta-dialog-panel w-full max-w-md p-6"
-      >
-        <div className="mb-4">
-          <h3 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete Account</h3>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Delete your account?"
+      description="Confirm account deletion"
+      size="sm"
+      autoHeight
+      closeOnBackdrop={!isSubmitting}
+      closeOnEscape={!isSubmitting}
+    >
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
+          <p>
+            This permanently deletes your iNSTAiNSTRU instructor account. You won&apos;t be able to
+            log in, accept bookings, or recover this account.
+          </p>
+          <p>
+            Your completed bookings and reviews will be retained for financial and legal purposes.
+            All personal information will be erased.
+          </p>
+          <p>We&apos;ll email you a confirmation once your account is deleted.</p>
         </div>
-        <div className="space-y-3">
-          <label htmlFor={confirmId} className="sr-only">Type DELETE to confirm</label>
+
+        <div className="mt-5">
+          <label
+            htmlFor={confirmId}
+            className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100"
+          >
+            Type your email to confirm
+          </label>
+          {/*
+            autoComplete="new-password" is intentional: it is more reliable
+            than "off" at defeating Chrome autofill on email-like inputs.
+          */}
           <input
             id={confirmId}
-            placeholder="Type DELETE to confirm"
+            type="email"
+            value={confirmEmail}
+            onChange={(event) => setConfirmEmail(event.target.value)}
+            autoComplete="new-password"
             className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
           />
-          <div className="relative rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 insta-focus-composite">
-            <label htmlFor={passwordId} className="sr-only">Password</label>
-            <input
-              id={passwordId}
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              className="insta-focus-composite-input w-full rounded-md border-0 px-3 py-2 pr-10 text-sm bg-transparent"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button
-              type="button"
-              className="insta-focus-icon-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
-        <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-(--color-brand) text-(--color-brand) hover:bg-purple-50 dark:hover:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
-            disabled={!canSubmit}
-            onClick={handleSubmit}
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ? 'Deleting…' : 'Delete My Account'}
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="insta-primary-btn inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-(--color-brand) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b1fb8] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {isSubmitting ? 'Deleting...' : 'Delete account'}
           </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

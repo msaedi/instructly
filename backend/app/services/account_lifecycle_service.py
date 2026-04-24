@@ -6,7 +6,7 @@ Handles instructor account status changes including:
 - Suspension of instructor accounts
 - Deactivation of instructor accounts
 - Reactivation of instructor accounts
-- Validation of future bookings before status changes
+- Validation of future bookings before permanent deactivation
 
 Students cannot change their account status - they are always active.
 """
@@ -29,8 +29,8 @@ class AccountLifecycleService(BaseService):
     """
     Service layer for instructor account lifecycle management.
 
-    Handles status transitions for instructor accounts with validation
-    to ensure no future bookings exist before suspending or deactivating.
+    Handles status transitions for instructor accounts. Pausing keeps existing
+    bookings active; permanent deactivation still requires no future bookings.
     """
 
     def __init__(
@@ -89,7 +89,6 @@ class AccountLifecycleService(BaseService):
 
         Raises:
             ValidationException: If user cannot change status
-            BusinessRuleException: If instructor has future bookings
         """
         self.log_operation("suspend_account", instructor_id=instructor.id)
 
@@ -99,13 +98,7 @@ class AccountLifecycleService(BaseService):
                 raise ValidationException("Students cannot change their account status")
             raise ValidationException("Invalid status transition to suspended")
 
-        # Check for future bookings
-        has_bookings, future_bookings = self.has_future_bookings(instructor)
-        if has_bookings:
-            raise BusinessRuleException(
-                f"Cannot suspend account: instructor has {len(future_bookings)} future bookings. "
-                "Please cancel all future bookings before suspending the account."
-            )
+        previous_status = instructor.account_status
 
         # Perform the suspension
         with self.transaction():
@@ -116,18 +109,12 @@ class AccountLifecycleService(BaseService):
             self.cache_service.delete_pattern(f"instructor:{instructor.id}:*")
             self.cache_service.delete_pattern(f"availability:instructor:{instructor.id}:*")
 
-        if not self.user_repository.invalidate_all_tokens(instructor.id, trigger="suspension"):
-            self.logger.warning(
-                "Failed to invalidate active tokens for suspended instructor %s",
-                instructor.id,
-            )
-
         self.logger.info("Instructor %s account suspended successfully", instructor.id)
 
         return {
             "success": True,
             "message": "Account suspended successfully",
-            "previous_status": "active",
+            "previous_status": previous_status,
             "new_status": "suspended",
         }
 
@@ -267,7 +254,7 @@ class AccountLifecycleService(BaseService):
             has_bookings, future_bookings = self.has_future_bookings(user)
             result["has_future_bookings"] = has_bookings
             result["future_bookings_count"] = len(future_bookings)
-            result["can_suspend"] = not has_bookings and user.is_account_active
+            result["can_suspend"] = user.is_account_active
             result["can_deactivate"] = not has_bookings
             result["can_reactivate"] = not user.is_account_active
 

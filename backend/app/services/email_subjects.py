@@ -35,3 +35,23 @@ class EmailSubject:
     @staticmethod
     def beta_invite() -> str:
         return f"You're invited to {BRAND_NAME} (Founding Instructor)"
+
+    @staticmethod
+    def account_paused() -> str:
+        return f"Your {BRAND_NAME} account is paused"
+
+    @staticmethod
+    def account_resumed() -> str:
+        return f"Your {BRAND_NAME} account is active again"
+
+    @staticmethod
+    def account_deleted() -> str:
+        return f"Your {BRAND_NAME} account has been deleted"
+
+    @staticmethod
+    def account_anonymized() -> str:
+        return f"Your {BRAND_NAME} account has been anonymized"
+
+    @staticmethod
+    def account_deactivated() -> str:
+        return f"Your {BRAND_NAME} account is deactivated"

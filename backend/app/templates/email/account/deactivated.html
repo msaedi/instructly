@@ -1,0 +1,13 @@
+<!-- backend/app/templates/email/account/deactivated.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Your account is deactivated{% endblock %}
+{% block preheader %}Your {{ brand_name }} instructor account is deactivated.{% endblock %}
+
+{% block content %}
+  <h2 style="color:#111827; margin:0 0 16px; font-size:20px;">Your account is deactivated</h2>
+  <p style="margin:0 0 16px;">Hi {{ user_name or 'there' }},</p>
+  <p style="margin:0 0 16px;">Your {{ brand_name }} instructor account is deactivated. You won't be able to log in or receive new bookings.</p>
+  <p style="margin:0 0 16px;">Unlike pausing, deactivation is not reversible from within the product. If you'd like to return, please contact support at <a href="mailto:{{ support_email }}" style="color:#7E22CE; text-decoration:none; font-weight:500;">{{ support_email }}</a>.</p>
+  <p style="margin:16px 0 0; color:#6B7280; font-size:14px;">Best,<br>The {{ brand_name }} team</p>
+{% endblock %}

@@ -128,6 +128,11 @@ export const useDeleteMyDataApiV1PrivacyDeleteMePost = <
  * Delete data for any user (admin only).
 
 For handling deletion requests on behalf of users.
+Note: Unlike self-service delete (/delete/me), this admin-initiated path
+does NOT send a confirmation email to the target user. Admin deletions
+are communicated out-of-band (support ticket, ban notification, etc.);
+an unsolicited "your account has been deleted" email would be surprising
+UX in abuse/moderation scenarios.
  * @summary Delete User Data Admin
  */
 export const getDeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostUrl = (userId: string) => {

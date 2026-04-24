@@ -3,42 +3,32 @@
 import { LoaderCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
 
-type PauseAccountModalProps = {
+type ResumeAccountModalProps = {
   onClose: () => void;
   onConfirm: () => void;
   isSubmitting?: boolean;
 };
 
-export default function PauseAccountModal({
+export default function ResumeAccountModal({
   onClose,
   onConfirm,
   isSubmitting = false,
-}: PauseAccountModalProps) {
+}: ResumeAccountModalProps) {
   return (
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Pause your account?"
-      description="Confirm account pause"
+      title="Resume your account?"
+      description="Confirm account resume"
       size="sm"
       autoHeight
       closeOnBackdrop={!isSubmitting}
       closeOnEscape={!isSubmitting}
     >
-      <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
-        <p>
-          While paused, you won&apos;t appear in search and can&apos;t receive new bookings. You can
-          resume anytime.
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900 dark:text-gray-100">
-            Your existing bookings are not affected.
-          </strong>{' '}
-          If you can&apos;t honor a booking on your calendar, please cancel it directly from your
-          bookings list.
-        </p>
-        <p>We&apos;ll email you a confirmation.</p>
-      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        You&apos;ll be visible in search and can receive new bookings again. We&apos;ll email you a
+        confirmation.
+      </p>
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button
           type="button"
@@ -55,7 +45,7 @@ export default function PauseAccountModal({
           className="insta-primary-btn inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-(--color-brand) px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#6b1fb8] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {isSubmitting ? 'Pausing...' : 'Pause account'}
+          {isSubmitting ? 'Resuming...' : 'Resume account'}
         </button>
       </div>
     </Modal>
