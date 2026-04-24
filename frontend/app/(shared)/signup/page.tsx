@@ -16,11 +16,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
-import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { ApiError, httpPost } from '@/lib/http';
 import { useBetaConfig } from '@/lib/beta-config';
 import { buildAuthHref } from '@/features/referrals/referralAuth';
+import { AuthShell } from '@/app/(shared)/_components/AuthShell';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
@@ -405,26 +405,16 @@ function SignUpForm() {
     !hasMounted || !(betaConfig.site === 'beta' && betaConfig.phase === 'instructor_only');
 
   return (
-    <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
-      {/* Mobile: no card chrome; Desktop: keep card with shadow */}
-      <div className="insta-surface-card py-4 md:py-8 px-0 sm:px-10 sm:shadow">
-        <div className="text-center mb-1 md:mb-2">
-          <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
-            <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">{BRAND.name}</h1>
-          </Link>
-        </div>
-        {isInstructorFlow && (
-          <div className="text-center mb-2 md:mb-3">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Join as an Instructor</h2>
-            <p className="text-gray-600 dark:text-gray-300 mt-0.5">Share your skills and earn on your schedule</p>
-          </div>
-        )}
-        {!isInstructorFlow && (
-          <div className="text-center mb-2 md:mb-3">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Start Learning Today</h2>
-            <p className="text-gray-600 dark:text-gray-300 mt-0.5">Discover instructors and book lessons instantly.</p>
-          </div>
-        )}
+    <AuthShell
+      title={isInstructorFlow ? 'Join as an Instructor' : 'Start Learning Today'}
+      subtitle={
+        isInstructorFlow
+          ? 'Share your skills and earn on your schedule'
+          : 'Discover instructors and book lessons instantly.'
+      }
+      onLogoClick={() => logger.info('Navigating to home from signup inside box')}
+      headerClassName="mb-2 md:mb-3"
+    >
         <form method="POST" className="space-y-5 md:space-y-6" onSubmit={handleSubmit} noValidate>
           {/* Screen reader live region for aggregated errors */}
           <div className="sr-only" role="status" aria-live="polite">
@@ -617,8 +607,7 @@ function SignUpForm() {
 
           {/* Login link for student flow moved under submit button above */}
         </form>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
 
@@ -630,13 +619,8 @@ function SignUpForm() {
  */
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-      {/* Mobile: full-width, no modal look; Desktop: centered card */}
-      <div className="w-full sm:max-w-md sm:mx-auto">
-        <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark) dark:border-purple-400" /></div>}>
-          <SignUpForm />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense fallback={<AuthShell><div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark) dark:border-purple-400" /></div></AuthShell>}>
+      <SignUpForm />
+    </Suspense>
   );
 }

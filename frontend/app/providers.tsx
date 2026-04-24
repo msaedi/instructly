@@ -9,8 +9,17 @@ import { useGuestSessionCleanup } from '@/hooks/useGuestSessionCleanup';
 import { ensureGuestOnce } from '@/lib/searchTracking';
 import { initializeSessionTracking, cleanupSessionTracking } from '@/lib/sessionTracking';
 import { queryClient } from '@/lib/react-query/queryClient';
+import { AlertTriangle, Check, Info, LoaderCircle, X } from 'lucide-react';
 import { Toaster } from 'sonner';
 // Reverted: Analytics now handled in layout or removed by user preference
+
+function ToastIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="inst-toast-icon-circle" aria-hidden="true">
+      {children}
+    </span>
+  );
+}
 
 function AppInitializer({ children }: { children: ReactNode }) {
   // Initialize guest session cleanup on app mount
@@ -40,6 +49,13 @@ export function Providers({ children }: { children: ReactNode }) {
         <Toaster
           expand={true}
           position="top-right"
+          icons={{
+            success: <ToastIcon><Check /></ToastIcon>,
+            error: <ToastIcon><X /></ToastIcon>,
+            warning: <ToastIcon><AlertTriangle /></ToastIcon>,
+            info: <ToastIcon><Info /></ToastIcon>,
+            loading: <ToastIcon><LoaderCircle className="animate-spin" /></ToastIcon>,
+          }}
           toastOptions={{
             style: {
               padding: '12px 16px',
@@ -55,8 +71,9 @@ export function Providers({ children }: { children: ReactNode }) {
               success: 'inst-toast-brand',
               info: 'inst-toast-brand',
               loading: 'inst-toast-brand',
-              error: 'inst-toast-error',
-              warning: 'inst-toast-warning',
+              error: 'inst-toast-brand',
+              warning: 'inst-toast-brand',
+              icon: 'inst-toast-icon',
               title: 'inst-toast-title',
               description: 'inst-toast-description',
             },

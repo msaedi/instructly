@@ -168,7 +168,7 @@ export function InstructorBookingDetailView(props: InstructorBookingDetailViewPr
                   <Link
                     href={`/lessons/${booking.id}`}
                     data-testid="join-lesson-button"
-                    className="inline-flex min-w-[116px] cursor-pointer items-center justify-center rounded-full bg-(--color-brand) px-4 py-2 text-sm font-medium text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] transition-opacity hover:opacity-95 focus-visible:outline-none "
+                    className="inline-flex min-w-[116px] cursor-pointer items-center justify-center rounded-full bg-(--color-brand) px-4 py-2 text-sm font-medium text-white shadow-[0_8px_18px_rgba(126,34,206,0.18)] transition-opacity hover:opacity-95 focus-visible:outline-none "
                   >
                     Join lesson
                   </Link>

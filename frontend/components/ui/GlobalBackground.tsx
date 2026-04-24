@@ -14,13 +14,21 @@ import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
  * and a readability overlay. Chooses an appropriate background based on route.
  *
  * - '/' → activity 'home'
- * - '/login' or '/signup' → auth 'default' (reuses activity 'home' fallback if desired)
+ * - auth routes → auth 'default' (reuses activity 'home' fallback if desired)
  * - other routes → no background (can be extended later)
  */
 type Props = {
   overrides?: Partial<typeof uiConfig.backgrounds>;
   activity?: string;
 };
+
+function isAuthBackgroundRoute(pathname: string | null): boolean {
+  return Boolean(
+    pathname?.startsWith('/login') ||
+    pathname?.startsWith('/signup') ||
+    pathname?.startsWith('/reset-password')
+  );
+}
 
 export default function GlobalBackground({ overrides, activity }: Props): React.ReactElement | null {
   const pathname = usePathname();
@@ -65,7 +73,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
       let resolvedUrl: string | null = null;
       let lowQualityUrl: string | null = null;
 
-      const isAuthOrHome = pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup');
+      const isAuthOrHome = pathname === '/' || pathname === '' || isAuthBackgroundRoute(pathname);
       const effectiveActivity = isAuthOrHome ? (activity || null) : (activity || ctxActivity || null);
       if (effectiveActivity) {
         // Determine if this activity has multiple variants to decide if timer should run
@@ -90,7 +98,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
         if (pathname === '/' || pathname === '') {
           // Skip background for home page - it has its own hero background
           resolvedUrl = null;
-        } else if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+        } else if (isAuthBackgroundRoute(pathname)) {
           resolvedUrl = getAuthBackground('default', viewport) || getActivityBackground('home', viewport);
         } else {
           resolvedUrl = getActivityBackground('home', viewport);
@@ -149,9 +157,9 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
     return () => window.clearInterval(id);
   }, [canAutoRotate, ctxOverrides, overrides]);
 
-  // Clear activity when entering home/login/signup routes so background resets immediately
+  // Clear activity when entering home/auth routes so background resets immediately
   React.useEffect(() => {
-    if (pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+    if (pathname === '/' || pathname === '' || isAuthBackgroundRoute(pathname)) {
       setCtxActivity(null);
     }
   }, [pathname, setCtxActivity]);
@@ -161,6 +169,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
   const isMobileNoBgRoute = isMobile && (
     pathname?.startsWith('/signup') ||
     pathname?.startsWith('/login') ||
+    pathname?.startsWith('/reset-password') ||
     pathname?.startsWith('/instructor/profile') ||
     pathname?.startsWith('/instructor/onboarding/account-setup') ||
     pathname?.startsWith('/instructor/onboarding/skill-selection') ||

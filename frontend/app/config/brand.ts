@@ -73,11 +73,9 @@ export interface BrandSeo {
  */
 export interface BrandColors {
   primary: string;
-  primaryDark: string;
-  secondary: string;
-  success: string;
-  warning: string;
-  error: string;
+  lavender: string;
+  yellow: string;
+  green: string;
 }
 
 /**
@@ -156,12 +154,10 @@ export const BRAND: BrandConfig = {
 
   // Brand colors (for future use in email templates, PDFs, etc.)
   colors: {
-    primary: '#4f46e5', // Indigo 600
-    primaryDark: '#4338ca', // Indigo 700
-    secondary: '#06b6d4', // Cyan 500
-    success: '#10b981', // Emerald 500
-    warning: '#f59e0b', // Amber 500
-    error: '#ef4444', // Red 500
+    primary: '#7E22CE',
+    lavender: '#F3E8FF',
+    yellow: '#FFD93D',
+    green: '#059669',
   },
 
   // Feature flags (for gradual rollout)

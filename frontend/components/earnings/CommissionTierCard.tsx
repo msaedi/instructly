@@ -115,7 +115,7 @@ function LadderCircle({
     return (
       <div
         aria-current="step"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-(--color-brand) bg-(--color-brand) text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)]"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-(--color-brand) bg-(--color-brand) text-white shadow-[0_8px_18px_rgba(126,34,206,0.18)]"
         data-tier-state="active"
         data-testid={testId}
       >

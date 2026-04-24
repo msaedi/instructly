@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 const mockToaster = jest.fn();
 const mockUseGuestSessionCleanup = jest.fn();
@@ -59,6 +59,7 @@ describe('Providers', () => {
         style: Record<string, string | undefined>;
         classNames: Record<string, string>;
       };
+      icons: Record<string, ReactElement>;
     };
 
     expect(toasterProps.expand).toBe(true);
@@ -76,11 +77,30 @@ describe('Providers', () => {
       success: 'inst-toast-brand',
       info: 'inst-toast-brand',
       loading: 'inst-toast-brand',
-      error: 'inst-toast-error',
-      warning: 'inst-toast-warning',
+      error: 'inst-toast-brand',
+      warning: 'inst-toast-brand',
+      icon: 'inst-toast-icon',
       title: 'inst-toast-title',
       description: 'inst-toast-description',
     });
+    expect(Object.keys(toasterProps.icons).sort()).toEqual([
+      'error',
+      'info',
+      'loading',
+      'success',
+      'warning',
+    ]);
+
+    const { container: iconsContainer } = render(
+      <>
+        {toasterProps.icons['success']}
+        {toasterProps.icons['error']}
+        {toasterProps.icons['warning']}
+        {toasterProps.icons['info']}
+        {toasterProps.icons['loading']}
+      </>
+    );
+    expect(iconsContainer.querySelectorAll('.inst-toast-icon-circle')).toHaveLength(5);
 
     unmount();
 
