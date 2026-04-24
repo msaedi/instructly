@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "//pinned-next": "Previously pinned to 16.1.7 due to @vercel/next adapter incompatibility with 16.2.x (commit 7b21985e3). Bumped to 16.2.4 for the Server Components DoS fix (GHSA-q4gf-8mx6-v5v3). Adapter is now at @next-community/adapter-vercel beta and under active weekly patching. Verified via Vercel preview deploy on branch chore/deps-audit-fixes.",
+  "//pinned-next": "Pinned to 16.1.7 due to @vercel/next adapter incompatibility with 16.2.x. Vercel CLI 51.6.1 in CI expects routes-manifest-deterministic.json at .next/ after build; the new 16.2.x Adapter API pipeline writes output to /vercel/output/ instead, causing ENOENT during post-build. Attempted 16.2.4 for GHSA-q4gf-8mx6-v5v3 DoS fix; deploy failed. Track the DoS CVE as a known accepted issue until (a) Vercel CLI is updated in CI to a version that knows about the new output shape, or (b) the nextjs/adapter-vercel package ships a release that emits the legacy file. Revisit weekly.",
   "types": "types/index.d.ts",
   "engines": {
     "node": ">=22",
@@ -100,7 +100,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.8.0",
     "motion": "^12.34.4",
-    "next": "16.2.4",
+    "next": "16.1.7",
     "next-axiom": "^1.10.0",
     "react": "^19.1.1",
     "react-dom": "^19.2.4",
@@ -133,7 +133,7 @@
     "cross-env": "^10.0.0",
     "dependency-cruiser": "^17.3.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.1.7",
     "eslint-plugin-no-only-tests": "^3.3.0",
     "eslint-plugin-react-refresh": "^0.5.2",
     "husky": "^9.1.7",
@@ -194,6 +194,7 @@
     "!types/generated/**": []
   },
   "//audit-exceptions": "GHSA-w5hq-g745-h8pq (uuid <14, buffer bounds in v3/v5/v6) accepted. All call sites use uuid.v4() only; the v3/v5/v6 buf path is unreachable. Cannot override to uuid@14 because it is ESM-only and Vercel serverless disables require(esm), breaking the @100mslive/hms-video-store CJS bundle. Revisit when 100ms ships a uuid@14-compatible release.",
+  "//audit-exceptions-next": "GHSA-q4gf-8mx6-v5v3 (Next.js Server Components DoS in 16.0.x-16.2.2) accepted temporarily. 16.2.x breaks Vercel deploy via @vercel/next adapter output mismatch. Revisit weekly; we have no production users currently so the DoS risk window is bounded.",
   "overrides": {
     "picomatch": "4.0.4",
     "serialize-javascript": "7.0.3",
