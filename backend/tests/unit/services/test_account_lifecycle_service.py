@@ -178,22 +178,19 @@ class TestAccountLifecycleServiceUnit:
         assert result["new_status"] == "suspended"
 
         service.user_repository.update.assert_called_once_with(mock_instructor.id, account_status="suspended")
-        service.user_repository.invalidate_all_tokens.assert_called_once_with(
-            mock_instructor.id,
-            trigger="suspension",
-        )
+        service.user_repository.invalidate_all_tokens.assert_not_called()
         service.cache_service.delete_pattern.assert_any_call(f"instructor:{mock_instructor.id}:*")
         service.cache_service.delete_pattern.assert_any_call(f"availability:instructor:{mock_instructor.id}:*")
 
     def test_suspend_account_with_future_bookings(self, service, mock_instructor, mock_future_booking):
-        """Test suspension fails with future bookings."""
+        """Test suspension keeps existing future bookings active."""
         service.booking_repository.get_instructor_future_bookings.return_value = [mock_future_booking]
 
-        with pytest.raises(BusinessRuleException) as exc_info:
-            service.suspend_instructor_account(mock_instructor)
+        result = service.suspend_instructor_account(mock_instructor)
 
-        assert "Cannot suspend account: instructor has 1 future bookings" in str(exc_info.value)
-        service.user_repository.update.assert_not_called()
+        assert result["success"] is True
+        assert result["new_status"] == "suspended"
+        service.user_repository.update.assert_called_once_with(mock_instructor.id, account_status="suspended")
 
     def test_suspend_account_student_error(self, service, mock_student):
         """Test that students cannot suspend their account."""
@@ -372,7 +369,7 @@ class TestAccountLifecycleServiceUnit:
 
         assert result["has_future_bookings"] is True
         assert result["future_bookings_count"] == 1
-        assert result["can_suspend"] is False
+        assert result["can_suspend"] is True
         assert result["can_deactivate"] is False
 
     def test_get_account_status_student(self, service, mock_student):

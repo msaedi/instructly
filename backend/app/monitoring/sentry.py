@@ -238,6 +238,18 @@ def is_sentry_configured() -> bool:
     return sentry_sdk.Hub.current.client is not None
 
 
+def capture_sentry_exception(event: str, exc: Exception, **extras: object) -> None:
+    """Capture an exception with route-specific event tagging and extras."""
+    if sentry_sdk is None:
+        return
+
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("event", event)
+        for key, value in extras.items():
+            scope.set_extra(key, value)
+        sentry_sdk.capture_exception(exc)
+
+
 class SentryContextMiddleware:
     """Attach request/user context to Sentry scope for errors."""
 

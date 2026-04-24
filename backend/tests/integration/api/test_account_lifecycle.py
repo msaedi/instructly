@@ -105,6 +105,7 @@ class TestAccountLifecycleEndpoints:
         response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
+        assert response.headers["X-RateLimit-Policy"] == "write"
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "Account suspended successfully"
@@ -114,16 +115,16 @@ class TestAccountLifecycleEndpoints:
     def test_suspend_account_with_future_bookings(
         self, client: TestClient, instructor_with_future_booking: User, auth_headers_instructor: dict
     ):
-        """Test suspension fails with future bookings."""
+        """Test suspension leaves future bookings active."""
         response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
 
-        assert response.status_code == status.HTTP_409_CONFLICT
-        assert "future bookings" in response.json()["detail"].lower()
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["new_status"] == "suspended"
 
-    def test_suspend_account_invalidates_existing_token(
+    def test_suspend_account_keeps_existing_token(
         self, client: TestClient, instructor_with_no_bookings: User
     ):
-        """Suspension should invalidate the in-flight token via tokens_valid_after."""
+        """Self-pause should keep the in-flight token usable."""
         token = _create_backdated_token(instructor_with_no_bookings)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -131,8 +132,7 @@ class TestAccountLifecycleEndpoints:
         assert response.status_code == status.HTTP_200_OK
 
         me_response = client.get("/api/v1/auth/me", headers=headers)
-        assert me_response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert me_response.json().get("detail") == "Token has been invalidated"
+        assert me_response.status_code == status.HTTP_200_OK
 
     def test_suspend_account_unauthorized(self, client: TestClient, test_instructor: User):
         """Test suspension without authentication."""
@@ -165,7 +165,7 @@ class TestAccountLifecycleEndpoints:
     def test_suspend_account_already_suspended(
         self, client: TestClient, instructor_with_no_bookings: User, auth_headers_instructor: dict, db: Session
     ):
-        """Test suspending an already suspended account."""
+        """Test idempotent suspend preserves prior status in the response."""
         # First suspend the account
         response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
@@ -176,7 +176,7 @@ class TestAccountLifecycleEndpoints:
         # Should still succeed with same status
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["previous_status"] == "active"  # Service returns original status
+        assert data["previous_status"] == "suspended"
         assert data["new_status"] == "suspended"
 
     # Test deactivate endpoint
@@ -188,6 +188,7 @@ class TestAccountLifecycleEndpoints:
         response = client.post("/api/v1/account/deactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
+        assert response.headers["X-RateLimit-Policy"] == "write"
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "Account deactivated successfully"
@@ -251,6 +252,7 @@ class TestAccountLifecycleEndpoints:
         response = client.post("/api/v1/account/reactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
+        assert response.headers["X-RateLimit-Policy"] == "write"
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "Account reactivated successfully"
@@ -333,7 +335,7 @@ class TestAccountLifecycleEndpoints:
         data = response.json()
         assert data["has_future_bookings"] is True
         assert data["future_bookings_count"] == 1
-        assert data["can_suspend"] is False
+        assert data["can_suspend"] is True
         assert data["can_deactivate"] is False
 
     def test_can_change_status_suspended_instructor(

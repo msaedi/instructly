@@ -27,12 +27,14 @@ from ...api.dependencies.database import get_db
 from ...api.dependencies.services import (
     get_account_lifecycle_service,
     get_cache_service_dep,
+    get_notification_service,
     get_sms_service,
 )
 from ...auth import decode_access_token
 from ...core.auth_cache import invalidate_cached_user_by_id_sync
 from ...core.exceptions import BusinessRuleException, ValidationException
 from ...models.user import User
+from ...monitoring.sentry import capture_sentry_exception
 from ...ratelimit.dependency import rate_limit
 from ...repositories import RepositoryFactory
 from ...schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
@@ -46,6 +48,7 @@ from ...schemas.security import SessionInvalidationResponse
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.audit_service import AuditService
 from ...services.cache_service import CacheService
+from ...services.notification_service import NotificationService
 from ...services.sms_service import SMSService, SMSStatus
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
@@ -96,18 +99,23 @@ def _parse_epoch(value: object) -> int | None:
     return None
 
 
-@router.post("/suspend", response_model=AccountStatusChangeResponse)
+@router.post(
+    "/suspend",
+    response_model=AccountStatusChangeResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
 async def suspend_account(
     request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> AccountStatusChangeResponse:
     """
     Suspend the current user's instructor account.
 
     Requirements:
     - User must be an instructor
-    - Cannot have any future bookings
+    - Existing bookings remain active
     - Suspended instructors can still login but cannot receive new bookings
     """
     if not current_user.is_instructor:
@@ -117,7 +125,7 @@ async def suspend_account(
         )
 
     try:
-        previous_status = getattr(current_user, "account_status", None)
+        previous_status = current_user.account_status
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.suspend_instructor_account, current_user
         )
@@ -133,26 +141,46 @@ async def suspend_account(
                 description="Instructor account suspended",
                 request=request,
             )
-        except Exception:
+        except Exception as audit_error:
             logger.warning("Audit log write failed for instructor suspend", exc_info=True)
+            capture_sentry_exception(
+                "account_pause_audit_failed",
+                audit_error,
+                user_id=current_user.id,
+            )
+        try:
+            email_sent = await asyncio.to_thread(
+                notification_service.send_account_paused_confirmation,
+                current_user.id,
+            )
+            if not email_sent:
+                raise RuntimeError("send_account_paused_confirmation returned False")
+        except Exception as email_error:
+            logger.warning(
+                "Failed to send account pause confirmation: %s",
+                email_error,
+                exc_info=True,
+            )
+            capture_sentry_exception(
+                "account_pause_confirmation_email_failed",
+                email_error,
+                user_id=current_user.id,
+            )
         return AccountStatusChangeResponse(**result)
-    except BusinessRuleException as e:
-        # Extract future bookings info if available
-        has_bookings, _future_bookings = await asyncio.to_thread(
-            account_service.has_future_bookings, current_user
-        )
-        if has_bookings:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/deactivate", response_model=AccountStatusChangeResponse)
+@router.post(
+    "/deactivate",
+    response_model=AccountStatusChangeResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
 async def deactivate_account(
     request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> AccountStatusChangeResponse:
     """
     Permanently deactivate the current user's instructor account.
@@ -169,7 +197,7 @@ async def deactivate_account(
         )
 
     try:
-        previous_status = getattr(current_user, "account_status", None)
+        previous_status = current_user.account_status
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.deactivate_instructor_account, current_user
         )
@@ -185,8 +213,31 @@ async def deactivate_account(
                 description="Instructor account deactivated",
                 request=request,
             )
-        except Exception:
+        except Exception as audit_error:
             logger.warning("Audit log write failed for instructor deactivate", exc_info=True)
+            capture_sentry_exception(
+                "account_deactivate_audit_failed",
+                audit_error,
+                user_id=current_user.id,
+            )
+        try:
+            email_sent = await asyncio.to_thread(
+                notification_service.send_account_deactivated_confirmation,
+                current_user.id,
+            )
+            if not email_sent:
+                raise RuntimeError("send_account_deactivated_confirmation returned False")
+        except Exception as email_error:
+            logger.warning(
+                "Failed to send account deactivate confirmation: %s",
+                email_error,
+                exc_info=True,
+            )
+            capture_sentry_exception(
+                "account_deactivate_confirmation_email_failed",
+                email_error,
+                user_id=current_user.id,
+            )
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
@@ -200,11 +251,16 @@ async def deactivate_account(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/reactivate", response_model=AccountStatusChangeResponse)
+@router.post(
+    "/reactivate",
+    response_model=AccountStatusChangeResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
 async def reactivate_account(
     request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> AccountStatusChangeResponse:
     """
     Reactivate a suspended instructor account.
@@ -221,7 +277,7 @@ async def reactivate_account(
         )
 
     try:
-        previous_status = getattr(current_user, "account_status", None)
+        previous_status = current_user.account_status
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.reactivate_instructor_account, current_user
         )
@@ -237,8 +293,31 @@ async def reactivate_account(
                 description="Instructor account reactivated",
                 request=request,
             )
-        except Exception:
+        except Exception as audit_error:
             logger.warning("Audit log write failed for instructor reactivate", exc_info=True)
+            capture_sentry_exception(
+                "account_resume_audit_failed",
+                audit_error,
+                user_id=current_user.id,
+            )
+        try:
+            email_sent = await asyncio.to_thread(
+                notification_service.send_account_resumed_confirmation,
+                current_user.id,
+            )
+            if not email_sent:
+                raise RuntimeError("send_account_resumed_confirmation returned False")
+        except Exception as email_error:
+            logger.warning(
+                "Failed to send account resume confirmation: %s",
+                email_error,
+                exc_info=True,
+            )
+            capture_sentry_exception(
+                "account_resume_confirmation_email_failed",
+                email_error,
+                user_id=current_user.id,
+            )
         return AccountStatusChangeResponse(**result)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -1,0 +1,14 @@
+<!-- backend/app/templates/email/account/deleted.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Your account has been deleted{% endblock %}
+{% block preheader %}Your {{ brand_name }} instructor account has been deleted.{% endblock %}
+
+{% block content %}
+  <h2 style="color:#111827; margin:0 0 16px; font-size:20px;">Your account has been deleted</h2>
+  <p style="margin:0 0 16px;">Hi {{ user_name or 'there' }},</p>
+  <p style="margin:0 0 16px;">Your {{ brand_name }} instructor account has been deleted. You'll no longer be able to log in.</p>
+  <p style="margin:0 0 16px;">For financial and legal purposes, we've retained records of your completed bookings and reviews. All personal information has been erased.</p>
+  <p style="margin:0 0 16px;">If this wasn't you, please contact us immediately at <a href="mailto:{{ support_email }}" style="color:#7E22CE; text-decoration:none; font-weight:500;">{{ support_email }}</a>.</p>
+  <p style="margin:16px 0 0; color:#6B7280; font-size:14px;">Best,<br>The {{ brand_name }} team</p>
+{% endblock %}

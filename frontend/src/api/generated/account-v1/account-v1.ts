@@ -866,7 +866,7 @@ export function useCheckAccountStatusApiV1AccountStatusGet<
 
 Requirements:
 - User must be an instructor
-- Cannot have any future bookings
+- Existing bookings remain active
 - Suspended instructors can still login but cannot receive new bookings
  * @summary Suspend Account
  */

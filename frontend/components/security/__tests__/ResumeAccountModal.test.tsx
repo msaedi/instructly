@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import PauseAccountModal from '../PauseAccountModal';
+import ResumeAccountModal from '../ResumeAccountModal';
 
 const renderModal = (props?: {
   onClose?: jest.Mock;
@@ -10,7 +10,7 @@ const renderModal = (props?: {
   const onClose = props?.onClose ?? jest.fn();
   const onConfirm = props?.onConfirm ?? jest.fn();
   render(
-    <PauseAccountModal
+    <ResumeAccountModal
       onClose={onClose}
       onConfirm={onConfirm}
       {...(props?.isSubmitting !== undefined ? { isSubmitting: props.isSubmitting } : {})}
@@ -19,13 +19,12 @@ const renderModal = (props?: {
   return { onClose, onConfirm };
 };
 
-describe('PauseAccountModal', () => {
-  it('renders the required pause confirmation copy', () => {
+describe('ResumeAccountModal', () => {
+  it('renders the required resume confirmation copy', () => {
     renderModal();
 
-    expect(screen.getByRole('dialog', { name: 'Pause your account?' })).toBeInTheDocument();
-    expect(screen.getByText(/won't appear in search/i)).toBeInTheDocument();
-    expect(screen.getByText(/Your existing bookings are not affected/i)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Resume your account?' })).toBeInTheDocument();
+    expect(screen.getByText(/visible in search/i)).toBeInTheDocument();
     expect(screen.getByText(/We'll email you a confirmation/i)).toBeInTheDocument();
   });
 
@@ -36,7 +35,7 @@ describe('PauseAccountModal', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole('button', { name: 'Pause account' }));
+    await user.click(screen.getByRole('button', { name: 'Resume account' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -44,6 +43,6 @@ describe('PauseAccountModal', () => {
     renderModal({ isSubmitting: true });
 
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Pausing...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Resuming...' })).toBeDisabled();
   });
 });

@@ -99,6 +99,57 @@ class DummyAccountService:
         return {"account_status": "active", "can_login": True, "can_receive_bookings": True}
 
 
+class DummyNotificationService:
+    def __init__(self):
+        self.paused: list[str] = []
+        self.resumed: list[str] = []
+        self.deactivated: list[str] = []
+
+    def send_account_paused_confirmation(self, user_id):
+        self.paused.append(user_id)
+        return True
+
+    def send_account_resumed_confirmation(self, user_id):
+        self.resumed.append(user_id)
+        return True
+
+    def send_account_deactivated_confirmation(self, user_id):
+        self.deactivated.append(user_id)
+        return True
+
+
+class FalseReturningNotificationService(DummyNotificationService):
+    def send_account_paused_confirmation(self, user_id):
+        self.paused.append(user_id)
+        return False
+
+    def send_account_resumed_confirmation(self, user_id):
+        self.resumed.append(user_id)
+        return False
+
+    def send_account_deactivated_confirmation(self, user_id):
+        self.deactivated.append(user_id)
+        return False
+
+
+class RaisingNotificationService(DummyNotificationService):
+    def __init__(self, exc: Exception):
+        super().__init__()
+        self.exc = exc
+
+    def send_account_paused_confirmation(self, user_id):
+        self.paused.append(user_id)
+        raise self.exc
+
+    def send_account_resumed_confirmation(self, user_id):
+        self.resumed.append(user_id)
+        raise self.exc
+
+    def send_account_deactivated_confirmation(self, user_id):
+        self.deactivated.append(user_id)
+        raise self.exc
+
+
 def _dummy_request():
     return SimpleNamespace(headers={}, client=None)
 
@@ -141,13 +192,16 @@ async def test_suspend_account_for_student_forbidden(db, test_student):
 @pytest.mark.asyncio
 async def test_suspend_and_reactivate_account(db, test_instructor_with_availability):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    notifications = DummyNotificationService()
 
     suspend = await account_routes.suspend_account(
         request=_dummy_request(),
         current_user=test_instructor_with_availability,
         account_service=service,
+        notification_service=notifications,
     )
     assert suspend.success is True
+    assert notifications.paused == [test_instructor_with_availability.id]
 
     test_instructor_with_availability.account_status = "suspended"
     db.commit()
@@ -156,33 +210,21 @@ async def test_suspend_and_reactivate_account(db, test_instructor_with_availabil
         request=_dummy_request(),
         current_user=test_instructor_with_availability,
         account_service=service,
+        notification_service=notifications,
     )
     assert reactivated.success is True
+    assert notifications.resumed == [test_instructor_with_availability.id]
 
 
 @pytest.mark.asyncio
-async def test_suspend_and_deactivate_business_rule_exceptions(test_instructor_with_availability):
-    service = DummyAccountService(has_future=True, exception=BusinessRuleException("blocked"))
-    with pytest.raises(HTTPException) as exc:
-        await account_routes.suspend_account(
-            request=_dummy_request(),
-            current_user=test_instructor_with_availability, account_service=service
-        )
-    assert exc.value.status_code == 409
-
-    service = DummyAccountService(has_future=False, exception=BusinessRuleException("blocked"))
-    with pytest.raises(HTTPException) as exc:
-        await account_routes.suspend_account(
-            request=_dummy_request(),
-            current_user=test_instructor_with_availability, account_service=service
-        )
-    assert exc.value.status_code == 400
-
+async def test_deactivate_business_rule_exception(test_instructor_with_availability):
     service = DummyAccountService(has_future=True, exception=BusinessRuleException("blocked"))
     with pytest.raises(HTTPException) as exc:
         await account_routes.deactivate_account(
             request=_dummy_request(),
-            current_user=test_instructor_with_availability, account_service=service
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=DummyNotificationService(),
         )
     assert exc.value.status_code == 409
 
@@ -193,7 +235,9 @@ async def test_reactivate_validation_error(test_instructor_with_availability):
     with pytest.raises(HTTPException) as exc:
         await account_routes.reactivate_account(
             request=_dummy_request(),
-            current_user=test_instructor_with_availability, account_service=service
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=DummyNotificationService(),
         )
     assert exc.value.status_code == 400
 
@@ -201,55 +245,281 @@ async def test_reactivate_validation_error(test_instructor_with_availability):
 @pytest.mark.asyncio
 async def test_suspend_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    audit_error = RuntimeError("audit failed")
+    captured: list[tuple[str, Exception, dict[str, object]]] = []
 
     def _boom(*_args, **_kwargs):
-        raise RuntimeError("audit failed")
+        raise audit_error
 
     monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+    monkeypatch.setattr(
+        account_routes,
+        "capture_sentry_exception",
+        lambda event, exc, **extras: captured.append((event, exc, extras)),
+    )
 
     response = await account_routes.suspend_account(
         request=_dummy_request(),
         current_user=test_instructor_with_availability,
         account_service=service,
+        notification_service=DummyNotificationService(),
     )
     assert response.success is True
+    assert captured == [
+        (
+            "account_pause_audit_failed",
+            audit_error,
+            {"user_id": test_instructor_with_availability.id},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_suspend_false_notification_return_is_logged(
+    db,
+    test_instructor_with_availability,
+    caplog,
+):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    notifications = FalseReturningNotificationService()
+
+    with caplog.at_level("WARNING", logger="app.routes.v1.account"):
+        response = await account_routes.suspend_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=notifications,
+        )
+
+    assert response.success is True
+    assert notifications.paused == [test_instructor_with_availability.id]
+    assert "send_account_paused_confirmation returned False" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_suspend_route_notification_exception_is_observable(
+    db,
+    test_instructor_with_availability,
+    caplog,
+    monkeypatch,
+):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    email_error = RuntimeError("pause email failed")
+    notifications = RaisingNotificationService(email_error)
+    captured: list[tuple[str, Exception, dict[str, object]]] = []
+    monkeypatch.setattr(
+        account_routes,
+        "capture_sentry_exception",
+        lambda event, exc, **extras: captured.append((event, exc, extras)),
+    )
+
+    with caplog.at_level("WARNING", logger="app.routes.v1.account"):
+        response = await account_routes.suspend_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=notifications,
+        )
+
+    assert response.success is True
+    assert notifications.paused == [test_instructor_with_availability.id]
+    assert "pause email failed" in caplog.text
+    assert captured == [
+        (
+            "account_pause_confirmation_email_failed",
+            email_error,
+            {"user_id": test_instructor_with_availability.id},
+        )
+    ]
 
 
 @pytest.mark.asyncio
 async def test_deactivate_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    audit_error = RuntimeError("audit failed")
+    captured: list[tuple[str, Exception, dict[str, object]]] = []
 
     def _boom(*_args, **_kwargs):
-        raise RuntimeError("audit failed")
+        raise audit_error
 
     monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+    monkeypatch.setattr(
+        account_routes,
+        "capture_sentry_exception",
+        lambda event, exc, **extras: captured.append((event, exc, extras)),
+    )
 
     response = await account_routes.deactivate_account(
         request=_dummy_request(),
         current_user=test_instructor_with_availability,
         account_service=service,
+        notification_service=DummyNotificationService(),
     )
     assert response.success is True
+    assert captured == [
+        (
+            "account_deactivate_audit_failed",
+            audit_error,
+            {"user_id": test_instructor_with_availability.id},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_deactivate_sends_confirmation(db, test_instructor_with_availability):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    notifications = DummyNotificationService()
+
+    response = await account_routes.deactivate_account(
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
+        notification_service=notifications,
+    )
+
+    assert response.success is True
+    assert notifications.deactivated == [test_instructor_with_availability.id]
+
+
+@pytest.mark.asyncio
+async def test_deactivate_invalidates_tokens_before_email(
+    db,
+    test_instructor_with_availability,
+    monkeypatch,
+):
+    order: list[str] = []
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    notifications = DummyNotificationService()
+    original_update = service.user_repository.update
+    original_invalidate = service.user_repository.invalidate_all_tokens
+    original_email = notifications.send_account_deactivated_confirmation
+
+    def update_with_order(*args, **kwargs):
+        result = original_update(*args, **kwargs)
+        if kwargs.get("account_status") == "deactivated":
+            order.append("deactivate")
+        return result
+
+    def invalidate_with_order(*args, **kwargs):
+        result = original_invalidate(*args, **kwargs)
+        order.append("invalidate")
+        return result
+
+    def email_with_order(user_id):
+        order.append("email")
+        return original_email(user_id)
+
+    monkeypatch.setattr(service.user_repository, "update", update_with_order)
+    monkeypatch.setattr(service.user_repository, "invalidate_all_tokens", invalidate_with_order)
+    monkeypatch.setattr(notifications, "send_account_deactivated_confirmation", email_with_order)
+
+    response = await account_routes.deactivate_account(
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
+        notification_service=notifications,
+    )
+
+    assert response.success is True
+    assert order == ["deactivate", "invalidate", "email"]
 
 
 @pytest.mark.asyncio
 async def test_reactivate_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    audit_error = RuntimeError("audit failed")
+    captured: list[tuple[str, Exception, dict[str, object]]] = []
 
     test_instructor_with_availability.account_status = "suspended"
     db.commit()
 
     def _boom(*_args, **_kwargs):
-        raise RuntimeError("audit failed")
+        raise audit_error
 
     monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+    monkeypatch.setattr(
+        account_routes,
+        "capture_sentry_exception",
+        lambda event, exc, **extras: captured.append((event, exc, extras)),
+    )
 
     response = await account_routes.reactivate_account(
         request=_dummy_request(),
         current_user=test_instructor_with_availability,
         account_service=service,
+        notification_service=DummyNotificationService(),
     )
     assert response.success is True
+    assert captured == [
+        (
+            "account_resume_audit_failed",
+            audit_error,
+            {"user_id": test_instructor_with_availability.id},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reactivate_false_notification_return_is_logged(
+    db,
+    test_instructor_with_availability,
+    caplog,
+):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    notifications = FalseReturningNotificationService()
+    test_instructor_with_availability.account_status = "suspended"
+    db.commit()
+
+    with caplog.at_level("WARNING", logger="app.routes.v1.account"):
+        response = await account_routes.reactivate_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=notifications,
+        )
+
+    assert response.success is True
+    assert notifications.resumed == [test_instructor_with_availability.id]
+    assert "send_account_resumed_confirmation returned False" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_reactivate_route_notification_exception_is_observable(
+    db,
+    test_instructor_with_availability,
+    caplog,
+    monkeypatch,
+):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    email_error = RuntimeError("resume email failed")
+    notifications = RaisingNotificationService(email_error)
+    captured: list[tuple[str, Exception, dict[str, object]]] = []
+    monkeypatch.setattr(
+        account_routes,
+        "capture_sentry_exception",
+        lambda event, exc, **extras: captured.append((event, exc, extras)),
+    )
+    test_instructor_with_availability.account_status = "suspended"
+    db.commit()
+
+    with caplog.at_level("WARNING", logger="app.routes.v1.account"):
+        response = await account_routes.reactivate_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+            notification_service=notifications,
+        )
+
+    assert response.success is True
+    assert notifications.resumed == [test_instructor_with_availability.id]
+    assert "resume email failed" in caplog.text
+    assert captured == [
+        (
+            "account_resume_confirmation_email_failed",
+            email_error,
+            {"user_id": test_instructor_with_availability.id},
+        )
+    ]
 
 
 @pytest.mark.asyncio

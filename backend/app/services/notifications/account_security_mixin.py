@@ -4,7 +4,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Sequence
 
-from ...core.constants import BRAND_NAME
+from ...core.constants import BRAND_NAME, SUPPORT_EMAIL
 from ...models.user import User
 from ..base import BaseService
 from ..email_subjects import EmailSubject
@@ -216,6 +216,159 @@ class NotificationAccountSecurityMixin(NotificationMixinBase):
                 self._run_async_task(_send_sms, f"sending 2FA change SMS to {user_id}")
 
         return True
+
+    @BaseService.measure_operation("send_account_paused_confirmation")
+    def send_account_paused_confirmation(self, user_id: str) -> bool:
+        """Send self-pause confirmation email. Transactional and always-on."""
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("Account pause confirmation skipped: user not found (%s)", user_id)
+            return False
+
+        context = {"user_name": user.first_name or user.email}
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.ACCOUNT_PAUSED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=EmailSubject.account_paused(),
+                html_content=html_content,
+                template=TemplateRegistry.ACCOUNT_PAUSED,
+            )
+            self.logger.info("Account pause confirmation sent to %s", user.email)
+            return True
+        except Exception as exc:
+            self.logger.error(
+                "Failed to send account pause confirmation to %s: %s", user.email, exc
+            )
+            return False
+
+    @BaseService.measure_operation("send_account_resumed_confirmation")
+    def send_account_resumed_confirmation(self, user_id: str) -> bool:
+        """Send self-resume confirmation email. Transactional and always-on."""
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("Account resume confirmation skipped: user not found (%s)", user_id)
+            return False
+
+        context = {"user_name": user.first_name or user.email}
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.ACCOUNT_RESUMED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=EmailSubject.account_resumed(),
+                html_content=html_content,
+                template=TemplateRegistry.ACCOUNT_RESUMED,
+            )
+            self.logger.info("Account resume confirmation sent to %s", user.email)
+            return True
+        except Exception as exc:
+            self.logger.error(
+                "Failed to send account resume confirmation to %s: %s", user.email, exc
+            )
+            return False
+
+    @BaseService.measure_operation("send_account_deleted_confirmation")
+    def send_account_deleted_confirmation(self, to_email: str, first_name: str | None) -> bool:
+        """Send account deletion confirmation to captured pre-anonymization email."""
+        # Takes email/first_name directly because by-id lookup may return wiped PII.
+        email = to_email.strip()
+        if not email:
+            self.logger.warning("Account deletion confirmation skipped: missing recipient email")
+            return False
+
+        context = {
+            "user_name": (first_name or "").strip() or "there",
+            "support_email": SUPPORT_EMAIL,
+        }
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.ACCOUNT_DELETED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=email,
+                subject=EmailSubject.account_deleted(),
+                html_content=html_content,
+                template=TemplateRegistry.ACCOUNT_DELETED,
+            )
+            self.logger.info("Account deletion confirmation sent to %s", email)
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send account deletion confirmation to %s: %s", email, exc)
+            return False
+
+    @BaseService.measure_operation("send_account_anonymized_confirmation")
+    def send_account_anonymized_confirmation(self, to_email: str, first_name: str | None) -> bool:
+        """Send account anonymization confirmation to captured pre-anonymization email."""
+        # Takes email/first_name directly because by-id lookup may return wiped PII.
+        email = to_email.strip()
+        if not email:
+            self.logger.warning(
+                "Account anonymization confirmation skipped: missing recipient email"
+            )
+            return False
+
+        context = {
+            "user_name": (first_name or "").strip() or "there",
+            "support_email": SUPPORT_EMAIL,
+        }
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.ACCOUNT_ANONYMIZED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=email,
+                subject=EmailSubject.account_anonymized(),
+                html_content=html_content,
+                template=TemplateRegistry.ACCOUNT_ANONYMIZED,
+            )
+            self.logger.info("Account anonymization confirmation sent to %s", email)
+            return True
+        except Exception as exc:
+            self.logger.error(
+                "Failed to send account anonymization confirmation to %s: %s", email, exc
+            )
+            return False
+
+    @BaseService.measure_operation("send_account_deactivated_confirmation")
+    def send_account_deactivated_confirmation(self, user_id: str) -> bool:
+        """Send account deactivation confirmation email. Transactional and always-on."""
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning(
+                "Account deactivation confirmation skipped: user not found (%s)", user_id
+            )
+            return False
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "support_email": SUPPORT_EMAIL,
+        }
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.ACCOUNT_DEACTIVATED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=EmailSubject.account_deactivated(),
+                html_content=html_content,
+                template=TemplateRegistry.ACCOUNT_DEACTIVATED,
+            )
+            self.logger.info("Account deactivation confirmation sent to %s", user.email)
+            return True
+        except Exception as exc:
+            self.logger.error(
+                "Failed to send account deactivation confirmation to %s: %s", user.email, exc
+            )
+            return False
 
     @BaseService.measure_operation("send_badge_awarded_email")
     def send_badge_awarded_email(self, user: User, badge_name: str) -> bool:

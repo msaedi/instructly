@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
+import InstructorPausedAccountBanner from '@/components/security/InstructorPausedAccountBanner';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function InstructorAuthLayout({ children }: { children: React.ReactNode }) {
@@ -37,5 +38,10 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
   const isAdmin = roles.includes('admin');
   if (!isAuthenticated || isAdmin || !isInstructor) return null;
 
-  return <>{children}</>;
+  return (
+    <>
+      <InstructorPausedAccountBanner />
+      {children}
+    </>
+  );
 }

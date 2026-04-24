@@ -52394,5 +52394,1149 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-23",
     "branch": "main"
+  },
+  {
+    "timestamp": "2026-04-24T05:25:48.693582+00:00",
+    "total_lines": 814315,
+    "total_files": 3248,
+    "backend_lines": 463976,
+    "frontend_lines": 350339,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 60691
+        },
+        "Services": {
+          "files": 536,
+          "lines": 183900
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 43199
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143091
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35867
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1164,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-23",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T11:35:14.991743+00:00",
+    "total_lines": 814472,
+    "total_files": 3248,
+    "backend_lines": 464087,
+    "frontend_lines": 350385,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 60802
+        },
+        "Services": {
+          "files": 536,
+          "lines": 183900
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43226
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143110
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35867
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1164,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T12:10:53.870642+00:00",
+    "total_lines": 814929,
+    "total_files": 3248,
+    "backend_lines": 464541,
+    "frontend_lines": 350388,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61158
+        },
+        "Services": {
+          "files": 536,
+          "lines": 183998
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 43229
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143110
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35867
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1164,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T12:13:00.244994+00:00",
+    "total_lines": 814965,
+    "total_files": 3248,
+    "backend_lines": 464577,
+    "frontend_lines": 350388,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61188
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184004
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43229
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143110
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35867
+        },
+        "API/Lib": {
+          "files": 102,
+          "lines": 10953
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1164,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T13:43:07.450168+00:00",
+    "total_lines": 815175,
+    "total_files": 3251,
+    "backend_lines": 464719,
+    "frontend_lines": 350456,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61321
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184004
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43276
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143111
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35867
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10973
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T16:51:32.313326+00:00",
+    "total_lines": 815420,
+    "total_files": 3251,
+    "backend_lines": 464893,
+    "frontend_lines": 350527,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61495
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184004
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143145
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T17:00:35.733137+00:00",
+    "total_lines": 815428,
+    "total_files": 3251,
+    "backend_lines": 464893,
+    "frontend_lines": 350535,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61495
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184004
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28280
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143153
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T17:42:02.281079+00:00",
+    "total_lines": 815603,
+    "total_files": 3251,
+    "backend_lines": 465068,
+    "frontend_lines": 350535,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61665
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184006
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143153
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T18:17:36.371780+00:00",
+    "total_lines": 815608,
+    "total_files": 3251,
+    "backend_lines": 465073,
+    "frontend_lines": 350535,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61670
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184006
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143153
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T19:21:46.694977+00:00",
+    "total_lines": 815688,
+    "total_files": 3251,
+    "backend_lines": 465149,
+    "frontend_lines": 350539,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61746
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184006
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-24T20:31:50.969414+00:00",
+    "total_lines": 815705,
+    "total_files": 3251,
+    "backend_lines": 465166,
+    "frontend_lines": 350539,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61763
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184006
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 148,
+          "lines": 43308
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 35,
+          "lines": 5059
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1167,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/account-pause-delete-ux"
   }
 ]

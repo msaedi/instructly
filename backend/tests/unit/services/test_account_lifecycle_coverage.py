@@ -4,7 +4,7 @@ Unit tests for account_lifecycle_service.py — targeting missed lines:
 
 These cover:
   - No cache_service (lines 115, 172, 224): cache invalidation is skipped
-  - Token invalidation failure (lines 119-120, 176-177): logs warning
+  - Token invalidation failure for deactivation (lines 176-177): logs warning
   - Student status change attempts (line 155): deactivate raises for students
   - Reactivate with student (line 215): raises ValidationException
 """
@@ -69,25 +69,21 @@ class TestSuspendInstructorAccount:
         assert result["success"] is True
         assert result["new_status"] == "suspended"
 
-    def test_suspend_token_invalidation_failure(self, db, mock_instructor):
-        """Lines 119-120: invalidate_all_tokens returns False → logs warning."""
+    def test_suspend_does_not_invalidate_tokens(self, db, mock_instructor):
+        """Self-pause keeps the instructor session alive."""
         mock_cache = MagicMock()
         service = AccountLifecycleService(db, cache_service=mock_cache)
         service.booking_repository = MagicMock()
         service.booking_repository.get_instructor_future_bookings.return_value = []
         service.user_repository = MagicMock()
-        service.user_repository.invalidate_all_tokens.return_value = False
 
         with patch.object(service, "transaction") as mock_txn:
             mock_txn.return_value.__enter__ = MagicMock()
             mock_txn.return_value.__exit__ = MagicMock(return_value=False)
             result = service.suspend_instructor_account(mock_instructor)
 
-        # Should succeed despite token invalidation failure
         assert result["success"] is True
-        service.user_repository.invalidate_all_tokens.assert_called_once_with(
-            mock_instructor.id, trigger="suspension"
-        )
+        service.user_repository.invalidate_all_tokens.assert_not_called()
 
     def test_suspend_student_raises_validation(self, db, mock_student):
         """Line 99: students cannot change their account status."""

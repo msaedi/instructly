@@ -316,7 +316,7 @@ export type paths = {
          *
          *     Requirements:
          *     - User must be an instructor
-         *     - Cannot have any future bookings
+         *     - Existing bookings remain active
          *     - Suspended instructors can still login but cannot receive new bookings
          */
         post: operations["suspend_account_api_v1_account_suspend_post"];
@@ -6582,6 +6582,11 @@ export type paths = {
          * @description Delete data for any user (admin only).
          *
          *     For handling deletion requests on behalf of users.
+         *     Note: Unlike self-service delete (/delete/me), this admin-initiated path
+         *     does NOT send a confirmation email to the target user. Admin deletions
+         *     are communicated out-of-band (support ticket, ban notification, etc.);
+         *     an unsolicited "your account has been deleted" email would be surprising
+         *     UX in abuse/moderation scenarios.
          */
         post: operations["delete_user_data_admin_api_v1_privacy_delete_user__user_id__post"];
         delete?: never;

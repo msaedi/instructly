@@ -1,13 +1,21 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
+import {
+  ACCOUNT_DELETED_TOAST_KEY,
+  ACCOUNT_DELETED_TOAST_MESSAGE,
+} from '@/lib/accountDeletedToast';
 
 const mockToaster = jest.fn();
+const mockToastSuccess = jest.fn();
 const mockUseGuestSessionCleanup = jest.fn();
 const mockEnsureGuestOnce = jest.fn(() => Promise.resolve());
 const mockInitializeSessionTracking = jest.fn();
 const mockCleanupSessionTracking = jest.fn();
 
 jest.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+  },
   Toaster: (props: unknown) => {
     mockToaster(props);
     return <div data-testid="mock-toaster" />;
@@ -38,6 +46,17 @@ jest.mock('@/lib/sessionTracking', () => ({
 import { Providers } from '../providers';
 
 describe('Providers', () => {
+  beforeEach(() => {
+    mockToaster.mockClear();
+    mockToastSuccess.mockClear();
+    mockUseGuestSessionCleanup.mockClear();
+    mockEnsureGuestOnce.mockClear();
+    mockInitializeSessionTracking.mockClear();
+    mockCleanupSessionTracking.mockClear();
+    window.sessionStorage.clear();
+    window.history.pushState({}, '', '/');
+  });
+
   it('configures the toaster with the corrected solid brand styling', () => {
     const { unmount } = render(
       <Providers>
@@ -105,5 +124,28 @@ describe('Providers', () => {
     unmount();
 
     expect(mockCleanupSessionTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires and clears the account-deleted homepage toast on /', async () => {
+    window.sessionStorage.setItem(ACCOUNT_DELETED_TOAST_KEY, '1');
+    const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
+
+    render(
+      <Providers>
+        <div>home</div>
+      </Providers>
+    );
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(ACCOUNT_DELETED_TOAST_MESSAGE);
+    });
+    expect(removeItemSpy).toHaveBeenCalledWith(ACCOUNT_DELETED_TOAST_KEY);
+    const removeCallOrder = removeItemSpy.mock.invocationCallOrder[0];
+    const toastCallOrder = mockToastSuccess.mock.invocationCallOrder[0];
+    expect(removeCallOrder).toBeDefined();
+    expect(toastCallOrder).toBeDefined();
+    expect(removeCallOrder!).toBeLessThan(toastCallOrder!);
+
+    removeItemSpy.mockRestore();
   });
 });
