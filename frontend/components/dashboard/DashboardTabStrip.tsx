@@ -40,7 +40,7 @@ export function DashboardTabStrip<T extends string>({
             className={cn(
               '-mb-px flex-1 border-b-2 px-3 py-3 text-xs font-medium whitespace-nowrap transition-colors sm:px-4 sm:text-sm',
               isActive
-                ? 'border-(--color-brand-dark) text-(--color-brand-dark)'
+                ? 'border-(--color-brand) text-(--color-brand)'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
               tabClassName
             )}

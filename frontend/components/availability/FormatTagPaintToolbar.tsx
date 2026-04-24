@@ -26,8 +26,8 @@ function getToolbarOptionTitle(option: AvailabilityPaintMode): string {
 
 const pillColors: Record<number, { active: string; inactive: string }> = {
   [TAG_NONE]: {
-    active: 'bg-(--color-brand-dark) text-white border-(--color-brand-dark)',
-    inactive: 'bg-(--color-brand-lavender) text-(--color-brand-dark) border-(--color-brand-lavender) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    active: 'bg-(--color-brand) text-white border-(--color-brand)',
+    inactive: 'bg-(--color-brand-lavender) text-(--color-brand) border-(--color-brand-lavender) dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   },
   [TAG_ONLINE_ONLY]: {
     active: 'bg-(--color-online-green) text-white border-(--color-online-green)',

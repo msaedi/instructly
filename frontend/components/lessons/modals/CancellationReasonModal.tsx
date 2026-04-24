@@ -64,7 +64,7 @@ export function CancellationReasonModal({
         <div className="space-y-6 text-center">
           {/* Success Icon */}
           <div className="flex justify-center">
-            <CheckCircle className="h-12 w-12 text-(--color-brand-dark)" />
+            <CheckCircle className="h-12 w-12 text-(--color-brand)" />
           </div>
 
           {/* Success Message */}
@@ -94,7 +94,7 @@ export function CancellationReasonModal({
             Questions?{' '}
             <button
               onClick={() => logger.info('Contact support clicked')}
-              className="text-(--color-brand-dark) hover:underline cursor-pointer"
+              className="text-(--color-brand) hover:underline cursor-pointer"
             >
               Contact support
             </button>
@@ -140,7 +140,7 @@ export function CancellationReasonModal({
                 Need to reschedule?{' '}
                 <button
                   onClick={onReschedule}
-                  className="font-medium text-(--color-brand-dark) underline hover:no-underline cursor-pointer"
+                  className="font-medium text-(--color-brand) underline hover:no-underline cursor-pointer"
                 >
                   Reschedule instead
                 </button>
@@ -163,7 +163,7 @@ export function CancellationReasonModal({
                     value={reason}
                     checked={selectedReason === reason}
                     onChange={(e) => setSelectedReason(e.target.value)}
-                    className="mt-1 text-(--color-brand-dark) "
+                    className="mt-1 text-(--color-brand) "
                   />
                   <span className="text-gray-700 dark:text-gray-300">{reason}</span>
                 </label>

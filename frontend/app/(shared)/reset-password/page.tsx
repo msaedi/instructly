@@ -32,7 +32,7 @@ function AuthSpinner({ label }: { label: string }) {
     <AuthShell>
       <div className="flex justify-center">
         <div
-          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand-dark)"
+          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand)"
           role="status"
           aria-label={label}
         />
@@ -45,7 +45,7 @@ function StatusIcon({ type }: { type: 'success' | 'error' }) {
   const Icon = type === 'success' ? CheckCircle : XCircle;
   return (
     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-(--color-brand-light)">
-      <Icon className="h-6 w-6 text-(--color-brand-dark)" aria-hidden="true" />
+      <Icon className="h-6 w-6 text-(--color-brand)" aria-hidden="true" />
     </div>
   );
 }
@@ -171,7 +171,7 @@ function ResetPasswordForm() {
           </p>
           <Link
             href="/forgot-password"
-            className="font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
+            className="font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300"
           >
             Request a new reset link
           </Link>

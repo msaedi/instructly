@@ -50,7 +50,7 @@ export function PreLessonWaiting({
       {/* explicit white card: CSS --card maps to lavender, but this should match LessonCard */}
       <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="flex flex-col items-center gap-6 text-center">
-          <h1 className="text-2xl font-semibold text-(--color-brand-dark)">{booking.service_name}</h1>
+          <h1 className="text-2xl font-semibold text-(--color-brand)">{booking.service_name}</h1>
 
           <p className="text-gray-500 dark:text-gray-400">
             {otherPartyRole === 'instructor'

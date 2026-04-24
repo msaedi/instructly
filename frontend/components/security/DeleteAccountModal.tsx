@@ -122,7 +122,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-(--color-brand-dark) text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-(--color-brand) text-(--color-brand) hover:bg-purple-50 dark:hover:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >

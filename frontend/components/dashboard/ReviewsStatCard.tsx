@@ -38,7 +38,7 @@ export function ReviewsStatCardIcon() {
     <PhosphorStar
       data-testid="reviews-card-icon"
       weight="regular"
-      className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)"
+      className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand)"
       aria-hidden="true"
     />
   );

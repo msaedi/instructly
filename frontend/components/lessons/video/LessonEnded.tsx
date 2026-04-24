@@ -47,7 +47,7 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
           <CheckCircle2 className="h-12 w-12 text-emerald-500" aria-hidden="true" />
 
           <div>
-            <h1 className="text-2xl font-semibold text-(--color-brand-dark)">Lesson Complete</h1>
+            <h1 className="text-2xl font-semibold text-(--color-brand)">Lesson Complete</h1>
             <p className="mt-1 text-gray-500 dark:text-gray-400">{booking.service_name}</p>
           </div>
 

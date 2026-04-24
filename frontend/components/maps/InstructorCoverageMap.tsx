@@ -184,8 +184,8 @@ export default function InstructorCoverageMap({
               const serving: readonly unknown[] = getArray(featureProps(feature), 'instructors');
               const highlighted = highlightInstructorId && serving.includes(highlightInstructorId);
               return highlighted
-                ? { color: 'var(--color-brand-dark)', weight: 2, fillOpacity: 0.35 }
-                : { color: 'var(--color-brand-dark)', weight: 1, fillOpacity: 0.12 };
+                ? { color: 'var(--color-brand)', weight: 2, fillOpacity: 0.35 }
+                : { color: 'var(--color-brand)', weight: 1, fillOpacity: 0.12 };
             }}
             onEachFeature={(feature: Feature<Geometry, GeoJSONProperties>, layer: L.Layer) => {
               const props = featureProps(feature);
@@ -639,7 +639,7 @@ function CustomControls() {
             if (locationMarker) {
               locationMarker.remove();
             }
-            locationMarker = L.circleMarker<GeoJSONProperties>(latlng, { radius: 4, color: 'var(--color-brand-dark)', fillOpacity: 0.9 });
+            locationMarker = L.circleMarker<GeoJSONProperties>(latlng, { radius: 4, color: 'var(--color-brand)', fillOpacity: 0.9 });
             locationMarker.addTo(map);
           },
           () => {},

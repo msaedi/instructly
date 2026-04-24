@@ -26,7 +26,7 @@ export function ToggleSwitch({
       disabled={disabled}
       title={title}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors motion-reduce:transition-none ${
-        checked ? 'bg-(--color-brand-dark)' : 'bg-gray-200 dark:bg-gray-700'
+        checked ? 'bg-(--color-brand)' : 'bg-gray-200 dark:bg-gray-700'
       } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}${className ? ` ${className}` : ''}`}
     >
       <span

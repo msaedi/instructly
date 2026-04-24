@@ -80,7 +80,7 @@ export default function ConflictModal({
             disabled={isOverwriting || isRefreshing}
             data-testid="conflict-overwrite"
             className={clsx(
-              'inline-flex items-center justify-center rounded-full bg-(--color-brand-dark) px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe]',
+              'inline-flex items-center justify-center rounded-full bg-(--color-brand) px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe]',
               (isOverwriting || isRefreshing) && 'cursor-not-allowed opacity-60'
             )}
           >

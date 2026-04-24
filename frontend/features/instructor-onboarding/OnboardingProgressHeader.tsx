@@ -116,7 +116,7 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
     <header className="bg-white dark:bg-gray-800 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4" data-testid="onboarding-header">
       <div className="flex items-center justify-between max-w-full relative">
         <Link href="/instructor/dashboard" className="inline-block">
-          <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+          <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
         </Link>
         <div
           ref={progressRef}
@@ -128,12 +128,12 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
             data-testid="onboarding-header-art"
           >
             <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-              <circle cx="8" cy="4" r="2.5" stroke="var(--color-brand-dark)" strokeWidth="1.2" fill="none" />
-              <line x1="8" y1="6.5" x2="8" y2="12" stroke="var(--color-brand-dark)" strokeWidth="1.2" />
-              <line x1="8" y1="8" x2="5" y2="10" stroke="var(--color-brand-dark)" strokeWidth="1.2" className={armClass} />
-              <line x1="8" y1="8" x2="11" y2="10" stroke="var(--color-brand-dark)" strokeWidth="1.2" className={armRightClass} />
-              <line x1="8" y1="12" x2="6" y2="17" stroke="var(--color-brand-dark)" strokeWidth="1.2" className={legLeftClass} />
-              <line x1="8" y1="12" x2="10" y2="17" stroke="var(--color-brand-dark)" strokeWidth="1.2" className={legRightClass} />
+              <circle cx="8" cy="4" r="2.5" stroke="var(--color-brand)" strokeWidth="1.2" fill="none" />
+              <line x1="8" y1="6.5" x2="8" y2="12" stroke="var(--color-brand)" strokeWidth="1.2" />
+              <line x1="8" y1="8" x2="5" y2="10" stroke="var(--color-brand)" strokeWidth="1.2" className={armClass} />
+              <line x1="8" y1="8" x2="11" y2="10" stroke="var(--color-brand)" strokeWidth="1.2" className={armRightClass} />
+              <line x1="8" y1="12" x2="6" y2="17" stroke="var(--color-brand)" strokeWidth="1.2" className={legLeftClass} />
+              <line x1="8" y1="12" x2="10" y2="17" stroke="var(--color-brand)" strokeWidth="1.2" className={legRightClass} />
             </svg>
           </div>
 
@@ -143,10 +143,10 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
             const baseClasses = 'w-6 h-6 rounded-full border-2 transition-colors cursor-pointer flex items-center justify-center';
             const buttonClasses =
               status === 'done'
-                ? `${baseClasses} border-(--color-brand-dark) bg-(--color-brand-dark) text-white`
+                ? `${baseClasses} border-(--color-brand) bg-(--color-brand) text-white`
                 : isCurrent
-                ? `${baseClasses} border-purple-300 bg-purple-100 text-(--color-brand-dark)`
-                : `${baseClasses} border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-(--color-brand-dark) hover:border-(--color-brand-dark)`;
+                ? `${baseClasses} border-purple-300 bg-purple-100 text-(--color-brand)`
+                : `${baseClasses} border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-(--color-brand) hover:border-(--color-brand)`;
 
             const handleClick = () => {
               if (isCurrent && !allowClickAll) return;
@@ -159,9 +159,9 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
               nextStep === undefined
                 ? ''
                 : lineStatus === 'done'
-                ? 'w-60 h-0.5 bg-(--color-brand-dark)'
+                ? 'w-60 h-0.5 bg-(--color-brand)'
                 : lineStatus === 'failed'
-                ? 'w-60 h-0.5 bg-[repeating-linear-gradient(to_right,_var(--color-brand-dark)_0,_var(--color-brand-dark)_8px,_transparent_8px,_transparent_16px)]'
+                ? 'w-60 h-0.5 bg-[repeating-linear-gradient(to_right,_var(--color-brand)_0,_var(--color-brand)_8px,_transparent_8px,_transparent_16px)]'
                 : 'w-60 h-0.5 bg-gray-300';
 
             return (
@@ -191,7 +191,7 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
                     )}
                     {status === 'failed' && (
                       <svg
-                        className="icon-cross w-3 h-3 text-(--color-brand-dark)"
+                        className="icon-cross w-3 h-3 text-(--color-brand)"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"

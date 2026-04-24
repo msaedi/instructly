@@ -185,7 +185,7 @@ export default function InstructorApplyPage() {
         <div className="sm:mx-auto sm:w-full sm:max-w-3xl">
           <div className="bg-white/95 dark:bg-gray-900/80 py-10 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-8 transition-colors duration-200">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-(--color-brand-dark) transition-colors">{BRAND.name}</h1>
+              <h1 className="text-4xl font-bold text-(--color-brand) transition-colors">{BRAND.name}</h1>
               <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">Founding Instructor Application</h2>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
                 Share your teaching focus and we&apos;ll follow up within 24-48 hours.
@@ -418,7 +418,7 @@ export default function InstructorApplyPage() {
                           }}
                           className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
                             isSelected
-                              ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300'
+                              ? 'bg-purple-100 text-(--color-brand) border border-purple-300'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                           }`}
                           aria-pressed={isSelected}
@@ -499,7 +499,7 @@ export default function InstructorApplyPage() {
                     type="checkbox"
                     checked={hasExistingClients}
                     onChange={(event) => setHasExistingClients(event.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-(--color-brand-dark) "
+                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-(--color-brand) "
                   />
                   I have existing clients
                 </label>
@@ -531,7 +531,7 @@ export default function InstructorApplyPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 focus:bg-(--color-brand-dark) active:bg-(--color-brand-dark) focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
+                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 focus:bg-(--color-brand) active:bg-(--color-brand) focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
               >
                 {status === 'loading' && (
                   <span className="mr-2 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

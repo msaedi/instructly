@@ -154,7 +154,7 @@ export function RefineFiltersSection({
                           }}
                           className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                             isSelected
-                              ? 'bg-purple-100 text-(--color-brand-dark) border border-purple-300'
+                              ? 'bg-purple-100 text-(--color-brand) border border-purple-300'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >

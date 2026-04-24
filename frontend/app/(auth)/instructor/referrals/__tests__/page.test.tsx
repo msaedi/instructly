@@ -91,8 +91,8 @@ describe('InstructorReferralsPage', () => {
       '-mb-px',
       'flex-1',
       'border-b-2',
-      'border-(--color-brand-dark)',
-      'text-(--color-brand-dark)'
+      'border-(--color-brand)',
+      'text-(--color-brand)'
     );
     expect(earnedTab).toHaveClass('flex-1', 'border-transparent');
     expect(screen.getByText('Mia J.')).toBeInTheDocument();

@@ -145,7 +145,7 @@ export function FormatPricingCards({
               {showTakeHome && (
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                   You&apos;ll earn{' '}
-                  <span className="font-semibold text-(--color-brand-dark)">
+                  <span className="font-semibold text-(--color-brand)">
                     ${(rateNum * takeHomePct).toFixed(2)}
                   </span>{' '}
                   after the {platformFeeLabel} platform fee

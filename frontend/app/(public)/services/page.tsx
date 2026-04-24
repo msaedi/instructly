@@ -410,7 +410,7 @@ export default function AllServicesPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               {/* Logo */}
-              <Link href="/" className="text-3xl font-bold text-(--color-brand-dark) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+              <Link href="/" className="text-3xl font-bold text-(--color-brand) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                 iNSTAiNSTRU
               </Link>
 

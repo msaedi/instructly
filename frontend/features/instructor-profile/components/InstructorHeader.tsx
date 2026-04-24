@@ -150,7 +150,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               <div className="flex flex-col space-y-2">
               {/* Name with Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl lg:text-3xl font-bold text-(--color-brand-dark)" data-testid="instructor-profile-name">{displayName}</h1>
+                <h1 className="text-2xl lg:text-3xl font-bold text-(--color-brand)" data-testid="instructor-profile-name">{displayName}</h1>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={handleHeartClick}
@@ -162,8 +162,8 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                   >
                     <Heart
                       className="h-5 w-5"
-                      fill={isSaved ? 'var(--color-brand-dark)' : 'none'}
-                      color="var(--color-brand-dark)"
+                      fill={isSaved ? 'var(--color-brand)' : 'none'}
+                      color="var(--color-brand)"
                     />
                   </button>
                   <button
@@ -173,7 +173,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                     title={shareCopied ? 'Link copied' : 'Share profile'}
                     style={{ background: 'transparent', border: 'none' }}
                   >
-                    <Share2 className="h-5 w-5 text-(--color-brand-dark)" />
+                    <Share2 className="h-5 w-5 text-(--color-brand)" />
                   </button>
                 </div>
               </div>

@@ -6,11 +6,11 @@ import { cn } from '@/lib/utils';
 const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> = {
   lesson_updates: {
     icon: Calendar,
-    className: 'bg-purple-50 text-(--color-brand-dark)',
+    className: 'bg-purple-50 text-(--color-brand)',
   },
   messages: {
     icon: MessageSquare,
-    className: 'bg-purple-50 dark:bg-[#2D174D]/40 text-(--color-brand-dark) dark:text-[#C4B5FD]',
+    className: 'bg-purple-50 dark:bg-[#2D174D]/40 text-(--color-brand) dark:text-[#C4B5FD]',
   },
   reviews: {
     icon: Star,

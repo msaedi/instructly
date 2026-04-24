@@ -89,7 +89,7 @@ export function MessageBubble({
         disabled={reactionBusy}
         className={cn(
           'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-          r.isMine ? 'bg-(--color-brand-dark) text-white ring-(--color-brand-dark)' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 ring-gray-200',
+          r.isMine ? 'bg-(--color-brand) text-white ring-(--color-brand)' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 ring-gray-200',
           reactionBusy && 'cursor-default opacity-50'
         )}
         onClick={async () => {
@@ -221,7 +221,7 @@ export function MessageBubble({
           className={cn(
             'relative max-w-xs lg:max-w-md rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
             bubbleSide === 'right'
-              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-(--color-brand-dark)/10'
+              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-(--color-brand)/10'
               : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
           )}
         >

@@ -173,7 +173,7 @@ describe('InstructorBookingsPage', () => {
     const upcomingTab = screen.getByRole('tab', { name: 'Upcoming' });
     const pastTab = screen.getByRole('tab', { name: 'Past' });
 
-    expect(upcomingTab).toHaveClass('-mb-px', 'border-b-2', 'border-(--color-brand-dark)');
+    expect(upcomingTab).toHaveClass('-mb-px', 'border-b-2', 'border-(--color-brand)');
     expect(pastTab).toHaveClass('border-transparent');
   });
 

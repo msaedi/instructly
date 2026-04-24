@@ -360,7 +360,7 @@ export default function OnboardingStatusPage() {
 
         <div className="mt-6 space-y-4">
           {/* 1) Service areas */}
-          <Row label="Service areas" ok={!needsServiceAreas} action={<Link href="/instructor/onboarding/account-setup" className="text-(--color-brand-dark) hover:underline">{needsServiceAreas ? 'Add' : 'Edit'}</Link>} />
+          <Row label="Service areas" ok={!needsServiceAreas} action={<Link href="/instructor/onboarding/account-setup" className="text-(--color-brand) hover:underline">{needsServiceAreas ? 'Add' : 'Edit'}</Link>} />
           <Row
             label="Phone verification"
             ok={!needsPhoneVerification}
@@ -369,29 +369,29 @@ export default function OnboardingStatusPage() {
                 ? (
                   <Link
                     href="/instructor/onboarding/account-setup"
-                    className="text-(--color-brand-dark) hover:underline"
+                    className="text-(--color-brand) hover:underline"
                   >
                     Verify
                   </Link>
                 )
-                : <span className="text-(--color-brand-dark) opacity-60">Completed</span>
+                : <span className="text-(--color-brand) opacity-60">Completed</span>
             }
           />
           {/* 2) Skills & pricing */}
-          <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-(--color-brand-dark) hover:underline">Edit</Link>} />
+          <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-(--color-brand) hover:underline">Edit</Link>} />
           {/* 3) ID verification */}
-          <Row label="ID verification" ok={identityVerified} action={identityVerified ? <span className="text-(--color-brand-dark) opacity-60">Completed</span> : identityPending ? <span className="text-amber-600">Pending</span> : <button onClick={startIdentity} className="text-(--color-brand-dark) hover:underline">Start</button>} />
+          <Row label="ID verification" ok={identityVerified} action={identityVerified ? <span className="text-(--color-brand) opacity-60">Completed</span> : identityPending ? <span className="text-amber-600">Pending</span> : <button onClick={startIdentity} className="text-(--color-brand) hover:underline">Start</button>} />
           {/* 4) Background check */}
           <Row
             label="Background check"
             ok={bgcSnapshot.status === 'passed'}
             action={
               bgcSnapshot.status === 'passed'
-                ? <span className="text-(--color-brand-dark) opacity-60">Completed</span>
+                ? <span className="text-(--color-brand) opacity-60">Completed</span>
                 : (
                   <button
                     onClick={() => router.push('/instructor/onboarding/verification?from=status#bgc-step-card')}
-                    className="text-(--color-brand-dark) hover:underline"
+                    className="text-(--color-brand) hover:underline"
                   >
                     Start
                   </button>
@@ -399,7 +399,7 @@ export default function OnboardingStatusPage() {
             }
           />
           {/* 4) Stripe Connect */}
-          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={connectStatus?.onboarding_completed ? <span className="text-(--color-brand-dark) opacity-60">Completed</span> : <button onClick={enrollStripeConnect} className="text-(--color-brand-dark) hover:underline" disabled={connectLoading}>{connectLoading ? 'Opening…' : 'Enroll'}</button>} />
+          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={connectStatus?.onboarding_completed ? <span className="text-(--color-brand) opacity-60">Completed</span> : <button onClick={enrollStripeConnect} className="text-(--color-brand) hover:underline" disabled={connectLoading}>{connectLoading ? 'Opening…' : 'Enroll'}</button>} />
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-4">

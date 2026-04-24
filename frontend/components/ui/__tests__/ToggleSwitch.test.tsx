@@ -17,7 +17,7 @@ describe('ToggleSwitch', () => {
     );
 
     const toggle = screen.getByRole('switch', { name: 'Marketing emails' });
-    expect(toggle).toHaveClass('bg-(--color-brand-dark)', 'cursor-pointer', 'ring-2');
+    expect(toggle).toHaveClass('bg-(--color-brand)', 'cursor-pointer', 'ring-2');
     expect(toggle).toHaveAttribute('title', 'Marketing emails');
 
     fireEvent.click(toggle);

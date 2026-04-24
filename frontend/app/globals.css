@@ -97,8 +97,7 @@ body {
 
   /* Brand Colors */
   --color-brand: #7E22CE;
-  --color-brand-dark: #7E22CE;
-  --color-focus-brand: var(--color-brand-dark);
+  --color-focus-brand: var(--color-brand);
   --color-brand-lavender: #F3E8FF;
   --color-brand-light: var(--color-brand-lavender);
   --color-brand-surface: #FAF5FF;
@@ -740,10 +739,10 @@ html {
 }
 
 .inst-toast-brand {
-  background: var(--color-brand-dark) !important;
+  background: var(--color-brand) !important;
   box-shadow:
-    0 10px 15px -3px color-mix(in srgb, var(--color-brand-dark) 12%, transparent),
-    0 4px 6px -2px color-mix(in srgb, var(--color-brand-dark) 8%, transparent) !important;
+    0 10px 15px -3px color-mix(in srgb, var(--color-brand) 12%, transparent),
+    0 4px 6px -2px color-mix(in srgb, var(--color-brand) 8%, transparent) !important;
 }
 
 .inst-toast-icon {
@@ -751,7 +750,7 @@ html {
   height: 1.25rem !important;
   margin-left: 0 !important;
   margin-right: 0.5rem !important;
-  color: var(--color-brand-dark) !important;
+  color: var(--color-brand) !important;
 }
 
 .inst-toast-icon-circle {
@@ -762,7 +761,7 @@ html {
   justify-content: center;
   border-radius: 9999px;
   background: #ffffff;
-  color: var(--color-brand-dark);
+  color: var(--color-brand);
 }
 
 .inst-toast-icon-circle svg {

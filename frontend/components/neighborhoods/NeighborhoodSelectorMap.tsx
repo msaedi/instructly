@@ -362,7 +362,7 @@ export default function NeighborhoodSelectorMap({
         <button
           type="button"
           onClick={fitMap}
-          className="pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-150 hover:border-purple-200 hover:text-(--color-brand-dark) dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200"
+          className="pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-150 hover:border-purple-200 hover:text-(--color-brand) dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200"
           data-testid="fit-map-button"
         >
           <LocateFixed className="h-4 w-4" />

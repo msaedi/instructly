@@ -264,7 +264,7 @@ describe('ConversationItem', () => {
 
       const avatar = container.querySelector('.lucide-pencil')?.closest('div');
       expect(avatar).toBeInTheDocument();
-      expect(avatar).toHaveClass('bg-(--color-brand-dark)');
+      expect(avatar).toHaveClass('bg-(--color-brand)');
     });
   });
 });

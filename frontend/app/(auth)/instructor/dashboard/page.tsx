@@ -101,7 +101,7 @@ function DashboardPopover({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={computedLabel}
-        className="group relative inline-flex items-center justify-center w-10 h-10 rounded-full text-(--color-brand-dark) transition-colors duration-150 focus:outline-none select-none"
+        className="group relative inline-flex items-center justify-center w-10 h-10 rounded-full text-(--color-brand) transition-colors duration-150 focus:outline-none select-none"
         title={label}
       >
         <Icon
@@ -109,7 +109,7 @@ function DashboardPopover({
           style={{ fill: isOpen ? 'currentColor' : undefined }}
         />
         {hasBadge && (
-          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-(--color-brand-dark) px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-(--color-brand) px-1 text-[10px] font-semibold leading-none text-white">
             {badgeLabel}
           </span>
         )}
@@ -677,7 +677,7 @@ export default function InstructorDashboardNew() {
   if (isLoading) {
     return (
       <div className="min-h-screen insta-dashboard-page flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand-dark)" />
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand)" />
       </div>
     );
   }
@@ -697,7 +697,7 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
             >
-              <span className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
+              <span className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown hideDashboardItem />
@@ -738,7 +738,7 @@ export default function InstructorDashboardNew() {
               setIsMobileMenuOpen(false);
             }}
           >
-            <span className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
+            <span className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
             <DashboardPopover
@@ -812,7 +812,7 @@ export default function InstructorDashboardNew() {
             <UserProfileDropdown hideDashboardItem />
             <button
               type="button"
-              className="md:hidden p-2 rounded-lg text-(--color-brand-dark) border border-transparent focus:outline-none   hover:bg-transparent active:bg-transparent"
+              className="md:hidden p-2 rounded-lg text-(--color-brand) border border-transparent focus:outline-none   hover:bg-transparent active:bg-transparent"
               aria-label={isMobileMenuOpen ? 'Close dashboard navigation menu' : 'Open dashboard navigation menu'}
               aria-expanded={isMobileMenuOpen}
               onClick={() => {
@@ -848,7 +848,7 @@ export default function InstructorDashboardNew() {
                           }}
                           className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                             isActive
-                              ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand-dark) dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                              ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand) dark:text-purple-300 border border-purple-200 dark:border-purple-700'
                               : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                           }`}
                           aria-current={isActive ? 'page' : undefined}
@@ -890,7 +890,7 @@ export default function InstructorDashboardNew() {
                             }}
                             className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                               isActive
-                                ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand-dark) dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                                ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand) dark:text-purple-300 border border-purple-200 dark:border-purple-700'
                                 : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                             }`}
                             aria-current={isActive ? 'page' : undefined}
@@ -929,7 +929,7 @@ export default function InstructorDashboardNew() {
                     const isActive = activePanel === item.key;
                     const className = `w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                       isActive
-                        ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand-dark) dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                        ? 'bg-purple-50 dark:bg-purple-900/30 text-(--color-brand) dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
                         : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                     }`;
 
@@ -1003,14 +1003,14 @@ export default function InstructorDashboardNew() {
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand-dark) dark:group-hover:text-purple-300">Bookings</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand) dark:group-hover:text-purple-300">Bookings</h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{completedBookingsCount}</p>
                 <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1">
                   {(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)" />
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand)" />
               </div>
             </div>
           </button>
@@ -1023,11 +1023,11 @@ export default function InstructorDashboardNew() {
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand-dark) dark:group-hover:text-purple-300">Earnings</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand) dark:group-hover:text-purple-300">Earnings</h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{earningsCardValue}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand-dark)" />
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-(--color-brand)" />
               </div>
             </div>
           </button>
@@ -1039,7 +1039,7 @@ export default function InstructorDashboardNew() {
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand-dark) dark:group-hover:text-purple-300">Reviews</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-(--color-brand) dark:group-hover:text-purple-300">Reviews</h3>
                 <ReviewsStatCardValue
                   reviewAverageDisplay={reviewAverageDisplay}
                   reviewCount={reviewCount}
@@ -1078,7 +1078,7 @@ export default function InstructorDashboardNew() {
                     aria-describedby="refresh-status-tip"
                   className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none  transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                   >
-                    <SquareArrowDownLeft className={`w-6 h-6 text-(--color-brand-dark) ${isRefreshingConnect ? 'animate-spin' : 'transition-transform duration-150 ease-out group-hover:scale-110'}`} />
+                    <SquareArrowDownLeft className={`w-6 h-6 text-(--color-brand) ${isRefreshingConnect ? 'animate-spin' : 'transition-transform duration-150 ease-out group-hover:scale-110'}`} />
                   </button>
                   <div
                     role="tooltip"
@@ -1113,7 +1113,7 @@ export default function InstructorDashboardNew() {
                   <ul className="grid grid-cols-2 gap-2">
                     <li className={`flex items-center gap-2 text-sm ${chargesEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {chargesEnabled ? (
-                        <svg className="w-4 h-4 text-(--color-brand-dark)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-(--color-brand)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -1123,7 +1123,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${detailsSubmitted ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {detailsSubmitted ? (
-                        <svg className="w-4 h-4 text-(--color-brand-dark)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-(--color-brand)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -1133,7 +1133,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${payoutsEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {payoutsEnabled ? (
-                        <svg className="w-4 h-4 text-(--color-brand-dark)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-(--color-brand)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -1143,7 +1143,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li className={`flex items-center gap-2 text-sm ${onboardingCompleted ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {onboardingCompleted ? (
-                        <svg className="w-4 h-4 text-(--color-brand-dark)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg className="w-4 h-4 text-(--color-brand)" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
@@ -1257,7 +1257,7 @@ export default function InstructorDashboardNew() {
                 className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none transition shrink-0 overflow-hidden"
               >
                 <span className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-700 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-                <Calendar className="relative w-6 h-6 text-(--color-brand-dark) transition-transform duration-150 ease-out group-hover:scale-110" />
+                <Calendar className="relative w-6 h-6 text-(--color-brand) transition-transform duration-150 ease-out group-hover:scale-110" />
               </button>
               <div>
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Manage Availability</h3>
@@ -1266,7 +1266,7 @@ export default function InstructorDashboardNew() {
             </div>
             <div className="mt-8 sm:mt-10 flex items-center gap-8 sm:gap-12 justify-center">
               <div className="flex flex-col items-center">
-                <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-(--color-brand-dark) flex items-center justify-center text-2xl font-bold" title="Available hours this week">
+                <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-(--color-brand) flex items-center justify-center text-2xl font-bold" title="Available hours this week">
                   {availableHours}h
                 </div>
                 <span className="mt-2 text-sm text-gray-600 dark:text-gray-400">Available</span>
@@ -1360,7 +1360,7 @@ export default function InstructorDashboardNew() {
         <div className="space-y-4">
           <div className="grid grid-cols-[3rem_1fr] gap-4">
             <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-(--color-brand-dark)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-(--color-brand)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
@@ -1412,7 +1412,7 @@ export default function InstructorDashboardNew() {
           <div className="p-0 mt-2">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-(--color-brand-dark)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-(--color-brand)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>

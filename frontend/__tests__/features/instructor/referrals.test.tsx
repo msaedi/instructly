@@ -114,8 +114,8 @@ describe('InstructorReferralsPage', () => {
     expect(screen.getByRole('heading', { name: 'Referrals' })).toBeInTheDocument();
     expect(screen.getByText('Refer an instructor')).toBeInTheDocument();
     expect(screen.getByText('Refer a student')).toBeInTheDocument();
-    expect(screen.getByText('$50 cash')).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand-dark)');
-    expect(screen.getByText('$20 cash')).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand-dark)');
+    expect(screen.getByText('$50 cash')).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand)');
+    expect(screen.getByText('$20 cash')).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand)');
     expect(screen.getByDisplayValue('https://beta.instainstru.com/r/FNVC6KDW')).toBeInTheDocument();
     expect(screen.getByText('In progress')).toBeInTheDocument();
     expect(screen.getByText('Pending')).toBeInTheDocument();
@@ -152,13 +152,13 @@ describe('InstructorReferralsPage', () => {
     expect(screen.getByText('Arlo J.')).toBeInTheDocument();
     expect(screen.getByText('Student referral')).toBeInTheDocument();
     const pendingAmountPill = screen.getAllByText('$20').find((element) => element.tagName === 'SPAN');
-    expect(pendingAmountPill).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand-dark)');
+    expect(pendingAmountPill).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand)');
 
     await user.click(screen.getByRole('tab', { name: 'Earned' }));
     expect(screen.getByText('Mina T.')).toBeInTheDocument();
     expect(screen.getByText('Transfer pending')).toBeInTheDocument();
     const earnedAmountPill = screen.getAllByText('$50').find((element) => element.tagName === 'SPAN');
-    expect(earnedAmountPill).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand-dark)');
+    expect(earnedAmountPill).toHaveClass('bg-(--color-brand-lavender)', 'text-(--color-brand)');
 
     await user.click(screen.getByRole('tab', { name: 'Redeemed' }));
     expect(screen.getByText('Nora L.')).toBeInTheDocument();

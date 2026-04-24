@@ -426,7 +426,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <div className="flex items-center gap-3 shrink-0">
           <span
             className={`text-sm font-medium ${
-              tfaToggleChecked ? 'text-(--color-brand-dark)' : 'text-gray-600 dark:text-gray-400'
+              tfaToggleChecked ? 'text-(--color-brand)' : 'text-gray-600 dark:text-gray-400'
             }`}
           >
             {tfaStateLabel}
@@ -451,7 +451,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <button
           type="button"
           onClick={() => setShowChangePassword(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
         >
           Change password
         </button>
@@ -535,7 +535,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       <button
         type="button"
         onClick={() => setShowDeleteModal(true)}
-        className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  insta-primary-btn"
       >
         Delete account
       </button>
@@ -663,7 +663,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">
+              <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
@@ -675,7 +675,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
               <Link
                 href="/instructor/dashboard"
-                className="inline-flex items-center gap-1 text-(--color-brand-dark) pointer-events-auto"
+                className="inline-flex items-center gap-1 text-(--color-brand) pointer-events-auto"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back to dashboard</span>
@@ -705,7 +705,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <UserRoundPen className="w-6 h-6 text-(--color-brand-dark)" />
+                    <UserRoundPen className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Account details</span>
@@ -796,7 +796,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       type="button"
                       onClick={handleSaveAccount}
                       disabled={saveAccountMutation.isPending}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand) text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
                     >
                       {saveAccountMutation.isPending ? 'Saving…' : 'Save changes'}
                     </button>
@@ -813,7 +813,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Profile Information</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Update your personal details and bio</p>
                   </div>
-                  <Link href="/instructor/onboarding/account-setup" className="text-(--color-brand-dark) hover:text-[#6B1FA0] text-sm font-medium">
+                  <Link href="/instructor/onboarding/account-setup" className="text-(--color-brand) hover:text-[#6B1FA0] text-sm font-medium">
                     Edit
                   </Link>
                 </div>
@@ -824,7 +824,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   </div>
                   <Link
                     href="/instructor/onboarding/skill-selection"
-                    className="text-(--color-brand-dark) hover:text-[#6B1FA0] text-sm font-medium"
+                    className="text-(--color-brand) hover:text-[#6B1FA0] text-sm font-medium"
                   >
                     Edit
                   </Link>
@@ -836,7 +836,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   </div>
                   <Link
                     href="/instructor/onboarding/skill-selection"
-                    className="text-(--color-brand-dark) hover:text-[#6B1FA0] text-sm font-medium"
+                    className="text-(--color-brand) hover:text-[#6B1FA0] text-sm font-medium"
                   >
                     Edit
                   </Link>
@@ -846,7 +846,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Availability</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Adjust your schedule and booking availability</p>
                   </div>
-                  <Link href="/instructor/availability" className="text-(--color-brand-dark) hover:text-[#6B1FA0] text-sm font-medium">
+                  <Link href="/instructor/availability" className="text-(--color-brand) hover:text-[#6B1FA0] text-sm font-medium">
                     Edit
                   </Link>
                 </div>
@@ -857,7 +857,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   </div>
                   <button
                     type="button"
-                    className="text-(--color-brand-dark) hover:text-[#6B1FA0] text-sm font-medium"
+                    className="text-(--color-brand) hover:text-[#6B1FA0] text-sm font-medium"
                     onClick={() => setOpenSection('preferences')}
                   >
                     Manage
@@ -878,7 +878,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Shield className="w-6 h-6 text-(--color-brand-dark)" />
+                    <Shield className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Security</span>
@@ -909,7 +909,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Power className="w-6 h-6 text-(--color-brand-dark)" />
+                    <Power className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Account status</span>
@@ -940,7 +940,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <SlidersHorizontal className="w-6 h-6 text-(--color-brand-dark)" />
+                    <SlidersHorizontal className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Preferences</span>
@@ -979,7 +979,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Info className="w-6 h-6 text-(--color-brand-dark)" />
+                  <Info className="w-6 h-6 text-(--color-brand)" />
                 </div>
                 <div>
                   <span className="insta-dashboard-accordion-title">About</span>
@@ -991,17 +991,17 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             {openSection === 'about' && (
               <div className="mt-5 text-sm text-gray-700 dark:text-gray-300 space-y-3">
                 <div>
-                  <a href="/legal#privacy" className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300">
+                  <a href="/legal#privacy" className="focus-link text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300">
                     Privacy Policy
                   </a>
                 </div>
                 <div>
-                  <a href="/legal#terms" className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300">
+                  <a href="/legal#terms" className="focus-link text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300">
                     Terms &amp; Conditions
                   </a>
                 </div>
                 <div>
-                  <a href="/support" className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300">
+                  <a href="/support" className="focus-link text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300">
                     Support
                   </a>
                 </div>

@@ -152,7 +152,7 @@ export function TemplateEditor({
                   onClick={() => onTemplateSelect(template.id)}
                   className={`w-full text-left px-5 py-4 transition-none ${
                     isActive
-                      ? 'bg-purple-50 dark:bg-purple-900/40 border-l-4 border-l-(--color-brand-dark)'
+                      ? 'bg-purple-50 dark:bg-purple-900/40 border-l-4 border-l-(--color-brand)'
                       : 'hover:bg-gray-50 dark:hover:bg-gray-700/60'
                   }`}
                   >

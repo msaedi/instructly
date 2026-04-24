@@ -521,14 +521,14 @@ function SignUpForm() {
               I agree to iNSTAiNSTRU&apos;s{' '}
               <Link
                 href="/terms"
-                className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
+                className="focus-link text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Terms of Service
               </Link>{' '}
               and{' '}
               <Link
                 href="/privacy"
-                className="focus-link text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
+                className="focus-link text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Privacy Policy
               </Link>
@@ -546,7 +546,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                     >
                       Sign up as a student
                     </Link>
@@ -560,7 +560,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -579,7 +579,7 @@ function SignUpForm() {
                       redirect,
                       ref: referralCode,
                     })}
-                    className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                    className="focus-link font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                   >
                     Sign up as Instructor
                   </Link>
@@ -592,7 +592,7 @@ function SignUpForm() {
                         redirect,
                         ref: referralCode,
                       })}
-                      className="focus-link font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
+                      className="focus-link font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -619,7 +619,7 @@ function SignUpForm() {
  */
 export default function SignUpPage() {
   return (
-    <Suspense fallback={<AuthShell><div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand-dark) dark:border-purple-400" /></div></AuthShell>}>
+    <Suspense fallback={<AuthShell><div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-brand) dark:border-purple-400" /></div></AuthShell>}>
       <SignUpForm />
     </Suspense>
   );

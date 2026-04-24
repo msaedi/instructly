@@ -151,7 +151,7 @@ export function BackgroundCheckDisclosureModal({
             <Button
               onClick={handleAccept}
               disabled={!hasScrolledToEnd || submitting}
-              className="w-full bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 sm:w-auto"
+              className="w-full bg-(--color-brand) text-white hover:bg-purple-800 dark:hover:bg-purple-700 sm:w-auto"
             >
               {submitting ? 'Recording…' : 'I acknowledge and authorize'}
             </Button>

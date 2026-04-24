@@ -1407,7 +1407,7 @@ export default function TimeSelectionModal({
                 aria-pressed={isSelected}
                 className={`rounded-xl border px-4 py-3 text-left transition-colors ${
                   isSelected
-                    ? 'border-(--color-brand-dark) bg-[#F8F1FF] dark:border-[#C084FC] dark:bg-[#2B143F]'
+                    ? 'border-(--color-brand) bg-[#F8F1FF] dark:border-[#C084FC] dark:bg-[#2B143F]'
                     : 'border-gray-200 bg-white hover:border-[#C084FC] hover:bg-[#FAF5FF] dark:border-gray-700 dark:bg-gray-900 dark:hover:border-[#A855F7]'
                 }`}
                 onClick={() => handleLocationTypeSelect(locationType)}
@@ -1486,7 +1486,7 @@ export default function TimeSelectionModal({
               size={32}
               className="w-8 h-8 rounded-full ring-1 ring-gray-200"
               fallbackBgColor="var(--color-brand-lavender)"
-              fallbackTextColor="var(--color-brand-dark)"
+              fallbackTextColor="var(--color-brand)"
             />
             <p className="text-base font-bold text-gray-900 dark:text-white">
               {getInstructorDisplayName()}&apos;s availability
@@ -1550,7 +1550,7 @@ export default function TimeSelectionModal({
                     {durationAvailabilityNotice.nextDate ? (
                       <button
                         type="button"
-                        className="mt-2 inline-flex items-center rounded-md bg-(--color-brand-dark) px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
+                        className="mt-2 inline-flex items-center rounded-md bg-(--color-brand) px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
                         onClick={() => {
                           const nextDate = durationAvailabilityNotice.nextDate;
                           if (nextDate) {
@@ -1655,7 +1655,7 @@ export default function TimeSelectionModal({
                 size={32}
                 className="w-8 h-8 rounded-full ring-1 ring-gray-200"
                 fallbackBgColor="var(--color-brand-lavender)"
-                fallbackTextColor="var(--color-brand-dark)"
+                fallbackTextColor="var(--color-brand)"
               />
               <p className="text-base font-bold text-gray-900 dark:text-white">
                 {getInstructorDisplayName()}&apos;s availability
@@ -1741,7 +1741,7 @@ export default function TimeSelectionModal({
                       {durationAvailabilityNotice.nextDate ? (
                         <button
                           type="button"
-                          className="mt-2 inline-flex items-center rounded-md bg-(--color-brand-dark) px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
+                          className="mt-2 inline-flex items-center rounded-md bg-(--color-brand) px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
                           onClick={() => {
                             const nextDate = durationAvailabilityNotice.nextDate;
                             if (nextDate) {

@@ -58,7 +58,7 @@ export function PreferredLocationsCard({
   const header = (
     <div className="insta-dashboard-accordion-leading">
       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-        <Building2 className="w-6 h-6 text-(--color-brand-dark)" />
+        <Building2 className="w-6 h-6 text-(--color-brand)" />
       </div>
       <div className="flex flex-col text-left">
         <span className="insta-dashboard-accordion-title">Class Locations</span>
@@ -143,7 +143,7 @@ export function PreferredLocationsCard({
                     disabled={
                       preferredLocationAddDisabled ?? preferredLocations.length >= maxTeachingLocations
                     }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -163,7 +163,7 @@ export function PreferredLocationsCard({
                           [loc]: e.target.value,
                         }))
                       }
-                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-(--color-brand-dark) bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none cursor-text"
+                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-(--color-brand) bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none cursor-text"
                       style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
                     />
                     <span
@@ -174,7 +174,7 @@ export function PreferredLocationsCard({
                       <button
                         type="button"
                         aria-label={`Remove ${loc}`}
-                        className="ml-auto text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
+                        className="ml-auto text-(--color-brand) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
                         onClick={() => removePreferredLocation(loc)}
                       >
                         &times;
@@ -213,7 +213,7 @@ export function PreferredLocationsCard({
                     onClick={addNeutralPlace}
                     aria-label="Add public space"
                     disabled={neutralPlaces.length >= maxPublicSpaces}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-(--color-brand) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -230,7 +230,7 @@ export function PreferredLocationsCard({
                       <button
                         type="button"
                         aria-label={`Remove ${place}`}
-                        className="ml-auto text-(--color-brand-dark) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
+                        className="ml-auto text-(--color-brand) rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
                         onClick={() => removeNeutralPlace(place)}
                       >
                         &times;

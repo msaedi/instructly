@@ -147,7 +147,7 @@ export default function ForgotPasswordPage() {
             <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
               <div className="text-center mb-6">
                 <Link href="/">
-                  <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
+                  <h1 className="text-4xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
                 </Link>
               </div>
               <div className="text-center">
@@ -159,7 +159,7 @@ export default function ForgotPasswordPage() {
                   We&apos;ve sent a password reset link to <strong className="text-gray-900 dark:text-gray-100">{email}</strong>
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">The link will expire in 1 hour.</p>
-                <Link href="/login" className="font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+                <Link href="/login" className="font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                   Back to sign in
                 </Link>
               </div>
@@ -178,7 +178,7 @@ export default function ForgotPasswordPage() {
           <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
             <div className="text-center mb-6">
               <Link href="/">
-                <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
+                <h1 className="text-4xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">iNSTAiNSTRU</h1>
               </Link>
               <h2 className="mt-3 text-3xl font-extrabold text-gray-900 dark:text-gray-100">Forgot your password?</h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Enter your email and we&apos;ll send you a reset link</p>

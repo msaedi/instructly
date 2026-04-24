@@ -29,7 +29,7 @@ describe('FormatTagPaintToolbar', () => {
     screen.getAllByRole('radio').forEach((item) => {
       expect(item).toHaveClass('w-28');
     });
-    expect(screen.getByRole('radio', { name: /All/i })).toHaveClass('bg-(--color-brand-dark)', 'text-white');
+    expect(screen.getByRole('radio', { name: /All/i })).toHaveClass('bg-(--color-brand)', 'text-white');
     expect(screen.getByRole('radio', { name: /Online/i })).toHaveClass(
       'bg-(--color-online-green-light)',
       'text-(--color-online-green)'
@@ -53,7 +53,7 @@ describe('FormatTagPaintToolbar', () => {
     );
     expect(screen.getByRole('radio', { name: /All/i })).toHaveClass(
       'bg-(--color-brand-lavender)',
-      'text-(--color-brand-dark)'
+      'text-(--color-brand)'
     );
 
     rerender(

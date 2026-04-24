@@ -88,7 +88,7 @@ export function BoroughSection({
                 event.stopPropagation();
                 onSelectAll();
               }}
-              className="cursor-pointer text-xs font-medium text-(--color-brand-dark) transition-colors duration-150 hover:text-purple-800"
+              className="cursor-pointer text-xs font-medium text-(--color-brand) transition-colors duration-150 hover:text-purple-800"
             >
               Select all
             </button>
@@ -144,7 +144,7 @@ export function BoroughSection({
                         ? 'py-2 whitespace-normal break-words'
                         : 'h-11 whitespace-nowrap',
                       isSelected
-                        ? 'border-purple-200 bg-[var(--color-brand-lavender)] text-[var(--color-brand-dark)]'
+                        ? 'border-purple-200 bg-[var(--color-brand-lavender)] text-[var(--color-brand)]'
                         : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-purple-200 hover:bg-purple-50 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:border-purple-500/40 dark:hover:bg-gray-800',
                       isHovered && 'ring-2 ring-purple-200',
                     )}
@@ -155,7 +155,7 @@ export function BoroughSection({
                         'block text-sm font-medium',
                         !isVeryLongName && 'whitespace-nowrap',
                         isVeryLongName && 'whitespace-normal break-words',
-                        isSelected && 'text-[var(--color-brand-dark)]',
+                        isSelected && 'text-[var(--color-brand)]',
                       )}
                     >
                       {item.display_name}

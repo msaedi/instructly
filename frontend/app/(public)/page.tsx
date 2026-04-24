@@ -214,7 +214,7 @@ export default function HomePage() {
       <header role="banner" className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <span data-testid="home-brand" className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
+            <span data-testid="home-brand" className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </span>
           </Link>
@@ -254,7 +254,7 @@ export default function HomePage() {
                 {!hideStudentUi && (
                   <Link
                     href="/login"
-                    className="px-4 py-2 bg-(--color-brand-dark) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-medium"
+                    className="px-4 py-2 bg-(--color-brand) text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-medium"
                   >
                     Sign up / Log in
                   </Link>
@@ -338,7 +338,7 @@ export default function HomePage() {
           <h1 data-testid="home-hero-title" className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
             <div className="leading-tight">
               {isClient && isAuthenticated ? (
-                <span className="text-(--color-brand-dark)">Your Next Lesson Awaits</span>
+                <span className="text-(--color-brand)">Your Next Lesson Awaits</span>
               ) : (
                 <span className="text-gray-900 dark:text-gray-100">Instant learning with</span>
               )}
@@ -349,7 +349,7 @@ export default function HomePage() {
           {!hideStudentUi && (
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
             <div
-              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-(--color-brand-dark) dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
+              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-(--color-brand) dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
               style={{ width: '720px', height: '64px', margin: '0 auto' }}
             >
               <input
@@ -408,21 +408,21 @@ export default function HomePage() {
             </h2>
             <div className="grid grid-cols-3 gap-8">
               <div className="text-center">
-                <div className="text-5xl font-bold text-(--color-brand-dark) dark:text-purple-400 mb-4">1</div>
+                <div className="text-5xl font-bold text-(--color-brand) dark:text-purple-400 mb-4">1</div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Choose a skill
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">Browse or search from 100+ skills</p>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-bold text-(--color-brand-dark) dark:text-purple-400 mb-4">2</div>
+                <div className="text-5xl font-bold text-(--color-brand) dark:text-purple-400 mb-4">2</div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Schedule an instructor
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
               </div>
               <div className="text-center">
-                <div className="text-5xl font-bold text-(--color-brand-dark) dark:text-purple-400 mb-4">3</div>
+                <div className="text-5xl font-bold text-(--color-brand) dark:text-purple-400 mb-4">3</div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
                 <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
               </div>
@@ -470,7 +470,7 @@ export default function HomePage() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>Next: {instructor.nextAvailable}</span>
                     </div>
-                    <button className="mt-3 w-full bg-(--color-brand-dark) hover:!bg-(--color-brand-dark) text-white hover:!text-white py-2 rounded-lg transition-colors duration-200 font-medium">
+                    <button className="mt-3 w-full bg-(--color-brand) hover:!bg-(--color-brand) text-white hover:!text-white py-2 rounded-lg transition-colors duration-200 font-medium">
                       Book Now
                     </button>
                   </div>
@@ -478,7 +478,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/search?available_now=true"
-                className="text-(--color-brand-dark) dark:text-purple-400 hover:underline mt-4 inline-block"
+                className="text-(--color-brand) dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 View All Available →
               </Link>
@@ -511,7 +511,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/trending"
-                className="text-(--color-brand-dark) dark:text-purple-400 hover:underline mt-4 inline-block"
+                className="text-(--color-brand) dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 Explore Trending →
               </Link>
@@ -564,14 +564,14 @@ export default function HomePage() {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Book in under 30 seconds</p>
             </div>
             <div className="text-center">
-              <DollarSign className="h-12 w-12 text-(--color-brand-dark) dark:text-purple-400 mx-auto mb-4" />
+              <DollarSign className="h-12 w-12 text-(--color-brand) dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Fair pricing</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 No hidden fees or surprises
               </p>
             </div>
             <div className="text-center">
-              <Shield className="h-12 w-12 text-(--color-brand-dark) dark:text-purple-400 mx-auto mb-4" />
+              <Shield className="h-12 w-12 text-(--color-brand) dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 Secure payment
               </h3>
@@ -703,19 +703,19 @@ export default function HomePage() {
             <div className="flex space-x-4">
               <Link
                 href="#"
-                className="text-(--color-brand-dark) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
+                className="text-(--color-brand) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Facebook
               </Link>
               <Link
                 href="#"
-                className="text-(--color-brand-dark) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
+                className="text-(--color-brand) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Twitter
               </Link>
               <Link
                 href="#"
-                className="text-(--color-brand-dark) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
+                className="text-(--color-brand) dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Instagram
               </Link>

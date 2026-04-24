@@ -32,7 +32,7 @@ export default async function InviteClaimPage({ searchParams }: { searchParams?:
     return (
       <div className="min-h-screen bg-[#F9F5FF] flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-800 shadow-2xl p-8 space-y-6 text-center">
-          <p className="text-sm font-semibold tracking-widest text-(--color-brand-dark) uppercase">
+          <p className="text-sm font-semibold tracking-widest text-(--color-brand) uppercase">
             iNSTAiNSTRU
           </p>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Invite link invalid</h1>
@@ -41,7 +41,7 @@ export default async function InviteClaimPage({ searchParams }: { searchParams?:
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Need help? Contact{' '}
-            <a className="text-(--color-brand-dark) font-semibold underline" href="mailto:support@instainstru.com">
+            <a className="text-(--color-brand) font-semibold underline" href="mailto:support@instainstru.com">
               support@instainstru.com
             </a>
             .

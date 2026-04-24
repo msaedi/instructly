@@ -271,7 +271,7 @@ function StudentDashboardContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand-dark)"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-(--color-brand)"></div>
       </div>
     );
   }
@@ -299,7 +299,7 @@ function StudentDashboardContent() {
       <header className="insta-dashboard-header px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
+            <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
@@ -379,7 +379,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Information</h2>
                       <button
-                        className="text-sm font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
+                        className="text-sm font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => {
                           logger.debug('Edit profile clicked');
                           setShowEditProfile(true);
@@ -420,7 +420,7 @@ function StudentDashboardContent() {
                         )}
                       </div>
                       <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
-                        <p className="text-2xl font-bold text-(--color-brand-dark)">{userData?.first_name} {userData?.last_name}</p>
+                        <p className="text-2xl font-bold text-(--color-brand)">{userData?.first_name} {userData?.last_name}</p>
                         <p>{userData?.email}</p>
                         <p>{formatPhoneReadable(userData?.phone)}</p>
                         <p>
@@ -430,7 +430,7 @@ function StudentDashboardContent() {
                             return info ? `${info.city}, ${info.state}, ${z}` : z || '—';
                           })()}
                         </p>
-                        <p className="text-(--color-brand-dark)/90">
+                        <p className="text-(--color-brand)/90">
                           Member since: {memberSince ? memberSince.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
                         </p>
                       </div>
@@ -447,7 +447,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Addresses</h2>
                       <button
-                        className="text-sm font-medium text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
+                        className="text-sm font-medium text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
                       >
                         + Add
@@ -472,7 +472,7 @@ function StudentDashboardContent() {
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
                             <button
-                              className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300"
+                              className="text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300"
                               onClick={() => setShowAddressModal({ mode: 'edit', address: a })}
                             >
                               Edit
@@ -974,7 +974,7 @@ function NotificationsTab() {
                         key={h}
                         onClick={() => handleTimeChange(h, minute, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                          displayHour === h ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
+                          displayHour === h ? 'bg-purple-100 text-(--color-brand) font-medium' : ''
                         }`}
                       >
                         {h}
@@ -992,7 +992,7 @@ function NotificationsTab() {
                         key={m}
                         onClick={() => handleTimeChange(displayHour, m, period)}
                         className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                          minute === m ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
+                          minute === m ? 'bg-purple-100 text-(--color-brand) font-medium' : ''
                         }`}
                       >
                         {m}
@@ -1008,7 +1008,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
-                        period === 'AM' ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
+                        period === 'AM' ? 'bg-purple-100 text-(--color-brand) font-medium' : ''
                       }`}
                     >
                       AM
@@ -1016,7 +1016,7 @@ function NotificationsTab() {
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'PM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 border-t border-gray-200 dark:border-gray-700 ${
-                        period === 'PM' ? 'bg-purple-100 text-(--color-brand-dark) font-medium' : ''
+                        period === 'PM' ? 'bg-purple-100 text-(--color-brand) font-medium' : ''
                       }`}
                     >
                       PM

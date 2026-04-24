@@ -123,7 +123,7 @@ describe('CommissionTierCard', () => {
     expect(screen.getByText('8% · locked')).toBeInTheDocument();
     expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
       'bg-(--color-brand-lavender)',
-      'text-(--color-brand-dark)'
+      'text-(--color-brand)'
     );
     expect(
       screen.getByText(
@@ -208,7 +208,7 @@ describe('CommissionTierCard', () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId('commission-rate-pill')).toHaveClass(
       'bg-(--color-brand-lavender)',
-      'text-(--color-brand-dark)'
+      'text-(--color-brand)'
     );
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByTestId('commission-tier-connector-entry')).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe('CommissionTierCard', () => {
     );
     expect(screen.getByTestId('commission-tier-step-entry')).toHaveClass(
       'bg-(--color-brand-lavender)',
-      'text-(--color-brand-dark)'
+      'text-(--color-brand)'
     );
     expect(screen.getByTestId('commission-tier-step-entry')).toHaveTextContent('1');
     expect(screen.getByTestId('commission-tier-track-entry')).toHaveAttribute(

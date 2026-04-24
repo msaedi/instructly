@@ -194,7 +194,7 @@ const BillingTab: React.FC = () => {
         ) : creditBalance && creditBalance.available > 0 ? (
           <div className="rounded-xl border p-6" style={creditCardStyle}>
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-(--color-brand-dark)">
+              <p className="text-2xl font-bold text-(--color-brand)">
                 {formatCurrency(creditBalance.available)}
               </p>
               <p className="text-sm text-purple-600 dark:text-purple-200">Available balance</p>
@@ -237,7 +237,7 @@ const BillingTab: React.FC = () => {
             <Button
               onClick={() => void handleApplyPromoCode()}
               disabled={isApplyingPromo || !promoCode.trim()}
-              className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
+              className="bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               {isApplyingPromo ? (
                 <>
@@ -256,7 +256,7 @@ const BillingTab: React.FC = () => {
           <Button
             variant="outline"
             onClick={() => toast.info('Credit packages coming soon!')}
-            className="w-full sm:w-auto border-(--color-brand-dark) text-(--color-brand-dark) hover:bg-purple-50 dark:hover:bg-purple-900/30"
+            className="w-full sm:w-auto border-(--color-brand) text-(--color-brand) hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             Purchase Credit Package
           </Button>
@@ -273,7 +273,7 @@ const BillingTab: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
-            className="text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+            className="text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History

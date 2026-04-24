@@ -710,13 +710,13 @@ function AvailabilityPageImpl() {
         <header className="relative px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4"><UserProfileDropdown /></div>
           </div>
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden sm:block">
             <div className="container mx-auto px-8 lg:px-32 max-w-6xl pointer-events-none">
-              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark) pointer-events-auto">
+              <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-(--color-brand) pointer-events-auto">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                 <span>Back to dashboard</span>
               </Link>
@@ -728,7 +728,7 @@ function AvailabilityPageImpl() {
       <div className={embedded ? 'max-w-none px-0 lg:px-0 py-0' : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl'}>
         {!embedded && (
           <div className="sm:hidden mb-2">
-            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-(--color-brand-dark)">
+            <Link href="/instructor/dashboard" aria-label="Back to dashboard" className="inline-flex items-center gap-1 text-(--color-brand)">
               <ArrowLeft className="w-5 h-5" />
               <span className="sr-only">Back to dashboard</span>
             </Link>
@@ -874,7 +874,7 @@ function AvailabilityPageImpl() {
                   onClick={() => setActiveDay(index)}
                   className={`rounded-full border px-3 py-2 text-sm font-semibold ${
                     index === activeDay
-                      ? 'border-(--color-brand-dark) bg-(--color-brand-dark) text-white'
+                      ? 'border-(--color-brand) bg-(--color-brand) text-white'
                       : 'border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
                   }`}
                 >
@@ -946,7 +946,7 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={handleOpenCalendarProtectionsInfo}
-              className="text-sm text-(--color-brand-dark) hover:underline"
+              className="text-sm text-(--color-brand) hover:underline"
             >
               About calendar protections
             </button>
@@ -985,7 +985,7 @@ function AvailabilityPageImpl() {
               type="button"
               onClick={handleSaveWeek}
               disabled={isSaving || !hasUnsavedChanges}
-              className="rounded-full bg-(--color-brand-dark) px-5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
+              className="rounded-full bg-(--color-brand) px-5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
             >
               {isSaving ? 'Saving…' : 'Save Week'}
             </button>

@@ -18,7 +18,7 @@ describe('NotificationIcon', () => {
 
     const span = container.querySelector('span');
     expect(span).toHaveClass('bg-purple-50');
-    expect(span).toHaveClass('text-(--color-brand-dark)');
+    expect(span).toHaveClass('text-(--color-brand)');
     // Icon should be present with aria-hidden
     const icon = container.querySelector('[aria-hidden="true"]');
     expect(icon).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('NotificationIcon', () => {
 
     const span = container.querySelector('span');
     expect(span).toHaveClass('bg-purple-50');
-    expect(span).toHaveClass('text-(--color-brand-dark)');
+    expect(span).toHaveClass('text-(--color-brand)');
   });
 
   it('renders Star icon for reviews category', () => {

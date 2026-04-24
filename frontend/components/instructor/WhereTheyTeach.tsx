@@ -50,7 +50,7 @@ export function WhereTheyTeach({
   if (effectiveOffersAtLocation) {
     legendItems.push({
       key: 'studio',
-      icon: <MapPin className="h-4 w-4 text-(--color-brand-dark)" aria-hidden="true" />,
+      icon: <MapPin className="h-4 w-4 text-(--color-brand)" aria-hidden="true" />,
       label: 'At studio',
     });
   }

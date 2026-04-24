@@ -523,7 +523,7 @@ export default function InteractiveGrid({
                     className={clsx(
                       'inline-flex items-center justify-center px-1 py-0 text-2xl font-medium leading-none',
                       isToday
-                        ? 'rounded-md border-2 border-(--color-brand-dark) text-[#111827] dark:text-white'
+                        ? 'rounded-md border-2 border-(--color-brand) text-[#111827] dark:text-white'
                         : isPastDate
                           ? 'text-gray-400 dark:text-gray-300'
                           : 'text-gray-900 dark:text-gray-100'

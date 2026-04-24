@@ -96,11 +96,11 @@ export function ChatHeader({
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">To:</span>
             {composeRecipient ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-(--color-brand-dark)">
+              <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-(--color-brand)">
                 {composeRecipient.name}
                 <button
                   type="button"
-                  className="text-(--color-brand-dark) hover:text-purple-800 dark:hover:text-purple-200"
+                  className="text-(--color-brand) hover:text-purple-800 dark:hover:text-purple-200"
                   aria-label="Remove recipient"
                   onClick={onComposeRecipientClear}
                 >
@@ -214,7 +214,7 @@ export function ChatHeader({
                               onClick={() => {
                                 setShowUpcomingBookings((v) => !v);
                               }}
-                              className="text-xs text-(--color-brand-dark) flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
+                              className="text-xs text-(--color-brand) flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
                               data-testid="chat-header-booking-expander"
                             >
                               <span>{remainingBookingsLabel}</span>
@@ -222,7 +222,7 @@ export function ChatHeader({
                             </button>
                           ) : (
                             <span
-                              className="block w-full pt-1 text-xs text-(--color-brand-dark)"
+                              className="block w-full pt-1 text-xs text-(--color-brand)"
                               data-testid="chat-header-booking-summary-count"
                             >
                               {remainingBookingsLabel}

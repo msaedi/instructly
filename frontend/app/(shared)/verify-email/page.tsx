@@ -282,7 +282,7 @@ export function VerifyEmailPageContent() {
         <div className="w-full sm:max-w-md sm:mx-auto">
           <div className="insta-surface-card py-8 px-6 sm:px-10 sm:shadow">
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-(--color-brand-dark)">{BRAND.name}</h1>
+              <h1 className="text-4xl font-bold text-(--color-brand)">{BRAND.name}</h1>
               <h2 className="mt-6 text-2xl font-bold text-gray-900 dark:text-gray-100">
                 Start again
               </h2>
@@ -291,7 +291,7 @@ export function VerifyEmailPageContent() {
               </p>
               <Link
                 href="/signup"
-                className="mt-6 inline-flex items-center justify-center rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none "
+                className="mt-6 inline-flex items-center justify-center rounded-md bg-(--color-brand) px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-800 focus:outline-none "
               >
                 Back to signup
               </Link>
@@ -308,7 +308,7 @@ export function VerifyEmailPageContent() {
         <div className="insta-surface-card py-8 px-6 sm:px-10 sm:shadow">
           <div className="text-center">
             <Link href="/">
-              <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+              <h1 className="text-4xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                 {BRAND.name}
               </h1>
             </Link>
@@ -380,7 +380,7 @@ export function VerifyEmailPageContent() {
                 className={`font-medium ${
                   resending || resendCooldown > 0
                     ? 'text-gray-400 dark:text-gray-500'
-                    : 'text-(--color-brand-dark) hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
+                    : 'text-(--color-brand) hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
                 }`}
               >
                 {resending

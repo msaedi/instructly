@@ -43,7 +43,7 @@ export function ConversationItem({
       : '';
 
   const avatarClasses = isCompose
-    ? 'bg-(--color-brand-dark) text-white'
+    ? 'bg-(--color-brand) text-white'
     : conversation.type === 'platform'
       ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-200'
       : 'bg-purple-100 text-purple-600';
@@ -52,7 +52,7 @@ export function ConversationItem({
     conversation.unread > 0 && !isCompose ? (
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-1/2 inline-flex h-1.5 w-1.5 rounded-full bg-(--color-brand-dark)"
+        className="pointer-events-none absolute left-0 top-1/2 inline-flex h-1.5 w-1.5 rounded-full bg-(--color-brand)"
         style={{ transform: 'translate(calc(-100% - 6px), -50%)' }}
       />
     ) : null;

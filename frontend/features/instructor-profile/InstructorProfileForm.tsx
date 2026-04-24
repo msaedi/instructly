@@ -715,7 +715,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         <header className="px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full relative">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
             {/* Onboarding progress removed for standalone page */}
 
@@ -752,9 +752,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                     trigger={
                       <div className="flex flex-col items-center">
                         <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 dark:hover:bg-purple-800/40 focus:outline-none cursor-pointer" title="Upload profile photo">
-                          <Camera className="w-6 h-6 text-(--color-brand-dark)" />
+                          <Camera className="w-6 h-6 text-(--color-brand)" />
                         </div>
-                        <span className="mt-1 text-[10px] text-(--color-brand-dark)">Upload photo</span>
+                        <span className="mt-1 text-[10px] text-(--color-brand)">Upload photo</span>
                       </div>
                     }
                   />
@@ -769,7 +769,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                   ariaLabel="Upload profile photo"
                   trigger={
                     <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 dark:hover:bg-purple-800/40 focus:outline-none cursor-pointer" title="Upload profile photo">
-                      <Camera className="w-6 h-6 text-(--color-brand-dark)" />
+                      <Camera className="w-6 h-6 text-(--color-brand)" />
                     </div>
                   }
                 />
@@ -843,7 +843,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Tag className="w-6 h-6 text-(--color-brand-dark)" />
+                    <Tag className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="insta-dashboard-accordion-title">Skills & Pricing</span>
@@ -883,7 +883,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-(--color-brand-dark)" />
+                    <UserIcon className="w-6 h-6 text-(--color-brand)" />
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="insta-dashboard-accordion-title">Service Areas</span>
@@ -933,7 +933,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               type="button"
               onClick={() => { if (!saving && !savingServiceAreas) { void save(); } }}
               disabled={saving || savingServiceAreas}
-              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white font-semibold bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
+              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white font-semibold bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
             >
               {saving || savingServiceAreas ? 'Saving...' : 'Save Changes'}
             </button>

@@ -103,7 +103,7 @@ const AddCardFormInner: React.FC<{
         <button
           type="submit"
           disabled={!stripe || loading}
-          className="flex-1 p-2 bg-(--color-brand-dark) text-white rounded text-sm hover:bg-purple-800 dark:hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 font-semibold"
+          className="flex-1 p-2 bg-(--color-brand) text-white rounded text-sm hover:bg-purple-800 dark:hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 font-semibold"
         >
           {loading ? 'Adding...' : 'Add Card'}
         </button>
@@ -245,7 +245,7 @@ export default function PaymentMethodSelection({
                   key={card.id}
                   className={`flex items-center p-3 bg-white dark:bg-gray-800 border rounded-lg cursor-pointer transition-colors ${
                     selectedCardId === card.id
-                      ? 'border-(--color-brand-dark)'
+                      ? 'border-(--color-brand)'
                       : 'border-gray-200 dark:border-gray-700'
                   }`}
                 >
@@ -271,20 +271,20 @@ export default function PaymentMethodSelection({
                       <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">Default</span>
                     )}
                   </div>
-                  {selectedCardId === card.id && <Check className="text-(--color-brand-dark)" size={20} />}
+                  {selectedCardId === card.id && <Check className="text-(--color-brand)" size={20} />}
                 </label>
               ))}
 
               {!showNewCardForm ? (
                 <button
                   onClick={() => setShowNewCardForm(true)}
-                  className="w-full p-3 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-(--color-brand-dark) transition-colors flex items-center justify-center text-sm"
+                  className="w-full p-3 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-(--color-brand) transition-colors flex items-center justify-center text-sm"
                 >
                   <Plus size={18} className="mr-2" />
                   Add New Card
                 </button>
               ) : (
-                <div className="p-3 bg-white dark:bg-gray-800 border border-(--color-brand-dark) rounded-lg">
+                <div className="p-3 bg-white dark:bg-gray-800 border border-(--color-brand) rounded-lg">
                   <div className="flex justify-between items-center mb-3">
                     <h5 className="text-sm font-medium">Enter Card Details</h5>
                     <button
@@ -320,7 +320,7 @@ export default function PaymentMethodSelection({
                 <button
                   onClick={handleContinue}
                   disabled={!selectedCardId}
-                  className="w-full py-2.5 px-4 bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none  disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
+                  className="w-full py-2.5 px-4 bg-(--color-brand) text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none  disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
                   {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
                 </button>

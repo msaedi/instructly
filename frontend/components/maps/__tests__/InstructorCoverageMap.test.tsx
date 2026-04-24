@@ -513,7 +513,7 @@ describe('InstructorCoverageMap', () => {
     expect(screen.getByTestId('geojson-feature-0')).toHaveTextContent('chelsea');
     expect(screen.getByTestId('geojson-feature-0')).toHaveAttribute(
       'data-style',
-      JSON.stringify({ color: 'var(--color-brand-dark)', weight: 2, fillOpacity: 0.35 })
+      JSON.stringify({ color: 'var(--color-brand)', weight: 2, fillOpacity: 0.35 })
     );
     expect(screen.getByTestId('geojson-feature-1')).toHaveTextContent('feature-1');
 

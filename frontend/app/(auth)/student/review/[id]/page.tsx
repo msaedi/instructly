@@ -70,7 +70,7 @@ export default function ReviewPage() {
         <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -82,7 +82,7 @@ export default function ReviewPage() {
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push('/student/lessons?tab=history')}
-              className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
+              className="bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               Back to My Lessons
             </Button>
@@ -189,7 +189,7 @@ export default function ReviewPage() {
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />
@@ -230,7 +230,7 @@ export default function ReviewPage() {
               </div>
               <Button
                 onClick={() => router.push('/student/lessons?tab=history')}
-                className="bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white px-8 py-2.5"
+                className="bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 text-white px-8 py-2.5"
               >
                 Back to My Lessons
               </Button>
@@ -321,7 +321,7 @@ export default function ReviewPage() {
                     }}
                     className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
                       selectedTip === amount && !showCustomTip
-                        ? 'bg-(--color-brand-dark) text-white'
+                        ? 'bg-(--color-brand) text-white'
                         : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-600'
                     }`}
                   >
@@ -335,7 +335,7 @@ export default function ReviewPage() {
                   }}
                   className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
                     showCustomTip
-                      ? 'bg-(--color-brand-dark) text-white'
+                      ? 'bg-(--color-brand) text-white'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-600'
                   }`}
                 >
@@ -407,7 +407,7 @@ export default function ReviewPage() {
                   className={`px-8 py-2.5 text-base font-medium rounded-lg ${
                     rating === 0 || isSubmitting
                       ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                      : 'bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
+                      : 'bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
                   }`}
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit'}
@@ -427,7 +427,7 @@ function ReviewPageLoading() {
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <div className="animate-pulse">

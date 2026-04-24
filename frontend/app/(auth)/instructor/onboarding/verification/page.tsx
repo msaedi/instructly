@@ -535,7 +535,7 @@ export default function Step4Verification() {
             <div className="grid grid-cols-[3rem_1fr] gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
                 <svg
-                  className="h-6 w-6 text-(--color-brand-dark)"
+                  className="h-6 w-6 text-(--color-brand)"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -658,7 +658,7 @@ export default function Step4Verification() {
           <section id="bgc-step-card" className="insta-surface-card p-4 sm:p-6">
             <div className="mb-4 flex items-start gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-                <ShieldCheck className="h-6 w-6 text-(--color-brand-dark)" />
+                <ShieldCheck className="h-6 w-6 text-(--color-brand)" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">

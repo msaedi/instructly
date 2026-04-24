@@ -71,11 +71,11 @@ function WelcomeInner() {
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 py-10 px-8 sm:rounded-[28px]">
           <div className="text-center mb-4">
-            <h1 className="text-3xl font-bold tracking-tight text-(--color-brand-dark)">{`iNSTAiNSTRU`}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-(--color-brand)">{`iNSTAiNSTRU`}</h1>
             <p className="text-2xl font-semibold insta-onboarding-strong-text mt-4">
               Welcome to the Founding Instructor Program
             </p>
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-(--color-brand-dark) to-transparent mt-4" />
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-(--color-brand) to-transparent mt-4" />
           </div>
           <div className="text-center text-gray-600 dark:text-gray-400 mb-6 space-y-2">
             <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">

@@ -128,8 +128,8 @@ function LadderCircle({
     <div
       className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold ${
         state === 'met'
-          ? 'border-[#E9D5FF] bg-(--color-brand-lavender) text-(--color-brand-dark)'
-          : 'border-[#D8B4FE] bg-transparent text-(--color-brand-dark)'
+          ? 'border-[#E9D5FF] bg-(--color-brand-lavender) text-(--color-brand)'
+          : 'border-[#D8B4FE] bg-transparent text-(--color-brand)'
       }`}
       data-tier-state={state}
       data-testid={testId}
@@ -174,7 +174,7 @@ export default function CommissionTierCard() {
             </p>
           </div>
           <div
-            className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand-dark)"
+            className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand)"
             data-testid="commission-rate-pill"
           >
             {currentRateLabel}% · locked
@@ -203,7 +203,7 @@ export default function CommissionTierCard() {
           </p>
         </div>
         <div
-          className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand-dark)"
+          className="inline-flex w-fit items-center rounded-full bg-(--color-brand-lavender) px-3 py-1 text-sm font-semibold text-(--color-brand)"
           data-testid="commission-rate-pill"
         >
           {currentRateLabel}%
@@ -266,7 +266,7 @@ export default function CommissionTierCard() {
                     <span className="absolute inset-0 bg-(--color-brand-lavender)" />
                     {filledDots > 0 ? (
                       <span
-                        className="absolute left-0 top-0 h-full bg-(--color-brand-dark)"
+                        className="absolute left-0 top-0 h-full bg-(--color-brand)"
                         data-testid={`commission-tier-fill-${tier.name}`}
                         style={{ width: dotCount > 1 ? `${filledTrackPercent}%` : '0%' }}
                       />
@@ -282,7 +282,7 @@ export default function CommissionTierCard() {
                           key={`${tier.name}-dot-${dotIndex + 1}`}
                           className={`h-3 w-3 rounded-full border ${
                             filled
-                              ? 'border-(--color-brand-dark) bg-(--color-brand-dark)'
+                              ? 'border-(--color-brand) bg-(--color-brand)'
                               : 'border-(--color-brand-lavender) bg-transparent'
                           }`}
                           data-dot-state={filled ? 'filled' : 'unfilled'}

@@ -261,7 +261,7 @@ export default function TfaModal({ initialEnabled = null, onClose, onChanged }: 
               </button>
               <button
                 type="button"
-                className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-(--color-brand-dark) hover:bg-purple-800 dark:hover:bg-purple-700 active:bg-purple-900'}`}
+                className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-(--color-brand) hover:bg-purple-800 dark:hover:bg-purple-700 active:bg-purple-900'}`}
                 onClick={verify}
                 disabled={loading}
               >

@@ -43,7 +43,7 @@ export const SectionHeroCard = forwardRef<HTMLDivElement, SectionHeroCardProps>(
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-(--color-brand-dark)">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-(--color-brand)">
               <Icon className="w-6 h-6" aria-hidden="true" />
             </div>
             <div className="space-y-1 min-w-0">

@@ -51,7 +51,7 @@ export function AuthShell({
           >
             <div className={clsx('text-center mb-1 md:mb-2', headerClassName)}>
               <Link href={logoHref} {...logoClickProps}>
-                <h1 className="text-4xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
+                <h1 className="text-4xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                   {logoLabel}
                 </h1>
               </Link>

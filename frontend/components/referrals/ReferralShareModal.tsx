@@ -105,7 +105,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
             type="button"
             onClick={handleShare}
             disabled={isProcessing !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-(--color-brand) px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-80"
             aria-label="Share referral link"
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
@@ -134,7 +134,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
 
         <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
           If your friend books, you both receive iNSTAiNSTRU credits.{' '}
-          <Link href="/referrals-terms" className="font-medium text-(--color-brand-dark) underline" onClick={onClose}>
+          <Link href="/referrals-terms" className="font-medium text-(--color-brand) underline" onClick={onClose}>
             Terms apply
           </Link>
           .

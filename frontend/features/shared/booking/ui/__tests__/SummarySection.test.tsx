@@ -426,7 +426,7 @@ describe('SummarySection', () => {
       render(<SummarySection {...defaultProps} isComplete={true} />);
 
       const button = screen.getByRole('button', { name: /select and continue/i });
-      expect(button).toHaveClass('bg-(--color-brand-dark)', 'text-white');
+      expect(button).toHaveClass('bg-(--color-brand)', 'text-white');
     });
 
     it('has correct styling when disabled', () => {

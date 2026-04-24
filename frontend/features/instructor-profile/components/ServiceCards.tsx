@@ -133,18 +133,18 @@ function ServiceCardItem({
             <div className="flex w-full flex-col items-center text-center gap-2">
               {levelLabel ? (
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-700 dark:text-gray-300 leading-tight">
-                  <Layers className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
+                  <Layers className="h-3.5 w-3.5 text-(--color-brand)" aria-hidden="true" />
                   <span>Levels: {levelLabel}</span>
                 </div>
               ) : (
                 <span className="text-xs opacity-0">Levels placeholder</span>
               )}
               {levelLabel && hasFormat ? (
-                <div className="w-10/12 h-px bg-gradient-to-r from-transparent via-(--color-brand-dark)/40 to-transparent" />
+                <div className="w-10/12 h-px bg-gradient-to-r from-transparent via-(--color-brand)/40 to-transparent" />
               ) : null}
               {hasFormat ? (
                 <div className="flex items-center justify-center gap-2 text-sm text-gray-700 dark:text-gray-300 leading-tight">
-                  <MonitorSmartphone className="h-3.5 w-3.5 text-(--color-brand-dark)" aria-hidden="true" />
+                  <MonitorSmartphone className="h-3.5 w-3.5 text-(--color-brand)" aria-hidden="true" />
                   <span>Format:</span>
                   <span className="inline-flex items-center gap-1.5">
                     {offersTravel && (
@@ -159,7 +159,7 @@ function ServiceCardItem({
                         title="At their studio"
                         className="cursor-help inline-flex items-center"
                       >
-                        <MapPin className="h-4 w-4 text-(--color-brand-dark)" aria-hidden="true" />
+                        <MapPin className="h-4 w-4 text-(--color-brand)" aria-hidden="true" />
                       </span>
                     )}
                     {offersOnline && (
@@ -191,7 +191,7 @@ function ServiceCardItem({
                         value={dur}
                         checked={selectedDuration === dur}
                         onChange={() => setSelectedDuration(dur)}
-                        className="w-3 h-3 text-(--color-brand-dark) accent-purple-700 border-gray-300 dark:border-gray-700 "
+                        className="w-3 h-3 text-(--color-brand) accent-purple-700 border-gray-300 dark:border-gray-700 "
                       />
                       <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {dur}min
@@ -219,7 +219,7 @@ function ServiceCardItem({
             <button
               className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
                 canBook
-                  ? 'bg-(--color-brand-dark) text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
+                  ? 'bg-(--color-brand) text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
                   : 'bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-300 cursor-not-allowed'
               }`}
               disabled={!canBook}

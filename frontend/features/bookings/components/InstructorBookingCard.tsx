@@ -162,7 +162,7 @@ export function InstructorBookingCard({ booking }: InstructorBookingCardProps) {
                     href={locationMapHref}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="transition-colors hover:text-(--color-brand-dark)"
+                    className="transition-colors hover:text-(--color-brand)"
                     data-testid="booking-location-link"
                     onClick={(event) => {
                       event.stopPropagation();

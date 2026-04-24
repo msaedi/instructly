@@ -284,8 +284,8 @@ describe('Instructor earnings page', () => {
       '-mb-px',
       'flex-1',
       'border-b-2',
-      'border-(--color-brand-dark)',
-      'text-(--color-brand-dark)'
+      'border-(--color-brand)',
+      'text-(--color-brand)'
     );
     expect(payoutsTab).toHaveClass('flex-1', 'border-transparent');
   });

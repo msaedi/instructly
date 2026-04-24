@@ -481,8 +481,8 @@ describe('MyLessonsPage', () => {
 
     const upcomingTab = screen.getByRole('tab', { name: 'Upcoming' });
     expect(upcomingTab).toHaveAttribute('aria-selected', 'true');
-    expect(upcomingTab).toHaveClass('text-(--color-brand-dark)');
-    expect(upcomingTab).toHaveClass('border-(--color-brand-dark)');
+    expect(upcomingTab).toHaveClass('text-(--color-brand)');
+    expect(upcomingTab).toHaveClass('border-(--color-brand)');
 
     // Switch to history
     const historyTab = screen.getByRole('tab', { name: 'History' });
@@ -490,8 +490,8 @@ describe('MyLessonsPage', () => {
 
     await waitFor(() => {
       expect(historyTab).toHaveAttribute('aria-selected', 'true');
-      expect(historyTab).toHaveClass('text-(--color-brand-dark)');
-      expect(historyTab).toHaveClass('border-(--color-brand-dark)');
+      expect(historyTab).toHaveClass('text-(--color-brand)');
+      expect(historyTab).toHaveClass('border-(--color-brand)');
       expect(upcomingTab).toHaveAttribute('aria-selected', 'false');
     });
   });

@@ -151,7 +151,7 @@ export default function RewardsPanel({
         <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4 ${compactShare ? 'p-0' : ''}`}>
           <div className={`flex items-start gap-3 ${hideShareIcon ? 'flex-1 min-w-0' : ''}`}>
             {!hideShareIcon && (
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-(--color-brand-dark)/10 text-(--color-brand-dark)">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-(--color-brand)/10 text-(--color-brand)">
                 <Gift className="h-6 w-6" aria-hidden="true" />
               </span>
             )}
@@ -181,7 +181,7 @@ export default function RewardsPanel({
               type="button"
               onClick={handleCopy}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand-dark) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-(--color-brand) px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6b1fb8] focus:outline-none  disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy

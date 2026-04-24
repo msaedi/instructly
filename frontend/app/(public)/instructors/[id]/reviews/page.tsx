@@ -59,7 +59,7 @@ export default function InstructorAllReviewsPage() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <span className="text-3xl font-bold text-(--color-brand-dark) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
+              <span className="text-3xl font-bold text-(--color-brand) hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
             </Link>
             <Button
               variant="ghost"
@@ -113,7 +113,7 @@ export default function InstructorAllReviewsPage() {
                 type="button"
                 aria-pressed={withText}
                 onClick={() => { setWithText((v) => !v); setPage(1); }}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-(--color-brand-dark)' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-700`}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-(--color-brand)' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-700`}
               >
                 {withText ? <Check className="h-4 w-4" /> : <span className="h-4 w-4 inline-block border border-gray-300 dark:border-gray-700 rounded-sm" />}
                 With comments only

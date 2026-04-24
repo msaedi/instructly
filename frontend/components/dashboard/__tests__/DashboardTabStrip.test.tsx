@@ -26,8 +26,8 @@ describe('DashboardTabStrip', () => {
     expect(activeTab).toHaveClass(
       'flex-1',
       'border-b-2',
-      'border-(--color-brand-dark)',
-      'text-(--color-brand-dark)'
+      'border-(--color-brand)',
+      'text-(--color-brand)'
     );
     expect(inactiveTab).toHaveClass('flex-1', 'border-transparent');
     expect(screen.getByRole('tablist', { name: 'Example tabs' })).toHaveClass('flex', 'border-b');
