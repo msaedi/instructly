@@ -14,7 +14,7 @@ pgvector==0.4.2
 
 # Validation & Serialization
 pydantic==2.12.5
-pydantic-settings==2.13.1
+pydantic-settings==2.14.0
 email_validator==2.3.0
 orjson==3.11.8
 
@@ -57,21 +57,21 @@ stripe==15.0.1
 prometheus-client==0.24.1
 sentry-sdk[fastapi]==2.58.0
 # OpenTelemetry Core - PIN TO SAME MINOR VERSION
-opentelemetry-api==1.40.0
-opentelemetry-sdk==1.40.0
-opentelemetry-semantic-conventions==0.61b0
+opentelemetry-api==1.41.0
+opentelemetry-sdk==1.41.0
+opentelemetry-semantic-conventions==0.62b0
 # OTLP Exporter
-opentelemetry-exporter-otlp-proto-http==1.40.0
-# Auto-instrumentation - ALL SAME MINOR (0.61b0)
-opentelemetry-instrumentation-fastapi==0.61b0
-opentelemetry-instrumentation-celery==0.61b0
-opentelemetry-instrumentation-redis==0.61b0
-opentelemetry-instrumentation-sqlalchemy==0.61b0
-opentelemetry-instrumentation-httpx==0.61b0
-opentelemetry-instrumentation-logging==0.61b0
+opentelemetry-exporter-otlp-proto-http==1.41.0
+# Auto-instrumentation - ALL SAME MINOR (0.62b0)
+opentelemetry-instrumentation-fastapi==0.62b0
+opentelemetry-instrumentation-celery==0.62b0
+opentelemetry-instrumentation-redis==0.62b0
+opentelemetry-instrumentation-sqlalchemy==0.62b0
+opentelemetry-instrumentation-httpx==0.62b0
+opentelemetry-instrumentation-logging==0.62b0
 psutil==7.2.2
 python-ulid==3.1.0
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 PyYAML==6.0.3
 user-agents==2.2.0
 pillow==12.2.0
