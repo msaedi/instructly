@@ -27,6 +27,8 @@ import type {
   PasswordResetRequest,
   PasswordResetResponse,
   PasswordResetVerifyResponse,
+  RequestPasswordResetApiV1PasswordResetRequestPost404,
+  RequestPasswordResetApiV1PasswordResetRequestPost503,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -141,10 +143,10 @@ export const useConfirmPasswordResetApiV1PasswordResetConfirmPost = <
   );
 };
 /**
- * Request a password reset email.
+ * Request a password reset link.
 
-This endpoint always returns success to prevent email enumeration attacks.
-If the email exists, a reset link will be sent.
+Returns 404 if no account matches the email; sends the reset link otherwise.
+Returns 503 if the reset email could not be sent for a valid account.
 
 Rate limited by both IP and email to prevent abuse.
 
@@ -179,7 +181,11 @@ export const requestPasswordResetApiV1PasswordResetRequestPost = async (
 };
 
 export const getRequestPasswordResetApiV1PasswordResetRequestPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<
+    | RequestPasswordResetApiV1PasswordResetRequestPost404
+    | HTTPValidationError
+    | RequestPasswordResetApiV1PasswordResetRequestPost503
+  >,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -218,14 +224,21 @@ export type RequestPasswordResetApiV1PasswordResetRequestPostMutationResult = No
   Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>
 >;
 export type RequestPasswordResetApiV1PasswordResetRequestPostMutationBody = PasswordResetRequest;
-export type RequestPasswordResetApiV1PasswordResetRequestPostMutationError =
-  ErrorType<HTTPValidationError>;
+export type RequestPasswordResetApiV1PasswordResetRequestPostMutationError = ErrorType<
+  | RequestPasswordResetApiV1PasswordResetRequestPost404
+  | HTTPValidationError
+  | RequestPasswordResetApiV1PasswordResetRequestPost503
+>;
 
 /**
  * @summary Request Password Reset
  */
 export const useRequestPasswordResetApiV1PasswordResetRequestPost = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<
+    | RequestPasswordResetApiV1PasswordResetRequestPost404
+    | HTTPValidationError
+    | RequestPasswordResetApiV1PasswordResetRequestPost503
+  >,
   TContext = unknown,
 >(
   options?: {

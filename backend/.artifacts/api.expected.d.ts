@@ -21325,12 +21325,32 @@ export interface operations {
  "application/json": components["schemas"]["PasswordResetResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": {
+ detail: string;
+ };
+ };
+ };
  422: {
  headers: {
  [name: string]: unknown;
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ 503: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": {
+ detail: string;
+ };
  };
  };
  };

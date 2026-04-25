@@ -6034,10 +6034,10 @@ export type paths = {
         put?: never;
         /**
          * Request Password Reset
-         * @description Request a password reset email.
+         * @description Request a password reset link.
          *
-         *     This endpoint always returns success to prevent email enumeration attacks.
-         *     If the email exists, a reset link will be sent.
+         *     Returns 404 if no account matches the email; sends the reset link otherwise.
+         *     Returns 503 if the reset email could not be sent for a valid account.
          *
          *     Rate limited by both IP and email to prevent abuse.
          *
@@ -33756,6 +33756,17 @@ export interface operations {
                     "application/json": components["schemas"]["PasswordResetResponse"];
                 };
             };
+            /** @description Account not found for the provided email */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                    };
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -33763,6 +33774,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Reset email could not be sent */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                    };
                 };
             };
         };

@@ -5,10 +5,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { fetchAPI } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import type { ApiErrorResponse, PasswordResetRequest } from '@/features/shared/api/types';
-import { extractApiErrorMessage } from '@/lib/apiErrors';
+import type { PasswordResetRequest } from '@/features/shared/api/types';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 import { getAuthBackground } from '@/lib/services/assetService';
@@ -16,6 +16,10 @@ import { getAuthBackground } from '@/lib/services/assetService';
 const FORGOT_BACKGROUND_DESKTOP = getAuthBackground('default', 'desktop');
 const FORGOT_BACKGROUND_TABLET = getAuthBackground('default', 'tablet');
 const FORGOT_BACKGROUND_MOBILE = getAuthBackground('default', 'mobile');
+const ACCOUNT_NOT_FOUND_MESSAGE = "We couldn't find an account with that email. Please double-check and try again.";
+const RATE_LIMIT_MESSAGE = 'Too many requests. Please wait a few minutes and try again.';
+const RESET_EMAIL_SEND_FAILURE_MESSAGE = "Couldn't send reset email. Please try again or contact support.";
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
 function ForgotPasswordBackgroundLayers() {
   const desktopSrc = FORGOT_BACKGROUND_DESKTOP ?? FORGOT_BACKGROUND_TABLET ?? FORGOT_BACKGROUND_MOBILE;
@@ -114,19 +118,29 @@ export default function ForgotPasswordPage() {
       logger.timeEnd('passwordResetRequest');
 
       if (!response.ok) {
-        const data = (await response.json()) as ApiErrorResponse;
-        if (response.status === 404) throw new Error('No account found with this email address');
-        if (response.status === 429) throw new Error('Too many reset attempts. Please try again later');
-        throw new Error(extractApiErrorMessage(data, 'Failed to send reset email'));
+        if (response.status === 404) {
+          setError(ACCOUNT_NOT_FOUND_MESSAGE);
+        } else if (response.status === 429) {
+          setError(RATE_LIMIT_MESSAGE);
+        } else if (response.status === 503) {
+          setError(RESET_EMAIL_SEND_FAILURE_MESSAGE);
+          toast.error(RESET_EMAIL_SEND_FAILURE_MESSAGE);
+        } else {
+          setError(GENERIC_ERROR_MESSAGE);
+        }
+        setRequestStatus(RequestStatus.ERROR);
+        return;
       }
 
       logger.info('Password reset email sent successfully', { email: trimmedEmail });
       setRequestStatus(RequestStatus.SUCCESS);
       setIsSubmitted(true);
     } catch (err) {
-      const errorMessage = getErrorMessage(err);
-      logger.error('Password reset request error', err as Error, { email: trimmedEmail, errorMessage });
-      setError(errorMessage);
+      logger.error('Password reset request error', err as Error, {
+        email: trimmedEmail,
+        errorMessage: getErrorMessage(err),
+      });
+      setError(GENERIC_ERROR_MESSAGE);
       setRequestStatus(RequestStatus.ERROR);
     }
   };

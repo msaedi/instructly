@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_password_hash
 from ..core.config import settings
-from ..core.exceptions import ValidationException
+from ..core.exceptions import NotFoundException, ServiceException, ValidationException
 from ..models.password_reset import PasswordResetToken
 from ..models.user import User
+from ..monitoring.sentry import capture_sentry_exception
 from ..repositories.factory import RepositoryFactory
 from ..services.email import EmailService
 from .base import BaseService, CacheInvalidationProtocol
@@ -60,49 +61,85 @@ class PasswordResetService(BaseService):
         """
         Request a password reset for the given email.
 
-        Always returns True to prevent email enumeration attacks.
-
         Args:
             email: Email address requesting reset
 
         Returns:
-            bool: Always True for security
+            bool: True if a reset email was sent
+
+        Raises:
+            NotFoundException: If no user exists for the email
+            ServiceException: If the reset email cannot be sent
         """
-        self.log_operation("request_password_reset", email=email)
+        self.log_operation("request_password_reset")
 
         # Find user by email
         user = self.user_repository.find_one_by(email=email)
 
-        if user:
+        if not user:
+            # Anti-enumeration is intentionally OFF for this endpoint per A-Team
+            # product decision. iNSTAiNSTRU is invite-only with a small controlled
+            # user pool, so a clear "account not found" message helps founders
+            # who misremember which email they registered with.
+            #
+            # This divergence applies ONLY to password reset request. Login and
+            # registration flows still use anti-enumeration messaging; see
+            # auth_service.py and auth.py for those.
+            # REVISIT AT PUBLIC LAUNCH: when iNSTAiNSTRU opens beyond invite-only,
+            # this anti-enumeration override should be re-evaluated alongside login
+            # and registration. With a larger user pool, the enumeration tradeoff
+            # may flip back. The 503 also leaks confirmation when email send fails
+            # for a known account; the rate limits in rate_limit_password_reset_*
+            # are the only mitigation today.
+            self.logger.warning("Password reset requested for non-existent email")
+            raise NotFoundException(
+                "Password reset account not found",
+                code="PASSWORD_RESET_ACCOUNT_NOT_FOUND",
+            )
+
+        with self.transaction():
+            # Invalidate existing tokens
+            self._invalidate_existing_tokens(user.id)
+
+            # Generate new token
+            _token = self._generate_reset_token(user.id)
+
+            # Create reset URL
+            reset_url = f"{settings.frontend_url}/reset-password?token={_token}"
+
+            # Send email
             try:
-                with self.transaction():
-                    # Invalidate existing tokens
-                    self._invalidate_existing_tokens(user.id)
-
-                    # Generate new token
-                    _token = self._generate_reset_token(user.id)
-
-                    # Create reset URL
-                    reset_url = f"{settings.frontend_url}/reset-password?token={_token}"
-
-                    # Send email
-                    self.email_service.send_password_reset_email(
-                        to_email=user.email,
-                        reset_url=reset_url,
-                        user_name=user.first_name,
-                    )
-
-                    self.logger.info("Password reset token created for user %s", user.id)
-
+                email_sent = self.email_service.send_password_reset_email(
+                    to_email=user.email,
+                    reset_url=reset_url,
+                    user_name=user.first_name,
+                )
             except Exception as e:
-                self.logger.error("Error creating password reset token: %s", e, exc_info=True)
-                # Still return True to prevent enumeration
-        else:
-            # Log that email doesn't exist but don't reveal this
-            self.logger.warning("Password reset requested for non-existent email: %s", email)
+                self._capture_reset_email_failure(user.id, e)
+                raise ServiceException(
+                    "Couldn't send reset email. Please try again or contact support.",
+                    code="PASSWORD_RESET_EMAIL_FAILED",
+                ) from e
 
-        # Always return True to prevent email enumeration
+            if not email_sent:
+                error = RuntimeError("send_password_reset_email returned False")
+                self._capture_reset_email_failure(user.id, error)
+                raise ServiceException(
+                    "Couldn't send reset email. Please try again or contact support.",
+                    code="PASSWORD_RESET_EMAIL_FAILED",
+                ) from error
+
+            self.logger.info("Password reset token created for user %s", user.id)
+
         return True
+
+    def _capture_reset_email_failure(self, user_id: str, exc: Exception) -> None:
+        self.logger.error(
+            "Password reset email failed",
+            extra={"user_id": user_id},
+            exc_info=exc,
+        )
+        capture_sentry_exception("password_reset_email_failed", exc, user_id=user_id)
 
     @BaseService.measure_operation("verify_reset_token")
     def verify_reset_token(self, token: str) -> Tuple[bool, Optional[str]]:

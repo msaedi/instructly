@@ -10942,6 +10942,14 @@ export type TestRateLimitApiV1OpsRateLimitsTestGetParams = {
   requests?: number;
 };
 
+export type RequestPasswordResetApiV1PasswordResetRequestPost404 = {
+  detail: string;
+};
+
+export type RequestPasswordResetApiV1PasswordResetRequestPost503 = {
+  detail: string;
+};
+
 export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
   return_to?: string | null;
 };

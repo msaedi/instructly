@@ -12,6 +12,17 @@ import { env } from '@/lib/env';
 const STAFF_COOKIE_NAME = 'staff_access_token';
 const STAFF_LOGIN_PATH = '/staff-login';
 
+// Paths that recover account access for unauthenticated users.
+// These MUST NOT route through the staff gate because:
+// 1. Users on these paths cannot have a staff session yet
+// 2. The ?token= param on these paths is a user-facing auth token,
+//    not a staff-access token, and must reach the page intact
+const AUTH_RECOVERY_PATHS = ['/reset-password', '/forgot-password', '/verify-email'] as const;
+
+function isAuthRecoveryPath(pathname: string): boolean {
+  return AUTH_RECOVERY_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 function isPublicAssetPath(pathname: string): boolean {
   return (
     pathname.startsWith('/_next/') ||
@@ -60,6 +71,10 @@ export async function proxy(request: NextRequest) {
 
   // Skip protection for public assets and login page
   if (isPublicAssetPath(pathname)) {
+    return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
+  }
+
+  if (isAuthRecoveryPath(pathname)) {
     return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
   }
 
