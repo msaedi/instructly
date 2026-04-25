@@ -1,3 +1,5 @@
+import logging
+
 # backend/tests/routes/test_password_reset_routes.py
 """
 Comprehensive test suite for password reset routes.
@@ -5,13 +7,13 @@ Tests all endpoints and error scenarios.
 FIXED: Using proper dependency injection pattern with EmailService
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from fastapi import status
+from fastapi import HTTPException, status
 import pytest
 
 from app.api.dependencies.services import get_password_reset_service
-from app.core.exceptions import ValidationException
+from app.core.exceptions import NotFoundException, ServiceException, ValidationException
 from app.main import fastapi_app as app
 from app.models.password_reset import PasswordResetToken
 from app.services.email import EmailService
@@ -61,8 +63,115 @@ class TestPasswordResetRoutes:
         # Verify
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert "If an account exists" in data["message"]
+        assert data["message"] == "Check your email for the reset link."
         mock_password_reset_service.request_password_reset.assert_called_once_with(email="test@example.com")
+
+    def test_request_password_reset_unknown_email(self, client_with_mock_service, mock_password_reset_service):
+        """Test password reset request with an email that has no account."""
+        mock_password_reset_service.request_password_reset = Mock(
+            side_effect=NotFoundException(
+                "Password reset account not found",
+                code="PASSWORD_RESET_ACCOUNT_NOT_FOUND",
+            )
+        )
+
+        response = client_with_mock_service.post(
+            "/api/v1/password-reset/request",
+            json={"email": "missing@example.com"},
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == (
+            "We couldn't find an account with that email. Please double-check and try again."
+        )
+
+    def test_request_password_reset_email_delivery_failure(
+        self, client_with_mock_service, mock_password_reset_service
+    ):
+        """Test password reset request when reset email delivery fails."""
+        mock_password_reset_service.request_password_reset = Mock(
+            side_effect=ServiceException(
+                "Couldn't send reset email. Please try again or contact support.",
+                code="PASSWORD_RESET_EMAIL_FAILED",
+            )
+        )
+
+        response = client_with_mock_service.post(
+            "/api/v1/password-reset/request",
+            json={"email": "test@example.com"},
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["detail"] == (
+            "Couldn't send reset email. Please try again or contact support."
+        )
+
+    def test_request_password_reset_unknown_service_exception_maps_to_500(
+        self, client_with_mock_service, mock_password_reset_service, caplog
+    ):
+        """If a future ServiceException code is added without explicit handling,
+        the route returns 500 with the route-local message rather than swallowing
+        into the global handler.
+        """
+        mock_password_reset_service.request_password_reset = Mock(
+            side_effect=ServiceException(
+                "Future password reset service failure",
+                code="PASSWORD_RESET_FUTURE_FAILURE",
+            )
+        )
+
+        with caplog.at_level(logging.ERROR):
+            response = client_with_mock_service.post(
+                "/api/v1/password-reset/request",
+                json={"email": "test@example.com"},
+            )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.json()["detail"] == "An error occurred while requesting your password reset."
+        assert any(
+            record.getMessage() == "Unhandled ServiceException code in password reset request"
+            and getattr(record, "code", None) == "PASSWORD_RESET_FUTURE_FAILURE"
+            for record in caplog.records
+        )
+
+    def test_request_password_reset_unhandled_exception_maps_to_500(
+        self, client_with_mock_service, mock_password_reset_service
+    ):
+        """Unexpected raw exception is mapped to 500 with the route-local
+        detail message and is logged via logger.exception.
+        """
+        mock_password_reset_service.request_password_reset = Mock(
+            side_effect=RuntimeError("database unavailable")
+        )
+
+        with patch("app.routes.v1.password_reset.logger.exception") as mock_logger_exception:
+            response = client_with_mock_service.post(
+                "/api/v1/password-reset/request",
+                json={"email": "test@example.com"},
+            )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.json()["detail"] == "An error occurred while requesting your password reset."
+        mock_logger_exception.assert_called_once()
+
+    def test_request_password_reset_preserves_http_exceptions(
+        self, client_with_mock_service, mock_password_reset_service
+    ):
+        """HTTP exceptions from dependencies should not be recast as 500s."""
+        mock_password_reset_service.request_password_reset = Mock(
+            side_effect=HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many password reset attempts. Please try again later.",
+            )
+        )
+
+        response = client_with_mock_service.post(
+            "/api/v1/password-reset/request",
+            json={"email": "test@example.com"},
+        )
+
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert response.json()["detail"] == "Too many password reset attempts. Please try again later."
 
     def test_request_password_reset_invalid_email(self, client):
         """Test password reset request with invalid email format."""
@@ -196,8 +305,14 @@ class TestPasswordResetRoutes:
         assert response.status_code == status.HTTP_200_OK
         mock_password_reset_service.verify_reset_token.assert_called_once_with(token=token_with_special)
 
-    def test_request_password_reset_rate_limiting(self, client_with_mock_service, mock_password_reset_service):
-        """Test that multiple reset requests are handled properly."""
+    def test_request_password_reset_handles_repeated_requests(
+        self, client_with_mock_service, mock_password_reset_service
+    ):
+        """Multiple sequential requests for the same email succeed at the
+        route layer when the service accepts each. Rate limiting itself
+        is enforced at the dependency layer and tested separately via
+        test_request_password_reset_preserves_http_exceptions.
+        """
         email = "test@example.com"
 
         # Execute multiple requests
@@ -242,6 +357,38 @@ class TestPasswordResetIntegration:
         mock.send_password_reset_email = Mock(return_value=True)
         mock.send_password_reset_confirmation = Mock(return_value=True)
         return mock
+
+    def test_request_password_reset_email_false_return_captures_sentry(
+        self, client, db, test_student, mock_email_service
+    ):
+        """A valid account with reset email failure should return 503 and be observable."""
+        mock_email_service.send_password_reset_email.return_value = False
+
+        def override_get_password_reset_service():
+            return PasswordResetService(db, email_service=mock_email_service)
+
+        app.dependency_overrides[get_password_reset_service] = override_get_password_reset_service
+
+        try:
+            with patch(
+                "app.services.password_reset_service.capture_sentry_exception"
+            ) as mock_capture:
+                response = client.post(
+                    "/api/v1/password-reset/request",
+                    json={"email": test_student.email},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["detail"] == (
+            "Couldn't send reset email. Please try again or contact support."
+        )
+        mock_capture.assert_called_once()
+        capture_args, capture_kwargs = mock_capture.call_args
+        assert capture_args[0] == "password_reset_email_failed"
+        assert isinstance(capture_args[1], RuntimeError)
+        assert capture_kwargs == {"user_id": test_student.id}
 
     @pytest.mark.asyncio
     async def test_complete_password_reset_flow(self, client, db, test_student, mock_email_service):

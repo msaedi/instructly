@@ -8,11 +8,12 @@ FIXED VERSION: Updated for EmailService dependency injection
 """
 
 from datetime import datetime, timedelta, timezone
+import logging
 from unittest.mock import Mock
 
 import pytest
 
-from app.core.exceptions import ValidationException
+from app.core.exceptions import NotFoundException, ServiceException, ValidationException
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 from app.services.email import EmailService
@@ -83,13 +84,62 @@ class TestPasswordResetService:
         assert "reset_url" in email_call.kwargs
 
     def test_request_password_reset_nonexistent_user(self, password_reset_service, mock_email_service):
-        """Test password reset for non-existent user - should still return True."""
-        # Execute
-        result = password_reset_service.request_password_reset("nonexistent@example.com")
+        """Test password reset for non-existent user raises a clear not-found error."""
+        with pytest.raises(NotFoundException) as exc_info:
+            password_reset_service.request_password_reset("nonexistent@example.com")
 
-        # Verify - returns True to prevent email enumeration
-        assert result is True
+        assert exc_info.value.code == "PASSWORD_RESET_ACCOUNT_NOT_FOUND"
         mock_email_service.send_password_reset_email.assert_not_called()
+
+    def test_request_password_reset_unknown_email_does_not_log_email_value(
+        self, password_reset_service, mock_email_service, caplog
+    ):
+        """The 404 path is a confirmation oracle for known/unknown email
+        addresses. Logging the email at WARNING level when no account
+        matches would expose unconfirmed emails to log destinations
+        (Sentry breadcrumbs, log aggregation, structured search).
+
+        Pin the no-email-in-log behavior so a future refactor doesn't
+        silently reintroduce %s formatting on this branch.
+        """
+        email = "never-registered@example.com"
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(NotFoundException):
+                password_reset_service.request_password_reset(email=email)
+
+        log_text = " ".join(record.getMessage() for record in caplog.records)
+        assert email not in log_text
+        assert "non-existent email" in log_text
+        mock_email_service.send_password_reset_email.assert_not_called()
+
+    def test_request_password_reset_email_false_return_is_observable(
+        self, password_reset_service, unique_test_user, mock_email_service, monkeypatch, db
+    ):
+        """False from email delivery is treated as a user-visible service failure."""
+        captured: list[tuple[str, Exception, dict[str, object]]] = []
+        mock_email_service.send_password_reset_email.return_value = False
+        monkeypatch.setattr(
+            "app.services.password_reset_service.capture_sentry_exception",
+            lambda event, exc, **extras: captured.append((event, exc, extras)),
+        )
+
+        with pytest.raises(ServiceException) as exc_info:
+            password_reset_service.request_password_reset(unique_test_user.email)
+
+        assert exc_info.value.code == "PASSWORD_RESET_EMAIL_FAILED"
+        assert len(captured) == 1
+        event, captured_error, extras = captured[0]
+        assert event == "password_reset_email_failed"
+        assert extras == {"user_id": unique_test_user.id}
+        assert isinstance(captured_error, RuntimeError)
+        assert str(captured_error) == "send_password_reset_email returned False"
+        remaining_tokens = (
+            db.query(PasswordResetToken)
+            .filter_by(user_id=unique_test_user.id, used=False)
+            .all()
+        )
+        assert remaining_tokens == [], "Transaction did not roll back; tokens remain after failure"
 
     def test_request_password_reset_invalidates_existing_tokens(
         self, password_reset_service, unique_test_user, db, mock_email_service
@@ -121,15 +171,14 @@ class TestPasswordResetService:
     def test_request_password_reset_email_error_handled(
         self, password_reset_service, unique_test_user, mock_email_service
     ):
-        """Test that email sending errors are handled gracefully."""
+        """Test that email sending exceptions become reset-email service failures."""
         # Email service throws error
         mock_email_service.send_password_reset_email.side_effect = Exception("Email service down")
 
-        # Execute
-        result = password_reset_service.request_password_reset(unique_test_user.email)
+        with pytest.raises(ServiceException) as exc_info:
+            password_reset_service.request_password_reset(unique_test_user.email)
 
-        # Verify - still returns True
-        assert result is True
+        assert exc_info.value.code == "PASSWORD_RESET_EMAIL_FAILED"
 
     def test_verify_reset_token_valid(self, password_reset_service, unique_test_user, db):
         """Test verification of valid reset token."""
@@ -463,27 +512,16 @@ class TestPasswordResetSecurityScenarios:
             password_reset_service.confirm_password_reset("reuse_test_token", "NewPassword123!")
         assert "already been used" in str(exc_info.value)
 
-    def test_timing_attack_prevention(self, password_reset_service, unique_test_user, mock_email_service):
-        """Test that response time is consistent for existing and non-existing users."""
-        import time
+    def test_nonexistent_reset_requests_raise_not_found(
+        self, password_reset_service, unique_test_user, mock_email_service
+    ):
+        """Forgot password intentionally diverges from anti-enumeration behavior."""
+        assert password_reset_service.request_password_reset(unique_test_user.email) is True
 
-        # Test with existing user
-        start = time.time()
-        result1 = password_reset_service.request_password_reset(unique_test_user.email)
-        time1 = time.time() - start
+        with pytest.raises(NotFoundException) as exc_info:
+            password_reset_service.request_password_reset("notexists@example.com")
 
-        # Test with non-existing user
-        start = time.time()
-        result2 = password_reset_service.request_password_reset("notexists@example.com")
-        time2 = time.time() - start
-
-        # Both should return True
-        assert result1 is True
-        assert result2 is True
-
-        # Response times should be similar (within 100ms)
-        # Note: This is a basic check - in production you'd want more sophisticated timing attack prevention
-        assert abs(time1 - time2) < 0.1
+        assert exc_info.value.code == "PASSWORD_RESET_ACCOUNT_NOT_FOUND"
 
     def test_token_entropy(self, password_reset_service, unique_test_user, db):
         """Test that tokens have sufficient entropy."""

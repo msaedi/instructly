@@ -53538,5 +53538,629 @@
     "first_commit_date": "2025-06-07",
     "last_commit_date": "2026-04-24",
     "branch": "fix/account-pause-delete-ux"
+  },
+  {
+    "timestamp": "2026-04-25T12:13:38.837306+00:00",
+    "total_lines": 816093,
+    "total_files": 3253,
+    "backend_lines": 465362,
+    "frontend_lines": 350731,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61922
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184043
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 43416
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-24",
+    "branch": "fix/forgot-password-flow"
+  },
+  {
+    "timestamp": "2026-04-25T12:34:48.474059+00:00",
+    "total_lines": 816130,
+    "total_files": 3253,
+    "backend_lines": 465395,
+    "frontend_lines": 350735,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61949
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184049
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 43420
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-25",
+    "branch": "fix/forgot-password-flow"
+  },
+  {
+    "timestamp": "2026-04-25T12:49:25.562855+00:00",
+    "total_lines": 816166,
+    "total_files": 3253,
+    "backend_lines": 465422,
+    "frontend_lines": 350744,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10463
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61970
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184055
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 149,
+          "lines": 43428
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Public": {
+          "files": 2,
+          "lines": 892
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-25",
+    "branch": "fix/forgot-password-flow"
+  },
+  {
+    "timestamp": "2026-04-25T13:07:55.724835+00:00",
+    "total_lines": 816177,
+    "total_files": 3253,
+    "backend_lines": 465433,
+    "frontend_lines": 350744,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10468
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61976
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184055
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 43428
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-25",
+    "branch": "fix/forgot-password-flow"
+  },
+  {
+    "timestamp": "2026-04-25T13:23:55.528359+00:00",
+    "total_lines": 816201,
+    "total_files": 3253,
+    "backend_lines": 465457,
+    "frontend_lines": 350744,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10470
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61979
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184074
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 43428
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-25",
+    "branch": "fix/forgot-password-flow"
+  },
+  {
+    "timestamp": "2026-04-25T13:47:03.282569+00:00",
+    "total_lines": 816212,
+    "total_files": 3253,
+    "backend_lines": 465468,
+    "frontend_lines": 350744,
+    "git_commits": 1825,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 219,
+          "lines": 34134
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6981
+        },
+        "Tasks/Celery": {
+          "files": 77,
+          "lines": 20235
+        },
+        "Core/Config": {
+          "files": 64,
+          "lines": 10470
+        },
+        "Repositories": {
+          "files": 261,
+          "lines": 46200
+        },
+        "Models": {
+          "files": 69,
+          "lines": 9567
+        },
+        "Schemas": {
+          "files": 114,
+          "lines": 13396
+        },
+        "Routes/APIs": {
+          "files": 232,
+          "lines": 61990
+        },
+        "Services": {
+          "files": 536,
+          "lines": 184074
+        },
+        "Unit Tests": {
+          "files": 134,
+          "lines": 22003
+        },
+        "Integration Tests": {
+          "files": 145,
+          "lines": 28283
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 2,
+          "lines": 892
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 43428
+        },
+        "Components": {
+          "files": 434,
+          "lines": 143157
+        },
+        "Hooks": {
+          "files": 162,
+          "lines": 35868
+        },
+        "Features": {
+          "files": 88,
+          "lines": 28300
+        },
+        "Unit Tests": {
+          "files": 36,
+          "lines": 5108
+        },
+        "API/Lib": {
+          "files": 105,
+          "lines": 10977
+        },
+        "Utils": {
+          "files": 30,
+          "lines": 3843
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2488
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 8891
+        }
+      }
+    },
+    "backend_files": 2084,
+    "frontend_files": 1169,
+    "unique_contributors": 2,
+    "first_commit_date": "2025-06-07",
+    "last_commit_date": "2026-04-25",
+    "branch": "fix/forgot-password-flow"
   }
 ]

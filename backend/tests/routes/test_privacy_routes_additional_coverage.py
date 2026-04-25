@@ -76,7 +76,42 @@ async def test_delete_my_data_value_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_my_data_anonymize_failure(monkeypatch):
+async def test_delete_my_data_anonymize_false_return_completes(monkeypatch):
+    """
+    REGRESSION TEST: documents a known production regression introduced
+    by PR #452 (commit 4524a6f2f).
+
+    The route _anonymize_current_account no longer checks the return
+    value of PrivacyService.anonymize_user(). Before #452, the route
+    raised an exception on False return. The dead-code removal in #452
+    round 6 was based on a reviewer claim that the False branch was
+    unreachable; that claim was incorrect.
+
+    Today, if anonymize_user returns False (which the service contract
+    technically allows), the route silently continues, runs token
+    invalidation, sends the confirmation email, runs the audit log,
+    and returns status='success' to the user. The user is told their
+    data was anonymized when it may not have been.
+
+    This test pins the current (buggy) behavior so unrelated refactors
+    don't change it silently. It does NOT assert this is correct
+    product behavior.
+
+    Fix path: restore an explicit `if not success: raise` check in
+    _anonymize_current_account, OR enforce in PrivacyService.anonymize_user
+    that it never returns False (always raises on failure).
+
+    This regression is intentionally NOT bundled into the forgot-password
+    PR (#453) where this test was renamed; the privacy bug is unrelated
+    to forgot-password scope. The fix should land in a follow-up PR titled
+    "fix(privacy): anonymize-only path returns success on False return".
+
+    When the fix lands, this test should be:
+    1. Reverted to expect HTTPException(500)
+    2. Renamed back to test_delete_my_data_anonymize_failure
+    3. Updated to remove this docstring
+    """
+
     class _ServiceStub:
         def __init__(self, _db):
             pass
@@ -84,18 +119,30 @@ async def test_delete_my_data_anonymize_failure(monkeypatch):
         def anonymize_user(self, *_args, **_kwargs):
             return False
 
+    async def _noop_invalidate(*_args, **_kwargs):
+        return None
+
+    def _noop_audit(*_args, **_kwargs):
+        return None
+
     monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+    monkeypatch.setattr(routes, "_invalidate_anonymized_account_tokens", _noop_invalidate)
+    monkeypatch.setattr(routes, "_log_privacy_action_audit", _noop_audit)
+    notification_service = _NotificationStub()
 
-    with pytest.raises(HTTPException) as exc:
-        await routes.delete_my_data(
-            request=UserDataDeletionRequest(delete_account=False),
-            http_request=_dummy_request(),
-            current_user=_dummy_user(),
-            db=None,
-            notification_service=_NotificationStub(),
-        )
+    response = await routes.delete_my_data(
+        request=UserDataDeletionRequest(delete_account=False),
+        http_request=_dummy_request(),
+        current_user=_dummy_user(),
+        db=None,
+        notification_service=notification_service,
+    )
 
-    assert exc.value.status_code == 500
+    assert response.status == "success"
+    assert response.account_deleted is False
+    assert notification_service.anonymized_confirmations == [
+        {"to_email": "user@example.com", "first_name": "Alex"}
+    ]
 
 
 @pytest.mark.asyncio

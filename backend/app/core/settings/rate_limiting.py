@@ -50,11 +50,18 @@ class RateLimitingSettingsMixin:
         default=20,
         description="Authentication attempts per minute per IP (generous - DDoS protection only; email-based limiting handles brute force)",
     )
+    # 3/hour/email limits reset-email spam against a known account while
+    # still allowing submit, correct, and retry flows in an hour.
     rate_limit_password_reset_per_hour: int = Field(
-        default=5, description="Password reset requests per hour per email"
+        default=3, description="Password reset requests per hour per email"
     )
+    # 3/hour/IP is intentionally tight while iNSTAiNSTRU is invite-only.
+    # Combined with the 404 anti-enumeration override on this endpoint,
+    # this rate limit is our primary defense against email enumeration.
+    # REVISIT AT PUBLIC LAUNCH alongside the password_reset_service
+    # anti-enumeration override.
     rate_limit_password_reset_ip_per_hour: int = Field(
-        default=10, description="Password reset requests per hour per IP"
+        default=3, description="Password reset requests per hour per IP"
     )
     rate_limit_register_per_hour: int = Field(
         default=10, description="Registration attempts per hour per IP"
