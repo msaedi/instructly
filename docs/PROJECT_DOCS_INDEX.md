@@ -33,6 +33,7 @@
 |------|-------------|
 | `architecture/NL-Search-Architecture-Documentation.md` | Complete NL Search system design |
 | `architecture/availability-bitmap.md` | Bitmap-based availability system |
+| `architecture/launch-state-and-capabilities.md` | Two-axis launch state model for instructor/student access, capabilities, overrides, account lifecycle, and founding slot ledger |
 | `architecture/location-architecture.md` | PostGIS spatial architecture |
 | `architecture/messaging-architecture.md` | Real-time messaging with SSE |
 | `architecture/rbac-system-overview.md` | RBAC with 30 permissions |
